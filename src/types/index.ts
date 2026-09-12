@@ -107,6 +107,19 @@ export interface RegistrationSubmission {
   };
 }
 
+export interface UserRegistration {
+  id: string;
+  username: string;
+  email: string;
+  password_hash: string;
+  type: string;
+  company_id: string;
+  company_name: string;
+  full_name: string;
+  mobile_number: string;
+  created_at: string;
+}
+
 export interface ExternalIdResolution {
   category: CompanyCategory;
   haulier_id: string;

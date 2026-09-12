@@ -9,7 +9,7 @@ import {
   VehicleData,
   PortConfig,
 } from '../../types';
-import { getPorts, getCompanyById, saveSubmission, saveCompany, getAutoAssignedPorts } from '../../services/storage';
+import { getPorts, getCompanyById, saveSubmission, saveCompany, saveUserRegistration, getAutoAssignedPorts } from '../../services/storage';
 import { PortSelection } from './PortSelection';
 import { TypeSelection } from './TypeSelection';
 import { CompanyLookup } from './CompanyLookup';
@@ -22,6 +22,7 @@ import { StatusTrackerModal } from './StatusTrackerModal';
 import { Logo } from '../common/Logo';
 import { Check, Search } from 'lucide-react';
 import { HaulierGuidelinePage } from './HaulierGuidelinePage';
+import { UserAccessForm, UserAccessFormData } from './forms/UserAccessForm';
 
 interface RegistrationWizardProps {
   onSwitchToAdmin: () => void;
@@ -35,6 +36,7 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
 
   // Form State
   const [companyFormData, setCompanyFormData] = useState<CompanyFormData | undefined>();
+  const [userAccessFormData, setUserAccessFormData] = useState<UserAccessFormData | undefined>();
   const [driverFormDataList, setDriverFormDataList] = useState<DriverData[]>([]);
   const [trailerFormDataList, setTrailerFormDataList] = useState<TrailerData[]>([]);
   const [vehicleFormDataList, setVehicleFormDataList] = useState<VehicleData[]>([]);
@@ -76,7 +78,12 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
 
   const handleCompanySubmit = (data: CompanyFormData) => {
     setCompanyFormData(data);
-    setCurrentStep(5); // Review
+    setCurrentStep(5); // User access
+  };
+
+  const handleUserAccessSubmit = (data: UserAccessFormData) => {
+    setUserAccessFormData(data);
+    setCurrentStep(6); // Review
   };
 
   const handleDriverSubmit = (data: DriverData[]) => {
@@ -141,6 +148,14 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
         status: 'ACTIVE',
       });
       compId = newComp.id;
+      if (userAccessFormData) {
+        saveUserRegistration({
+          ...userAccessFormData,
+          type: 'COMPANY_ADMIN',
+          company_id: newComp.id,
+          company_name: newComp.name,
+        });
+      }
     } else {
       subByName = selectedCompany?.contact_name || 'Fleet Operator';
       subByEmail = selectedCompany?.contact_email || '';
@@ -176,7 +191,7 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
     });
 
     setSubmittedRefNo(refNo);
-    setCurrentStep(6); // Success
+    setCurrentStep(7); // Success
   };
 
   const handleReset = () => {
@@ -185,6 +200,7 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
     setSelectedType(null);
     setSelectedCompany(null);
     setCompanyFormData(undefined);
+    setUserAccessFormData(undefined);
     setDriverFormDataList([]);
     setTrailerFormDataList([]);
     setVehicleFormDataList([]);
@@ -235,9 +251,9 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
               { num: 1, label: 'Port' },
               { num: 2, label: 'Registration Type' },
               { num: 3, label: 'Company Details' },
-              { num: 4, label: 'Review' },
+              { num: 4, label: selectedType === 'COMPANY' && currentStep === 5 ? 'User Access' : 'Review' },
             ].map((step, idx) => {
-              const visualStep = currentStep === 1 ? 1 : currentStep <= 3 ? 2 : currentStep === 4 ? 3 : 4;
+              const visualStep = currentStep === 1 ? 1 : currentStep <= 3 ? 2 : currentStep === 4 ? 3 : currentStep === 5 && selectedType === 'COMPANY' ? 4 : 4;
               const isPast = visualStep > step.num;
               const isCurrent = visualStep === step.num;
 
@@ -318,6 +334,14 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
           />
         )}
 
+        {currentStep === 5 && selectedType === 'COMPANY' && companyFormData && (
+          <UserAccessForm
+            companyName={companyFormData.name}
+            onSubmit={handleUserAccessSubmit}
+            onBack={() => setCurrentStep(4)}
+          />
+        )}
+
         {currentStep === 4 && selectedType === 'DRIVER' && selectedCompany && currentPort && (
           <DriverForm
             company={selectedCompany}
@@ -346,7 +370,7 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
         )}
 
         {/* Step 5: Review & Submit */}
-        {currentStep === 5 && selectedLocation && selectedType && (
+        {((currentStep === 5 && selectedType !== 'COMPANY') || (currentStep === 6 && selectedType === 'COMPANY')) && selectedLocation && selectedType && (
           <ReviewScreen
             location={selectedLocation}
             port={currentPort}
@@ -367,7 +391,7 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
         )}
 
         {/* Step 6: Confirmation Screen */}
-        {currentStep === 6 && selectedType && (
+        {currentStep === 7 && selectedType && (
           <SuccessScreen
             referenceNo={submittedRefNo}
             type={selectedType}

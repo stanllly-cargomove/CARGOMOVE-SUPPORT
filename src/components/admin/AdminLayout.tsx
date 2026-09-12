@@ -11,6 +11,7 @@ import {
   RotateCcw,
   BookOpen,
   Wrench,
+  UserRoundPlus,
   ChevronDown,
   Moon,
   Sun,
@@ -22,6 +23,7 @@ import { ExcelExportCenter } from './ExcelExportCenter';
 import { PortDepotConfig } from './PortDepotConfig';
 import { SchemaMappingInspector } from './SchemaMappingInspector';
 import { GuidelineManager } from './GuidelineManager';
+import { UserRegistration } from './UserRegistration';
 import { resetToDemoData } from '../../services/storage';
 import { Logo } from '../common/Logo';
 import { notifyError, notifySuccess } from '../common/notifications';
@@ -62,6 +64,7 @@ export function AdminLayout({ onSwitchToCustomer }: AdminLayoutProps) {
     { id: 'dashboard', label: 'Operations Dashboard', icon: LayoutDashboard },
     { id: 'companies', label: 'Company Master', icon: Building2 },
     { id: 'submissions', label: 'Registrations Queue', icon: Inbox },
+    { id: 'user-registration', label: 'User Registration', icon: UserRoundPlus },
   ];
 
   const devToolItems = [
@@ -224,6 +227,7 @@ export function AdminLayout({ onSwitchToCustomer }: AdminLayoutProps) {
           )}
           {activeTab === 'companies' && <CompanyMaster />}
           {activeTab === 'submissions' && <SubmissionsList />}
+          {activeTab === 'user-registration' && <UserRegistration />}
           {activeTab === 'guidelines' && (
             <GuidelineManager onPreviewCustomerView={onSwitchToCustomer} />
           )}

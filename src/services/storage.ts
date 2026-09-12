@@ -7,6 +7,7 @@ import {
   RegistrationType,
   SubmissionStatus,
   HaulierGuideline,
+  UserRegistration,
 } from '../types';
 import { normalizeCompanyType, normalizeRegNo } from './companyHelper';
 import { deleteSupabaseRow, fetchSupabaseSnapshot, isSupabaseConfigured, upsertSupabaseRow } from './supabase';
@@ -18,6 +19,7 @@ const STORAGE_KEYS = {
   SUBMISSIONS: 'port_reg_submissions_v1',
   INITIALIZED: 'port_reg_initialized_v1',
   HAULIER_GUIDELINE: 'port_reg_haulier_guideline_v1',
+  USER_REGISTRATIONS: 'port_reg_user_registrations_v1',
 };
 
 // Default ports matching prompt section 1 & 10
@@ -445,6 +447,7 @@ function syncCompany(company: Company) { void upsertSupabaseRow('companies', com
 function syncPort(port: PortConfig) { void upsertSupabaseRow('port_configs', port); }
 function syncDepot(depot: DepotConfig) { void upsertSupabaseRow('depot_configs', depot); }
 function syncSubmission(submission: RegistrationSubmission) { void upsertSupabaseRow('registration_submissions', submission); }
+function syncUserRegistration(user: UserRegistration) { void upsertSupabaseRow('user_registrations', user); }
 
 async function hydrateFromSupabase() {
   if (!isSupabaseConfigured || remoteHydrationStarted) return;
@@ -455,6 +458,7 @@ async function hydrateFromSupabase() {
   localStorage.setItem(STORAGE_KEYS.DEPOTS, JSON.stringify(snapshot.depots));
   localStorage.setItem(STORAGE_KEYS.COMPANIES, JSON.stringify(snapshot.companies));
   localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(snapshot.submissions));
+  localStorage.setItem(STORAGE_KEYS.USER_REGISTRATIONS, JSON.stringify(snapshot.userRegistrations));
   if (snapshot.guideline) localStorage.setItem(STORAGE_KEYS.HAULIER_GUIDELINE, JSON.stringify(snapshot.guideline));
   notifyListeners();
 }
@@ -501,6 +505,7 @@ export function initStorage(): void {
         } : submission.data.company,
       },
     }))));
+    localStorage.setItem(STORAGE_KEYS.USER_REGISTRATIONS, JSON.stringify([]));
     localStorage.setItem(STORAGE_KEYS.INITIALIZED, 'true');
   } else {
     // Keep existing browser data aligned with the current port backend master list.
@@ -601,6 +606,7 @@ export function resetStorage(): void {
     ...submission,
     port_id: submission.port_id === 'jh-pg-ics' || submission.port_id === 'jh-pg-depot' ? 'johor-port' : submission.port_id,
   }))));
+  localStorage.setItem(STORAGE_KEYS.USER_REGISTRATIONS, JSON.stringify([]));
   localStorage.setItem(STORAGE_KEYS.HAULIER_GUIDELINE, JSON.stringify(DEFAULT_HAULIER_GUIDELINE));
   localStorage.setItem(STORAGE_KEYS.INITIALIZED, 'true');
   notifyListeners();
@@ -949,6 +955,32 @@ export function saveSubmission(
   syncSubmission(newSubmission);
   notifyListeners();
   return newSubmission;
+}
+
+export function getUserRegistrations(): UserRegistration[] {
+  initStorage();
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.USER_REGISTRATIONS);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveUserRegistration(
+  userData: Omit<UserRegistration, 'id' | 'created_at'>
+): UserRegistration {
+  const users = getUserRegistrations();
+  const user: UserRegistration = {
+    ...userData,
+    id: `user-${Date.now()}`,
+    created_at: new Date().toISOString(),
+  };
+  users.unshift(user);
+  localStorage.setItem(STORAGE_KEYS.USER_REGISTRATIONS, JSON.stringify(users));
+  syncUserRegistration(user);
+  notifyListeners();
+  return user;
 }
 
 export function updateSubmissionStatus(

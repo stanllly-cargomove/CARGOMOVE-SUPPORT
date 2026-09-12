@@ -14,14 +14,15 @@ export const supabase = isSupabaseConfigured
 
 export async function fetchSupabaseSnapshot() {
   if (!supabase) return null;
-  const [ports, depots, companies, submissions, guidelines] = await Promise.all([
+  const [ports, depots, companies, submissions, userRegistrations, guidelines] = await Promise.all([
     supabase.from('port_configs').select('*'),
     supabase.from('depot_configs').select('*'),
     supabase.from('companies').select('*'),
     supabase.from('registration_submissions').select('*').order('submitted_at', { ascending: false }),
+    supabase.from('user_registrations').select('*').order('created_at', { ascending: false }),
     supabase.from('haulier_guidelines').select('content').eq('id', 'default').maybeSingle(),
   ]);
-  const failed = [ports, depots, companies, submissions, guidelines].find((result) => result.error);
+  const failed = [ports, depots, companies, submissions, userRegistrations, guidelines].find((result) => result.error);
   if (failed?.error) {
     console.error('Supabase read failed:', failed.error.message);
     return null;
@@ -31,6 +32,7 @@ export async function fetchSupabaseSnapshot() {
     depots: depots.data || [],
     companies: (companies.data || []).map((company: any) => ({ ...company, ...company.details, details: undefined })),
     submissions: submissions.data || [],
+    userRegistrations: userRegistrations.data || [],
     guideline: guidelines.data?.content || null,
   };
 }
