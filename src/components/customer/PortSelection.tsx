@@ -1,6 +1,6 @@
 import React from 'react';
 import { PortLocation, PortConfig } from '../../types';
-import { Anchor, Truck, Check, ArrowRight, ExternalLink, Info } from 'lucide-react';
+import { Anchor, Truck, Check, ArrowRight, ExternalLink } from 'lucide-react';
 
 interface PortSelectionProps {
   selectedLocation: PortLocation | null;
@@ -37,11 +37,7 @@ export function PortSelection({
         {/* Port Klang Card: PORT KLANG - CONVENTIONAL USER REGISTRATION */}
         <div
           onClick={handlePortKlangClick}
-          className={`relative rounded-lg p-5 sm:p-6 border transition-all cursor-pointer bg-white flex flex-col justify-between min-h-[300px] ${
-            selectedLocation === 'PORT_KLANG'
-              ? 'border-[#0095e8] shadow-[0_8px_24px_rgba(15,23,42,0.08)] ring-2 ring-sky-100'
-              : 'border-[#d9e3ef] shadow-[0_2px_8px_rgba(15,23,42,0.04)] hover:-translate-y-1 hover:border-[#0095e8] hover:shadow-[0_8px_24px_rgba(15,23,42,0.08)]'
-          }`}
+          className="relative rounded-lg p-5 sm:p-6 border border-[#d9e3ef] shadow-[0_2px_8px_rgba(15,23,42,0.04)] cursor-pointer bg-white flex flex-col justify-between min-h-[300px]"
         >
           <div>
             <div className="flex items-center gap-4 mb-3">
@@ -86,11 +82,7 @@ export function PortSelection({
         {/* Johor Card: JOHOR DEPOT - CONTAINER AND CONVENTIONAL REGISTRATION */}
         <div
           onClick={handleJohorClick}
-          className={`relative rounded-lg p-5 sm:p-6 border transition-all cursor-pointer bg-white flex flex-col justify-between min-h-[300px] ${
-            selectedLocation === 'JOHOR'
-              ? 'border-[#0095e8] shadow-[0_8px_24px_rgba(15,23,42,0.08)] ring-2 ring-sky-100'
-              : 'border-[#d9e3ef] shadow-[0_2px_8px_rgba(15,23,42,0.04)] hover:-translate-y-1 hover:border-[#0095e8] hover:shadow-[0_8px_24px_rgba(15,23,42,0.08)]'
-          }`}
+          className="relative rounded-lg p-5 sm:p-6 border border-[#d9e3ef] shadow-[0_2px_8px_rgba(15,23,42,0.04)] cursor-pointer bg-white flex flex-col justify-between min-h-[300px]"
         >
           <div>
             <div className="flex items-center gap-4 mb-3">
@@ -133,17 +125,9 @@ export function PortSelection({
         </div>
       </div>
 
-      <div className="min-h-[100px] rounded-lg border border-[#b8dfff] bg-[#f0f8ff] px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-4">
-        <div className="w-9 h-9 rounded-full bg-[#0095e8] text-white flex items-center justify-center shrink-0">
-          <Info className="w-5 h-5" />
-        </div>
+      <div className="rounded-lg border border-[#b8dfff] bg-[#f0f8ff] px-5 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="flex-1">
           <h3 className="text-base font-bold text-[#102a56]">Not sure which one?</h3>
-          <p className="text-xs sm:text-sm text-[#5b6b84] mt-1 leading-5">
-            WESTPORT &amp; NORTHPORT <span className="font-semibold">&rarr; choose Port Klang</span><br />
-            <span className="hidden sm:inline">&nbsp;&nbsp;|&nbsp;&nbsp;</span>
-            ICS / Pasir Gudang / Infinity <span className="font-semibold">&rarr; choose Johor</span>
-          </p>
         </div>
         {onOpenGuideline && (
           <button type="button" onClick={onOpenGuideline} className="inline-flex items-center gap-1.5 text-xs font-bold text-[#078be4] underline underline-offset-2 hover:text-[#007cc7] shrink-0">
