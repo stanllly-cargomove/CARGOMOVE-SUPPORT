@@ -5,12 +5,14 @@ export interface UserAccessFormData {
   username: string;
   email: string;
   password_hash: string;
+  password?: string;
   full_name: string;
   mobile_number: string;
 }
 
 interface UserAccessFormProps {
   companyName: string;
+  initialData?: UserAccessFormData;
   onSubmit: (data: UserAccessFormData) => void;
   onBack: () => void;
 }
@@ -25,13 +27,13 @@ async function hashPassword(password: string): Promise<string> {
   return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
-export function UserAccessForm({ companyName, onSubmit, onBack }: UserAccessFormProps) {
+export function UserAccessForm({ companyName, initialData, onSubmit, onBack }: UserAccessFormProps) {
   const [formData, setFormData] = useState({
-    username: '',
-    email: '',
-    password: '',
-    full_name: '',
-    mobile_number: '',
+    username: initialData?.username || '',
+    email: initialData?.email || '',
+    password: initialData?.password || '',
+    full_name: initialData?.full_name || '',
+    mobile_number: initialData?.mobile_number || '',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -64,6 +66,7 @@ export function UserAccessForm({ companyName, onSubmit, onBack }: UserAccessForm
         username: formData.username.trim(),
         email: formData.email.trim().toLowerCase(),
         password_hash: await hashPassword(formData.password),
+        password: formData.password,
         full_name: formData.full_name.trim(),
         mobile_number: formData.mobile_number.trim(),
       });

@@ -6,6 +6,8 @@ import { ArrowLeft, ArrowRight, Building2, Phone, Sparkles, CheckCircle2 } from 
 interface CompanyFormProps {
   initialLocation: PortLocation;
   initialPortId?: string;
+  initialData?: CompanyFormData;
+  initialPage?: number;
   onSubmit: (data: CompanyFormData) => void;
   onBack: () => void;
 }
@@ -42,12 +44,14 @@ function FieldError({ message }: { message?: string }) {
 
 export function CompanyForm({
   initialLocation,
+  initialData,
+  initialPage = 1,
   onSubmit,
   onBack,
 }: CompanyFormProps) {
   const autoPorts = getAutoAssignedPorts(initialLocation);
 
-  const [formData, setFormData] = useState<CompanyFormData>({
+  const [formData, setFormData] = useState<CompanyFormData>(initialData || {
     name: '',
     short_name: '',
     company_type: 'FORWARDER',
@@ -72,7 +76,7 @@ export function CompanyForm({
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = useState(initialPage);
   const [transitionDirection, setTransitionDirection] = useState<'forward' | 'backward'>('forward');
   const touchStartX = useRef<number | null>(null);
 
@@ -255,7 +259,7 @@ export function CompanyForm({
       </div>
 
       <div className="flex items-center justify-center gap-2 text-[10px] font-semibold text-slate-500">
-        {['Company Details', 'Registered Address', 'Person-Incharge Information'].map((label, index) => (
+        {['Company Details', 'Address', 'PIC Information'].map((label, index) => (
           <React.Fragment key={label}>
             <span className={currentPage === index + 1 ? 'text-[#0090e7]' : ''}>{index + 1}. {label}</span>
             {index < 2 && <span className="text-slate-300">/</span>}
@@ -561,6 +565,7 @@ export function CompanyForm({
           </div>
         </div>
       </div>}
+
       </div>
 
       {/* Action Buttons */}
@@ -586,11 +591,10 @@ export function CompanyForm({
         ) : (
           <button
             type="submit"
-            className="inline-flex h-9 items-center gap-1.5 px-5 py-0 rounded text-xs font-bold text-white bg-[#ea7a24] hover:bg-[#d96c1a] transition-colors shadow-xs"
+            className="inline-flex h-9 items-center gap-1.5 px-5 py-0 rounded text-xs font-bold text-white bg-[#0095e8] hover:bg-[#0078c8] transition-colors shadow-xs"
           >
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            Review Registration
             <ArrowRight className="w-3.5 h-3.5" />
+            Next: Login Account
           </button>
         )}
       </div>

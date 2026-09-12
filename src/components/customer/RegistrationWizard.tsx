@@ -47,6 +47,27 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
 
   const ports = getPorts();
   const currentPort = ports.find((p) => p.location === selectedLocation) || ports[0];
+  const reviewStep = selectedType === 'COMPANY' ? 6 : 5;
+  const activeProgressStep = currentStep === 1
+    ? 1
+    : currentStep <= 3
+    ? 2
+    : currentStep === 4
+    ? 3
+    : selectedType === 'COMPANY' && currentStep === 5
+    ? 4
+    : selectedType === 'COMPANY' && currentStep === 6
+    ? 5
+    : 4;
+  const progressSteps = [
+    { num: 1, label: 'Port' },
+    { num: 2, label: 'Registration Type' },
+    { num: 3, label: selectedType === 'COMPANY' ? 'Company Details' : 'Asset Details' },
+    ...(selectedType === 'COMPANY' && currentStep >= 5 ? [{ num: 4, label: 'User Access' }] : []),
+    ...(currentStep >= reviewStep
+      ? [{ num: selectedType === 'COMPANY' ? 5 : 4, label: 'Review Registration' }]
+      : []),
+  ];
 
   // Steps definition
   // 1: Port
@@ -150,7 +171,11 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
       compId = newComp.id;
       if (userAccessFormData) {
         saveUserRegistration({
-          ...userAccessFormData,
+          username: userAccessFormData.username,
+          email: userAccessFormData.email,
+          password_hash: userAccessFormData.password_hash,
+          full_name: userAccessFormData.full_name,
+          mobile_number: userAccessFormData.mobile_number,
           type: 'COMPANY_ADMIN',
           company_id: newComp.id,
           company_name: newComp.name,
@@ -243,19 +268,13 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
         </div>
       </header>
 
-      {/* Progress Bar (visible during steps 1-5) */}
-      {currentStep <= 5 && (
+      {/* Progress Bar (visible through the Review screen) */}
+      {currentStep <= reviewStep && (
         <div className="h-[68px] flex items-center bg-white border-b border-[#e8eef5] px-4">
           <div className="max-w-[640px] mx-auto w-full flex items-center justify-between text-xs font-semibold">
-            {[
-              { num: 1, label: 'Port' },
-              { num: 2, label: 'Registration Type' },
-              { num: 3, label: 'Company Details' },
-              { num: 4, label: selectedType === 'COMPANY' && currentStep === 5 ? 'User Access' : 'Review' },
-            ].map((step, idx) => {
-              const visualStep = currentStep === 1 ? 1 : currentStep <= 3 ? 2 : currentStep === 4 ? 3 : currentStep === 5 && selectedType === 'COMPANY' ? 4 : 4;
-              const isPast = visualStep > step.num;
-              const isCurrent = visualStep === step.num;
+            {progressSteps.map((step, idx) => {
+              const isPast = activeProgressStep > step.num;
+              const isCurrent = activeProgressStep === step.num;
 
               return (
                 <React.Fragment key={step.num}>
@@ -276,6 +295,7 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-[1080px] mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 sm:py-7">
+        <div key={currentStep} className="wizard-step-enter">
         {/* Step 1: Port Selection */}
         {currentStep === 1 && (
           <PortSelection
@@ -323,6 +343,8 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
           <CompanyForm
             initialLocation={selectedLocation}
             initialPortId={currentPort?.id}
+            initialData={companyFormData}
+            initialPage={companyFormData ? 3 : 1}
             onSubmit={handleCompanySubmit}
             onBack={() => {
               if (selectedLocation === 'PORT_KLANG') {
@@ -337,6 +359,7 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
         {currentStep === 5 && selectedType === 'COMPANY' && companyFormData && (
           <UserAccessForm
             companyName={companyFormData.name}
+            initialData={userAccessFormData}
             onSubmit={handleUserAccessSubmit}
             onBack={() => setCurrentStep(4)}
           />
@@ -378,6 +401,7 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
             company={selectedCompany}
             formData={{
               company: companyFormData,
+              userAccess: userAccessFormData,
               driver: driverFormDataList[0],
               drivers: driverFormDataList,
               trailer: trailerFormDataList[0],
@@ -385,7 +409,7 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
               vehicle: vehicleFormDataList[0],
               vehicles: vehicleFormDataList,
             }}
-            onBack={() => setCurrentStep(4)}
+            onBack={() => setCurrentStep(selectedType === 'COMPANY' ? 5 : 4)}
             onSubmitSuccess={handleFinalConfirm}
           />
         )}
@@ -399,6 +423,7 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
             onViewTracker={() => setShowTrackerModal(true)}
           />
         )}
+        </div>
       </main>
 
       {/* Footer */}

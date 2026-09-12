@@ -9,7 +9,6 @@ import {
   VehicleData,
   PortConfig,
 } from '../../types';
-import { getAutoAssignedPorts } from '../../services/storage';
 import {
   CheckCircle2,
   Building2,
@@ -20,7 +19,6 @@ import {
   Copy,
   Check,
   RefreshCw,
-  Anchor,
 } from 'lucide-react';
 
 interface ReviewAndSubmitProps {
@@ -30,6 +28,12 @@ interface ReviewAndSubmitProps {
   company: Company | null;
   formData: {
     company?: CompanyFormData;
+    userAccess?: {
+      username: string;
+      email: string;
+      full_name: string;
+      mobile_number: string;
+    };
     driver?: DriverData;
     drivers?: DriverData[];
     trailer?: TrailerData;
@@ -51,7 +55,6 @@ export function ReviewScreen({
 }: ReviewAndSubmitProps) {
   const [agreed, setAgreed] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const autoPorts = getAutoAssignedPorts(location);
   const touchStartX = useRef<number | null>(null);
 
   const handleSubmit = async () => {
@@ -86,18 +89,18 @@ export function ReviewScreen({
     <div
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
-      className="max-w-3xl mx-auto min-h-[calc(100vh-270px)] flex flex-col gap-3 touch-pan-y page-slide-forward"
+      className="max-w-4xl mx-auto min-h-[calc(100vh-220px)] flex flex-col gap-2 pb-2 touch-pan-y page-slide-forward"
     >
-      <div className="text-center">
-        <h2 className="text-base font-bold text-slate-900 tracking-tight">Review & Confirm Submission</h2>
-        <p className="text-slate-500 text-xs mt-0.5">
+      <div className="text-center shrink-0">
+        <h2 className="text-sm font-bold text-slate-900 tracking-tight">Review & Confirm Submission</h2>
+        <p className="text-slate-500 text-[11px] mt-0.5">
           Please verify all entered details before queueing into the Port Master database.
         </p>
       </div>
 
-      <div className="flex-1 bg-white rounded-lg border border-slate-200 p-4 shadow-xs space-y-3">
+      <div className="bg-white rounded-lg border border-slate-200 p-3 shadow-xs space-y-2">
         {/* Header Summary */}
-        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+        <div className="flex items-center justify-between pb-2 border-b border-slate-100">
           <div>
             <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Category</div>
             <div className="text-sm font-bold text-slate-900 mt-0.5">
@@ -116,17 +119,9 @@ export function ReviewScreen({
           </div>
         </div>
 
-        {/* Auto Assigned Ports Banner */}
-        <div className="p-2.5 bg-sky-50 border border-sky-100 rounded text-xs text-sky-900 flex items-center gap-1.5">
-          <Anchor className="w-3.5 h-3.5 text-[#0090e7]" />
-          <span>
-            Port Assignment: <strong>{autoPorts.portNames.join(', ')}</strong>
-          </span>
-        </div>
-
         {/* Company context if driver/trailer/vehicle */}
         {company && type !== 'COMPANY' && (
-          <div className="bg-slate-50 rounded p-2.5 border border-slate-200">
+          <div className="bg-slate-50 rounded p-2 border border-slate-200">
             <div className="text-[10px] font-bold text-slate-500 uppercase">Registered Parent Haulier / Forwarder</div>
             <div className="text-xs font-bold text-slate-900 mt-0.5">{company.name}</div>
             <div className="text-[11px] text-slate-600 mt-0.5">
@@ -137,48 +132,84 @@ export function ReviewScreen({
 
         {/* Company Registration Summary */}
         {type === 'COMPANY' && formData.company && (
-          <div className="grid grid-cols-2 gap-2.5 text-xs">
-            <div>
-              <span className="text-[10px] text-slate-400 block font-semibold">Legal Name</span>
-              <span className="font-bold text-slate-900">{formData.company.name}</span>
-            </div>
-            <div>
-              <span className="text-[10px] text-slate-400 block font-semibold">Short Name</span>
-              <span className="font-bold text-slate-900">{formData.company.short_name}</span>
-            </div>
-            <div>
-              <span className="text-[10px] text-slate-400 block font-semibold">Company Type</span>
-              <span className="font-semibold text-slate-900">{formData.company.company_type}</span>
-            </div>
-            <div>
-              <span className="text-[10px] text-slate-400 block font-semibold">Registration (Old / SSM)</span>
-              <span className="font-semibold font-mono text-slate-900">
-                {formData.company.registration_number_old} {formData.company.registration_number_new ? `/ ${formData.company.registration_number_new}` : ''}
-              </span>
-            </div>
-            <div className="col-span-2">
-              <span className="text-[10px] text-slate-400 block font-semibold">Registered Address</span>
-              <span className="text-slate-800 text-[11px]">
-                {formData.company.block ? `${formData.company.block}, ` : ''}
-                {formData.company.address1}, {formData.company.address2 ? `${formData.company.address2}, ` : ''}
-                {formData.company.city}, {formData.company.state} {formData.company.postcode}, {formData.company.country}
-              </span>
-            </div>
-            <div>
-              <span className="text-[10px] text-slate-400 block font-semibold">Contact Person</span>
-              <span className="font-semibold text-slate-900">
-                {formData.company.contact_name}
-                {formData.company.contact_designation ? ` (${formData.company.contact_designation})` : ''}
-              </span>
-            </div>
-            <div>
-              <span className="text-[10px] text-slate-400 block font-semibold">PIC Contact Details</span>
-              <span className="text-slate-900">
-                {formData.company.contact_email} &bull; {formData.company.contact_mobile}
-                {formData.company.office_phone ? ` &bull; Office: ${formData.company.office_phone}` : ''}
-                {formData.company.fax ? ` &bull; Fax: ${formData.company.fax}` : ''}
-              </span>
-            </div>
+          <div className="space-y-1.5 text-xs">
+            <section className="rounded border border-sky-100 bg-sky-50/50 p-2">
+              <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-900 border-b border-sky-100 pb-1 mb-1.5">
+                Company Details
+              </h3>
+              <div className="grid grid-cols-2 gap-x-12 items-start">
+                <div className="space-y-1.5 min-w-0">
+                  <div>
+                    <span className="text-[11px] text-slate-900 block font-bold">Legal Name</span>
+                    <span className="text-[10px] leading-4 font-normal text-slate-900 break-words block">{formData.company.name}</span>
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-slate-900 block font-bold">Short Name</span>
+                    <span className="text-[10px] leading-4 font-normal text-slate-900 break-words block">{formData.company.short_name}</span>
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-slate-900 block font-bold">Company Type</span>
+                    <span className="text-[10px] leading-4 font-normal text-slate-900 block">{formData.company.company_type}</span>
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-slate-900 block font-bold">Registration (Old / SSM)</span>
+                    <span className="text-[10px] leading-4 font-normal text-slate-900 break-words block">
+                      {formData.company.registration_number_old} {formData.company.registration_number_new ? `/ ${formData.company.registration_number_new}` : ''}
+                    </span>
+                  </div>
+                </div>
+                <div className="space-y-1.5 min-w-0">
+                  <div>
+                    <span className="text-[11px] text-slate-900 block font-bold">Registered Address</span>
+                    <span className="text-[10px] leading-4 text-slate-900 block break-words">
+                      {formData.company.block ? `${formData.company.block}, ` : ''}
+                      {formData.company.address1}, {formData.company.address2 ? `${formData.company.address2}, ` : ''}
+                      {formData.company.city}, {formData.company.state} {formData.company.postcode}, {formData.company.country}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-slate-900 block font-bold">Contact Person</span>
+                    <span className="text-[10px] leading-4 font-normal text-slate-900 block break-words">
+                      {formData.company.contact_name}
+                      {formData.company.contact_designation ? ` (${formData.company.contact_designation})` : ''}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-slate-900 block font-bold">PIC Contact Details</span>
+                    <span className="text-[10px] leading-4 text-slate-900 block break-words">
+                      {formData.company.contact_email} &bull; {formData.company.contact_mobile}
+                      {formData.company.office_phone ? ` &bull; Office: ${formData.company.office_phone}` : ''}
+                      {formData.company.fax ? ` &bull; Fax: ${formData.company.fax}` : ''}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </section>
+            {formData.userAccess && (
+              <section className="rounded border border-emerald-100 bg-emerald-50/50 p-2">
+                <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-900 border-b border-emerald-100 pb-1 mb-1.5">
+                  Login Account
+                </h3>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                  <div>
+                    <span className="text-[11px] text-slate-900 block font-bold">Username</span>
+                    <span className="text-[10px] leading-4 font-normal text-slate-900 block break-words">{formData.userAccess.username}</span>
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-slate-900 block font-bold">Full Name</span>
+                    <span className="text-[10px] leading-4 font-normal text-slate-900 block break-words">{formData.userAccess.full_name}</span>
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-slate-900 block font-bold">Email</span>
+                    <span className="text-[10px] leading-4 text-slate-900 block break-words">{formData.userAccess.email}</span>
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-slate-900 block font-bold">Mobile Number</span>
+                    <span className="text-[10px] leading-4 text-slate-900 block break-words">{formData.userAccess.mobile_number}</span>
+                  </div>
+                </div>
+              </section>
+            )}
           </div>
         )}
 
@@ -311,8 +342,8 @@ export function ReviewScreen({
         )}
 
         {/* Declaration Checkbox */}
-        <div className="pt-2 border-t border-slate-100">
-          <label className="flex items-start gap-2 cursor-pointer text-xs text-slate-700">
+        <div className="pt-1.5 border-t border-slate-100">
+          <label className="flex items-start gap-2 cursor-pointer text-[11px] text-slate-700">
             <input
               type="checkbox"
               checked={agreed}
@@ -326,7 +357,7 @@ export function ReviewScreen({
         </div>
       </div>
 
-      <div className="flex items-center justify-between pt-1 mt-auto">
+      <div className="flex items-center justify-between pt-0.5 mt-auto shrink-0">
         <button
           type="button"
           onClick={onBack}
