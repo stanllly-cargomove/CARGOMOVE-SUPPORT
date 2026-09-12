@@ -1,4 +1,5 @@
 import React from 'react';
+import cargoMoveLogo from '../../../media/image-removebg-preview.png';
 
 interface LogoProps {
   className?: string;
@@ -32,7 +33,7 @@ export function Logo({ className = '', size = 'md', showTagline = false, light =
   return (
     <div className={`inline-flex items-center select-none ${className}`}>
       <img
-        src="/media/image-removebg-preview.png"
+        src={cargoMoveLogo}
         alt="CargoMove"
         className={`${size === 'sm' ? 'w-[132px]' : size === 'lg' ? 'w-[190px]' : 'w-[150px]'} h-auto object-contain`}
       />
