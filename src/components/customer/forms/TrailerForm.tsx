@@ -114,7 +114,7 @@ export function TrailerForm({ company, onSubmit, onBack }: TrailerFormProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="max-w-4xl mx-auto space-y-4">
+    <form onSubmit={handleSubmit} className="customer-form max-w-4xl mx-auto space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between pb-3 border-b border-slate-200">
         <div>

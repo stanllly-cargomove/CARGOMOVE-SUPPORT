@@ -51,7 +51,7 @@ export function CompanyLookup({
   };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-4">
+    <div className="customer-form max-w-2xl mx-auto space-y-4">
       <div className="text-center mb-4">
         <h2 className="text-base font-bold text-slate-900 tracking-tight">Company Identification</h2>
         <p className="text-slate-500 text-xs mt-0.5">

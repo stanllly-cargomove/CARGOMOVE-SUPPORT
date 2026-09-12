@@ -251,7 +251,6 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
                     </div>
                     <span className={`hidden sm:inline whitespace-nowrap ${isCurrent ? 'text-[#102a56] font-bold' : 'text-[#5b6b84]'}`}>{step.label}</span>
                   </div>
-                  {idx < 3 && <div className={`hidden sm:block w-14 lg:w-[58px] h-px mx-2 ${isPast ? 'bg-emerald-500' : 'bg-[#d9e3ef]'}`} />}
                 </React.Fragment>
               );
             })}
@@ -269,7 +268,6 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
             ports={ports}
             onNext={() => setCurrentStep(2)}
             onSelectPortKlangDirect={handleAutoOpenPortKlang}
-            onOpenGuideline={() => setShowGuideline(true)}
           />
         )}
 

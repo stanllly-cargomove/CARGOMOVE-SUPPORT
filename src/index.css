@@ -20,6 +20,22 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+.customer-form input,
+.customer-form select,
+.customer-form textarea {
+  font-family: inherit;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 400;
+}
+
+.customer-form input::placeholder,
+.customer-form textarea::placeholder {
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
 code, kbd, samp, pre {
   font-family: 'JetBrains Mono', monospace;
 }

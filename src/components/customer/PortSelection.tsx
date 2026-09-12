@@ -1,6 +1,6 @@
 import React from 'react';
 import { PortLocation, PortConfig } from '../../types';
-import { Anchor, Truck, Check, ArrowRight, ExternalLink } from 'lucide-react';
+import { Anchor, Truck, Check, ArrowRight } from 'lucide-react';
 
 interface PortSelectionProps {
   selectedLocation: PortLocation | null;
@@ -8,7 +8,6 @@ interface PortSelectionProps {
   ports: PortConfig[];
   onNext: () => void;
   onSelectPortKlangDirect: () => void;
-  onOpenGuideline?: () => void;
 }
 
 export function PortSelection({
@@ -16,7 +15,6 @@ export function PortSelection({
   onSelectLocation,
   onNext,
   onSelectPortKlangDirect,
-  onOpenGuideline,
 }: PortSelectionProps) {
   const handlePortKlangClick = () => {
     onSelectLocation('PORT_KLANG');
@@ -123,17 +121,6 @@ export function PortSelection({
             </button>
           </div>
         </div>
-      </div>
-
-      <div className="rounded-lg border border-[#b8dfff] bg-[#f0f8ff] px-5 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex-1">
-          <h3 className="text-base font-bold text-[#102a56]">Not sure which one?</h3>
-        </div>
-        {onOpenGuideline && (
-          <button type="button" onClick={onOpenGuideline} className="inline-flex items-center gap-1.5 text-xs font-bold text-[#078be4] underline underline-offset-2 hover:text-[#007cc7] shrink-0">
-            View registration guide <ExternalLink className="w-3.5 h-3.5" />
-          </button>
-        )}
       </div>
 
     </div>

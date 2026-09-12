@@ -233,7 +233,7 @@ export function CompanyForm({
       onSubmit={handleSubmit}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
-      className="max-w-3xl mx-auto min-h-[calc(100vh-270px)] flex flex-col gap-3 touch-pan-y"
+      className="customer-form max-w-3xl mx-auto min-h-[calc(100vh-270px)] flex flex-col gap-3 touch-pan-y"
     >
       {/* Header */}
       <div className="flex items-center justify-between pb-3">
@@ -311,9 +311,9 @@ export function CompanyForm({
                   onChange={(e) => handleChange('company_type', e.target.value)}
                   className="w-full px-2.5 py-1.5 rounded border border-slate-300 text-xs focus:ring-1 focus:ring-sky-500 focus:outline-none bg-white font-semibold text-slate-800"
                 >
-                  <option value="FORWARDER">FORWARDER (Forwarding Agent)</option>
-                  <option value="HAULAGE">HAULAGE (Haulier Carrier)</option>
-                  <option value="TRANSPORT">TRANSPORT (Logistics)</option>
+                  <option value="FORWARDER">FORWARDER</option>
+                  <option value="TRANSPORT">TRANSPORTER</option>
+                  <option value="HAULAGE">HAULAGE</option>
                 </select>
                 <p className="text-[10px] text-sky-700 mt-1 font-medium bg-sky-50 p-1.5 rounded border border-sky-100">
                   Select the applicable company type for this registration.
@@ -325,9 +325,9 @@ export function CompanyForm({
                 onChange={(e) => handleChange('company_type', e.target.value)}
                 className="w-full px-2.5 py-1.5 rounded border border-slate-300 text-xs focus:ring-1 focus:ring-sky-500 focus:outline-none bg-white font-medium text-slate-800"
               >
-                <option value="FORWARDER">FORWARDER (Forwarding Agent)</option>
-                <option value="HAULAGE">HAULAGE (Haulier Carrier)</option>
-                <option value="TRANSPORT">TRANSPORT (Logistics)</option>
+                <option value="FORWARDER">FORWARDER</option>
+                <option value="TRANSPORT">TRANSPORTER</option>
+                <option value="HAULAGE">HAULAGE</option>
               </select>
             )}
           </div>

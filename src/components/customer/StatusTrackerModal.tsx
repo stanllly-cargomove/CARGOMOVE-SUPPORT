@@ -32,7 +32,7 @@ export function StatusTrackerModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
-      <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-slate-100">
+      <div className="customer-form bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-slate-100">
         <div className="flex items-center justify-between pb-4 border-b border-slate-100">
           <h3 className="text-lg font-bold text-slate-900">Track Registration Status</h3>
           <button
