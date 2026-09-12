@@ -9,6 +9,7 @@ import {
   HaulierGuideline,
 } from '../types';
 import { normalizeCompanyType, normalizeRegNo } from './companyHelper';
+import { deleteSupabaseRow, fetchSupabaseSnapshot, isSupabaseConfigured, upsertSupabaseRow } from './supabase';
 
 const STORAGE_KEYS = {
   COMPANIES: 'port_reg_companies_v1',
@@ -433,6 +434,30 @@ export const INITIAL_SUBMISSIONS: RegistrationSubmission[] = [
 
 type StorageListener = () => void;
 const listeners = new Set<StorageListener>();
+let remoteHydrationStarted = false;
+
+function companyRow(company: Company) {
+  const { block, address1, address2, city, state, postcode, country, contact_name, contact_email, contact_designation, contact_mobile, office_phone, fax, ...master } = company;
+  return { ...master, details: { block, address1, address2, city, state, postcode, country, contact_name, contact_email, contact_designation, contact_mobile, office_phone, fax } };
+}
+
+function syncCompany(company: Company) { void upsertSupabaseRow('companies', companyRow(company)); }
+function syncPort(port: PortConfig) { void upsertSupabaseRow('port_configs', port); }
+function syncDepot(depot: DepotConfig) { void upsertSupabaseRow('depot_configs', depot); }
+function syncSubmission(submission: RegistrationSubmission) { void upsertSupabaseRow('registration_submissions', submission); }
+
+async function hydrateFromSupabase() {
+  if (!isSupabaseConfigured || remoteHydrationStarted) return;
+  remoteHydrationStarted = true;
+  const snapshot = await fetchSupabaseSnapshot();
+  if (!snapshot) return;
+  localStorage.setItem(STORAGE_KEYS.PORTS, JSON.stringify(snapshot.ports));
+  localStorage.setItem(STORAGE_KEYS.DEPOTS, JSON.stringify(snapshot.depots));
+  localStorage.setItem(STORAGE_KEYS.COMPANIES, JSON.stringify(snapshot.companies));
+  localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(snapshot.submissions));
+  if (snapshot.guideline) localStorage.setItem(STORAGE_KEYS.HAULIER_GUIDELINE, JSON.stringify(snapshot.guideline));
+  notifyListeners();
+}
 
 export function subscribeToStorage(callback: StorageListener): () => void {
   listeners.add(callback);
@@ -454,6 +479,8 @@ function notifyListeners() {
  */
 export function initStorage(): void {
   if (typeof window === 'undefined') return;
+
+  void hydrateFromSupabase();
 
   const initialized = localStorage.getItem(STORAGE_KEYS.INITIALIZED);
   if (!initialized) {
@@ -602,6 +629,7 @@ export function savePort(port: PortConfig): void {
     ports.push(port);
   }
   localStorage.setItem(STORAGE_KEYS.PORTS, JSON.stringify(ports));
+  syncPort(port);
   notifyListeners();
 }
 
@@ -614,6 +642,7 @@ export function updatePortConfig(
   if (index < 0) return null;
   ports[index] = { ...ports[index], ...updates };
   localStorage.setItem(STORAGE_KEYS.PORTS, JSON.stringify(ports));
+  syncPort(ports[index]);
   notifyListeners();
   return ports[index];
 }
@@ -624,6 +653,7 @@ export function deletePortConfig(portId: string): boolean {
 
   const ports = getPorts().filter((port) => port.id !== portId);
   localStorage.setItem(STORAGE_KEYS.PORTS, JSON.stringify(ports));
+  void deleteSupabaseRow('port_configs', portId);
   notifyListeners();
   return true;
 }
@@ -695,6 +725,7 @@ export function saveDepot(depot: DepotConfig): void {
     depots.push(depot);
   }
   localStorage.setItem(STORAGE_KEYS.DEPOTS, JSON.stringify(depots));
+  syncDepot(depot);
   notifyListeners();
 }
 
@@ -707,6 +738,7 @@ export function updateDepotConfig(
   if (index < 0) return null;
   depots[index] = { ...depots[index], ...updates };
   localStorage.setItem(STORAGE_KEYS.DEPOTS, JSON.stringify(depots));
+  syncDepot(depots[index]);
   notifyListeners();
   return depots[index];
 }
@@ -714,6 +746,7 @@ export function updateDepotConfig(
 export function deleteDepotConfig(depotId: string): boolean {
   const depots = getDepots().filter((depot) => depot.id !== depotId);
   localStorage.setItem(STORAGE_KEYS.DEPOTS, JSON.stringify(depots));
+  void deleteSupabaseRow('depot_configs', depotId);
   notifyListeners();
   return true;
 }
@@ -809,6 +842,7 @@ export function saveCompany(companyData: Partial<Company> & { registration_numbe
   }
 
   localStorage.setItem(STORAGE_KEYS.COMPANIES, JSON.stringify(companies));
+  syncCompany(target);
   notifyListeners();
   return target;
 }
@@ -833,6 +867,7 @@ export function updateCompanyId(
   company.updated_at = new Date().toISOString();
 
   localStorage.setItem(STORAGE_KEYS.COMPANIES, JSON.stringify(companies));
+  syncCompany(company);
 
   // Automatically update any linked submissions status if they were blocked
   const submissions = getSubmissions();
@@ -846,6 +881,7 @@ export function updateCompanyId(
 
   if (updatedSubmissions) {
     localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(submissions));
+    submissions.filter((submission) => submission.company_id === companyId && submission.status === 'READY_TO_EXPORT').forEach(syncSubmission);
   }
 
   notifyListeners();
@@ -910,6 +946,7 @@ export function saveSubmission(
 
   subs.unshift(newSubmission);
   localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(subs));
+  syncSubmission(newSubmission);
   notifyListeners();
   return newSubmission;
 }
@@ -932,6 +969,7 @@ export function updateSubmissionStatus(
   }
 
   localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(subs));
+  syncSubmission(sub);
   notifyListeners();
   return sub;
 }
@@ -952,12 +990,17 @@ export function markSubmissionsExported(
   });
 
   localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(subs));
+  submissionIds.forEach((id) => {
+    const updated = subs.find((submission) => submission.id === id);
+    if (updated) syncSubmission(updated);
+  });
   notifyListeners();
 }
 
 export function deleteSubmission(id: string): void {
   const subs = getSubmissions().filter((s) => s.id !== id);
   localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(subs));
+  void deleteSupabaseRow('registration_submissions', id);
   notifyListeners();
 }
 
@@ -1067,6 +1110,7 @@ export function saveHaulierGuideline(guideline: HaulierGuideline): HaulierGuidel
     last_updated: new Date().toISOString(),
   };
   localStorage.setItem(STORAGE_KEYS.HAULIER_GUIDELINE, JSON.stringify(updated));
+  void upsertSupabaseRow('haulier_guidelines', { id: 'default', content: updated });
   notifyListeners();
   return updated;
 }
