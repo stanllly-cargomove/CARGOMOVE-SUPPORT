@@ -15,7 +15,6 @@ import { AssignIdModal } from './AssignIdModal';
 import {
   Search,
   Filter,
-  Download,
   Eye,
   AlertTriangle,
   FileSpreadsheet,
@@ -25,12 +24,21 @@ import {
 } from 'lucide-react';
 import { notifyError, notifySuccess, notifyWarning, summarizeError } from '../common/notifications';
 
-export function SubmissionsList() {
+interface SubmissionsListProps {
+  status: SubmissionStatus;
+}
+
+const statusTitles: Record<SubmissionStatus, string> = {
+  PENDING: 'Pending Registration Submissions',
+  DONE: 'Closed / Done Registration Submissions',
+  REJECTED: 'Rejected Registration Submissions',
+};
+
+export function SubmissionsList({ status }: SubmissionsListProps) {
   const [submissions, setSubmissions] = useState<RegistrationSubmission[]>(getSubmissions());
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('COMPANY');
-  const [statusFilter, setStatusFilter] = useState<string>('PENDING');
   const [portFilter, setPortFilter] = useState<string>('ALL');
   const [missingIdOnly, setMissingIdOnly] = useState(false);
   const [openActionMenu, setOpenActionMenu] = useState<{ id: string; top: number; left: number } | null>(null);
@@ -44,6 +52,13 @@ export function SubmissionsList() {
   };
 
   React.useEffect(() => subscribeToStorage(refreshList), []);
+
+  React.useEffect(() => {
+    setSelectedIds([]);
+    setOpenActionMenu(null);
+    setActiveSubmission(null);
+    setAssignIdCompany(null);
+  }, [status]);
 
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
@@ -70,9 +85,7 @@ export function SubmissionsList() {
       sub.company_reg_no.toLowerCase().includes(term);
 
     const matchesType = typeFilter === 'ALL' || sub.registration_type === typeFilter;
-    const matchesStatus = statusFilter === 'DONE'
-      ? sub.status === 'DONE'
-      : sub.status === statusFilter;
+    const matchesStatus = sub.status === status;
     const matchesPort = portFilter === 'ALL' || sub.port_location === portFilter;
 
     // Check if parent company has required ID
@@ -113,29 +126,18 @@ export function SubmissionsList() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div>
         <div>
-          <h2 className="text-xl font-bold text-slate-900 tracking-tight">Registration Submissions</h2>
+          <h2 className="text-xl font-bold text-slate-900 tracking-tight">{statusTitles[status]}</h2>
           <p className="text-xs text-slate-500 mt-1">
             Review customer applications, verify company ID linkage, and generate official backend Excel exports.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={handleBulkExport}
-            disabled={selectedIds.length === 0}
-            className="inline-flex items-center px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold transition-colors shadow-sm"
-          >
-            <Download className="w-4 h-4 mr-1.5" />
-            Export Selected ({selectedIds.length})
-          </button>
-        </div>
       </div>
 
-      {/* Search and status tabs */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-4">
+      {/* Search and queue filters */}
+      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
         <div className="flex flex-col md:flex-row items-center gap-3">
         <div className="relative flex-1 w-full">
           <input
@@ -148,53 +150,42 @@ export function SubmissionsList() {
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+        <div className="flex w-full flex-wrap items-center gap-2 md:ml-auto md:w-auto">
 
           {/* Port Filter */}
           <select
             value={portFilter}
             onChange={(e) => setPortFilter(e.target.value)}
-            className="px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white focus:ring-2 focus:ring-blue-500"
+            className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold uppercase focus:ring-2 focus:ring-blue-500"
           >
-            <option value="ALL">All Facilities</option>
-            <option value="PORT_KLANG">Port Klang</option>
-            <option value="JOHOR">Johor</option>
+            <option value="ALL">ALL FACILITIES</option>
+            <option value="PORT_KLANG">PORT KLANG</option>
+            <option value="JOHOR">JOHOR</option>
           </select>
 
           {/* Missing ID Filter */}
           <button
             type="button"
             onClick={() => setMissingIdOnly(!missingIdOnly)}
-            className={`px-3 py-2 rounded-lg text-xs font-bold border transition-colors whitespace-nowrap ${
+            className={`h-9 whitespace-nowrap rounded-lg border px-3 text-xs font-bold uppercase transition-colors ${
               missingIdOnly
                 ? 'bg-amber-100 text-amber-800 border-amber-300'
                 : 'bg-slate-50 text-slate-600 border-slate-300 hover:bg-slate-100'
             }`}
           >
-            ⚠ Missing ID Only
+            ⚠ MISSING ID ONLY
+          </button>
+
+          <button
+            type="button"
+            onClick={handleBulkExport}
+            disabled={selectedIds.length === 0}
+            className="inline-flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-emerald-600 px-3 text-[10px] font-bold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <FileSpreadsheet className="h-3.5 w-3.5" />
+            GENERATE EXCEL
           </button>
         </div>
-        </div>
-        <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-1 w-fit">
-          {[
-            ['PENDING', 'Pending'],
-            ['DONE', 'Done'],
-            ['REJECTED', 'Rejected'],
-          ].map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => setStatusFilter(value)}
-              aria-pressed={statusFilter === value}
-              className={`rounded-md px-4 py-2 text-xs font-bold transition-colors ${
-                statusFilter === value
-                  ? 'bg-white text-slate-950 shadow-sm ring-1 ring-slate-200'
-                  : 'text-slate-500 hover:bg-slate-200 hover:text-slate-900'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
         </div>
       </div>
 

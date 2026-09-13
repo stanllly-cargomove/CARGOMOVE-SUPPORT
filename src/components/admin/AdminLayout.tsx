@@ -17,6 +17,9 @@ import {
   Sun,
   RefreshCw,
   Mail,
+  Clock3,
+  CircleCheck,
+  CircleX,
 } from 'lucide-react';
 import { AdminDashboard } from './AdminDashboard';
 import { CompanyMaster } from './CompanyMaster';
@@ -40,6 +43,7 @@ interface AdminLayoutProps {
 
 export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: AdminLayoutProps) {
   const [activeTab, setActiveTab] = useState<string>('dashboard');
+  const [isRegistrationQueueExpanded, setIsRegistrationQueueExpanded] = useState(false);
   const [isDevToolExpanded, setIsDevToolExpanded] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
@@ -87,6 +91,14 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
     { id: 'user-registration', label: 'User Access Registration', icon: UserRoundPlus },
   ];
 
+  const registrationQueueItems = [
+    { id: 'submissions-pending', label: 'Pending', status: 'PENDING' as const, icon: Clock3 },
+    { id: 'submissions-done', label: 'Closed / Done', status: 'DONE' as const, icon: CircleCheck },
+    { id: 'submissions-rejected', label: 'Rejected', status: 'REJECTED' as const, icon: CircleX },
+  ];
+
+  const activeQueueItem = registrationQueueItems.find((item) => item.id === activeTab);
+
   const devToolItems = [
     { id: 'admin-user', label: 'Admin user', icon: UserRoundPlus },
     { id: 'email-template', label: 'Email Template', icon: Mail },
@@ -115,29 +127,75 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
         <nav className="p-3 space-y-1 flex-1">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const isActive = activeTab === item.id;
+            const isRegistrationQueue = item.id === 'submissions';
+            const isActive = isRegistrationQueue ? Boolean(activeQueueItem) : activeTab === item.id;
 
             return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => setActiveTab(item.id)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-semibold transition-all ${
-                  isActive
-                    ? 'bg-blue-600 text-white shadow-xs font-bold'
-                    : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/80'
-                }`}
-              >
-                <Icon className="w-4 h-4 shrink-0" />
-                <span>{item.label}</span>
-              </button>
+              <React.Fragment key={item.id}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isRegistrationQueue) {
+                      setIsDevToolExpanded(false);
+                      setIsRegistrationQueueExpanded((expanded) => !expanded);
+                      if (!activeQueueItem) setActiveTab('submissions-pending');
+                    } else {
+                      setActiveTab(item.id);
+                      setIsRegistrationQueueExpanded(false);
+                      setIsDevToolExpanded(false);
+                    }
+                  }}
+                  aria-expanded={isRegistrationQueue ? isRegistrationQueueExpanded : undefined}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-semibold transition-all ${
+                    isActive
+                      ? 'bg-blue-600 text-white shadow-xs font-bold'
+                      : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/80'
+                  }`}
+                >
+                  <Icon className="w-4 h-4 shrink-0" />
+                  <span className="flex-1 text-left">{item.label}</span>
+                  {isRegistrationQueue && (
+                    <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isRegistrationQueueExpanded ? 'rotate-180' : ''}`} />
+                  )}
+                </button>
+
+                {isRegistrationQueue && isRegistrationQueueExpanded && (
+                  <div className="ml-3 mt-1 space-y-1 border-l border-slate-700 pl-3">
+                    {registrationQueueItems.map((queueItem) => {
+                      const QueueIcon = queueItem.icon;
+                      const isQueueItemActive = activeTab === queueItem.id;
+                      return (
+                        <button
+                          key={queueItem.id}
+                          type="button"
+                          onClick={() => {
+                            setActiveTab(queueItem.id);
+                            setIsDevToolExpanded(false);
+                          }}
+                          className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-xs font-semibold transition-all ${
+                            isQueueItemActive
+                              ? 'bg-slate-800 font-bold text-white'
+                              : 'text-slate-400 hover:bg-slate-800/80 hover:text-slate-100'
+                          }`}
+                        >
+                          <QueueIcon className="h-3.5 w-3.5 shrink-0" />
+                          <span>{queueItem.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </React.Fragment>
             );
           })}
 
           <div>
             <button
               type="button"
-              onClick={() => setIsDevToolExpanded((expanded) => !expanded)}
+              onClick={() => {
+                setIsRegistrationQueueExpanded(false);
+                setIsDevToolExpanded((expanded) => !expanded);
+              }}
               aria-expanded={isDevToolExpanded}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-semibold transition-all ${
                 devToolItems.some((item) => item.id === activeTab)
@@ -162,7 +220,10 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
                     <button
                       key={item.id}
                       type="button"
-                      onClick={() => setActiveTab(item.id)}
+                      onClick={() => {
+                        setActiveTab(item.id);
+                        setIsRegistrationQueueExpanded(false);
+                      }}
                       className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
                         isActive
                           ? 'bg-blue-600 text-white shadow-xs font-bold'
@@ -227,7 +288,7 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
             <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Admin Portal</span>
             <span className="text-slate-300">/</span>
             <h1 className="text-sm font-bold text-slate-900">
-              {[...navItems, ...devToolItems].find((item) => item.id === activeTab)?.label}
+              {[...navItems, ...registrationQueueItems, ...devToolItems].find((item) => item.id === activeTab)?.label}
             </h1>
           </div>
 
@@ -260,10 +321,20 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
         {/* Content Body */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
           {activeTab === 'dashboard' && (
-            <AdminDashboard onNavigate={(tab) => setActiveTab(tab)} />
+            <AdminDashboard onNavigate={(tab) => {
+              const destination = tab === 'submissions' ? 'submissions-pending' : tab;
+              setActiveTab(destination);
+              if (destination.startsWith('submissions-')) {
+                setIsRegistrationQueueExpanded(true);
+                setIsDevToolExpanded(false);
+              } else {
+                setIsRegistrationQueueExpanded(false);
+                setIsDevToolExpanded(false);
+              }
+            }} />
           )}
           {activeTab === 'companies' && <CompanyMaster />}
-          {activeTab === 'submissions' && <SubmissionsList />}
+          {activeQueueItem && <SubmissionsList status={activeQueueItem.status} />}
           {activeTab === 'user-registration' && <UserRegistration />}
           {activeTab === 'admin-user' && <AdminUser />}
           {activeTab === 'email-template' && <EmailTemplateManager />}

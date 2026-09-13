@@ -1,14 +1,17 @@
 import React, { useEffect, useState } from 'react';
-import { Mail, Search, UsersRound, X } from 'lucide-react';
+import { Download, Mail, Search, UsersRound, X } from 'lucide-react';
 import { getExternalUserAccess, ExternalUserAccess, updateExternalUserAccess } from '../../services/auth';
 import { EmailPreview, generateWelcomeEmailPreview, sendWelcomeEmail } from '../../services/email';
 import { notifyError, notifySuccess } from '../common/notifications';
 
 const statuses: ExternalUserAccess['status'][] = ['PENDING', 'DONE', 'REJECTED'];
+const emailStatuses: ExternalUserAccess['email_status'][] = ['NOT_READY', 'READY', 'SENDING', 'SENT', 'FAILED'];
 
 export function UserRegistration() {
   const [users, setUsers] = useState<ExternalUserAccess[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [registrationStatusFilter, setRegistrationStatusFilter] = useState<'ALL' | ExternalUserAccess['status']>('ALL');
+  const [emailStatusFilter, setEmailStatusFilter] = useState<'ALL' | ExternalUserAccess['email_status']>('ALL');
   const [savingKeys, setSavingKeys] = useState<Set<string>>(new Set());
   const [loadError, setLoadError] = useState('');
   const [preview, setPreview] = useState<EmailPreview | null>(null);
@@ -95,9 +98,55 @@ export function UserRegistration() {
 
   const filteredUsers = users.filter((user) => {
     const term = searchTerm.toLowerCase();
-    return !term || [user.username, user.email, user.company_name, user.full_name, user.mobile_number, user.status]
-      .some((value) => value.toLowerCase().includes(term));
+    const resolvedEmailStatus = user.email_status || (user.status === 'DONE' ? 'READY' : 'NOT_READY');
+    const matchesSearch = !term || [
+      user.username,
+      user.email,
+      user.company_name,
+      user.full_name,
+      user.mobile_number,
+      user.status,
+      resolvedEmailStatus,
+    ].some((value) => String(value || '').toLowerCase().includes(term));
+    return matchesSearch
+      && (registrationStatusFilter === 'ALL' || user.status === registrationStatusFilter)
+      && (emailStatusFilter === 'ALL' || resolvedEmailStatus === emailStatusFilter);
   });
+
+  const downloadReport = () => {
+    if (!filteredUsers.length) {
+      notifyError('There are no registration records to download.');
+      return;
+    }
+    const csvValue = (value: unknown) => {
+      let text = String(value ?? '');
+      if (/^[=+\-@]/.test(text)) text = `'${text}`;
+      return `"${text.replace(/"/g, '""')}"`;
+    };
+    const rows = filteredUsers.map((user) => [
+      user.username,
+      user.email,
+      user.password,
+      user.company_name,
+      user.full_name,
+      user.mobile_number,
+      user.status,
+      user.email_status || (user.status === 'DONE' ? 'READY' : 'NOT_READY'),
+    ]);
+    const csv = [
+      ['Username', 'Email Address', 'Password', 'Company', 'Full Name', 'Mobile Number', 'Registration Status', 'Email Status'],
+      ...rows,
+    ].map((row) => row.map(csvValue).join(',')).join('\r\n');
+    const url = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `user-registration-report-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    notifySuccess('Registration report downloaded.');
+  };
 
   return (
     <div className="space-y-6">
@@ -107,32 +156,73 @@ export function UserRegistration() {
       </div>
 
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-        <div className="relative max-w-md">
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(event) => setSearchTerm(event.target.value)}
-            placeholder="Search username, email, company or name..."
-            className="w-full px-3.5 py-2 pl-9 rounded-lg border border-slate-300 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
-          />
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+        <div className="flex flex-col gap-3 lg:flex-row">
+          <div className="relative min-w-0 flex-1 lg:max-w-md">
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Search username, email, company or name..."
+              className="h-9 w-full rounded-lg border border-slate-300 px-3.5 pl-9 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+          </div>
+          <div className="flex flex-col gap-3 sm:flex-row lg:ml-auto">
+            <select
+              value={registrationStatusFilter}
+              onChange={(event) => setRegistrationStatusFilter(event.target.value as 'ALL' | ExternalUserAccess['status'])}
+              className="h-9 min-w-44 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold uppercase text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              aria-label="Filter by registration status"
+            >
+              <option value="ALL">ALL REGISTRATION STATUSES</option>
+              {statuses.map((status) => <option key={status} value={status}>{status}</option>)}
+            </select>
+            <select
+              value={emailStatusFilter}
+              onChange={(event) => setEmailStatusFilter(event.target.value as 'ALL' | ExternalUserAccess['email_status'])}
+              className="h-9 min-w-40 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold uppercase text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              aria-label="Filter by email status"
+            >
+              <option value="ALL">ALL EMAIL STATUSES</option>
+              {emailStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
+            </select>
+            <button
+              type="button"
+              onClick={downloadReport}
+              className="inline-flex h-9 items-center justify-center gap-1 whitespace-nowrap rounded-lg bg-blue-600 px-2.5 text-[10px] font-bold text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+            >
+              <Download className="h-3 w-3" />
+              DOWNLOAD REPORT
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="w-full overflow-hidden">
+          <table className="w-full table-fixed border-collapse text-left text-[11px]">
+            <colgroup>
+              <col className="w-[9%]" />
+              <col className="w-[15%]" />
+              <col className="w-[10%]" />
+              <col className="w-[10%]" />
+              <col className="w-[11%]" />
+              <col className="w-[12%]" />
+              <col className="w-[11%]" />
+              <col className="w-[10%]" />
+              <col className="w-[12%]" />
+            </colgroup>
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider">
-                <th className="py-3 px-4">Username</th>
-                <th className="py-3 px-4">Email address</th>
-                <th className="py-3 px-4">Password</th>
-                <th className="py-3 px-4">Company</th>
-                <th className="py-3 px-4">Full name</th>
-                <th className="py-3 px-4">Mobile number</th>
-                <th className="py-3 px-4">Status</th>
-                <th className="py-3 px-4">Email Status</th>
-                <th className="py-3 px-4">Action</th>
+              <tr className="whitespace-nowrap border-b border-slate-200 bg-slate-50 text-[9px] font-bold uppercase tracking-wide text-slate-600 xl:text-[10px]">
+                <th className="px-2 py-2.5">Username</th>
+                <th className="px-2 py-2.5">Email address</th>
+                <th className="px-2 py-2.5">Password</th>
+                <th className="px-2 py-2.5">Company</th>
+                <th className="px-2 py-2.5">Full name</th>
+                <th className="px-2 py-2.5">Mobile number</th>
+                <th className="px-2 py-2.5 text-center">Status</th>
+                <th className="px-2 py-2.5 text-center">Email Status</th>
+                <th className="px-2 py-2.5 text-center">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -140,38 +230,38 @@ export function UserRegistration() {
                 <tr>
                   <td colSpan={9} className="py-10 text-center text-slate-500">
                     <UsersRound className="w-6 h-6 mx-auto mb-2 text-slate-300" />
-                    {loadError || 'No company users found.'}
+                    {loadError || (users.length ? 'No users match the selected filters.' : 'No company users found.')}
                   </td>
                 </tr>
               ) : filteredUsers.map((user) => (
                 <tr key={user.id} className="hover:bg-slate-50/70 transition-colors">
-                  <td className="py-3 px-4 font-semibold text-slate-900">{user.username}</td>
-                  <td className="py-3 px-4 text-slate-700">{user.email}</td>
-                  <td className="py-3 px-4 font-mono text-slate-700" title="External-system password">{user.password || 'Unavailable (legacy record)'}</td>
-                  <td className="py-3 px-4 text-slate-700">{user.company_name}</td>
-                  <td className="py-3 px-4 text-slate-700">{user.full_name}</td>
-                  <td className="py-3 px-4 text-slate-700">{user.mobile_number}</td>
-                  <td className="py-3 px-4">
+                  <td className="px-2 py-2 font-semibold text-slate-900"><span className="block truncate" title={user.username}>{user.username}</span></td>
+                  <td className="px-2 py-2 text-slate-700"><span className="block truncate" title={user.email}>{user.email}</span></td>
+                  <td className="px-2 py-2 font-mono text-[10px] text-slate-700"><span className="block truncate" title={user.password || 'Unavailable (legacy record)'}>{user.password || 'Unavailable'}</span></td>
+                  <td className="px-2 py-2 text-slate-700"><span className="block truncate" title={user.company_name}>{user.company_name}</span></td>
+                  <td className="px-2 py-2 text-slate-700"><span className="block truncate" title={user.full_name}>{user.full_name}</span></td>
+                  <td className="px-2 py-2 text-slate-700"><span className="block truncate" title={user.mobile_number}>{user.mobile_number}</span></td>
+                  <td className="px-2 py-2 text-center">
                     <select
                       value={user.status || 'PENDING'}
                       onChange={(event) => void changeStatus(user, event.target.value as ExternalUserAccess['status'])}
                       disabled={savingKeys.has(`${user.id}-status`)}
-                      className="h-8 w-28 rounded-lg border border-slate-300 bg-white px-2 text-xs font-semibold text-slate-700 focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:cursor-wait disabled:opacity-60"
+                      className="h-7 w-full max-w-[6.25rem] rounded-md border border-slate-300 bg-white px-1.5 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-wait disabled:opacity-60"
                       aria-label={`Status for ${user.username}`}
                     >
                       {statuses.map((status) => <option key={status} value={status}>{status}</option>)}
                     </select>
                   </td>
-                  <td className="py-3 px-4"><span className="whitespace-nowrap font-semibold text-slate-600">{user.email_status || (user.status === 'DONE' ? 'READY' : 'NOT_READY')}</span></td>
-                  <td className="py-3 px-4">
+                  <td className="px-2 py-2 text-center"><span className="whitespace-nowrap text-[10px] font-semibold text-slate-600">{user.email_status || (user.status === 'DONE' ? 'READY' : 'NOT_READY')}</span></td>
+                  <td className="px-2 py-2 text-center">
                     <button
                       type="button"
                       onClick={() => void openPreview(user)}
                       disabled={user.status !== 'DONE' || openingPreview === user.id || user.email_status === 'SENDING'}
-                      className="inline-flex h-8 min-w-28 items-center justify-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 text-xs font-bold text-blue-700 transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-500"
+                      className="inline-flex h-7 w-full max-w-[6.75rem] items-center justify-center gap-1 whitespace-nowrap rounded-md border border-blue-200 bg-blue-50 px-1.5 text-[10px] font-bold text-blue-700 transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-500"
                     >
-                      <Mail className="h-3.5 w-3.5" />
-                      {openingPreview === user.id ? 'Loading...' : user.email_status === 'SENT' ? 'Preview / Resend' : user.status === 'DONE' ? 'Preview Email' : 'Set DONE First'}
+                      <Mail className="h-3 w-3 shrink-0" />
+                      {openingPreview === user.id ? 'Loading...' : user.email_status === 'SENT' ? 'Resend' : user.status === 'DONE' ? 'Preview' : 'Set DONE'}
                     </button>
                   </td>
                 </tr>
