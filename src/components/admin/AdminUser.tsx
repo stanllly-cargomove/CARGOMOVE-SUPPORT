@@ -1,18 +1,24 @@
 import React, { useEffect, useState } from 'react';
 import { Plus, Search, UsersRound } from 'lucide-react';
-import { getUserRegistrations, subscribeToStorage } from '../../services/storage';
-import { UserRegistration as UserRegistrationRecord } from '../../types';
+import { getAdminUsers, AdminAccount } from '../../services/auth';
 import { AdminUserCreate } from './AdminUserCreate';
 
 export function AdminUser() {
-  const [users, setUsers] = useState<UserRegistrationRecord[]>(getUserRegistrations());
+  const [users, setUsers] = useState<AdminAccount[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
 
-  useEffect(() => subscribeToStorage(() => setUsers(getUserRegistrations())), []);
+  useEffect(() => {
+    let isMounted = true;
+    void getAdminUsers().then((adminUsers) => {
+      if (isMounted) setUsers(adminUsers);
+    }).catch(() => {
+      if (isMounted) setUsers([]);
+    });
+    return () => { isMounted = false; };
+  }, [isAddUserOpen]);
 
   const filteredUsers = users.filter((user) => {
-    if (user.type !== 'ADMIN') return false;
     const term = searchTerm.toLowerCase();
     return !term || [user.username, user.email, user.full_name, user.mobile_number]
       .some((value) => value.toLowerCase().includes(term));

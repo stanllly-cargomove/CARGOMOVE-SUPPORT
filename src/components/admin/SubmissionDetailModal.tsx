@@ -303,7 +303,7 @@ export function SubmissionDetailModal({
           </div>
 
           {/* Export status banner if already exported */}
-          {submission.status === 'EXPORTED' && (
+          {submission.status === 'DONE' && (
             <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800">
               <div className="font-bold flex items-center gap-1.5">
                 <CheckCircle className="w-4 h-4 text-emerald-600" />
@@ -322,7 +322,7 @@ export function SubmissionDetailModal({
               Update Submission Status:
             </label>
             <div className="flex flex-wrap gap-2">
-              {(['PENDING', 'REVIEWED', 'READY_TO_EXPORT', 'REJECTED'] as const).map((st) => (
+              {(['PENDING', 'DONE', 'REJECTED'] as const).map((st) => (
                 <button
                   key={st}
                   type="button"
@@ -333,7 +333,7 @@ export function SubmissionDetailModal({
                       : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                   }`}
                 >
-                  Mark as {st.replace(/_/g, ' ')}
+                  Mark as {st === 'DONE' ? 'REGISTERED' : st}
                 </button>
               ))}
             </div>

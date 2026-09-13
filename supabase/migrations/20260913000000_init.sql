@@ -55,7 +55,7 @@ create table public.registration_submissions (
   port_location text not null check (port_location in ('PORT_KLANG', 'JOHOR', 'OTHER')),
   port_id text not null,
   depot_id text,
-  status text not null check (status in ('PENDING', 'REVIEWED', 'READY_TO_EXPORT', 'EXPORTED', 'REJECTED')),
+  status text not null check (status in ('PENDING', 'DONE', 'REJECTED')),
   submitted_at timestamptz not null,
   submitted_by_name text not null default '',
   submitted_by_email text not null default '',

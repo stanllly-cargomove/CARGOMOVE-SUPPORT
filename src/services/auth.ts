@@ -6,6 +6,14 @@ export interface ApplicationUser {
   full_name?: string;
 }
 
+export interface AdminAccount {
+  id: string;
+  username: string;
+  email: string;
+  full_name: string;
+  mobile_number: string;
+}
+
 export async function getApplicationSession(): Promise<{ authenticated: boolean; user: ApplicationUser | null }> {
   try {
     const response = await fetch('/api/auth/session', { credentials: 'include' });
@@ -47,4 +55,11 @@ export async function createAdminUser(input: {
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body.error || 'Unable to create the user.');
+}
+
+export async function getAdminUsers(): Promise<AdminAccount[]> {
+  const response = await fetch('/api/auth/users', { credentials: 'include' });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.error || 'Unable to load admin users.');
+  return body.users || [];
 }

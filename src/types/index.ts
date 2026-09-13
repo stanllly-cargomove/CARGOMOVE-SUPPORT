@@ -4,7 +4,7 @@ export type RegistrationType = 'COMPANY' | 'DRIVER' | 'TRAILER' | 'VEHICLE';
 
 export type CompanyCategory = 'HAULIER' | 'FORWARDING';
 
-export type SubmissionStatus = 'PENDING' | 'REVIEWED' | 'READY_TO_EXPORT' | 'EXPORTED' | 'REJECTED';
+export type SubmissionStatus = 'PENDING' | 'DONE' | 'REJECTED';
 
 export interface PortConfig {
   id: string;

@@ -4,6 +4,8 @@ import {
   getSubmissions,
   getCompanyById,
   deleteSubmission,
+  updateSubmissionStatus,
+  subscribeToStorage,
 } from '../../services/storage';
 import { getCompanyExternalId } from '../../services/companyHelper';
 import { exportSubmissionsToExcel } from '../../services/excelExport';
@@ -27,8 +29,8 @@ export function SubmissionsList() {
   const [submissions, setSubmissions] = useState<RegistrationSubmission[]>(getSubmissions());
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [typeFilter, setTypeFilter] = useState<string>('ALL');
-  const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [typeFilter, setTypeFilter] = useState<string>('COMPANY');
+  const [statusFilter, setStatusFilter] = useState<string>('PENDING');
   const [portFilter, setPortFilter] = useState<string>('ALL');
   const [missingIdOnly, setMissingIdOnly] = useState(false);
 
@@ -39,6 +41,8 @@ export function SubmissionsList() {
   const refreshList = () => {
     setSubmissions(getSubmissions());
   };
+
+  React.useEffect(() => subscribeToStorage(refreshList), []);
 
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
@@ -65,7 +69,9 @@ export function SubmissionsList() {
       sub.company_reg_no.toLowerCase().includes(term);
 
     const matchesType = typeFilter === 'ALL' || sub.registration_type === typeFilter;
-    const matchesStatus = statusFilter === 'ALL' || sub.status === statusFilter;
+    const matchesStatus = statusFilter === 'DONE'
+      ? sub.status === 'DONE'
+      : sub.status === statusFilter;
     const matchesPort = portFilter === 'ALL' || sub.port_location === portFilter;
 
     // Check if parent company has required ID
@@ -127,8 +133,23 @@ export function SubmissionsList() {
         </div>
       </div>
 
-      {/* Filters & Search */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-center gap-3">
+      {/* Registration type tabs */}
+      <div className="border-b border-slate-200 flex items-center gap-1 overflow-x-auto">
+        {[
+          ['COMPANY', 'Company'],
+          ['DRIVER', 'Driver'],
+          ['TRAILER', 'Trailer'],
+          ['VEHICLE', 'Vehicle'],
+        ].map(([value, label]) => (
+          <button key={value} type="button" onClick={() => setTypeFilter(value)} className={`px-4 py-2.5 text-xs font-bold border-b-2 whitespace-nowrap ${typeFilter === value ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Search and status tabs */}
+      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-4">
+        <div className="flex flex-col md:flex-row items-center gap-3">
         <div className="relative flex-1 w-full">
           <input
             type="text"
@@ -141,32 +162,6 @@ export function SubmissionsList() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-          {/* Type Filter */}
-          <select
-            value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value)}
-            className="px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="ALL">All Types</option>
-            <option value="COMPANY">Company</option>
-            <option value="DRIVER">Driver</option>
-            <option value="TRAILER">Trailer</option>
-            <option value="VEHICLE">Vehicle</option>
-          </select>
-
-          {/* Status Filter */}
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="ALL">All Statuses</option>
-            <option value="PENDING">Pending</option>
-            <option value="REVIEWED">Reviewed</option>
-            <option value="READY_TO_EXPORT">Ready to Export</option>
-            <option value="EXPORTED">Exported</option>
-            <option value="REJECTED">Rejected</option>
-          </select>
 
           {/* Port Filter */}
           <select
@@ -191,6 +186,18 @@ export function SubmissionsList() {
           >
             ⚠ Missing ID Only
           </button>
+        </div>
+        </div>
+        <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-1 w-fit">
+          {[
+            ['PENDING', 'Pending'],
+            ['DONE', 'Done'],
+            ['REJECTED', 'Rejected'],
+          ].map(([value, label]) => (
+            <button key={value} type="button" onClick={() => setStatusFilter(value)} className={`px-4 py-2 rounded-md text-xs font-bold transition-colors ${statusFilter === value ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>
+              {label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -329,6 +336,12 @@ export function SubmissionsList() {
                             <Eye className="w-3.5 h-3.5" />
                             Review
                           </button>
+                          {sub.status === 'PENDING' && (
+                            <>
+                              <button type="button" onClick={() => { updateSubmissionStatus(sub.id, 'DONE'); refreshList(); }} className="px-2 py-1 rounded bg-emerald-600 text-white font-bold text-[11px] hover:bg-emerald-700">Register</button>
+                              <button type="button" onClick={() => { updateSubmissionStatus(sub.id, 'REJECTED'); refreshList(); }} className="px-2 py-1 rounded bg-rose-600 text-white font-bold text-[11px] hover:bg-rose-700">Reject</button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>

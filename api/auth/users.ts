@@ -50,6 +50,26 @@ export default async function createAdminUser(request: any, response: any) {
     return;
   }
 
+  if (request.method === 'GET') {
+    try {
+      const query = new URLSearchParams({
+        select: 'id,username,email,full_name,mobile_number',
+        type: 'eq.ADMIN',
+        order: 'created_at.desc',
+      });
+      const result = await fetch(`${url}/rest/v1/user_registrations?${query.toString()}`, {
+        headers: { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}` },
+      });
+      const users = await result.json().catch(() => []);
+      if (!result.ok) throw new Error('admin_user_lookup_failed');
+      response.json({ users });
+    } catch (error) {
+      console.error('Load admin users failed:', error);
+      response.status(500).json({ error: 'Unable to load admin users.' });
+    }
+    return;
+  }
+
   try {
     const body = await readBody(request);
     const username = String(body.username || '').trim().toLowerCase();

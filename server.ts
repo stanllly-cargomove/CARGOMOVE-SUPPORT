@@ -151,6 +151,23 @@ app.get('/api/auth/session', (request, response) => {
   response.json({ authenticated: !!session, user: session ? { id: session.id, email: session.email, type: session.type } : null });
 });
 
+app.get('/api/auth/users', requireSession, async (_request, response) => {
+  if (!supabase) {
+    response.status(503).json({ error: 'Supabase server access is not configured.' });
+    return;
+  }
+  const { data, error } = await supabase
+    .from('user_registrations')
+    .select('id, username, email, full_name, mobile_number')
+    .eq('type', 'ADMIN')
+    .order('created_at', { ascending: false });
+  if (error) {
+    response.status(502).json({ error: error.message });
+    return;
+  }
+  response.json({ users: data || [] });
+});
+
 app.post('/api/auth/logout', (_request, response) => {
   response.setHeader('Set-Cookie', 'cargomove_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0');
   response.status(204).end();

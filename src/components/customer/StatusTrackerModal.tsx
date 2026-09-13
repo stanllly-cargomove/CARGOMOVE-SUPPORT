@@ -108,7 +108,7 @@ export function StatusTrackerModal({
               </div>
             </div>
 
-            {foundSub.status === 'EXPORTED' && (
+            {foundSub.status === 'DONE' && (
               <div className="mt-2 p-2 rounded bg-emerald-100/60 text-[11px] text-emerald-800 flex items-center gap-1.5">
                 <FileSpreadsheet className="w-4 h-4 text-emerald-700 shrink-0" />
                 <span>Backend Excel generated & uploaded to Port Operating System.</span>

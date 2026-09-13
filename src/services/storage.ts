@@ -260,7 +260,7 @@ export const INITIAL_SUBMISSIONS: RegistrationSubmission[] = [
     port_location: 'JOHOR',
     port_id: 'jh-pg-ics',
     depot_id: 'depot-ics-1',
-    status: 'READY_TO_EXPORT',
+    status: 'DONE',
     submitted_at: '2026-09-10T09:15:00.000Z',
     submitted_by_name: 'Kevin Tan',
     submitted_by_email: 'kevin.tan@lumoratech.com',
@@ -323,7 +323,7 @@ export const INITIAL_SUBMISSIONS: RegistrationSubmission[] = [
     port_location: 'JOHOR',
     port_id: 'jh-pg-ics',
     depot_id: 'depot-ics-1',
-    status: 'EXPORTED',
+    status: 'DONE',
     submitted_at: '2026-09-11T08:20:00.000Z',
     submitted_by_name: 'Ahmad Razif',
     submitted_by_email: 'razif@abchaulage.com.my',
@@ -902,21 +902,6 @@ export function updateCompanyId(
   localStorage.setItem(STORAGE_KEYS.COMPANIES, JSON.stringify(companies));
   syncCompany(company);
 
-  // Automatically update any linked submissions status if they were blocked
-  const submissions = getSubmissions();
-  let updatedSubmissions = false;
-  submissions.forEach((sub) => {
-    if (sub.company_id === companyId && sub.status === 'PENDING') {
-      sub.status = 'READY_TO_EXPORT';
-      updatedSubmissions = true;
-    }
-  });
-
-  if (updatedSubmissions) {
-    localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(submissions));
-    submissions.filter((submission) => submission.company_id === companyId && submission.status === 'READY_TO_EXPORT').forEach(syncSubmission);
-  }
-
   notifyListeners();
   return company;
 }
@@ -1021,7 +1006,7 @@ export function updateSubmissionStatus(
   if (!sub) return null;
 
   sub.status = status;
-  if (status === 'REVIEWED' && !sub.reviewed_at) {
+  if (status === 'DONE' && !sub.reviewed_at) {
     sub.reviewed_at = new Date().toISOString();
   }
   if (notes !== undefined) {
@@ -1043,7 +1028,7 @@ export function markSubmissionsExported(
 
   subs.forEach((s) => {
     if (submissionIds.includes(s.id)) {
-      s.status = 'EXPORTED';
+      s.status = 'DONE';
       s.exported_at = now;
       s.export_filename = filename;
     }

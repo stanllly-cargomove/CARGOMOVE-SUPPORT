@@ -20,22 +20,10 @@ export function StatusBadge({ status }: { status: string }) {
           Pending
         </span>
       );
-    case 'REVIEWED':
-      return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-          Reviewed
-        </span>
-      );
-    case 'READY_TO_EXPORT':
-      return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-cyan-50 text-cyan-700 border border-cyan-200">
-          Ready to Export
-        </span>
-      );
-    case 'EXPORTED':
+    case 'DONE':
       return (
         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-          Exported
+          Done
         </span>
       );
     case 'REJECTED':
