@@ -1,9 +1,34 @@
-import { missingVariables, readSession, serviceRoleKey, supabaseUrl } from './_runtime';
+import crypto from 'node:crypto';
 
 const REQUEST_TIMEOUT_MS = 15_000;
 
-async function readTable(table: string, params: URLSearchParams) {
-  if (!supabaseUrl || !serviceRoleKey) throw new Error('Supabase server access is not configured.');
+function configuration() {
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const missing = [
+    !supabaseUrl && 'SUPABASE_URL (or VITE_SUPABASE_URL)',
+    !serviceRoleKey && 'SUPABASE_SERVICE_ROLE_KEY',
+    !process.env.SESSION_SECRET && 'SESSION_SECRET',
+  ].filter(Boolean) as string[];
+  return { supabaseUrl, serviceRoleKey, sessionSecret: process.env.SESSION_SECRET, missing };
+}
+
+function readAdminSession(request: any, sessionSecret: string | undefined) {
+  const value = request.headers?.cookie?.match(/(?:^|; )cargomove_session=([^;]+)/)?.[1];
+  if (!sessionSecret || !value) return null;
+  const [encoded, signature] = value.split('.');
+  if (!encoded || !signature) return null;
+  const expected = crypto.createHmac('sha256', sessionSecret).update(encoded).digest('base64url');
+  if (signature.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) return null;
+  try {
+    const session = JSON.parse(Buffer.from(encoded, 'base64url').toString()) as { type: string; exp: number };
+    return session.type === 'ADMIN' && session.exp > Date.now() ? session : null;
+  } catch {
+    return null;
+  }
+}
+
+async function readTable(supabaseUrl: string, serviceRoleKey: string, table: string, params: URLSearchParams) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
@@ -29,13 +54,13 @@ export default async function snapshot(request: any, response: any) {
       response.status(405).json({ error: 'Method not allowed.' });
       return;
     }
-    const session = readSession(request);
-    if (!session || session.type !== 'ADMIN') {
-      response.status(401).json({ error: 'Authentication required.' });
+    const { supabaseUrl, serviceRoleKey, sessionSecret, missing } = configuration();
+    if (missing.length || !supabaseUrl || !serviceRoleKey) {
+      response.status(503).json({ error: 'Supabase server access is not configured.', missing });
       return;
     }
-    if (!supabaseUrl || !serviceRoleKey) {
-      response.status(503).json({ error: 'Supabase server access is not configured.', missing: missingVariables });
+    if (!readAdminSession(request, sessionSecret)) {
+      response.status(401).json({ error: 'Authentication required.' });
       return;
     }
 
@@ -49,12 +74,12 @@ export default async function snapshot(request: any, response: any) {
       return params;
     };
     const tables = await Promise.all([
-      readTable('port_configs', changedParams('*')),
-      readTable('depot_configs', changedParams('*')),
-      readTable('companies', changedParams('*')),
-      readTable('registration_submissions', changedParams('*', 'submitted_at.desc')),
-      readTable('user_registrations', changedParams('id,username,email,type,company_id,company_name,full_name,mobile_number,created_at,updated_at', 'created_at.desc')),
-      readTable('haulier_guidelines', (() => {
+      readTable(supabaseUrl, serviceRoleKey, 'port_configs', changedParams('*')),
+      readTable(supabaseUrl, serviceRoleKey, 'depot_configs', changedParams('*')),
+      readTable(supabaseUrl, serviceRoleKey, 'companies', changedParams('*')),
+      readTable(supabaseUrl, serviceRoleKey, 'registration_submissions', changedParams('*', 'submitted_at.desc')),
+      readTable(supabaseUrl, serviceRoleKey, 'user_registrations', changedParams('id,username,email,type,company_id,company_name,full_name,mobile_number,created_at,updated_at', 'created_at.desc')),
+      readTable(supabaseUrl, serviceRoleKey, 'haulier_guidelines', (() => {
         const params = changedParams('content,updated_at');
         params.set('id', 'eq.default');
         params.set('limit', '1');

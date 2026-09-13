@@ -519,9 +519,11 @@ export async function refreshProtectedStorage(): Promise<void> {
 export function startProtectedStorageSync(): () => void {
   protectedDataEnabled = true;
   remoteHydrationStarted = true;
-  void syncFromSupabase(true);
+  void syncFromSupabase(true).catch((error) => console.error('Initial protected data sync failed:', error));
   if (remoteSyncTimer) clearInterval(remoteSyncTimer);
-  remoteSyncTimer = setInterval(() => void syncFromSupabase(false), 60_000);
+  remoteSyncTimer = setInterval(() => {
+    void syncFromSupabase(false).catch((error) => console.error('Scheduled protected data sync failed:', error));
+  }, 60_000);
   return stopProtectedStorageSync;
 }
 

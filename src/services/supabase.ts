@@ -14,8 +14,9 @@ export interface Snapshot {
 async function parseResponse<T>(response: Response): Promise<T | null> {
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
-    console.error('API request failed:', body.error || response.statusText);
-    return null;
+    const message = body.error || response.statusText || `Request failed with status ${response.status}.`;
+    console.error('API request failed:', message);
+    throw new Error(message);
   }
   return response.status === 204 ? null : response.json();
 }
