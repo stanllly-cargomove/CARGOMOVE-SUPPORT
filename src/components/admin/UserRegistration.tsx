@@ -1,15 +1,18 @@
 import React, { useEffect, useState } from 'react';
-import { Search, UsersRound } from 'lucide-react';
+import { Plus, Search, UsersRound } from 'lucide-react';
 import { getUserRegistrations, subscribeToStorage } from '../../services/storage';
 import { UserRegistration as UserRegistrationRecord } from '../../types';
+import { AdminUserCreate } from './AdminUserCreate';
 
 export function UserRegistration() {
   const [users, setUsers] = useState<UserRegistrationRecord[]>(getUserRegistrations());
   const [searchTerm, setSearchTerm] = useState('');
+  const [isAddUserOpen, setIsAddUserOpen] = useState(false);
 
   useEffect(() => subscribeToStorage(() => setUsers(getUserRegistrations())), []);
 
   const filteredUsers = users.filter((user) => {
+    if (!user.type.includes('ADMIN')) return false;
     const term = searchTerm.toLowerCase();
     return !term || [user.username, user.email, user.company_name, user.full_name, user.mobile_number]
       .some((value) => value.toLowerCase().includes(term));
@@ -18,8 +21,15 @@ export function UserRegistration() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-bold text-slate-900 tracking-tight">Registered Users</h2>
-        <p className="text-xs text-slate-500 mt-1">View Cargomove login accounts registered by company administrators.</p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-bold text-slate-900 tracking-tight">User Registration</h2>
+            <p className="text-xs text-slate-500 mt-1">View registered admin users and their account details.</p>
+          </div>
+          <button type="button" onClick={() => setIsAddUserOpen(true)} className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-blue-700">
+            <Plus className="w-4 h-4" /> Add User
+          </button>
+        </div>
       </div>
 
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
@@ -54,7 +64,7 @@ export function UserRegistration() {
                 <tr>
                   <td colSpan={7} className="py-10 text-center text-slate-500">
                     <UsersRound className="w-6 h-6 mx-auto mb-2 text-slate-300" />
-                    No user registrations found.
+                    No registered admin users found.
                   </td>
                 </tr>
               ) : filteredUsers.map((user) => (
@@ -72,6 +82,8 @@ export function UserRegistration() {
           </table>
         </div>
       </div>
+
+      {isAddUserOpen && <AdminUserCreate onClose={() => setIsAddUserOpen(false)} />}
     </div>
   );
 }

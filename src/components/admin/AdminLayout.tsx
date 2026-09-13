@@ -24,7 +24,6 @@ import { PortDepotConfig } from './PortDepotConfig';
 import { SchemaMappingInspector } from './SchemaMappingInspector';
 import { GuidelineManager } from './GuidelineManager';
 import { UserRegistration } from './UserRegistration';
-import { AdminUserCreate } from './AdminUserCreate';
 import { resetToDemoData } from '../../services/storage';
 import { Logo } from '../common/Logo';
 import { notifyError, notifySuccess } from '../common/notifications';
@@ -65,12 +64,11 @@ export function AdminLayout({ onSwitchToCustomer, onLogout }: AdminLayoutProps) 
   const navItems = [
     { id: 'dashboard', label: 'Operations Dashboard', icon: LayoutDashboard },
     { id: 'companies', label: 'Company Master', icon: Building2 },
-    { id: 'submissions', label: 'Registrations Queue', icon: Inbox },
+    { id: 'submissions', label: 'Company Registration', icon: Inbox },
+    { id: 'user-registration', label: 'User Registration', icon: UserRoundPlus },
   ];
 
   const devToolItems = [
-    { id: 'add-admin-user', label: 'Add Admin User', icon: UserRoundPlus },
-    { id: 'user-registration', label: 'Registered Users', icon: UserRoundPlus },
     { id: 'guidelines', label: 'Haulier Guidelines', icon: BookOpen },
     { id: 'export', label: 'Excel Export Center', icon: FileSpreadsheet },
     { id: 'ports', label: 'Port & Depot Config', icon: Settings },
@@ -239,7 +237,6 @@ export function AdminLayout({ onSwitchToCustomer, onLogout }: AdminLayoutProps) 
           {activeTab === 'companies' && <CompanyMaster />}
           {activeTab === 'submissions' && <SubmissionsList />}
           {activeTab === 'user-registration' && <UserRegistration />}
-          {activeTab === 'add-admin-user' && <AdminUserCreate />}
           {activeTab === 'guidelines' && (
             <GuidelineManager onPreviewCustomerView={onSwitchToCustomer} />
           )}
