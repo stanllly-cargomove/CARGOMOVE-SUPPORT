@@ -464,6 +464,12 @@ async function hydrateFromSupabase() {
   notifyListeners();
 }
 
+export async function refreshProtectedStorage(): Promise<void> {
+  if (!protectedDataEnabled) return;
+  remoteHydrationStarted = false;
+  await hydrateFromSupabase();
+}
+
 export function subscribeToStorage(callback: StorageListener): () => void {
   listeners.add(callback);
   return () => listeners.delete(callback);
@@ -1174,4 +1180,3 @@ export function resetHaulierGuideline(): HaulierGuideline {
   notifyListeners();
   return DEFAULT_HAULIER_GUIDELINE;
 }
-

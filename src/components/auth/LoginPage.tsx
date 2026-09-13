@@ -51,7 +51,7 @@ export function LoginPage({ onBack, onSuccess }: LoginPageProps) {
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} autoComplete="off" className="p-6 space-y-4">
           {error && (
             <div role="alert" className="flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
@@ -68,7 +68,8 @@ export function LoginPage({ onBack, onSuccess }: LoginPageProps) {
                 type="text"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
-                autoComplete="username"
+                name="login-identifier"
+                autoComplete="off"
                 placeholder="admin or admin@company.com"
                 className="w-full rounded-lg border border-slate-300 py-2.5 pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
               />
@@ -84,7 +85,8 @@ export function LoginPage({ onBack, onSuccess }: LoginPageProps) {
                 type="password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                autoComplete="current-password"
+                name="login-secret"
+                autoComplete="new-password"
                 placeholder="Enter your password"
                 className="w-full rounded-lg border border-slate-300 py-2.5 pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
               />

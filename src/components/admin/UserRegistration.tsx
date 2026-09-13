@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Search, UsersRound } from 'lucide-react';
-import { getUserRegistrations } from '../../services/storage';
+import { getUserRegistrations, subscribeToStorage } from '../../services/storage';
 import { UserRegistration as UserRegistrationRecord } from '../../types';
 
 export function UserRegistration() {
-  const [users] = useState<UserRegistrationRecord[]>(getUserRegistrations());
+  const [users, setUsers] = useState<UserRegistrationRecord[]>(getUserRegistrations());
   const [searchTerm, setSearchTerm] = useState('');
+
+  useEffect(() => subscribeToStorage(() => setUsers(getUserRegistrations())), []);
 
   const filteredUsers = users.filter((user) => {
     const term = searchTerm.toLowerCase();
@@ -16,8 +18,8 @@ export function UserRegistration() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-bold text-slate-900 tracking-tight">User Registration</h2>
-        <p className="text-xs text-slate-500 mt-1">Manage Cargomove login accounts registered by company administrators.</p>
+        <h2 className="text-xl font-bold text-slate-900 tracking-tight">Registered Users</h2>
+        <p className="text-xs text-slate-500 mt-1">View Cargomove login accounts registered by company administrators.</p>
       </div>
 
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">

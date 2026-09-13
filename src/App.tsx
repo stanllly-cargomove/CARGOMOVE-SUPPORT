@@ -17,6 +17,7 @@ export default function App() {
     void getApplicationSession().then(({ authenticated }) => {
       if (!isMounted) return;
       setIsAuthenticated(authenticated);
+      if (authenticated) setViewMode('ADMIN');
       setIsAuthLoading(false);
     });
 

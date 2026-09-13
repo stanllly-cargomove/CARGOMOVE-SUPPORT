@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { KeyRound, LoaderCircle, UserPlus } from 'lucide-react';
 import { createAdminUser } from '../../services/auth';
+import { refreshProtectedStorage } from '../../services/storage';
 import { notifyError, notifySuccess } from '../common/notifications';
 
 const EMPTY_FORM = { username: '', fullName: '', password: '', mobileNumber: '', email: '' };
@@ -20,6 +21,7 @@ export function AdminUserCreate() {
     setIsSubmitting(true);
     try {
       await createAdminUser(form);
+      await refreshProtectedStorage();
       setForm(EMPTY_FORM);
       notifySuccess('Admin user created successfully.');
     } catch (error) {

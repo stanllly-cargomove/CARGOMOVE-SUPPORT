@@ -66,11 +66,11 @@ export function AdminLayout({ onSwitchToCustomer, onLogout }: AdminLayoutProps) 
     { id: 'dashboard', label: 'Operations Dashboard', icon: LayoutDashboard },
     { id: 'companies', label: 'Company Master', icon: Building2 },
     { id: 'submissions', label: 'Registrations Queue', icon: Inbox },
-    { id: 'user-registration', label: 'User Registration', icon: UserRoundPlus },
   ];
 
   const devToolItems = [
     { id: 'add-admin-user', label: 'Add Admin User', icon: UserRoundPlus },
+    { id: 'user-registration', label: 'Registered Users', icon: UserRoundPlus },
     { id: 'guidelines', label: 'Haulier Guidelines', icon: BookOpen },
     { id: 'export', label: 'Excel Export Center', icon: FileSpreadsheet },
     { id: 'ports', label: 'Port & Depot Config', icon: Settings },
