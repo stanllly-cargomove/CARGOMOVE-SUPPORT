@@ -2,7 +2,7 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "rewrites": [
-    { "source": "/api/email/:path*", "destination": "/api/_app" },
-    { "source": "/api/gmail/:path*", "destination": "/api/_app" }
+    { "source": "/api/email/:path*", "destination": "/api/mail?route=email/:path*" },
+    { "source": "/api/gmail/:path*", "destination": "/api/mail?route=gmail/:path*" }
   ]
 }
