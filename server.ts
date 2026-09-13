@@ -2,6 +2,13 @@ import crypto from 'node:crypto';
 import express, { NextFunction, Request, Response } from 'express';
 import { config } from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
+import gmailConnect from './api/gmail/connect';
+import gmailCallback from './api/gmail/callback';
+import gmailStatus from './api/gmail/status';
+import emailTemplates from './api/email/templates';
+import emailPreview from './api/email/preview';
+import emailSend from './api/email/send';
+import emailLogs from './api/email/logs';
 
 config({ path: '.env.local' });
 
@@ -196,9 +203,9 @@ app.get('/api/external-user-access', requireSession, async (_request, response) 
   }
   let { data, error } = await supabase
     .from('external_user_access')
-    .select('id, username, email, password, company_id, company_name, full_name, mobile_number, status, email_sent, created_at')
+    .select('id, username, email, password, company_id, company_name, full_name, mobile_number, status, email_status, email_sent, created_at')
     .order('created_at', { ascending: false });
-  if (error && (error.message.includes('status') || error.message.includes('email_sent'))) {
+  if (error && (error.message.includes('status') || error.message.includes('email_sent') || error.message.includes('email_status'))) {
     const legacyResult = await supabase
       .from('external_user_access')
       .select('id, username, email, password, company_id, company_name, full_name, mobile_number, created_at')
@@ -215,6 +222,9 @@ app.get('/api/external-user-access', requireSession, async (_request, response) 
       ...user,
       status: ['PENDING', 'DONE', 'REJECTED'].includes(user.status) ? user.status : 'PENDING',
       email_sent: user.email_sent === 1 ? 1 : 0,
+      email_status: ['NOT_READY', 'READY', 'SENDING', 'SENT', 'FAILED'].includes(user.email_status)
+        ? user.email_status
+        : user.email_sent === 1 ? 'SENT' : user.status === 'DONE' ? 'READY' : 'NOT_READY',
     })),
   });
 });
@@ -297,6 +307,15 @@ app.post('/api/auth/logout', (_request, response) => {
   response.setHeader('Set-Cookie', 'cargomove_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0');
   response.status(204).end();
 });
+
+app.post('/api/gmail/connect', gmailConnect);
+app.get('/api/gmail/callback', gmailCallback);
+app.get('/api/gmail/status', gmailStatus);
+app.get('/api/email/templates', emailTemplates);
+app.put('/api/email/templates', emailTemplates);
+app.post('/api/email/preview', emailPreview);
+app.post('/api/email/send', emailSend);
+app.get('/api/email/logs', emailLogs);
 
 app.get('/api/snapshot', requireSession, async (request, response) => {
   try {

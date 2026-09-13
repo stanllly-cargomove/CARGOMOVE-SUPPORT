@@ -24,11 +24,12 @@ export interface ExternalUserAccess {
   full_name: string;
   mobile_number: string;
   status: 'PENDING' | 'DONE' | 'REJECTED';
+  email_status: 'NOT_READY' | 'READY' | 'SENDING' | 'SENT' | 'FAILED';
   email_sent: 0 | 1;
   created_at: string;
 }
 
-export async function saveExternalUserAccess(input: Omit<ExternalUserAccess, 'id' | 'created_at' | 'status' | 'email_sent'> & Partial<Pick<ExternalUserAccess, 'status' | 'email_sent'>> & { id?: string }): Promise<void> {
+export async function saveExternalUserAccess(input: Omit<ExternalUserAccess, 'id' | 'created_at' | 'status' | 'email_status' | 'email_sent'> & Partial<Pick<ExternalUserAccess, 'status' | 'email_sent'>> & { id?: string }): Promise<void> {
   await fetch('/api/external-user-access', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -38,7 +39,7 @@ export async function saveExternalUserAccess(input: Omit<ExternalUserAccess, 'id
 
 export async function updateExternalUserAccess(
   id: string,
-  changes: Partial<Pick<ExternalUserAccess, 'status' | 'email_sent'>>,
+  changes: Partial<Pick<ExternalUserAccess, 'status'>>,
 ): Promise<ExternalUserAccess> {
   const response = await fetch('/api/external-user-access', {
     method: 'PATCH',

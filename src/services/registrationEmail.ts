@@ -1,9 +1,7 @@
-import { ExternalUserAccess } from './auth';
-
-/**
- * Placeholder for the registration email integration.
- * The registration screen currently records only the sent flag; no email is sent yet.
- */
-export async function sendRegistrationEmail(_user: ExternalUserAccess): Promise<void> {
-  // Intentionally empty until an email provider is selected.
-}
+// Backward-compatible entry point for registration-email consumers. Gmail
+// authorization, rendering, and sending are all performed by backend routes.
+export {
+  generateWelcomeEmailPreview,
+  sendWelcomeEmail,
+} from './email';
+export type { EmailPreview } from './email';

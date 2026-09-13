@@ -1,11 +1,11 @@
 import crypto from 'node:crypto';
 
-const externalUserFields = 'id,username,email,password,company_id,company_name,full_name,mobile_number,status,email_sent,created_at';
+const externalUserFields = 'id,username,email,password,company_id,company_name,full_name,mobile_number,status,email_status,email_sent,created_at';
 const legacyExternalUserFields = 'id,username,email,password,company_id,company_name,full_name,mobile_number,created_at';
 
 function isMissingWorkflowColumn(error: unknown) {
   const detail = JSON.stringify(error).toLowerCase();
-  return detail.includes('status') || detail.includes('email_sent');
+  return detail.includes('status') || detail.includes('email_sent') || detail.includes('email_status');
 }
 
 function normalizeExternalUsers(users: unknown) {
@@ -14,6 +14,9 @@ function normalizeExternalUsers(users: unknown) {
     ...user,
     status: ['PENDING', 'DONE', 'REJECTED'].includes(user?.status) ? user.status : 'PENDING',
     email_sent: user?.email_sent === 1 ? 1 : 0,
+    email_status: ['NOT_READY', 'READY', 'SENDING', 'SENT', 'FAILED'].includes(user?.email_status)
+      ? user.email_status
+      : user?.email_sent === 1 ? 'SENT' : user?.status === 'DONE' ? 'READY' : 'NOT_READY',
   }));
 }
 

@@ -16,6 +16,7 @@ import {
   Moon,
   Sun,
   RefreshCw,
+  Mail,
 } from 'lucide-react';
 import { AdminDashboard } from './AdminDashboard';
 import { CompanyMaster } from './CompanyMaster';
@@ -26,6 +27,7 @@ import { SchemaMappingInspector } from './SchemaMappingInspector';
 import { GuidelineManager } from './GuidelineManager';
 import { UserRegistration } from './UserRegistration';
 import { AdminUser } from './AdminUser';
+import { EmailTemplateManager } from './EmailTemplateManager';
 import { resetToDemoData } from '../../services/storage';
 import { Logo } from '../common/Logo';
 import { notifyError, notifySuccess } from '../common/notifications';
@@ -87,6 +89,7 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
 
   const devToolItems = [
     { id: 'admin-user', label: 'Admin user', icon: UserRoundPlus },
+    { id: 'email-template', label: 'Email Template', icon: Mail },
     { id: 'guidelines', label: 'Haulier Guidelines', icon: BookOpen },
     { id: 'export', label: 'Excel Export Center', icon: FileSpreadsheet },
     { id: 'ports', label: 'Port & Depot Config', icon: Settings },
@@ -263,6 +266,7 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
           {activeTab === 'submissions' && <SubmissionsList />}
           {activeTab === 'user-registration' && <UserRegistration />}
           {activeTab === 'admin-user' && <AdminUser />}
+          {activeTab === 'email-template' && <EmailTemplateManager />}
           {activeTab === 'guidelines' && (
             <GuidelineManager onPreviewCustomerView={onSwitchToCustomer} />
           )}
