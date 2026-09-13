@@ -42,6 +42,27 @@ function createAuthClient() {
   }
 }
 
+async function fetchSupabaseTable(table: string, params: URLSearchParams) {
+  if (!supabaseUrl || !serviceRoleKey) throw new Error('Supabase server access is not configured.');
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15_000);
+  try {
+    const result = await fetch(`${supabaseUrl}/rest/v1/${table}?${params.toString()}`, {
+      headers: {
+        apikey: serviceRoleKey,
+        Authorization: `Bearer ${serviceRoleKey}`,
+        Accept: 'application/json',
+      },
+      signal: controller.signal,
+    });
+    const body = await result.json().catch(() => null);
+    if (!result.ok) throw new Error(`${table}_query_failed_${result.status}`);
+    return body;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 app.use(express.json({ limit: '1mb' }));
 
 // Vercel can invoke an API function with either the public /api path or the
@@ -223,40 +244,49 @@ app.post('/api/auth/logout', (_request, response) => {
 });
 
 app.get('/api/snapshot', requireSession, async (request, response) => {
-  if (!supabase) {
-    response.status(503).json({ error: 'Supabase server access is not configured.', missing: missingServerVariables });
-    return;
+  try {
+    if (!supabaseUrl || !serviceRoleKey) {
+      response.status(503).json({ error: 'Supabase server access is not configured.', missing: missingServerVariables });
+      return;
+    }
+    const requestedSince = typeof request.query.since === 'string' ? request.query.since : '';
+    const since = requestedSince && !Number.isNaN(Date.parse(requestedSince)) ? requestedSince : null;
+    const syncCursor = new Date().toISOString();
+    const changedParams = (select: string, order?: string) => {
+      const params = new URLSearchParams({ select });
+      if (since) params.set('updated_at', `gt.${since}`);
+      if (order) params.set('order', order);
+      return params;
+    };
+    const tables = await Promise.all([
+      fetchSupabaseTable('port_configs', changedParams('*')),
+      fetchSupabaseTable('depot_configs', changedParams('*')),
+      fetchSupabaseTable('companies', changedParams('*')),
+      fetchSupabaseTable('registration_submissions', changedParams('*', 'submitted_at.desc')),
+      fetchSupabaseTable('user_registrations', changedParams('id,username,email,type,company_id,company_name,full_name,mobile_number,created_at,updated_at', 'created_at.desc')),
+      fetchSupabaseTable('haulier_guidelines', (() => {
+        const params = changedParams('content,updated_at');
+        params.set('id', 'eq.default');
+        params.set('limit', '1');
+        return params;
+      })()),
+    ]);
+    const [ports, depots, companies, submissions, userRegistrations, guidelines] = tables as any[];
+    const guideline = guidelines?.[0] || null;
+    response.status(200).json({
+      ports: ports || [],
+      depots: depots || [],
+      companies: (companies || []).map((company: any) => ({ ...company.details, ...company, details: undefined })),
+      submissions: submissions || [],
+      userRegistrations: userRegistrations || [],
+      guideline: guideline?.content || null,
+      guidelineUpdatedAt: guideline?.updated_at || null,
+      syncCursor,
+    });
+  } catch (error) {
+    console.error('Snapshot request failed:', error);
+    response.status(502).json({ error: 'Unable to load application data.' });
   }
-  const requestedSince = typeof request.query.since === 'string' ? request.query.since : '';
-  const since = requestedSince && !Number.isNaN(Date.parse(requestedSince)) ? requestedSince : null;
-  const syncCursor = new Date().toISOString();
-  const changed = <T extends { gt: (column: string, value: string) => T }>(query: T) => since ? query.gt('updated_at', since) : query;
-  const tables = await Promise.all([
-    changed(supabase.from('port_configs').select('*')),
-    changed(supabase.from('depot_configs').select('*')),
-    changed(supabase.from('companies').select('*')),
-    changed(supabase.from('registration_submissions').select('*')).order('submitted_at', { ascending: false }),
-    changed(supabase.from('user_registrations').select('id, username, email, type, company_id, company_name, full_name, mobile_number, created_at, updated_at')).order('created_at', { ascending: false }),
-    since
-      ? supabase.from('haulier_guidelines').select('content, updated_at').eq('id', 'default').gt('updated_at', since).maybeSingle()
-      : supabase.from('haulier_guidelines').select('content, updated_at').eq('id', 'default').maybeSingle(),
-  ]);
-  const failed = tables.find((result) => result.error);
-  if (failed?.error) {
-    response.status(502).json({ error: failed.error.message });
-    return;
-  }
-  const [ports, depots, companies, submissions, userRegistrations, guideline] = tables;
-  response.json({
-    ports: ports.data || [],
-    depots: depots.data || [],
-    companies: (companies.data || []).map((company: any) => ({ ...company.details, ...company, details: undefined })),
-    submissions: submissions.data || [],
-    userRegistrations: userRegistrations.data || [],
-    guideline: (guideline as any).data?.content || null,
-    guidelineUpdatedAt: (guideline as any).data?.updated_at || null,
-    syncCursor,
-  });
 });
 
 const writableTables = new Set(['companies', 'port_configs', 'depot_configs', 'registration_submissions', 'user_registrations', 'haulier_guidelines']);
