@@ -12,15 +12,19 @@ const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 
-if (!supabaseUrl || !serviceRoleKey || !supabaseAnonKey || !sessionSecret) {
-  throw new Error('Set SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY, and SESSION_SECRET in the server environment.');
-}
+const missingServerVariables = [
+  !supabaseUrl && 'SUPABASE_URL (or VITE_SUPABASE_URL)',
+  !serviceRoleKey && 'SUPABASE_SERVICE_ROLE_KEY',
+  !supabaseAnonKey && 'SUPABASE_ANON_KEY (or VITE_SUPABASE_ANON_KEY)',
+  !sessionSecret && 'SESSION_SECRET',
+].filter(Boolean) as string[];
 
-const supabase = createClient(supabaseUrl, serviceRoleKey, {
-  auth: { autoRefreshToken: false, persistSession: false },
-});
+const supabase = supabaseUrl && serviceRoleKey
+  ? createClient(supabaseUrl, serviceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } })
+  : null;
 
 function createAuthClient() {
+  if (!supabaseUrl || !supabaseAnonKey) return null;
   return createClient(supabaseUrl, supabaseAnonKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
@@ -38,7 +42,11 @@ app.use((request, _response, next) => {
 });
 
 app.get('/api/health', (_request, response) => {
-  response.json({ ok: true, service: 'cargomove-api' });
+  response.status(missingServerVariables.length ? 503 : 200).json({
+    ok: missingServerVariables.length === 0,
+    service: 'cargomove-api',
+    missing: missingServerVariables,
+  });
 });
 
 function signSession(payload: { id: string; email: string; type: string; exp: number }) {
@@ -74,6 +82,10 @@ function requireSession(request: Request, response: Response, next: NextFunction
 }
 
 app.post('/api/auth/login', async (request, response) => {
+  if (!supabase || !supabaseAnonKey || !sessionSecret) {
+    response.status(503).json({ error: 'Server authentication is not configured.', missing: missingServerVariables });
+    return;
+  }
   const identifier = String(request.body?.identifier || '').trim().toLowerCase();
   const password = String(request.body?.password || '');
   if (!identifier || !password) {
@@ -103,6 +115,10 @@ app.post('/api/auth/login', async (request, response) => {
   }
 
   const auth = createAuthClient();
+  if (!auth) {
+    response.status(503).json({ error: 'Supabase Auth is not configured.' });
+    return;
+  }
   const { data: authData, error: authError } = await auth.auth.signInWithPassword({
     email: user.email,
     password,
@@ -128,6 +144,10 @@ app.post('/api/auth/logout', (_request, response) => {
 });
 
 app.get('/api/snapshot', requireSession, async (_request, response) => {
+  if (!supabase) {
+    response.status(503).json({ error: 'Supabase server access is not configured.', missing: missingServerVariables });
+    return;
+  }
   const tables = await Promise.all([
     supabase.from('port_configs').select('*'),
     supabase.from('depot_configs').select('*'),
@@ -154,6 +174,10 @@ app.get('/api/snapshot', requireSession, async (_request, response) => {
 
 const writableTables = new Set(['companies', 'port_configs', 'depot_configs', 'registration_submissions', 'user_registrations', 'haulier_guidelines']);
 app.post('/api/data/:table', requireSession, async (request, response) => {
+  if (!supabase) {
+    response.status(503).json({ error: 'Supabase server access is not configured.', missing: missingServerVariables });
+    return;
+  }
   if (!writableTables.has(request.params.table)) {
     response.status(404).json({ error: 'Unknown table.' });
     return;
@@ -167,6 +191,10 @@ app.post('/api/data/:table', requireSession, async (request, response) => {
 });
 
 app.delete('/api/data/:table/:id', requireSession, async (request, response) => {
+  if (!supabase) {
+    response.status(503).json({ error: 'Supabase server access is not configured.', missing: missingServerVariables });
+    return;
+  }
   if (!writableTables.has(request.params.table)) {
     response.status(404).json({ error: 'Unknown table.' });
     return;
