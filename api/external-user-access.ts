@@ -1,5 +1,22 @@
 import crypto from 'node:crypto';
 
+const externalUserFields = 'id,username,email,password,company_id,company_name,full_name,mobile_number,status,email_sent,created_at';
+const legacyExternalUserFields = 'id,username,email,password,company_id,company_name,full_name,mobile_number,created_at';
+
+function isMissingWorkflowColumn(error: unknown) {
+  const detail = JSON.stringify(error).toLowerCase();
+  return detail.includes('status') || detail.includes('email_sent');
+}
+
+function normalizeExternalUsers(users: unknown) {
+  if (!Array.isArray(users)) return [];
+  return users.map((user) => ({
+    ...user,
+    status: ['PENDING', 'DONE', 'REJECTED'].includes(user?.status) ? user.status : 'PENDING',
+    email_sent: user?.email_sent === 1 ? 1 : 0,
+  }));
+}
+
 function isAdmin(request: any) {
   const secret = process.env.SESSION_SECRET;
   const value = request.headers?.cookie?.match(/(?:^|; )cargomove_session=([^;]+)/)?.[1];
@@ -32,11 +49,23 @@ export default async function externalUserAccess(request: any, response: any) {
   try {
     const headers = { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}`, 'Content-Type': 'application/json' };
     if (request.method === 'GET') {
-      const query = new URLSearchParams({ select: 'id,username,email,password,company_id,company_name,full_name,mobile_number,status,email_sent,created_at', order: 'created_at.desc' });
-      const result = await fetch(`${url}/rest/v1/external_user_access?${query.toString()}`, { headers });
-      const users = await result.json().catch(() => []);
-      if (!result.ok) throw new Error('external_user_access_lookup_failed');
-      response.json({ users });
+      const query = new URLSearchParams({ select: externalUserFields, order: 'created_at.desc' });
+      let result = await fetch(`${url}/rest/v1/external_user_access?${query.toString()}`, { headers });
+      let users = await result.json().catch(() => null);
+
+      // Some installations created this table before the workflow columns were
+      // introduced. Keep their records visible while migration 000040 is applied.
+      if (!result.ok && isMissingWorkflowColumn(users)) {
+        const legacyQuery = new URLSearchParams({ select: legacyExternalUserFields, order: 'created_at.desc' });
+        result = await fetch(`${url}/rest/v1/external_user_access?${legacyQuery.toString()}`, { headers });
+        users = await result.json().catch(() => null);
+      }
+
+      if (!result.ok) {
+        response.status(502).json({ error: 'Unable to load external user access from Supabase.' });
+        return;
+      }
+      response.json({ users: normalizeExternalUsers(users) });
       return;
     }
 
@@ -69,7 +98,11 @@ export default async function externalUserAccess(request: any, response: any) {
       });
       const saved = await result.json().catch(() => ({}));
       if (!result.ok) {
-        response.status(400).json({ error: 'Unable to update external user access.' });
+        response.status(400).json({
+          error: isMissingWorkflowColumn(saved)
+            ? 'The external user workflow migration has not been applied yet.'
+            : 'Unable to update external user access.',
+        });
         return;
       }
       response.json({ user: Array.isArray(saved) ? saved[0] : saved });

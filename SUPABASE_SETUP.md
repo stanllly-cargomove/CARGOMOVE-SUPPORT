@@ -1,7 +1,7 @@
 # Supabase setup
 
 1. Create a new Supabase project and copy the project URL and anon/publishable key.
-2. In the Supabase SQL editor, run only `supabase/migrations/20260913000000_init.sql`.
+2. In the Supabase SQL editor, run every file in `supabase/migrations/` in filename order. Existing projects must also run newly added migrations; in particular, `20260913000040_external_user_workflow.sql` adds the status and email workflow fields used by **User Access Registration**.
 3. In **Authentication → Users**, create and confirm `support@cargomove.com.my`. Set its password there; Supabase Auth owns the password.
 4. Configure the Supabase Auth Site URL and redirect URLs for the deployed Vercel app and local development.
 5. Configure `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, and a long random `SESSION_SECRET` in Vercel Project Settings. Do not expose server keys as `VITE_*` variables.

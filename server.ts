@@ -194,15 +194,29 @@ app.get('/api/external-user-access', requireSession, async (_request, response) 
     response.status(503).json({ error: 'Supabase server access is not configured.' });
     return;
   }
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('external_user_access')
     .select('id, username, email, password, company_id, company_name, full_name, mobile_number, status, email_sent, created_at')
     .order('created_at', { ascending: false });
+  if (error && (error.message.includes('status') || error.message.includes('email_sent'))) {
+    const legacyResult = await supabase
+      .from('external_user_access')
+      .select('id, username, email, password, company_id, company_name, full_name, mobile_number, created_at')
+      .order('created_at', { ascending: false });
+    data = legacyResult.data as typeof data;
+    error = legacyResult.error;
+  }
   if (error) {
     response.status(502).json({ error: error.message });
     return;
   }
-  response.json({ users: data || [] });
+  response.json({
+    users: (data || []).map((user: any) => ({
+      ...user,
+      status: ['PENDING', 'DONE', 'REJECTED'].includes(user.status) ? user.status : 'PENDING',
+      email_sent: user.email_sent === 1 ? 1 : 0,
+    })),
+  });
 });
 
 app.patch('/api/external-user-access', requireSession, async (request, response) => {
@@ -236,7 +250,11 @@ app.patch('/api/external-user-access', requireSession, async (request, response)
     .select()
     .single();
   if (error) {
-    response.status(400).json({ error: 'Unable to update external user access.' });
+    response.status(400).json({
+      error: error.message.includes('status') || error.message.includes('email_sent')
+        ? 'The external user workflow migration has not been applied yet.'
+        : 'Unable to update external user access.',
+    });
     return;
   }
   response.json({ user: data });

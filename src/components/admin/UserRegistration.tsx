@@ -9,13 +9,20 @@ export function UserRegistration() {
   const [users, setUsers] = useState<ExternalUserAccess[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [savingKeys, setSavingKeys] = useState<Set<string>>(new Set());
+  const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
     let isMounted = true;
     void getExternalUserAccess().then((records) => {
-      if (isMounted) setUsers(records);
-    }).catch(() => {
-      if (isMounted) setUsers([]);
+      if (isMounted) {
+        setUsers(records);
+        setLoadError('');
+      }
+    }).catch((error) => {
+      if (isMounted) {
+        setUsers([]);
+        setLoadError(error instanceof Error ? error.message : 'Unable to load company users.');
+      }
     });
     return () => { isMounted = false; };
   }, []);
@@ -87,7 +94,7 @@ export function UserRegistration() {
                 <tr>
                   <td colSpan={8} className="py-10 text-center text-slate-500">
                     <UsersRound className="w-6 h-6 mx-auto mb-2 text-slate-300" />
-                    No company users found.
+                    {loadError || 'No company users found.'}
                   </td>
                 </tr>
               ) : filteredUsers.map((user) => (
