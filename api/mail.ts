@@ -1,10 +1,10 @@
-import emailLogs from '../server-handlers/email/logs';
-import emailPreview from '../server-handlers/email/preview';
-import emailSend from '../server-handlers/email/send';
-import emailTemplates from '../server-handlers/email/templates';
-import gmailCallback from '../server-handlers/gmail/callback';
-import gmailConnect from '../server-handlers/gmail/connect';
-import gmailStatus from '../server-handlers/gmail/status';
+import emailLogs from '../server-handlers/email/logs.js';
+import emailPreview from '../server-handlers/email/preview.js';
+import emailSend from '../server-handlers/email/send.js';
+import emailTemplates from '../server-handlers/email/templates.js';
+import gmailCallback from '../server-handlers/gmail/callback.js';
+import gmailConnect from '../server-handlers/gmail/connect.js';
+import gmailStatus from '../server-handlers/gmail/status.js';
 
 type Handler = (request: any, response: any) => unknown;
 

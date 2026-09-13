@@ -1,6 +1,6 @@
 // Routed through the single Express Vercel function.
 import crypto from 'node:crypto';
-import { configuredClient, createPkce, GMAIL_SEND_SCOPE, googleOAuthConfig, noStore, requireAdmin } from '../_email';
+import { configuredClient, createPkce, GMAIL_SEND_SCOPE, googleOAuthConfig, noStore, requireAdmin } from '../_email.js';
 
 export default async function gmailConnect(request: any, response: any) {
   noStore(response);

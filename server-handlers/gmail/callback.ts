@@ -1,6 +1,6 @@
 // Routed through the single Express Vercel function.
 import crypto from 'node:crypto';
-import { configuredClient, encryptRefreshToken, GMAIL_SEND_SCOPE, googleOAuthConfig, requireAdmin } from '../_email';
+import { configuredClient, encryptRefreshToken, GMAIL_SEND_SCOPE, googleOAuthConfig, requireAdmin } from '../_email.js';
 
 export default async function gmailCallback(request: any, response: any) {
   const session = requireAdmin(request, response);

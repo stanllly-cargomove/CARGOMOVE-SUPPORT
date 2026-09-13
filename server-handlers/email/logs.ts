@@ -1,5 +1,5 @@
 // Routed through the single Express Vercel function.
-import { configuredClient, noStore, requireAdmin } from '../_email';
+import { configuredClient, noStore, requireAdmin } from '../_email.js';
 
 export default async function emailLogs(request: any, response: any) {
   noStore(response);

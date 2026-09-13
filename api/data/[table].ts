@@ -1,4 +1,4 @@
-import { adminClient, missingVariables, readSession, requestBody } from '../_runtime';
+import { adminClient, missingVariables, readSession, requestBody } from '../_runtime.js';
 
 const writableTables = new Set(['companies', 'port_configs', 'depot_configs', 'registration_submissions', 'user_registrations', 'haulier_guidelines']);
 

@@ -9,7 +9,7 @@ import {
   publicError,
   requireAdmin,
   verifyPreviewToken,
-} from '../_email';
+} from '../_email.js';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 

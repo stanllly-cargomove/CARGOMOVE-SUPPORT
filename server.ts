@@ -2,13 +2,13 @@ import crypto from 'node:crypto';
 import express, { NextFunction, Request, Response } from 'express';
 import { config } from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
-import gmailConnect from './server-handlers/gmail/connect';
-import gmailCallback from './server-handlers/gmail/callback';
-import gmailStatus from './server-handlers/gmail/status';
-import emailTemplates from './server-handlers/email/templates';
-import emailPreview from './server-handlers/email/preview';
-import emailSend from './server-handlers/email/send';
-import emailLogs from './server-handlers/email/logs';
+import gmailConnect from './server-handlers/gmail/connect.js';
+import gmailCallback from './server-handlers/gmail/callback.js';
+import gmailStatus from './server-handlers/gmail/status.js';
+import emailTemplates from './server-handlers/email/templates.js';
+import emailPreview from './server-handlers/email/preview.js';
+import emailSend from './server-handlers/email/send.js';
+import emailLogs from './server-handlers/email/logs.js';
 
 config({ path: '.env.local' });
 
