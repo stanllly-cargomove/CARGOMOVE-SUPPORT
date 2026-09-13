@@ -14,6 +14,33 @@ export interface AdminAccount {
   mobile_number: string;
 }
 
+export interface ExternalUserAccess {
+  id: string;
+  username: string;
+  email: string;
+  password: string;
+  company_id?: string;
+  company_name: string;
+  full_name: string;
+  mobile_number: string;
+  created_at: string;
+}
+
+export async function saveExternalUserAccess(input: Omit<ExternalUserAccess, 'id' | 'created_at'> & { id?: string }): Promise<void> {
+  await fetch('/api/external-user-access', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+}
+
+export async function getExternalUserAccess(): Promise<ExternalUserAccess[]> {
+  const response = await fetch('/api/external-user-access', { credentials: 'include' });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.error || 'Unable to load external user access records.');
+  return body.users || [];
+}
+
 export async function getApplicationSession(): Promise<{ authenticated: boolean; user: ApplicationUser | null }> {
   try {
     const response = await fetch('/api/auth/session', { credentials: 'include' });

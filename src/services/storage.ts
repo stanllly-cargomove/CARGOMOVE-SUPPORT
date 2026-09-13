@@ -11,6 +11,7 @@ import {
 } from '../types';
 import { normalizeCompanyType, normalizeRegNo } from './companyHelper';
 import { deleteSupabaseRow, fetchSupabaseSnapshot, isSupabaseConfigured, upsertSupabaseRow } from './supabase';
+import { saveExternalUserAccess } from './auth';
 
 const STORAGE_KEYS = {
   COMPANIES: 'port_reg_companies_v1',
@@ -448,7 +449,17 @@ function syncCompany(company: Company) { void upsertSupabaseRow('companies', com
 function syncPort(port: PortConfig) { void upsertSupabaseRow('port_configs', port); }
 function syncDepot(depot: DepotConfig) { void upsertSupabaseRow('depot_configs', depot); }
 function syncSubmission(submission: RegistrationSubmission) { void upsertSupabaseRow('registration_submissions', submission); }
-function syncUserRegistration(user: UserRegistration) { void upsertSupabaseRow('user_registrations', user); }
+function syncUserRegistration(user: UserRegistration, password: string) {
+  void saveExternalUserAccess({
+    username: user.username,
+    email: user.email,
+    password,
+    company_id: user.company_id,
+    company_name: user.company_name,
+    full_name: user.full_name,
+    mobile_number: user.mobile_number,
+  });
+}
 
 async function hydrateFromSupabase() {
   if (!isSupabaseConfigured || remoteHydrationStarted) return;
@@ -981,17 +992,18 @@ export function getUserRegistrations(): UserRegistration[] {
 }
 
 export function saveUserRegistration(
-  userData: Omit<UserRegistration, 'id' | 'created_at'>
+  userData: Omit<UserRegistration, 'id' | 'created_at'> & { password?: string }
 ): UserRegistration {
+  const { password = '', ...registrationData } = userData;
   const users = getUserRegistrations();
   const user: UserRegistration = {
-    ...userData,
+    ...registrationData,
     id: `user-${Date.now()}`,
     created_at: new Date().toISOString(),
   };
   users.unshift(user);
   localStorage.setItem(STORAGE_KEYS.USER_REGISTRATIONS, JSON.stringify(users));
-  syncUserRegistration(user);
+  void syncUserRegistration(user, password);
   notifyListeners();
   return user;
 }

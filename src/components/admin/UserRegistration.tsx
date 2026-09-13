@@ -1,16 +1,22 @@
 import React, { useEffect, useState } from 'react';
 import { Search, UsersRound } from 'lucide-react';
-import { getUserRegistrations, subscribeToStorage } from '../../services/storage';
-import { UserRegistration as UserRegistrationRecord } from '../../types';
+import { getExternalUserAccess, ExternalUserAccess } from '../../services/auth';
 
 export function UserRegistration() {
-  const [users, setUsers] = useState<UserRegistrationRecord[]>(getUserRegistrations());
+  const [users, setUsers] = useState<ExternalUserAccess[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
 
-  useEffect(() => subscribeToStorage(() => setUsers(getUserRegistrations())), []);
+  useEffect(() => {
+    let isMounted = true;
+    void getExternalUserAccess().then((records) => {
+      if (isMounted) setUsers(records);
+    }).catch(() => {
+      if (isMounted) setUsers([]);
+    });
+    return () => { isMounted = false; };
+  }, []);
 
   const filteredUsers = users.filter((user) => {
-    if (user.type !== 'COMPANY_ADMIN') return false;
     const term = searchTerm.toLowerCase();
     return !term || [user.username, user.email, user.company_name, user.full_name, user.mobile_number]
       .some((value) => value.toLowerCase().includes(term));
@@ -44,7 +50,6 @@ export function UserRegistration() {
                 <th className="py-3 px-4">Username</th>
                 <th className="py-3 px-4">Email address</th>
                 <th className="py-3 px-4">Password</th>
-                <th className="py-3 px-3">Type</th>
                 <th className="py-3 px-4">Company</th>
                 <th className="py-3 px-4">Full name</th>
                 <th className="py-3 px-4">Mobile number</th>
@@ -53,7 +58,7 @@ export function UserRegistration() {
             <tbody className="divide-y divide-slate-100">
               {filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-10 text-center text-slate-500">
+                  <td colSpan={6} className="py-10 text-center text-slate-500">
                     <UsersRound className="w-6 h-6 mx-auto mb-2 text-slate-300" />
                     No company users found.
                   </td>
@@ -62,8 +67,7 @@ export function UserRegistration() {
                 <tr key={user.id} className="hover:bg-slate-50/70 transition-colors">
                   <td className="py-3 px-4 font-semibold text-slate-900">{user.username}</td>
                   <td className="py-3 px-4 text-slate-700">{user.email}</td>
-                  <td className="py-3 px-4 font-mono text-slate-500" title="Password is stored as a hash">********</td>
-                  <td className="py-3 px-3 text-slate-700">{user.type}</td>
+                  <td className="py-3 px-4 font-mono text-slate-700" title="External-system password">{user.password || 'Unavailable (legacy record)'}</td>
                   <td className="py-3 px-4 text-slate-700">{user.company_name}</td>
                   <td className="py-3 px-4 text-slate-700">{user.full_name}</td>
                   <td className="py-3 px-4 text-slate-700">{user.mobile_number}</td>

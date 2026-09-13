@@ -174,6 +174,7 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
           username: userAccessFormData.username,
           email: userAccessFormData.email,
           password_hash: userAccessFormData.password_hash,
+          password: userAccessFormData.password || '',
           full_name: userAccessFormData.full_name,
           mobile_number: userAccessFormData.mobile_number,
           type: 'COMPANY_ADMIN',

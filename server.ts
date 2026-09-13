@@ -168,6 +168,55 @@ app.get('/api/auth/users', requireSession, async (_request, response) => {
   response.json({ users: data || [] });
 });
 
+app.get('/api/external-user-access', requireSession, async (_request, response) => {
+  if (!supabase) {
+    response.status(503).json({ error: 'Supabase server access is not configured.' });
+    return;
+  }
+  const { data, error } = await supabase
+    .from('external_user_access')
+    .select('id, username, email, password, company_id, company_name, full_name, mobile_number, created_at')
+    .order('created_at', { ascending: false });
+  if (error) {
+    response.status(502).json({ error: error.message });
+    return;
+  }
+  response.json({ users: data || [] });
+});
+
+app.post('/api/external-user-access', async (request, response) => {
+  if (!supabase) {
+    response.status(503).json({ error: 'Supabase server access is not configured.' });
+    return;
+  }
+  const body = request.body || {};
+  const username = String(body.username || '').trim().toLowerCase();
+  const email = String(body.email || '').trim().toLowerCase();
+  const password = String(body.password || '');
+  const fullName = String(body.full_name || '').trim();
+  const mobileNumber = String(body.mobile_number || '').trim();
+  if (!username || !email || !password || !fullName || !mobileNumber) {
+    response.status(400).json({ error: 'Username, email, password, full name, and mobile number are required.' });
+    return;
+  }
+  const externalUserAccess = supabase.from('external_user_access') as any;
+  const { data, error } = await externalUserAccess.insert({
+    id: body.id || `external-user-${Date.now()}`,
+    username,
+    email,
+    password,
+    company_id: body.company_id || null,
+    company_name: String(body.company_name || ''),
+    full_name: fullName,
+    mobile_number: mobileNumber,
+  }).select().single();
+  if (error) {
+    response.status(error.code === '23505' ? 409 : 400).json({ error: error.message });
+    return;
+  }
+  response.status(201).json({ user: data });
+});
+
 app.post('/api/auth/logout', (_request, response) => {
   response.setHeader('Set-Cookie', 'cargomove_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0');
   response.status(204).end();
