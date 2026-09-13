@@ -28,6 +28,15 @@ function createAuthClient() {
 
 app.use(express.json({ limit: '1mb' }));
 
+// Vercel can invoke an API function with either the public /api path or the
+// function-relative path. Normalize both forms for the Express route table.
+app.use((request, _response, next) => {
+  if (!request.url.startsWith('/api')) {
+    request.url = `/api${request.url.startsWith('/') ? '' : '/'}${request.url}`;
+  }
+  next();
+});
+
 app.get('/api/health', (_request, response) => {
   response.json({ ok: true, service: 'cargomove-api' });
 });
