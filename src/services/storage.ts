@@ -559,6 +559,12 @@ export function initStorage(): void {
         const rawCompanies = localStorage.getItem(STORAGE_KEYS.COMPANIES);
         if (rawCompanies) {
           const companies: Company[] = JSON.parse(rawCompanies);
+          if (companies.length === 0) {
+            localStorage.setItem(STORAGE_KEYS.COMPANIES, JSON.stringify(INITIAL_COMPANIES.map((company) => ({
+              ...company,
+              port_id: company.port_id === 'jh-pg-ics' || company.port_id === 'jh-pg-depot' ? 'johor-port' : company.port_id,
+            }))));
+          }
           const normalizedCompanies = companies.map((company) => company.port_id === 'jh-pg-ics' || company.port_id === 'jh-pg-depot'
             ? { ...company, port_id: 'johor-port' }
             : company);
@@ -569,6 +575,9 @@ export function initStorage(): void {
         const rawSubmissions = localStorage.getItem(STORAGE_KEYS.SUBMISSIONS);
         if (rawSubmissions) {
           const submissions: RegistrationSubmission[] = JSON.parse(rawSubmissions);
+          if (submissions.length === 0) {
+            localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(INITIAL_SUBMISSIONS));
+          }
           const normalizedSubmissions = submissions.map((submission) => ({
             ...submission,
             port_id: submission.port_id === 'jh-pg-ics' || submission.port_id === 'jh-pg-depot' ? 'johor-port' : submission.port_id,
