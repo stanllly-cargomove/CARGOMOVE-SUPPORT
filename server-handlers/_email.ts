@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { adminClient, readSession, requestBody, sessionSecret } from '../api/_runtime';
+import { adminClient, readSession, requestBody } from '../api/_runtime';
 
 export const GMAIL_SEND_SCOPE = 'https://www.googleapis.com/auth/gmail.send';
 export const WELCOME_TEMPLATE_ID = 'cargomove-welcome';
@@ -69,8 +69,9 @@ export function renderWelcomeTemplate(template: EmailTemplate, user: ExternalEma
 }
 
 function signingKey() {
-  if (!sessionSecret) throw new Error('SESSION_SECRET is missing.');
-  return sessionSecret;
+  const secret = process.env.SESSION_SECRET;
+  if (!secret) throw new Error('SESSION_SECRET is missing.');
+  return secret;
 }
 
 export function createPreviewToken(session: AdminSession, user: ExternalEmailUser, template: EmailTemplate) {

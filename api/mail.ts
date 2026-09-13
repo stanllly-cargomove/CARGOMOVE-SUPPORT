@@ -34,5 +34,12 @@ export default async function mailRouter(request: any, response: any) {
     response.status(404).json({ error: 'Unknown email API route.' });
     return;
   }
-  await handler(request, response);
+  try {
+    await handler(request, response);
+  } catch (error) {
+    console.error(`Email API route failed (${route}):`, error);
+    if (!response.headersSent) {
+      response.status(500).json({ error: 'Email service error. Check the Vercel function logs.' });
+    }
+  }
 }
