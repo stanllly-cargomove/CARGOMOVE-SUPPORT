@@ -35,13 +35,28 @@ export function LoginPage({ onBack, onSuccess }: LoginPageProps) {
       email: loginEmail,
       password,
     });
-    setIsSubmitting(false);
 
     if (signInError) {
+      setIsSubmitting(false);
       setError('Login failed. Check your email and password.');
       return;
     }
 
+    const { data: appUser, error: appUserError } = await supabase
+      .from('user_registrations')
+      .select('id, username, email, type, full_name')
+      .eq('email', loginEmail)
+      .eq('type', 'ADMIN')
+      .maybeSingle();
+
+    if (appUserError || !appUser) {
+      await supabase.auth.signOut();
+      setIsSubmitting(false);
+      setError('This login is not registered as an active admin user.');
+      return;
+    }
+
+    setIsSubmitting(false);
     onSuccess();
   };
 
