@@ -4,9 +4,10 @@
 2. In the Supabase SQL editor, run `supabase/migrations/20260912000000_initial_schema.sql`.
 3. Run `supabase/migrations/20260913000000_migration_1_user_table.sql` to create authenticated user profiles.
 4. In Supabase Authentication, create the admin user that will use the Cargomove login page.
-5. Copy `.env.example` to `.env.local` and set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
-6. For the initial demo data, also set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in `.env.local`, then run `npx tsx scripts/seed-supabase.ts`.
-7. Start the app with `npm run dev`.
+5. Run `supabase/migrations/20260913000001_seed_admin_user.sql`, followed by `supabase/migrations/20260913000002_repair_admin_auth_identity.sql`.
+6. Copy `.env.example` to `.env.local` and set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
+7. For the initial demo data, also set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in `.env.local`, then run `npx tsx scripts/seed-supabase.ts`.
+8. Start the app with `npm run dev`.
 
 ## Credential rules
 
