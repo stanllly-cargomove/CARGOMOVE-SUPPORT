@@ -196,13 +196,50 @@ app.get('/api/external-user-access', requireSession, async (_request, response) 
   }
   const { data, error } = await supabase
     .from('external_user_access')
-    .select('id, username, email, password, company_id, company_name, full_name, mobile_number, created_at')
+    .select('id, username, email, password, company_id, company_name, full_name, mobile_number, status, email_sent, created_at')
     .order('created_at', { ascending: false });
   if (error) {
     response.status(502).json({ error: error.message });
     return;
   }
   response.json({ users: data || [] });
+});
+
+app.patch('/api/external-user-access', requireSession, async (request, response) => {
+  if (!supabase) {
+    response.status(503).json({ error: 'Supabase server access is not configured.' });
+    return;
+  }
+  const id = String(request.body?.id || '').trim();
+  const changes: Record<string, unknown> = {};
+  if (request.body?.status !== undefined) {
+    if (!['PENDING', 'DONE', 'REJECTED'].includes(request.body.status)) {
+      response.status(400).json({ error: 'Invalid registration status.' });
+      return;
+    }
+    changes.status = request.body.status;
+  }
+  if (request.body?.email_sent !== undefined) {
+    if (![0, 1, true, false].includes(request.body.email_sent)) {
+      response.status(400).json({ error: 'Invalid email sent status.' });
+      return;
+    }
+    changes.email_sent = request.body.email_sent === true || request.body.email_sent === 1 ? 1 : 0;
+  }
+  if (!id || Object.keys(changes).length === 0) {
+    response.status(400).json({ error: 'A user id and at least one valid change are required.' });
+    return;
+  }
+  const { data, error } = await (supabase.from('external_user_access') as any)
+    .update(changes)
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) {
+    response.status(400).json({ error: 'Unable to update external user access.' });
+    return;
+  }
+  response.json({ user: data });
 });
 
 app.post('/api/external-user-access', async (request, response) => {

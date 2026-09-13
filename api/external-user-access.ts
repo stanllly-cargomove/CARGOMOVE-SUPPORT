@@ -24,7 +24,7 @@ export default async function externalUserAccess(request: any, response: any) {
     return;
   }
 
-  if (request.method === 'GET' && !isAdmin(request)) {
+  if ((request.method === 'GET' || request.method === 'PATCH') && !isAdmin(request)) {
     response.status(401).json({ error: 'Authentication required.' });
     return;
   }
@@ -32,11 +32,47 @@ export default async function externalUserAccess(request: any, response: any) {
   try {
     const headers = { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}`, 'Content-Type': 'application/json' };
     if (request.method === 'GET') {
-      const query = new URLSearchParams({ select: 'id,username,email,password,company_id,company_name,full_name,mobile_number,created_at', order: 'created_at.desc' });
+      const query = new URLSearchParams({ select: 'id,username,email,password,company_id,company_name,full_name,mobile_number,status,email_sent,created_at', order: 'created_at.desc' });
       const result = await fetch(`${url}/rest/v1/external_user_access?${query.toString()}`, { headers });
       const users = await result.json().catch(() => []);
       if (!result.ok) throw new Error('external_user_access_lookup_failed');
       response.json({ users });
+      return;
+    }
+
+    if (request.method === 'PATCH') {
+      const body = typeof request.body === 'string' ? JSON.parse(request.body) : request.body || {};
+      const id = String(body.id || '').trim();
+      const changes: Record<string, unknown> = {};
+      if (body.status !== undefined) {
+        if (!['PENDING', 'DONE', 'REJECTED'].includes(body.status)) {
+          response.status(400).json({ error: 'Invalid registration status.' });
+          return;
+        }
+        changes.status = body.status;
+      }
+      if (body.email_sent !== undefined) {
+        if (![0, 1, true, false].includes(body.email_sent)) {
+          response.status(400).json({ error: 'Invalid email sent status.' });
+          return;
+        }
+        changes.email_sent = body.email_sent === true || body.email_sent === 1 ? 1 : 0;
+      }
+      if (!id || Object.keys(changes).length === 0) {
+        response.status(400).json({ error: 'A user id and at least one valid change are required.' });
+        return;
+      }
+      const result = await fetch(`${url}/rest/v1/external_user_access?id=eq.${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: { ...headers, Prefer: 'return=representation' },
+        body: JSON.stringify(changes),
+      });
+      const saved = await result.json().catch(() => ({}));
+      if (!result.ok) {
+        response.status(400).json({ error: 'Unable to update external user access.' });
+        return;
+      }
+      response.json({ user: Array.isArray(saved) ? saved[0] : saved });
       return;
     }
 

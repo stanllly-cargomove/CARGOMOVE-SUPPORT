@@ -23,15 +23,32 @@ export interface ExternalUserAccess {
   company_name: string;
   full_name: string;
   mobile_number: string;
+  status: 'PENDING' | 'DONE' | 'REJECTED';
+  email_sent: 0 | 1;
   created_at: string;
 }
 
-export async function saveExternalUserAccess(input: Omit<ExternalUserAccess, 'id' | 'created_at'> & { id?: string }): Promise<void> {
+export async function saveExternalUserAccess(input: Omit<ExternalUserAccess, 'id' | 'created_at' | 'status' | 'email_sent'> & Partial<Pick<ExternalUserAccess, 'status' | 'email_sent'>> & { id?: string }): Promise<void> {
   await fetch('/api/external-user-access', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   });
+}
+
+export async function updateExternalUserAccess(
+  id: string,
+  changes: Partial<Pick<ExternalUserAccess, 'status' | 'email_sent'>>,
+): Promise<ExternalUserAccess> {
+  const response = await fetch('/api/external-user-access', {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, ...changes }),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.error || 'Unable to update external user access.');
+  return body.user;
 }
 
 export async function getExternalUserAccess(): Promise<ExternalUserAccess[]> {

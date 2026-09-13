@@ -9,6 +9,8 @@ create table if not exists public.external_user_access (
   company_name text not null default '',
   full_name text not null,
   mobile_number text not null default '',
+  status text not null default 'PENDING' check (status in ('PENDING', 'DONE', 'REJECTED')),
+  email_sent smallint not null default 0 check (email_sent in (0, 1)),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -17,8 +19,8 @@ alter table public.external_user_access enable row level security;
 
 -- Preserve existing company registrations. Their original password cannot be
 -- recovered because only a hash was previously stored.
-insert into public.external_user_access (id, username, email, password, company_id, company_name, full_name, mobile_number, created_at)
-select 'external-' || ur.id, ur.username, ur.email, '', ur.company_id, ur.company_name, ur.full_name, ur.mobile_number, ur.created_at
+insert into public.external_user_access (id, username, email, password, company_id, company_name, full_name, mobile_number, status, email_sent, created_at)
+select 'external-' || ur.id, ur.username, ur.email, '', ur.company_id, ur.company_name, ur.full_name, ur.mobile_number, 'PENDING', 0, ur.created_at
 from public.user_registrations ur
 where ur.type = 'COMPANY_ADMIN'
   and not exists (select 1 from public.external_user_access eu where eu.username = ur.username or eu.email = ur.email);
