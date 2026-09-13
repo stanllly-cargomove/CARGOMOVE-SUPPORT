@@ -1,5 +1,6 @@
-import app from '../_app';
+import { setSessionCookie } from '../_runtime';
 
-export default function handler(request: any, response: any) {
-  return app(request, response);
+export default function logout(_request: any, response: any) {
+  setSessionCookie(response, '', 0);
+  response.status(204).end();
 }
