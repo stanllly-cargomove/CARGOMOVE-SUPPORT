@@ -3,7 +3,7 @@ import { RegistrationWizard } from './components/customer/RegistrationWizard';
 import { AdminLayout } from './components/admin/AdminLayout';
 import { LoginPage } from './components/auth/LoginPage';
 import { clearProtectedStorage, initStorage } from './services/storage';
-import { supabase } from './services/supabase';
+import { getApplicationSession, logoutApplicationUser } from './services/auth';
 
 export default function App() {
   const [viewMode, setViewMode] = useState<'CUSTOMER' | 'LOGIN' | 'ADMIN'>('CUSTOMER');
@@ -11,27 +11,15 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
-    if (!supabase) {
-      setIsAuthLoading(false);
-      return;
-    }
-
     let isMounted = true;
-    void supabase.auth.getSession().then(({ data }) => {
+    void getApplicationSession().then(({ authenticated }) => {
       if (!isMounted) return;
-      setIsAuthenticated(!!data.session);
+      setIsAuthenticated(authenticated);
       setIsAuthLoading(false);
-    });
-
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setIsAuthenticated(!!session);
-      setIsAuthLoading(false);
-      if (!session) setViewMode('CUSTOMER');
     });
 
     return () => {
       isMounted = false;
-      listener.subscription.unsubscribe();
     };
   }, []);
 
@@ -53,7 +41,7 @@ export default function App() {
         <AdminLayout
           onSwitchToCustomer={() => setViewMode('CUSTOMER')}
           onLogout={async () => {
-            await supabase?.auth.signOut();
+            await logoutApplicationUser();
             clearProtectedStorage();
             setIsAuthenticated(false);
             setViewMode('CUSTOMER');

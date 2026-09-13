@@ -5,11 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
+    "dev:api": "tsx server.ts",
     "build": "vite build",
     "preview": "vite preview",
     "seed:supabase": "tsx scripts/seed-supabase.ts",
     "clean": "rm -rf dist server.js",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "api": "tsx server.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

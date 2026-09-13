@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AlertCircle, ArrowLeft, LoaderCircle, LockKeyhole, LogIn, Mail } from 'lucide-react';
-import { isSupabaseConfigured, supabase } from '../../services/supabase';
+import { loginApplicationUser } from '../../services/auth';
 
 interface LoginPageProps {
   onBack: () => void;
@@ -17,42 +17,17 @@ export function LoginPage({ onBack, onSuccess }: LoginPageProps) {
     event.preventDefault();
     setError('');
 
-    if (!supabase || !isSupabaseConfigured) {
-      setError('Secure login is not configured for this environment.');
-      return;
-    }
-
     if (!email.trim() || !password) {
       setError('Enter your username or email and password.');
       return;
     }
 
     setIsSubmitting(true);
-    const loginEmail = email.includes('@')
-      ? email.trim().toLowerCase()
-      : `${email.trim().toLowerCase()}@cargomove.local`;
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: loginEmail,
-      password,
-    });
-
-    if (signInError) {
+    try {
+      await loginApplicationUser(email, password);
+    } catch (loginError) {
       setIsSubmitting(false);
-      setError('Login failed. Check your email and password.');
-      return;
-    }
-
-    const { data: appUser, error: appUserError } = await supabase
-      .from('user_registrations')
-      .select('id, username, email, type, full_name')
-      .eq('email', loginEmail)
-      .eq('type', 'ADMIN')
-      .maybeSingle();
-
-    if (appUserError || !appUser) {
-      await supabase.auth.signOut();
-      setIsSubmitting(false);
-      setError('This login is not registered as an active admin user.');
+      setError(loginError instanceof Error ? loginError.message : 'Login failed.');
       return;
     }
 
