@@ -1,3 +1,4 @@
+// Routed through the single Express Vercel function.
 import { bodyOf, configuredClient, EmailTemplate, noStore, requireAdmin, WELCOME_TEMPLATE_ID } from '../_email';
 
 const fields = 'id,name,trigger_status,recipient_template,subject_template,body_template,active,version,updated_at';

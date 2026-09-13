@@ -1,3 +1,4 @@
+// Routed through the single Express Vercel function.
 import { bodyOf, configuredClient, createPreviewToken, noStore, renderWelcomeTemplate, requireAdmin, WELCOME_TEMPLATE_ID } from '../_email';
 
 export default async function preview(request: any, response: any) {

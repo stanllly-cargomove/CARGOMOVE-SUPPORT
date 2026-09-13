@@ -1,3 +1,4 @@
+// Routed through the single Express Vercel function.
 import {
   bodyOf,
   configuredClient,

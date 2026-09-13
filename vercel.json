@@ -1,4 +1,8 @@
 {
   "buildCommand": "npm run build",
-  "outputDirectory": "dist"
+  "outputDirectory": "dist",
+  "rewrites": [
+    { "source": "/api/email/:path*", "destination": "/api/_app" },
+    { "source": "/api/gmail/:path*", "destination": "/api/_app" }
+  ]
 }

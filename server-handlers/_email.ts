@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { adminClient, readSession, requestBody, sessionSecret } from './_runtime';
+import { adminClient, readSession, requestBody, sessionSecret } from '../api/_runtime';
 
 export const GMAIL_SEND_SCOPE = 'https://www.googleapis.com/auth/gmail.send';
 export const WELCOME_TEMPLATE_ID = 'cargomove-welcome';

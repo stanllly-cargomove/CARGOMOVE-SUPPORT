@@ -1,3 +1,4 @@
+// Routed through the single Express Vercel function.
 import crypto from 'node:crypto';
 import { configuredClient, encryptRefreshToken, GMAIL_SEND_SCOPE, googleOAuthConfig, requireAdmin } from '../_email';
 
