@@ -18,7 +18,11 @@ export const missingVariables = [
 
 export function adminClient() {
   if (!supabaseUrl || !serviceRoleKey) return null;
-  return createClient(supabaseUrl, serviceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } });
+  try {
+    return createClient(supabaseUrl, serviceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } });
+  } catch {
+    return null;
+  }
 }
 
 export function authClient() {
