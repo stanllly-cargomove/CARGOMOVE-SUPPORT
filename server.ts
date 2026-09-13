@@ -19,9 +19,17 @@ const missingServerVariables = [
   !sessionSecret && 'SESSION_SECRET',
 ].filter(Boolean) as string[];
 
-const supabase = supabaseUrl && serviceRoleKey
-  ? createClient(supabaseUrl, serviceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } })
-  : null;
+let supabase: ReturnType<typeof createClient> | null = null;
+let clientInitializationError: string | null = null;
+if (supabaseUrl && serviceRoleKey) {
+  try {
+    supabase = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+  } catch (error) {
+    clientInitializationError = error instanceof Error ? error.message : 'Invalid Supabase server configuration.';
+  }
+}
 
 function createAuthClient() {
   if (!supabaseUrl || !supabaseAnonKey) return null;
@@ -43,9 +51,10 @@ app.use((request, _response, next) => {
 
 app.get('/api/health', (_request, response) => {
   response.status(missingServerVariables.length ? 503 : 200).json({
-    ok: missingServerVariables.length === 0,
+    ok: missingServerVariables.length === 0 && !clientInitializationError,
     service: 'cargomove-api',
     missing: missingServerVariables,
+    configurationError: clientInitializationError,
   });
 });
 
@@ -168,7 +177,7 @@ app.get('/api/snapshot', requireSession, async (_request, response) => {
     companies: (companies.data || []).map((company: any) => ({ ...company, ...company.details, details: undefined })),
     submissions: submissions.data || [],
     userRegistrations: userRegistrations.data || [],
-    guideline: guideline.data?.content || null,
+    guideline: (guideline as any).data?.content || null,
   });
 });
 
@@ -209,6 +218,7 @@ app.delete('/api/data/:table/:id', requireSession, async (request, response) => 
 
 export default app;
 
-if (!process.env.VERCEL) {
+const isServerlessRuntime = Boolean(process.env.VERCEL) || process.env.NODE_ENV === 'production';
+if (!isServerlessRuntime) {
   app.listen(port, () => console.log(`Cargomove API listening on http://localhost:${port}`));
 }
