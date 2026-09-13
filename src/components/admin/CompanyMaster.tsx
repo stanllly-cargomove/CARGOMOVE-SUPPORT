@@ -153,17 +153,19 @@ export function CompanyMaster() {
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider">
                 <th className="py-3 px-4">Company Name</th>
+                <th className="py-3 px-3 text-center">Reg. Old</th>
+                <th className="py-3 px-3 text-center">Reg. New</th>
                 <th className="py-3 px-3 text-center">Type</th>
-                <th className="py-3 px-4">Assigned ID</th>
+                <th className="py-3 px-4">Cargomove ID</th>
                 <th className="py-3 px-3 text-center">Port</th>
-                <th className="py-3 px-3">Last Updated</th>
+                <th className="py-3 px-3 text-center">Last Updated</th>
                 <th className="py-3 px-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredCompanies.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-slate-500">
+                  <td colSpan={8} className="py-8 text-center text-slate-500">
                     No company master records matching current filters.
                   </td>
                 </tr>
@@ -181,7 +183,14 @@ export function CompanyMaster() {
                     >
                       <td className="py-3 px-4">
                         <div className="font-bold text-slate-900">{comp.name}</div>
-                        <div className="text-[11px] text-slate-500 font-mono">{comp.registration_number}</div>
+                      </td>
+
+                      <td className="py-3 px-3 text-center font-mono text-[11px] text-slate-600">
+                        {comp.registration_number_old || comp.registration_number || '—'}
+                      </td>
+
+                      <td className="py-3 px-3 text-center font-mono text-[11px] text-slate-600">
+                        {comp.registration_number_new || '—'}
                       </td>
 
                       <td className="py-3 px-3 text-center text-slate-700">
@@ -238,7 +247,7 @@ export function CompanyMaster() {
                           : 'PORT KLANG'}
                       </td>
 
-                      <td className="py-3 px-3 text-[11px] text-slate-400">
+                      <td className="py-3 px-3 text-center text-[11px] text-slate-400">
                         {new Date(comp.updated_at).toLocaleDateString()}
                       </td>
 

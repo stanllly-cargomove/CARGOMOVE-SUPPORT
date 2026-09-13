@@ -89,9 +89,6 @@ export function AdminLayout({ onSwitchToCustomer, onLogout }: AdminLayoutProps) 
                 Admin
               </span>
             </div>
-            <div className="text-[10px] text-slate-400 font-medium tracking-wide mt-0.5">
-              Port Clearance & EDI Engine
-            </div>
           </div>
         </div>
 
