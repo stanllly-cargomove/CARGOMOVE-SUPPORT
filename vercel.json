@@ -1,9 +1,4 @@
 {
   "buildCommand": "npm run build",
-  "outputDirectory": "dist",
-  "functions": {
-    "api/[...path].ts": {
-      "runtime": "nodejs22.x"
-    }
-  }
+  "outputDirectory": "dist"
 }
