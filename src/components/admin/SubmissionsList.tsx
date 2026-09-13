@@ -181,7 +181,17 @@ export function SubmissionsList() {
             ['DONE', 'Done'],
             ['REJECTED', 'Rejected'],
           ].map(([value, label]) => (
-            <button key={value} type="button" onClick={() => setStatusFilter(value)} className="px-4 py-2 rounded-md text-xs font-bold text-slate-500 transition-colors hover:text-slate-800">
+            <button
+              key={value}
+              type="button"
+              onClick={() => setStatusFilter(value)}
+              aria-pressed={statusFilter === value}
+              className={`rounded-md px-4 py-2 text-xs font-bold transition-colors ${
+                statusFilter === value
+                  ? 'bg-white text-slate-950 shadow-sm ring-1 ring-slate-200'
+                  : 'text-slate-500 hover:bg-slate-200 hover:text-slate-900'
+              }`}
+            >
               {label}
             </button>
           ))}
@@ -196,12 +206,18 @@ export function SubmissionsList() {
           ['DRIVER', 'Driver'],
           ['TRAILER', 'Trailer'],
           ['VEHICLE', 'Vehicle'],
-        ].map(([value, label]) => (
+          ].map(([value, label]) => (
           <button
             key={value}
             type="button"
             onClick={() => setTypeFilter(value)}
-            className="min-w-[132px] rounded-t-lg border border-slate-200 border-b-slate-300 bg-slate-50 px-5 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800"
+            aria-selected={typeFilter === value}
+            role="tab"
+            className={`min-w-[132px] rounded-t-lg border px-5 py-3 text-xs font-bold uppercase tracking-wider transition-colors ${
+              typeFilter === value
+                ? 'relative z-10 border-slate-200 border-b-white bg-white text-slate-950 shadow-[0_-2px_0_0_#2563eb]'
+                : 'border-slate-200 border-b-slate-300 bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-900'
+            }`}
           >
             {label}
           </button>
