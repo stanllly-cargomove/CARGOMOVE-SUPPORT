@@ -10,16 +10,27 @@ const port = Number(process.env.API_PORT || 8787);
 const sessionSecret = process.env.SESSION_SECRET;
 const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 
-if (!supabaseUrl || !serviceRoleKey || !sessionSecret) {
-  throw new Error('Set SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, and SESSION_SECRET in .env.local for the API server.');
+if (!supabaseUrl || !serviceRoleKey || !supabaseAnonKey || !sessionSecret) {
+  throw new Error('Set SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY, and SESSION_SECRET in the server environment.');
 }
 
 const supabase = createClient(supabaseUrl, serviceRoleKey, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
 
+function createAuthClient() {
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+}
+
 app.use(express.json({ limit: '1mb' }));
+
+app.get('/api/health', (_request, response) => {
+  response.json({ ok: true, service: 'cargomove-api' });
+});
 
 function signSession(payload: { id: string; email: string; type: string; exp: number }) {
   const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url');
@@ -33,6 +44,7 @@ function readSession(request: Request) {
   const [encoded, signature] = value.split('.');
   if (!encoded || !signature) return null;
   const expected = crypto.createHmac('sha256', sessionSecret).update(encoded).digest('base64url');
+  if (signature.length !== expected.length) return null;
   if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) return null;
   try {
     const session = JSON.parse(Buffer.from(encoded, 'base64url').toString()) as { id: string; email: string; type: string; exp: number };
@@ -60,18 +72,39 @@ app.post('/api/auth/login', async (request, response) => {
     return;
   }
 
-  const { data, error } = await supabase.rpc('verify_application_login', {
-    login_identifier: identifier,
-    login_password: password,
-  });
-  const user = Array.isArray(data) ? data[0] : data;
-  if (error || !user || user.type !== 'ADMIN') {
+  // Supabase Auth owns password verification. The application table supplies
+  // the username alias and the ADMIN authorization check; it never verifies
+  // or returns password_hash values.
+  const byUsername = await supabase
+    .from('user_registrations')
+    .select('id, username, email, type, full_name')
+    .eq('username', identifier)
+    .eq('type', 'ADMIN')
+    .maybeSingle();
+  const byEmail = byUsername.data ? { data: null, error: null } : await supabase
+    .from('user_registrations')
+    .select('id, username, email, type, full_name')
+    .eq('email', identifier)
+    .eq('type', 'ADMIN')
+    .maybeSingle();
+  const user = byUsername.data || byEmail.data;
+  if (byUsername.error || byEmail.error || !user) {
     response.status(401).json({ error: 'Invalid admin credentials.' });
     return;
   }
 
-  const session = { id: user.id, email: user.email, type: user.type, exp: Date.now() + 8 * 60 * 60 * 1000 };
-  response.setHeader('Set-Cookie', `cargomove_session=${signSession(session)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=28800`);
+  const auth = createAuthClient();
+  const { data: authData, error: authError } = await auth.auth.signInWithPassword({
+    email: user.email,
+    password,
+  });
+  if (authError || !authData.user || authData.user.email?.toLowerCase() !== user.email.toLowerCase()) {
+    response.status(401).json({ error: 'Invalid admin credentials.' });
+    return;
+  }
+
+  const session = { id: authData.user.id, email: user.email, type: user.type, exp: Date.now() + 8 * 60 * 60 * 1000 };
+  response.setHeader('Set-Cookie', `cargomove_session=${signSession(session)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=28800; ${process.env.VERCEL ? 'Secure' : ''}`);
   response.json({ user: { id: user.id, username: user.username, email: user.email, type: user.type, full_name: user.full_name } });
 });
 

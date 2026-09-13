@@ -36,7 +36,13 @@ export default function App() {
       {viewMode === 'CUSTOMER' ? (
         <RegistrationWizard onSwitchToAdmin={() => setViewMode('LOGIN')} />
       ) : viewMode === 'LOGIN' ? (
-        <LoginPage onBack={() => setViewMode('CUSTOMER')} onSuccess={() => setViewMode('ADMIN')} />
+        <LoginPage
+          onBack={() => setViewMode('CUSTOMER')}
+          onSuccess={() => {
+            setIsAuthenticated(true);
+            setViewMode('ADMIN');
+          }}
+        />
       ) : (
         <AdminLayout
           onSwitchToCustomer={() => setViewMode('CUSTOMER')}
