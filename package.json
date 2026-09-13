@@ -9,6 +9,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "seed:supabase": "tsx scripts/seed-supabase.ts",
+    "set:admin-password": "tsx scripts/set-admin-password.ts",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
     "api": "tsx server.ts"

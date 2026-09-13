@@ -31,3 +31,20 @@ export async function loginApplicationUser(identifier: string, password: string)
 export async function logoutApplicationUser(): Promise<void> {
   await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
 }
+
+export async function createAdminUser(input: {
+  username: string;
+  fullName: string;
+  password: string;
+  mobileNumber: string;
+  email: string;
+}): Promise<void> {
+  const response = await fetch('/api/auth/users', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.error || 'Unable to create the user.');
+}
