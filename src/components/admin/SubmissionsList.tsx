@@ -9,7 +9,7 @@ import {
 } from '../../services/storage';
 import { getCompanyExternalId } from '../../services/companyHelper';
 import { exportSubmissionsToExcel } from '../../services/excelExport';
-import { StatusBadge, TypeBadge, PortBadge } from '../common/Badge';
+import { StatusBadge, PortBadge } from '../common/Badge';
 import { SubmissionDetailModal } from './SubmissionDetailModal';
 import { AssignIdModal } from './AssignIdModal';
 import {
@@ -22,6 +22,7 @@ import {
   FileSpreadsheet,
   Trash2,
   Key,
+  MoreVertical,
 } from 'lucide-react';
 import { notifyError, notifySuccess, notifyWarning, summarizeError } from '../common/notifications';
 
@@ -33,6 +34,7 @@ export function SubmissionsList() {
   const [statusFilter, setStatusFilter] = useState<string>('PENDING');
   const [portFilter, setPortFilter] = useState<string>('ALL');
   const [missingIdOnly, setMissingIdOnly] = useState(false);
+  const [openActionMenu, setOpenActionMenu] = useState<{ id: string; top: number; left: number } | null>(null);
 
   // Modals
   const [activeSubmission, setActiveSubmission] = useState<RegistrationSubmission | null>(null);
@@ -133,20 +135,6 @@ export function SubmissionsList() {
         </div>
       </div>
 
-      {/* Registration type tabs */}
-      <div className="border-b border-slate-200 flex items-center gap-1 overflow-x-auto">
-        {[
-          ['COMPANY', 'Company'],
-          ['DRIVER', 'Driver'],
-          ['TRAILER', 'Trailer'],
-          ['VEHICLE', 'Vehicle'],
-        ].map(([value, label]) => (
-          <button key={value} type="button" onClick={() => setTypeFilter(value)} className={`px-4 py-2.5 text-xs font-bold border-b-2 whitespace-nowrap ${typeFilter === value ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
-            {label}
-          </button>
-        ))}
-      </div>
-
       {/* Search and status tabs */}
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-4">
         <div className="flex flex-col md:flex-row items-center gap-3">
@@ -194,19 +182,48 @@ export function SubmissionsList() {
             ['DONE', 'Done'],
             ['REJECTED', 'Rejected'],
           ].map(([value, label]) => (
-            <button key={value} type="button" onClick={() => setStatusFilter(value)} className={`px-4 py-2 rounded-md text-xs font-bold transition-colors ${statusFilter === value ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>
+            <button key={value} type="button" onClick={() => setStatusFilter(value)} className="px-4 py-2 rounded-md text-xs font-bold text-slate-500 transition-colors hover:text-slate-800">
               {label}
             </button>
           ))}
         </div>
       </div>
 
+      {/* Registration type chrome tabs and table */}
+      <div className="rounded-xl">
+        <div className="flex w-fit items-end gap-0">
+        {[
+          ['COMPANY', 'Company'],
+          ['DRIVER', 'Driver'],
+          ['TRAILER', 'Trailer'],
+          ['VEHICLE', 'Vehicle'],
+        ].map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => setTypeFilter(value)}
+            className="min-w-[132px] rounded-t-lg border border-slate-200 border-b-slate-300 bg-slate-50 px-5 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800"
+          >
+            {label}
+          </button>
+        ))}
+        </div>
+
       {/* Submissions Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
+        <div className="overflow-x-auto rounded-b-xl border border-slate-200 bg-white shadow-sm">
+          <table className="w-full min-w-[1120px] table-fixed text-left text-xs border-collapse">
+            <colgroup>
+              <col style={{ width: '5%' }} />
+              <col style={{ width: '16%' }} />
+              <col style={{ width: '26%' }} />
+              <col style={{ width: '11%' }} />
+              <col style={{ width: '14%' }} />
+              <col style={{ width: '10%' }} />
+              <col style={{ width: '8%' }} />
+              <col style={{ width: '10%' }} />
+            </colgroup>
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider">
+              <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider whitespace-nowrap">
                 <th className="py-3 px-3 w-8 text-center">
                   <input
                     type="checkbox"
@@ -219,10 +236,9 @@ export function SubmissionsList() {
                   />
                 </th>
                 <th className="py-3 px-4">Reference No</th>
-                <th className="py-3 px-3">Type</th>
-                <th className="py-3 px-4">Company Name & Reg</th>
+                <th className="py-3 px-4">Company Name</th>
                 <th className="py-3 px-3">Facility</th>
-                <th className="py-3 px-3">Backend ID Linkage</th>
+                <th className="py-3 px-3">Cargomove ID</th>
                 <th className="py-3 px-3">Status</th>
                 <th className="py-3 px-3">Submitted</th>
                 <th className="py-3 px-4 text-right">Actions</th>
@@ -231,7 +247,7 @@ export function SubmissionsList() {
             <tbody className="divide-y divide-slate-100">
               {filteredSubmissions.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-8 text-center text-slate-500">
+                  <td colSpan={8} className="py-8 text-center text-slate-500">
                     No submissions found matching criteria.
                   </td>
                 </tr>
@@ -261,42 +277,12 @@ export function SubmissionsList() {
                         {sub.reference_no}
                       </td>
 
-                      <td className="py-3 px-3">
-                        <div className="flex flex-col gap-1 items-start">
-                          <TypeBadge type={sub.registration_type} />
-                          {sub.registration_type === 'DRIVER' && (sub.data.drivers?.length || 0) > 1 && (
-                            <span className="text-[10px] font-bold text-sky-700 bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200">
-                              {sub.data.drivers?.length} Drivers
-                            </span>
-                          )}
-                          {sub.registration_type === 'TRAILER' && (sub.data.trailers?.length || 0) > 1 && (
-                            <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
-                              {sub.data.trailers?.length} Trailers
-                            </span>
-                          )}
-                          {sub.registration_type === 'VEHICLE' && (sub.data.vehicles?.length || 0) > 1 && (
-                            <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200">
-                              {sub.data.vehicles?.length} Vehicles
-                            </span>
-                          )}
-                        </div>
-                      </td>
-
                       <td className="py-3 px-4">
                         <div className="font-bold text-slate-900">{sub.company_name}</div>
-                        <div className="font-mono text-[11px] text-slate-500">
-                          {sub.company_reg_no}
-                        </div>
                       </td>
 
                       <td className="py-2.5 px-3">
                         <PortBadge location={sub.port_location} />
-                        <div
-                          className="font-mono text-[10px] text-slate-600 mt-1 truncate max-w-[130px] font-semibold"
-                          title={sub.port_location === 'PORT_KLANG' ? 'WESTPORT & NORTHPORT (5ad78eeb458efa4c5a1fc007,5adc9dd77753d26fb07d6f26)' : sub.port_id}
-                        >
-                          {sub.port_location === 'PORT_KLANG' ? '5ad78eeb458efa4c5a1fc007,5adc9dd77753d26fb07d6f26' : (sub.port_id || 'JOHOR PORT')}
-                        </div>
                       </td>
 
                       {/* Backend ID Linkage Status */}
@@ -326,23 +312,36 @@ export function SubmissionsList() {
                         {new Date(sub.submitted_at).toLocaleDateString()}
                       </td>
 
-                      <td className="py-3 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => setActiveSubmission(sub)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[11px]"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                            Review
-                          </button>
-                          {sub.status === 'PENDING' && (
-                            <>
-                              <button type="button" onClick={() => { updateSubmissionStatus(sub.id, 'DONE'); refreshList(); }} className="px-2 py-1 rounded bg-emerald-600 text-white font-bold text-[11px] hover:bg-emerald-700">Register</button>
-                              <button type="button" onClick={() => { updateSubmissionStatus(sub.id, 'REJECTED'); refreshList(); }} className="px-2 py-1 rounded bg-rose-600 text-white font-bold text-[11px] hover:bg-rose-700">Reject</button>
-                            </>
-                          )}
-                        </div>
+                      <td className="relative py-3 px-4 text-right">
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            if (openActionMenu?.id === sub.id) {
+                              setOpenActionMenu(null);
+                              return;
+                            }
+                            const rect = event.currentTarget.getBoundingClientRect();
+                            setOpenActionMenu({ id: sub.id, top: rect.bottom + 4, left: rect.right - 128 });
+                          }}
+                          aria-label={`Actions for ${sub.reference_no}`}
+                          aria-expanded={openActionMenu?.id === sub.id}
+                          className="inline-flex items-center justify-center rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                        >
+                          <MoreVertical className="w-4 h-4" />
+                        </button>
+                        {openActionMenu?.id === sub.id && (
+                          <div style={{ top: openActionMenu.top, left: openActionMenu.left }} className="fixed z-50 w-32 rounded-lg border border-slate-200 bg-white p-1 text-left shadow-xl">
+                            <button type="button" onClick={() => { setActiveSubmission(sub); setOpenActionMenu(null); }} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100">
+                              <Eye className="w-3.5 h-3.5" /> Review
+                            </button>
+                            {sub.status === 'PENDING' && (
+                              <>
+                                <button type="button" onClick={() => { updateSubmissionStatus(sub.id, 'DONE'); refreshList(); setOpenActionMenu(null); }} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50">Register</button>
+                                <button type="button" onClick={() => { updateSubmissionStatus(sub.id, 'REJECTED'); refreshList(); setOpenActionMenu(null); }} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50">Reject</button>
+                              </>
+                            )}
+                          </div>
+                        )}
                       </td>
                     </tr>
                   );
