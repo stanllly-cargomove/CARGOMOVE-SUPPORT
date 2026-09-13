@@ -23,13 +23,16 @@ export function LoginPage({ onBack, onSuccess }: LoginPageProps) {
     }
 
     if (!email.trim() || !password) {
-      setError('Enter your email and password.');
+      setError('Enter your username or email and password.');
       return;
     }
 
     setIsSubmitting(true);
+    const loginEmail = email.includes('@')
+      ? email.trim().toLowerCase()
+      : `${email.trim().toLowerCase()}@cargomove.local`;
     const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: email.trim().toLowerCase(),
+      email: loginEmail,
       password,
     });
     setIsSubmitting(false);
@@ -67,16 +70,16 @@ export function LoginPage({ onBack, onSuccess }: LoginPageProps) {
           )}
 
           <div>
-            <label htmlFor="login-email" className="block text-xs font-bold text-slate-700 mb-1.5">Email</label>
+            <label htmlFor="login-email" className="block text-xs font-bold text-slate-700 mb-1.5">Username or email</label>
             <div className="relative">
               <Mail className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
               <input
                 id="login-email"
-                type="email"
+                type="text"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
-                autoComplete="email"
-                placeholder="admin@company.com"
+                autoComplete="username"
+                placeholder="admin or admin@company.com"
                 className="w-full rounded-lg border border-slate-300 py-2.5 pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
               />
             </div>
