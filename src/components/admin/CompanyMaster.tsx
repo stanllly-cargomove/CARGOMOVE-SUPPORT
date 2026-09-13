@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Company } from '../../types';
 import {
   getCompanies,
@@ -6,6 +6,7 @@ import {
   checkDuplicateRegNo,
   getPorts,
   getDepots,
+  subscribeToStorage,
 } from '../../services/storage';
 import { getCompanyExternalId, normalizeCompanyType, normalizeRegNo } from '../../services/companyHelper';
 import { AssignIdModal } from './AssignIdModal';
@@ -40,6 +41,8 @@ export function CompanyMaster() {
   const refreshList = () => {
     setCompanies(getCompanies());
   };
+
+  useEffect(() => subscribeToStorage(refreshList), []);
 
   const filteredCompanies = companies.filter((comp) => {
     // Search query

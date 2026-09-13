@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   getCompanies,
   getSubmissions,
   getCompanyById,
+  subscribeToStorage,
 } from '../../services/storage';
 import { getCompanyExternalId } from '../../services/companyHelper';
 import { Company, RegistrationSubmission, RegistrationType } from '../../types';
@@ -35,6 +36,8 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
     setCompanies(getCompanies());
     setSubmissions(getSubmissions());
   };
+
+  useEffect(() => subscribeToStorage(refresh), []);
 
   const pendingByType = (type: RegistrationType) =>
     submissions.filter((s) => s.registration_type === type && s.status === 'PENDING').length;

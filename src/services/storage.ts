@@ -454,11 +454,11 @@ async function hydrateFromSupabase() {
   remoteHydrationStarted = true;
   const snapshot = await fetchSupabaseSnapshot();
   if (!snapshot) return;
-  localStorage.setItem(STORAGE_KEYS.PORTS, JSON.stringify(snapshot.ports));
-  localStorage.setItem(STORAGE_KEYS.DEPOTS, JSON.stringify(snapshot.depots));
-  localStorage.setItem(STORAGE_KEYS.COMPANIES, JSON.stringify(snapshot.companies));
-  localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(snapshot.submissions));
-  localStorage.setItem(STORAGE_KEYS.USER_REGISTRATIONS, JSON.stringify(snapshot.userRegistrations));
+  if (snapshot.ports.length > 0) localStorage.setItem(STORAGE_KEYS.PORTS, JSON.stringify(snapshot.ports));
+  if (snapshot.depots.length > 0) localStorage.setItem(STORAGE_KEYS.DEPOTS, JSON.stringify(snapshot.depots));
+  if (snapshot.companies.length > 0) localStorage.setItem(STORAGE_KEYS.COMPANIES, JSON.stringify(snapshot.companies));
+  if (snapshot.submissions.length > 0) localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(snapshot.submissions));
+  if (snapshot.userRegistrations.length > 0) localStorage.setItem(STORAGE_KEYS.USER_REGISTRATIONS, JSON.stringify(snapshot.userRegistrations));
   if (snapshot.guideline) localStorage.setItem(STORAGE_KEYS.HAULIER_GUIDELINE, JSON.stringify(snapshot.guideline));
   notifyListeners();
 }
