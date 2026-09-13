@@ -24,6 +24,7 @@ import { PortDepotConfig } from './PortDepotConfig';
 import { SchemaMappingInspector } from './SchemaMappingInspector';
 import { GuidelineManager } from './GuidelineManager';
 import { UserRegistration } from './UserRegistration';
+import { AdminUser } from './AdminUser';
 import { resetToDemoData } from '../../services/storage';
 import { Logo } from '../common/Logo';
 import { notifyError, notifySuccess } from '../common/notifications';
@@ -69,6 +70,7 @@ export function AdminLayout({ onSwitchToCustomer, onLogout }: AdminLayoutProps) 
   ];
 
   const devToolItems = [
+    { id: 'admin-user', label: 'Admin user', icon: UserRoundPlus },
     { id: 'guidelines', label: 'Haulier Guidelines', icon: BookOpen },
     { id: 'export', label: 'Excel Export Center', icon: FileSpreadsheet },
     { id: 'ports', label: 'Port & Depot Config', icon: Settings },
@@ -237,6 +239,7 @@ export function AdminLayout({ onSwitchToCustomer, onLogout }: AdminLayoutProps) 
           {activeTab === 'companies' && <CompanyMaster />}
           {activeTab === 'submissions' && <SubmissionsList />}
           {activeTab === 'user-registration' && <UserRegistration />}
+          {activeTab === 'admin-user' && <AdminUser />}
           {activeTab === 'guidelines' && (
             <GuidelineManager onPreviewCustomerView={onSwitchToCustomer} />
           )}
