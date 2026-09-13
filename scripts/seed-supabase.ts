@@ -38,6 +38,7 @@ const companyRow = (company: typeof INITIAL_COMPANIES[number]) => {
 const submissionRow = (submission: typeof INITIAL_SUBMISSIONS[number]) => ({
   ...submission,
   company_id: submission.company_id || null,
+  port_id: submission.port_id === 'jh-pg-ics' || submission.port_id === 'jh-pg-depot' ? 'johor-port' : submission.port_id,
 });
 
 const result = await client.from('port_configs').upsert(INITIAL_PORTS);

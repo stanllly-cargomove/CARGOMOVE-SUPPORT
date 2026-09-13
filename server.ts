@@ -33,9 +33,13 @@ if (supabaseUrl && serviceRoleKey) {
 
 function createAuthClient() {
   if (!supabaseUrl || !supabaseAnonKey) return null;
-  return createClient(supabaseUrl, supabaseAnonKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
+  try {
+    return createClient(supabaseUrl, supabaseAnonKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+  } catch {
+    return null;
+  }
 }
 
 app.use(express.json({ limit: '1mb' }));
