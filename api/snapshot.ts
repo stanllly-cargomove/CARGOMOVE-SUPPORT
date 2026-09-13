@@ -28,7 +28,7 @@ export default async function snapshot(request: any, response: any) {
   response.json({
     ports: ports.data || [],
     depots: depots.data || [],
-    companies: (companies.data || []).map((company: any) => ({ ...company, ...company.details, details: undefined })),
+    companies: (companies.data || []).map((company: any) => ({ ...company.details, ...company, details: undefined })),
     submissions: submissions.data || [],
     userRegistrations: userRegistrations.data || [],
     guideline: (guideline as any).data?.content || null,

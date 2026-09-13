@@ -65,8 +65,8 @@ export function AdminLayout({ onSwitchToCustomer, onLogout }: AdminLayoutProps) 
   const navItems = [
     { id: 'dashboard', label: 'Operations Dashboard', icon: LayoutDashboard },
     { id: 'companies', label: 'Company Master', icon: Building2 },
-    { id: 'submissions', label: 'Company Registration', icon: Inbox },
-    { id: 'user-registration', label: 'User Registration', icon: UserRoundPlus },
+    { id: 'submissions', label: 'Registration Queue', icon: Inbox },
+    { id: 'user-registration', label: 'User Access Registration', icon: UserRoundPlus },
   ];
 
   const devToolItems = [

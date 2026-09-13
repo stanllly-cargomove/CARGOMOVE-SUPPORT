@@ -43,6 +43,11 @@ export function AssignIdModal({
       return;
     }
 
+    const confirmed = window.confirm(
+      'Save this ID to the Company Master? This will update the company record and apply the ID to related registrations and future exports.'
+    );
+    if (!confirmed) return;
+
     updateCompanyId(company.id, targetIdType, idValue.trim());
     setSavedSuccess(true);
     notifySuccess('Master ID assigned successfully.');

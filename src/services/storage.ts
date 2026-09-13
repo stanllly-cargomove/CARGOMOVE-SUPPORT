@@ -441,7 +441,7 @@ let protectedDataEnabled = false;
 
 function companyRow(company: Company) {
   const { block, address1, address2, city, state, postcode, country, contact_name, contact_email, contact_designation, contact_mobile, office_phone, fax, ...master } = company;
-  return { ...master, details: { block, address1, address2, city, state, postcode, country, contact_name, contact_email, contact_designation, contact_mobile, office_phone, fax } };
+  return { ...master, block, address1, address2, city, state, postcode, country, contact_name, contact_email, contact_designation, contact_mobile, office_phone, fax };
 }
 
 function syncCompany(company: Company) { void upsertSupabaseRow('companies', companyRow(company)); }

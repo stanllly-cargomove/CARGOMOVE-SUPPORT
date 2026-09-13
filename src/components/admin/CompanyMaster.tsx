@@ -157,7 +157,7 @@ export function CompanyMaster() {
                 <th className="py-3 px-3 text-center">Reg. New</th>
                 <th className="py-3 px-3 text-center">Type</th>
                 <th className="py-3 px-4">Cargomove ID</th>
-                <th className="py-3 px-3 text-center">Port</th>
+                <th className="py-3 px-3 text-center">Facility</th>
                 <th className="py-3 px-3 text-center">Last Updated</th>
                 <th className="py-3 px-4 text-right">Actions</th>
               </tr>
@@ -206,7 +206,7 @@ export function CompanyMaster() {
                               <button
                                 type="button"
                                 onClick={() => setSelectedCompanyForId(comp)}
-                                className="text-[11px] text-slate-600 underline hover:text-blue-700"
+                                className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700 hover:bg-amber-100"
                                 title="Assign Haulier ID"
                               >
                                 Haulier ID Required
@@ -221,7 +221,7 @@ export function CompanyMaster() {
                               <button
                                 type="button"
                                 onClick={() => setSelectedCompanyForId(comp)}
-                                className="text-[11px] text-slate-600 underline hover:text-blue-700"
+                                className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700 hover:bg-amber-100"
                                 title="Assign Forwarder ID"
                               >
                                 Forwarder ID Required
@@ -233,7 +233,7 @@ export function CompanyMaster() {
                             <button
                               type="button"
                               onClick={() => setSelectedCompanyForId(comp)}
-                              className="text-[11px] text-slate-600 underline hover:text-blue-700"
+                              className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700 hover:bg-amber-100"
                             >
                               ID Required
                             </button>

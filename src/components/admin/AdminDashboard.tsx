@@ -107,8 +107,8 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                 <th className="py-2 px-3">Reference</th>
                 <th className="py-2 px-3 text-center">Type</th>
                 <th className="py-2 px-3">Company</th>
-                <th className="py-2 px-3 text-center">Port</th>
-                <th className="py-2 px-3">ID Linkage</th>
+                <th className="py-2 px-3 text-center">Facility</th>
+                <th className="py-2 px-3">Cargomove ID</th>
                 <th className="py-2 px-3">Status</th>
                 <th className="py-2 px-3 text-right">Action</th>
               </tr>
@@ -130,15 +130,15 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                       {sub.company_name}
                     </td>
                     <td className="py-2 px-3 text-center text-slate-700">
-                      {sub.port_location === 'PORT_KLANG' ? 'Port Klang' : 'Johor Depot'}
+                      {sub.port_location === 'PORT_KLANG' ? 'PORT KLANG' : sub.port_location === 'JOHOR' ? 'JOHOR' : 'OTHER PORT'}
                     </td>
                     <td className="py-2 px-3 font-mono">
                       {idInfo.has_required_id ? (
-                        <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 text-[10px]">
+                        <span className="font-mono text-slate-700 text-[10px]">
                           {idInfo.active_id_value}
                         </span>
                       ) : (
-                        <span className="text-amber-800 bg-amber-100 px-2 py-0.5 rounded border border-amber-300 text-[10px]">
+                        <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">
                           ID Required
                         </span>
                       )}

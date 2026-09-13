@@ -9,7 +9,7 @@ import {
 } from '../../services/storage';
 import { getCompanyExternalId } from '../../services/companyHelper';
 import { exportSubmissionsToExcel } from '../../services/excelExport';
-import { StatusBadge, PortBadge } from '../common/Badge';
+import { StatusBadge } from '../common/Badge';
 import { SubmissionDetailModal } from './SubmissionDetailModal';
 import { AssignIdModal } from './AssignIdModal';
 import {
@@ -18,7 +18,6 @@ import {
   Download,
   Eye,
   AlertTriangle,
-  CheckCircle,
   FileSpreadsheet,
   Trash2,
   Key,
@@ -282,21 +281,20 @@ export function SubmissionsList() {
                       </td>
 
                       <td className="py-2.5 px-3">
-                        <PortBadge location={sub.port_location} />
+                        <span className="text-[11px] font-semibold text-slate-700">
+                          {sub.port_location === 'PORT_KLANG' ? 'PORT KLANG' : sub.port_location === 'JOHOR' ? 'JOHOR' : 'OTHER PORT'}
+                        </span>
                       </td>
 
                       {/* Backend ID Linkage Status */}
                       <td className="py-3 px-3 font-mono">
                         {idInfo.has_required_id ? (
-                          <div className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 text-[11px]">
-                            <CheckCircle className="w-3 h-3 text-emerald-600" />
-                            <span>{idInfo.active_id_value}</span>
-                          </div>
+                          <span className="font-mono text-[11px] text-slate-700">{idInfo.active_id_value}</span>
                         ) : (
                           <button
                             type="button"
                             onClick={() => handleOpenAssignIdForSub(sub)}
-                            className="inline-flex items-center gap-1 text-amber-800 bg-amber-100 hover:bg-amber-200 px-2 py-0.5 rounded border border-amber-300 text-[10px] font-bold"
+                            className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700 hover:bg-amber-100"
                           >
                             <AlertTriangle className="w-3 h-3 text-amber-700" />
                             <span>ID Required</span>
