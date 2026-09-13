@@ -437,6 +437,7 @@ export const INITIAL_SUBMISSIONS: RegistrationSubmission[] = [
 type StorageListener = () => void;
 const listeners = new Set<StorageListener>();
 let remoteHydrationStarted = false;
+let protectedDataEnabled = false;
 
 function companyRow(company: Company) {
   const { block, address1, address2, city, state, postcode, country, contact_name, contact_email, contact_designation, contact_mobile, office_phone, fax, ...master } = company;
@@ -481,10 +482,13 @@ function notifyListeners() {
 /**
  * Initialize mock master data into localStorage if not present
  */
-export function initStorage(): void {
+export function initStorage(options: { hydrateRemote?: boolean } = {}): void {
   if (typeof window === 'undefined') return;
 
-  void hydrateFromSupabase();
+  if (options.hydrateRemote) {
+    protectedDataEnabled = true;
+    void hydrateFromSupabase();
+  }
 
   const initialized = localStorage.getItem(STORAGE_KEYS.INITIALIZED);
   if (!initialized) {
@@ -601,6 +605,13 @@ export function initStorage(): void {
       // ignore
     }
   }
+}
+
+export function clearProtectedStorage(): void {
+  protectedDataEnabled = false;
+  localStorage.removeItem(STORAGE_KEYS.COMPANIES);
+  localStorage.removeItem(STORAGE_KEYS.SUBMISSIONS);
+  localStorage.removeItem(STORAGE_KEYS.USER_REGISTRATIONS);
 }
 
 // Reset data to defaults
@@ -770,6 +781,7 @@ export function deleteDepotConfig(depotId: string): boolean {
 
 export function getCompanies(): Company[] {
   initStorage();
+  if (!protectedDataEnabled) return [];
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.COMPANIES);
     const companies: Company[] = raw ? JSON.parse(raw) : INITIAL_COMPANIES;
@@ -907,6 +919,7 @@ export function updateCompanyId(
 
 export function getSubmissions(): RegistrationSubmission[] {
   initStorage();
+  if (!protectedDataEnabled) return [];
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.SUBMISSIONS);
     const list: RegistrationSubmission[] = raw ? JSON.parse(raw) : INITIAL_SUBMISSIONS;

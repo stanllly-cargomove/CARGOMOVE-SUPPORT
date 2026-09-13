@@ -30,9 +30,10 @@ import { notifyError, notifySuccess } from '../common/notifications';
 
 interface AdminLayoutProps {
   onSwitchToCustomer: () => void;
+  onLogout: () => void;
 }
 
-export function AdminLayout({ onSwitchToCustomer }: AdminLayoutProps) {
+export function AdminLayout({ onSwitchToCustomer, onLogout }: AdminLayoutProps) {
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [isDevToolExpanded, setIsDevToolExpanded] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -169,6 +170,14 @@ export function AdminLayout({ onSwitchToCustomer }: AdminLayoutProps) {
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             Customer Portal View
+          </button>
+
+          <button
+            type="button"
+            onClick={onLogout}
+            className="w-full px-3 py-1.5 text-xs font-semibold text-slate-400 hover:text-rose-400 transition-colors"
+          >
+            Log out
           </button>
 
           <button
