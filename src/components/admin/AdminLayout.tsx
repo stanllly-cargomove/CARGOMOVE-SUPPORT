@@ -15,6 +15,7 @@ import {
   ChevronDown,
   Moon,
   Sun,
+  RefreshCw,
 } from 'lucide-react';
 import { AdminDashboard } from './AdminDashboard';
 import { CompanyMaster } from './CompanyMaster';
@@ -31,14 +32,16 @@ import { notifyError, notifySuccess } from '../common/notifications';
 
 interface AdminLayoutProps {
   onSwitchToCustomer: () => void;
+  onRefreshData: () => Promise<void>;
   onLogout: () => void;
 }
 
-export function AdminLayout({ onSwitchToCustomer, onLogout }: AdminLayoutProps) {
+export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: AdminLayoutProps) {
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [isDevToolExpanded, setIsDevToolExpanded] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const reloadTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -59,6 +62,19 @@ export function AdminLayout({ onSwitchToCustomer, onLogout }: AdminLayoutProps) 
       }, 800);
     } catch {
       notifyError('Unable to reset demo data.');
+    }
+  };
+
+  const handleRefresh = async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      await onRefreshData();
+      notifySuccess('Data cache checked for updates.');
+    } catch {
+      notifyError('Unable to check for new data.');
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -162,6 +178,16 @@ export function AdminLayout({ onSwitchToCustomer, onLogout }: AdminLayoutProps) 
 
         {/* Sidebar Footer */}
         <div className="p-3 border-t border-slate-800 space-y-2">
+          <button
+            type="button"
+            onClick={() => void handleRefresh()}
+            disabled={isRefreshing}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-bold text-sky-200 bg-slate-800 hover:bg-slate-700 disabled:opacity-60 transition-colors"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+            {isRefreshing ? 'Checking...' : 'Refresh data'}
+          </button>
+
           <button
             type="button"
             onClick={onSwitchToCustomer}

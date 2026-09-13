@@ -222,18 +222,24 @@ app.post('/api/auth/logout', (_request, response) => {
   response.status(204).end();
 });
 
-app.get('/api/snapshot', requireSession, async (_request, response) => {
+app.get('/api/snapshot', requireSession, async (request, response) => {
   if (!supabase) {
     response.status(503).json({ error: 'Supabase server access is not configured.', missing: missingServerVariables });
     return;
   }
+  const requestedSince = typeof request.query.since === 'string' ? request.query.since : '';
+  const since = requestedSince && !Number.isNaN(Date.parse(requestedSince)) ? requestedSince : null;
+  const syncCursor = new Date().toISOString();
+  const changed = <T extends { gt: (column: string, value: string) => T }>(query: T) => since ? query.gt('updated_at', since) : query;
   const tables = await Promise.all([
-    supabase.from('port_configs').select('*'),
-    supabase.from('depot_configs').select('*'),
-    supabase.from('companies').select('*'),
-    supabase.from('registration_submissions').select('*').order('submitted_at', { ascending: false }),
-    supabase.from('user_registrations').select('id, username, email, type, company_id, company_name, full_name, mobile_number, created_at, updated_at').order('created_at', { ascending: false }),
-    supabase.from('haulier_guidelines').select('content').eq('id', 'default').maybeSingle(),
+    changed(supabase.from('port_configs').select('*')),
+    changed(supabase.from('depot_configs').select('*')),
+    changed(supabase.from('companies').select('*')),
+    changed(supabase.from('registration_submissions').select('*')).order('submitted_at', { ascending: false }),
+    changed(supabase.from('user_registrations').select('id, username, email, type, company_id, company_name, full_name, mobile_number, created_at, updated_at')).order('created_at', { ascending: false }),
+    since
+      ? supabase.from('haulier_guidelines').select('content, updated_at').eq('id', 'default').gt('updated_at', since).maybeSingle()
+      : supabase.from('haulier_guidelines').select('content, updated_at').eq('id', 'default').maybeSingle(),
   ]);
   const failed = tables.find((result) => result.error);
   if (failed?.error) {
@@ -248,6 +254,8 @@ app.get('/api/snapshot', requireSession, async (_request, response) => {
     submissions: submissions.data || [],
     userRegistrations: userRegistrations.data || [],
     guideline: (guideline as any).data?.content || null,
+    guidelineUpdatedAt: (guideline as any).data?.updated_at || null,
+    syncCursor,
   });
 });
 

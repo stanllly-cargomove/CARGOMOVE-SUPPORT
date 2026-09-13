@@ -3,7 +3,7 @@ import { RegistrationWizard } from './components/customer/RegistrationWizard';
 import { AdminLayout } from './components/admin/AdminLayout';
 import { LoginPage } from './components/auth/LoginPage';
 import { PasswordResetPage } from './components/auth/PasswordResetPage';
-import { clearProtectedStorage, initStorage } from './services/storage';
+import { clearProtectedStorage, refreshProtectedStorage, startProtectedStorageSync } from './services/storage';
 import { getApplicationSession, logoutApplicationUser } from './services/auth';
 
 export default function App() {
@@ -27,7 +27,9 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (isAuthenticated) initStorage({ hydrateRemote: true });
+    if (!isAuthenticated) return;
+    const stopSync = startProtectedStorageSync();
+    return stopSync;
   }, [isAuthenticated]);
 
   if (isAuthLoading) {
@@ -53,6 +55,7 @@ export default function App() {
       ) : (
         <AdminLayout
           onSwitchToCustomer={() => setViewMode('CUSTOMER')}
+          onRefreshData={() => refreshProtectedStorage()}
           onLogout={async () => {
             await logoutApplicationUser();
             clearProtectedStorage();

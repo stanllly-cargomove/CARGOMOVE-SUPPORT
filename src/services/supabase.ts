@@ -1,12 +1,14 @@
 export const isSupabaseConfigured = true;
 
-interface Snapshot {
+export interface Snapshot {
   ports: unknown[];
   depots: unknown[];
   companies: unknown[];
   submissions: unknown[];
   userRegistrations: unknown[];
   guideline: unknown;
+  guidelineUpdatedAt?: string | null;
+  syncCursor?: string;
 }
 
 async function parseResponse<T>(response: Response): Promise<T | null> {
@@ -18,8 +20,9 @@ async function parseResponse<T>(response: Response): Promise<T | null> {
   return response.status === 204 ? null : response.json();
 }
 
-export async function fetchSupabaseSnapshot(): Promise<Snapshot | null> {
-  const response = await fetch('/api/snapshot', { credentials: 'include' });
+export async function fetchSupabaseSnapshot(since?: string): Promise<Snapshot | null> {
+  const query = since ? `?since=${encodeURIComponent(since)}` : '';
+  const response = await fetch(`/api/snapshot${query}`, { credentials: 'include' });
   return parseResponse<Snapshot>(response);
 }
 

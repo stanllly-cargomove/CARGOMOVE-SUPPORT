@@ -21,6 +21,7 @@ const STORAGE_KEYS = {
   INITIALIZED: 'port_reg_initialized_v1',
   HAULIER_GUIDELINE: 'port_reg_haulier_guideline_v1',
   USER_REGISTRATIONS: 'port_reg_user_registrations_v1',
+  SYNC_CURSOR: 'port_reg_sync_cursor_v1',
 };
 
 // Default ports matching prompt section 1 & 10
@@ -439,6 +440,8 @@ type StorageListener = () => void;
 const listeners = new Set<StorageListener>();
 let remoteHydrationStarted = false;
 let protectedDataEnabled = false;
+let remoteSyncTimer: ReturnType<typeof setInterval> | null = null;
+let remoteSyncInFlight: Promise<void> | null = null;
 
 function companyRow(company: Company) {
   const { block, address1, address2, city, state, postcode, country, contact_name, contact_email, contact_designation, contact_mobile, office_phone, fax, ...master } = company;
@@ -461,24 +464,72 @@ function syncUserRegistration(user: UserRegistration, password: string) {
   });
 }
 
-async function hydrateFromSupabase() {
-  if (!isSupabaseConfigured || remoteHydrationStarted) return;
-  remoteHydrationStarted = true;
-  const snapshot = await fetchSupabaseSnapshot();
-  if (!snapshot) return;
-  if (snapshot.ports.length > 0) localStorage.setItem(STORAGE_KEYS.PORTS, JSON.stringify(snapshot.ports));
-  if (snapshot.depots.length > 0) localStorage.setItem(STORAGE_KEYS.DEPOTS, JSON.stringify(snapshot.depots));
-  if (snapshot.companies.length > 0) localStorage.setItem(STORAGE_KEYS.COMPANIES, JSON.stringify(snapshot.companies));
-  if (snapshot.submissions.length > 0) localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(snapshot.submissions));
-  if (snapshot.userRegistrations.length > 0) localStorage.setItem(STORAGE_KEYS.USER_REGISTRATIONS, JSON.stringify(snapshot.userRegistrations));
-  if (snapshot.guideline) localStorage.setItem(STORAGE_KEYS.HAULIER_GUIDELINE, JSON.stringify(snapshot.guideline));
-  notifyListeners();
+function mergeCachedRows(key: string, incoming: unknown[]) {
+  if (incoming.length === 0) return false;
+  let current: Array<{ id?: string }> = [];
+  try {
+    current = JSON.parse(localStorage.getItem(key) || '[]');
+  } catch {
+    current = [];
+  }
+  const byId = new Map(current.map((row) => [row.id, row]));
+  incoming.forEach((row) => {
+    const typedRow = row as { id?: string };
+    if (typedRow.id) byId.set(typedRow.id, typedRow);
+  });
+  localStorage.setItem(key, JSON.stringify(Array.from(byId.values())));
+  return true;
+}
+
+function replaceCachedRows(key: string, rows: unknown[]) {
+  localStorage.setItem(key, JSON.stringify(rows));
+  return rows.length > 0;
+}
+
+async function syncFromSupabase(fullSync = false): Promise<void> {
+  if (!isSupabaseConfigured || !protectedDataEnabled || remoteSyncInFlight) return remoteSyncInFlight || Promise.resolve();
+  remoteSyncInFlight = (async () => {
+    const since = fullSync ? undefined : localStorage.getItem(STORAGE_KEYS.SYNC_CURSOR) || undefined;
+    const snapshot = await fetchSupabaseSnapshot(since);
+    if (!snapshot) return;
+    const changed = fullSync || [
+      fullSync ? replaceCachedRows(STORAGE_KEYS.PORTS, snapshot.ports) : mergeCachedRows(STORAGE_KEYS.PORTS, snapshot.ports),
+      fullSync ? replaceCachedRows(STORAGE_KEYS.DEPOTS, snapshot.depots) : mergeCachedRows(STORAGE_KEYS.DEPOTS, snapshot.depots),
+      fullSync ? replaceCachedRows(STORAGE_KEYS.COMPANIES, snapshot.companies) : mergeCachedRows(STORAGE_KEYS.COMPANIES, snapshot.companies),
+      fullSync ? replaceCachedRows(STORAGE_KEYS.SUBMISSIONS, snapshot.submissions) : mergeCachedRows(STORAGE_KEYS.SUBMISSIONS, snapshot.submissions),
+      fullSync ? replaceCachedRows(STORAGE_KEYS.USER_REGISTRATIONS, snapshot.userRegistrations) : mergeCachedRows(STORAGE_KEYS.USER_REGISTRATIONS, snapshot.userRegistrations),
+    ].some(Boolean);
+    if (snapshot.guideline) {
+      localStorage.setItem(STORAGE_KEYS.HAULIER_GUIDELINE, JSON.stringify(snapshot.guideline));
+    } else if (fullSync) {
+      localStorage.removeItem(STORAGE_KEYS.HAULIER_GUIDELINE);
+    }
+    if (snapshot.syncCursor) localStorage.setItem(STORAGE_KEYS.SYNC_CURSOR, snapshot.syncCursor);
+    if (changed || snapshot.guideline) notifyListeners();
+  })().finally(() => {
+    remoteSyncInFlight = null;
+  });
+  await remoteSyncInFlight;
 }
 
 export async function refreshProtectedStorage(): Promise<void> {
-  if (!protectedDataEnabled) return;
+  await syncFromSupabase(false);
+}
+
+export function startProtectedStorageSync(): () => void {
+  protectedDataEnabled = true;
+  remoteHydrationStarted = true;
+  void syncFromSupabase(true);
+  if (remoteSyncTimer) clearInterval(remoteSyncTimer);
+  remoteSyncTimer = setInterval(() => void syncFromSupabase(false), 60_000);
+  return stopProtectedStorageSync;
+}
+
+export function stopProtectedStorageSync(): void {
+  if (remoteSyncTimer) clearInterval(remoteSyncTimer);
+  remoteSyncTimer = null;
+  protectedDataEnabled = false;
   remoteHydrationStarted = false;
-  await hydrateFromSupabase();
 }
 
 export function subscribeToStorage(callback: StorageListener): () => void {
@@ -503,8 +554,7 @@ export function initStorage(options: { hydrateRemote?: boolean } = {}): void {
   if (typeof window === 'undefined') return;
 
   if (options.hydrateRemote) {
-    protectedDataEnabled = true;
-    void hydrateFromSupabase();
+    startProtectedStorageSync();
   }
 
   const initialized = localStorage.getItem(STORAGE_KEYS.INITIALIZED);
@@ -625,10 +675,12 @@ export function initStorage(options: { hydrateRemote?: boolean } = {}): void {
 }
 
 export function clearProtectedStorage(): void {
+  stopProtectedStorageSync();
   protectedDataEnabled = false;
   localStorage.removeItem(STORAGE_KEYS.COMPANIES);
   localStorage.removeItem(STORAGE_KEYS.SUBMISSIONS);
   localStorage.removeItem(STORAGE_KEYS.USER_REGISTRATIONS);
+  localStorage.removeItem(STORAGE_KEYS.SYNC_CURSOR);
 }
 
 // Reset data to defaults

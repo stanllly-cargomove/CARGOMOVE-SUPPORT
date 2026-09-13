@@ -106,9 +106,6 @@ export function LoginPage({ onBack, onSuccess }: LoginPageProps) {
             <ArrowLeft className="w-3.5 h-3.5" /> Back to registration
           </button>
 
-          <button type="button" onClick={onSuccess} className="w-full rounded-lg border border-dashed border-amber-400 bg-amber-50 px-4 py-2 text-[11px] font-bold text-amber-800 hover:bg-amber-100">
-            Developer: bypass login
-          </button>
         </form>
       </section>
     </main>
