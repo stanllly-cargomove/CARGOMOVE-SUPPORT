@@ -47,8 +47,8 @@ export default function App() {
       ) : viewMode === 'LOGIN' ? (
         <LoginPage
           onBack={() => setViewMode('CUSTOMER')}
-          onSuccess={() => {
-            setIsAuthenticated(true);
+          onSuccess={(authenticated) => {
+            setIsAuthenticated(authenticated);
             setViewMode('ADMIN');
           }}
         />

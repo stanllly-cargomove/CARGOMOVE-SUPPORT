@@ -4,7 +4,7 @@ import { loginApplicationUser } from '../../services/auth';
 
 interface LoginPageProps {
   onBack: () => void;
-  onSuccess: () => void;
+  onSuccess: (authenticated: boolean) => void;
 }
 
 export function LoginPage({ onBack, onSuccess }: LoginPageProps) {
@@ -32,7 +32,7 @@ export function LoginPage({ onBack, onSuccess }: LoginPageProps) {
     }
 
     setIsSubmitting(false);
-    onSuccess();
+    onSuccess(true);
   };
 
   return (
@@ -104,6 +104,14 @@ export function LoginPage({ onBack, onSuccess }: LoginPageProps) {
 
           <button type="button" onClick={onBack} className="w-full inline-flex items-center justify-center gap-2 py-2 text-xs font-semibold text-slate-500 hover:text-slate-800">
             <ArrowLeft className="w-3.5 h-3.5" /> Back to registration
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onSuccess(false)}
+            className="w-full rounded-lg border border-dashed border-amber-400 bg-amber-50 px-4 py-2 text-[11px] font-bold text-amber-800 hover:bg-amber-100"
+          >
+            Developer: bypass login
           </button>
 
         </form>

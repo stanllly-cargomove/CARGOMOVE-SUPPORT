@@ -7,9 +7,7 @@ export function normalizeCompanyType(typeStr: string = ''): CompanyType {
   const normalized = typeStr.trim().toUpperCase();
 
   if (normalized.includes('HAUL')) return 'HAULAGE';
-  if (normalized.includes('TRANSPORT')) return 'TRANSPORT';
-  return 'FORWARDER';
-}
+  if (normalized.incl
 
 /** Backend Excel TYPE/COMPANYTYPE value: only HAULAGE is exported distinctly. */
 export function getExportCompanyType(typeStr: string = ''): 'HAULAGE' | 'FORWARDER' {
