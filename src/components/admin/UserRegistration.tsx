@@ -288,6 +288,20 @@ export function UserRegistration() {
               <label className="block text-xs font-semibold text-slate-700">Message
                 <textarea value={preview.body} onChange={(event) => setPreview({ ...preview, body: event.target.value })} rows={20} className="mt-1.5 w-full resize-y rounded-lg border border-slate-300 px-3 py-2 font-mono text-xs font-normal leading-5" />
               </label>
+              {preview.attachments.length > 0 && (
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  <div className="mb-2 text-xs font-semibold text-slate-700">Attachments</div>
+                  <div className="space-y-1.5">
+                    {preview.attachments.map((attachment) => (
+                      <div key={attachment.path} className="flex items-center gap-2 text-xs text-slate-600">
+                        <Download className="h-3.5 w-3.5 text-slate-400" />
+                        <span className="min-w-0 flex-1 truncate">{attachment.name}</span>
+                        <span className="text-slate-400">{(attachment.size / 1024 / 1024).toFixed(2)} MB</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
             <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4">
               <button type="button" onClick={() => setPreview(null)} disabled={sending} className="rounded-lg px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200">Cancel</button>

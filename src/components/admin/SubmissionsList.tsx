@@ -26,6 +26,7 @@ import { notifyError, notifySuccess, notifyWarning, summarizeError } from '../co
 
 interface SubmissionsListProps {
   status: SubmissionStatus;
+  initialType?: RegistrationType;
 }
 
 const statusTitles: Record<SubmissionStatus, string> = {
@@ -34,11 +35,17 @@ const statusTitles: Record<SubmissionStatus, string> = {
   REJECTED: 'Rejected Registration Submissions',
 };
 
-export function SubmissionsList({ status }: SubmissionsListProps) {
+const statusTitleColors: Record<SubmissionStatus, string> = {
+  PENDING: 'text-amber-600',
+  DONE: 'text-emerald-700',
+  REJECTED: 'text-red-600',
+};
+
+export function SubmissionsList({ status, initialType = 'COMPANY' }: SubmissionsListProps) {
   const [submissions, setSubmissions] = useState<RegistrationSubmission[]>(getSubmissions());
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [typeFilter, setTypeFilter] = useState<string>('COMPANY');
+  const [typeFilter, setTypeFilter] = useState<RegistrationType | 'ALL'>(initialType);
   const [portFilter, setPortFilter] = useState<string>('ALL');
   const [missingIdOnly, setMissingIdOnly] = useState(false);
   const [openActionMenu, setOpenActionMenu] = useState<{ id: string; top: number; left: number } | null>(null);
@@ -58,7 +65,12 @@ export function SubmissionsList({ status }: SubmissionsListProps) {
     setOpenActionMenu(null);
     setActiveSubmission(null);
     setAssignIdCompany(null);
+    setMissingIdOnly(false);
   }, [status]);
+
+  React.useEffect(() => {
+    setTypeFilter(initialType);
+  }, [initialType]);
 
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
@@ -128,7 +140,7 @@ export function SubmissionsList({ status }: SubmissionsListProps) {
     <div className="space-y-6">
       <div>
         <div>
-          <h2 className="text-xl font-bold text-slate-900 tracking-tight">{statusTitles[status]}</h2>
+          <h2 className={`text-xl font-bold tracking-tight ${statusTitleColors[status]}`}>{statusTitles[status]}</h2>
           <p className="text-xs text-slate-500 mt-1">
             Review customer applications, verify company ID linkage, and generate official backend Excel exports.
           </p>
@@ -163,18 +175,20 @@ export function SubmissionsList({ status }: SubmissionsListProps) {
             <option value="JOHOR">JOHOR</option>
           </select>
 
-          {/* Missing ID Filter */}
-          <button
-            type="button"
-            onClick={() => setMissingIdOnly(!missingIdOnly)}
-            className={`h-9 whitespace-nowrap rounded-lg border px-3 text-xs font-bold uppercase transition-colors ${
-              missingIdOnly
-                ? 'bg-amber-100 text-amber-800 border-amber-300'
-                : 'bg-slate-50 text-slate-600 border-slate-300 hover:bg-slate-100'
-            }`}
-          >
-            ⚠ MISSING ID ONLY
-          </button>
+          {/* Missing IDs are actionable only while a submission is pending. */}
+          {status === 'PENDING' && (
+            <button
+              type="button"
+              onClick={() => setMissingIdOnly(!missingIdOnly)}
+              className={`h-9 whitespace-nowrap rounded-lg border px-3 text-xs font-bold uppercase transition-colors ${
+                missingIdOnly
+                  ? 'bg-amber-100 text-amber-800 border-amber-300'
+                  : 'bg-slate-50 text-slate-600 border-slate-300 hover:bg-slate-100'
+              }`}
+            >
+              ⚠ MISSING ID ONLY
+            </button>
+          )}
 
           <button
             type="button"
@@ -201,13 +215,13 @@ export function SubmissionsList({ status }: SubmissionsListProps) {
           <button
             key={value}
             type="button"
-            onClick={() => setTypeFilter(value)}
+            onClick={() => setTypeFilter(value as RegistrationType)}
             aria-selected={typeFilter === value}
             role="tab"
-            className={`min-w-[132px] rounded-t-lg border px-5 py-3 text-xs font-bold uppercase tracking-wider transition-colors ${
+            className={`admin-registration-tab min-w-[132px] rounded-t-lg border px-5 py-3 text-xs font-bold uppercase tracking-wider transition-colors ${
               typeFilter === value
-                ? 'relative z-10 border-slate-200 border-b-white bg-white text-slate-950 shadow-[0_-2px_0_0_#2563eb]'
-                : 'border-slate-200 border-b-slate-300 bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-900'
+                ? `relative z-10 border-slate-400 bg-[#CBD5E1] ${statusTitleColors[status]}`
+                : 'border-slate-300 bg-[#F1F5F9] text-slate-500 hover:bg-slate-200 hover:text-slate-900'
             }`}
           >
             {label}
@@ -229,7 +243,7 @@ export function SubmissionsList({ status }: SubmissionsListProps) {
               <col style={{ width: '10%' }} />
             </colgroup>
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider whitespace-nowrap">
+              <tr className="admin-registration-table-header whitespace-nowrap border-b border-slate-400 bg-[#CBD5E1] font-bold uppercase tracking-wider text-slate-700">
                 <th className="py-3 px-3 w-8 text-center">
                   <input
                     type="checkbox"

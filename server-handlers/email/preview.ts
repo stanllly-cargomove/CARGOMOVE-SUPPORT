@@ -27,6 +27,7 @@ export default async function preview(request: any, response: any) {
     const rendered = renderWelcomeTemplate(templateResult.data, userResult.data);
     response.json({
       ...rendered,
+      attachments: templateResult.data.attachments || [],
       templateName: templateResult.data.name,
       previewToken: createPreviewToken(session, userResult.data, templateResult.data),
     });

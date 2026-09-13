@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Mail, PlugZap, Save } from 'lucide-react';
+import { Mail, Paperclip, PlugZap, Save, Trash2 } from 'lucide-react';
 import {
   connectGmail,
   EmailLog,
@@ -7,6 +7,7 @@ import {
   getGmailStatus,
   getWelcomeEmailTemplate,
   saveWelcomeEmailTemplate,
+  uploadEmailAttachment,
   WelcomeEmailTemplate,
 } from '../../services/email';
 import { notifyError, notifySuccess } from '../common/notifications';
@@ -18,6 +19,7 @@ const emptyTemplate: WelcomeEmailTemplate = {
   recipient_template: '{{user.email}}',
   subject_template: "Welcome to CargoMove! Let's Get You Started",
   body_template: '',
+  attachments: [],
   active: true,
   version: 1,
 };
@@ -29,6 +31,7 @@ export function EmailTemplateManager() {
   const [saving, setSaving] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [logs, setLogs] = useState<EmailLog[]>([]);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
 
   useEffect(() => {
     void Promise.all([getWelcomeEmailTemplate(), getGmailStatus(), getEmailLogs()]).then(([saved, gmail, emailLogs]) => {
@@ -42,7 +45,18 @@ export function EmailTemplateManager() {
   const save = async () => {
     setSaving(true);
     try {
-      const saved = await saveWelcomeEmailTemplate(template);
+      const pendingSize = pendingFiles.reduce((total, file) => total + file.size, 0);
+      const savedSize = template.attachments.reduce((total, file) => total + file.size, 0);
+      const allowedTypes = new Set(['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'image/jpeg', 'image/png']);
+      if (template.attachments.length + pendingFiles.length > 5) throw new Error('A template can have up to 5 attachments.');
+      if (savedSize + pendingSize > 15 * 1024 * 1024) throw new Error('Attachments must be 15 MB or smaller in total.');
+      if (pendingFiles.some((file) => !allowedTypes.has(file.type))) throw new Error('Only PDF, Word, Excel, JPG and PNG attachments are supported.');
+      const uploaded = [];
+      for (const file of pendingFiles) uploaded.push(await uploadEmailAttachment(file));
+      const nextTemplate = { ...template, attachments: [...template.attachments, ...uploaded] };
+      setTemplate(nextTemplate);
+      setPendingFiles([]);
+      const saved = await saveWelcomeEmailTemplate(nextTemplate);
       setTemplate(saved);
       notifySuccess('Welcome email template saved.');
     } catch (error) {
@@ -99,6 +113,50 @@ export function EmailTemplateManager() {
         <label className="block text-xs font-semibold text-slate-700">Email body
           <textarea value={template.body_template} onChange={(event) => setTemplate({ ...template, body_template: event.target.value })} rows={22} className="mt-1.5 w-full resize-y rounded-lg border border-slate-300 px-3 py-2 font-mono text-xs font-normal leading-5" />
         </label>
+        <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <div className="flex items-center gap-2 text-xs font-semibold text-slate-700"><Paperclip className="h-4 w-4" />Template attachments</div>
+              <p className="mt-1 text-[11px] text-slate-500">PDF, Word, Excel, JPG or PNG. Up to 5 files and 15 MB total.</p>
+            </div>
+            <label className="cursor-pointer rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-bold text-blue-700 hover:bg-blue-50">
+              Add files
+              <input
+                type="file"
+                multiple
+                accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+                className="sr-only"
+                onChange={(event) => {
+                  const files = Array.from(event.target.files || []);
+                  setPendingFiles((current) => [...current, ...files]);
+                  event.target.value = '';
+                }}
+              />
+            </label>
+          </div>
+          {template.attachments.length === 0 && pendingFiles.length === 0 ? (
+            <p className="text-xs text-slate-500">No attachment will be sent with this template.</p>
+          ) : (
+            <div className="space-y-2">
+              {template.attachments.map((attachment) => (
+                <div key={attachment.path} className="flex items-center gap-3 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs">
+                  <Paperclip className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                  <span className="min-w-0 flex-1 truncate text-slate-700">{attachment.name}</span>
+                  <span className="text-slate-400">{(attachment.size / 1024 / 1024).toFixed(2)} MB</span>
+                  <button type="button" onClick={() => setTemplate({ ...template, attachments: template.attachments.filter((item) => item.path !== attachment.path) })} aria-label={`Remove ${attachment.name}`} className="text-rose-500 hover:text-rose-700"><Trash2 className="h-4 w-4" /></button>
+                </div>
+              ))}
+              {pendingFiles.map((file, index) => (
+                <div key={`${file.name}-${file.size}-${index}`} className="flex items-center gap-3 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-xs">
+                  <Paperclip className="h-3.5 w-3.5 shrink-0 text-blue-500" />
+                  <span className="min-w-0 flex-1 truncate text-blue-800">{file.name} <span className="text-blue-500">(uploads when saved)</span></span>
+                  <span className="text-blue-500">{(file.size / 1024 / 1024).toFixed(2)} MB</span>
+                  <button type="button" onClick={() => setPendingFiles((current) => current.filter((_, itemIndex) => itemIndex !== index))} aria-label={`Remove ${file.name}`} className="text-rose-500 hover:text-rose-700"><Trash2 className="h-4 w-4" /></button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="text-xs text-slate-500">Available variables: <code>{'{{user.email}}'}</code>, <code>{'{{user.username}}'}</code>, <code>{'{{user.password}}'}</code></div>
           <div className="flex items-center gap-3">

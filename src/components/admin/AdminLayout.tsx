@@ -7,7 +7,6 @@ import {
   FileSpreadsheet,
   Settings,
   TableProperties,
-  ArrowLeft,
   RotateCcw,
   BookOpen,
   Wrench,
@@ -20,6 +19,9 @@ import {
   Clock3,
   CircleCheck,
   CircleX,
+  LogOut,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { AdminDashboard } from './AdminDashboard';
 import { CompanyMaster } from './CompanyMaster';
@@ -34,6 +36,7 @@ import { EmailTemplateManager } from './EmailTemplateManager';
 import { resetToDemoData } from '../../services/storage';
 import { Logo } from '../common/Logo';
 import { notifyError, notifySuccess } from '../common/notifications';
+import { RegistrationType } from '../../types';
 
 interface AdminLayoutProps {
   onSwitchToCustomer: () => void;
@@ -43,8 +46,10 @@ interface AdminLayoutProps {
 
 export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: AdminLayoutProps) {
   const [activeTab, setActiveTab] = useState<string>('dashboard');
+  const [portalMode, setPortalMode] = useState<'admin' | 'developer'>('admin');
   const [isRegistrationQueueExpanded, setIsRegistrationQueueExpanded] = useState(false);
-  const [isDevToolExpanded, setIsDevToolExpanded] = useState(false);
+  const [queueRegistrationType, setQueueRegistrationType] = useState<RegistrationType>('COMPANY');
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -86,7 +91,6 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
 
   const navItems = [
     { id: 'dashboard', label: 'Operations Dashboard', icon: LayoutDashboard },
-    { id: 'companies', label: 'Company Master', icon: Building2 },
     { id: 'submissions', label: 'Registration Queue', icon: Inbox },
     { id: 'user-registration', label: 'User Access Registration', icon: UserRoundPlus },
   ];
@@ -100,6 +104,7 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
   const activeQueueItem = registrationQueueItems.find((item) => item.id === activeTab);
 
   const devToolItems = [
+    { id: 'companies', label: 'Company Master', icon: Building2 },
     { id: 'admin-user', label: 'Admin user', icon: UserRoundPlus },
     { id: 'email-template', label: 'Email Template', icon: Mail },
     { id: 'guidelines', label: 'Haulier Guidelines', icon: BookOpen },
@@ -108,24 +113,46 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
     { id: 'schema', label: 'Excel Schema & Mapping', icon: TableProperties },
   ];
 
+  const switchPortal = () => {
+    const nextPortal = portalMode === 'admin' ? 'developer' : 'admin';
+    setPortalMode(nextPortal);
+    setActiveTab(nextPortal === 'developer' ? 'companies' : 'dashboard');
+    setIsRegistrationQueueExpanded(false);
+  };
+
   return (
     <div className={`admin-theme min-h-screen bg-slate-100 flex flex-col md:flex-row ${isDarkMode ? 'admin-theme-dark' : ''}`}>
       {/* Sidebar */}
-      <aside className="w-full md:w-60 bg-[#0b1220] text-slate-300 flex flex-col shrink-0 border-r border-slate-800">
-        <div className="p-3.5 border-b border-slate-800/80 flex items-center justify-between">
-          <div className="flex flex-col">
+      <aside
+        className={`relative w-full bg-[#0b1220] text-slate-300 flex flex-col shrink-0 border-r border-slate-800 transition-[width] duration-200 md:sticky md:top-0 md:h-screen md:self-start ${
+          isSidebarCollapsed ? 'md:w-16' : 'md:w-60'
+        }`}
+      >
+        <div className={`h-16 border-b border-slate-800/80 flex shrink-0 items-center px-3.5 ${isSidebarCollapsed ? 'md:justify-center md:px-2' : ''}`}>
+          <div className={isSidebarCollapsed ? 'md:hidden' : ''}>
             <div className="flex items-center gap-2 select-none">
               <Logo size="sm" />
               <span className="text-[9px] font-bold text-white uppercase px-1.5 py-0.2 bg-[#ea7a24] rounded">
-                Admin
+                {portalMode === 'admin' ? 'Admin' : 'Developer'}
               </span>
             </div>
           </div>
+
+          <div
+            className={`hidden text-sm font-black tracking-tight text-sky-400 ${isSidebarCollapsed ? 'md:block' : ''}`}
+            aria-hidden="true"
+          >
+            CM
+          </div>
+
         </div>
 
         {/* Navigation list */}
-        <nav className="p-3 space-y-1 flex-1">
-          {navItems.map((item) => {
+        <nav
+          aria-label={portalMode === 'admin' ? 'Admin navigation' : 'Developer navigation'}
+          className={`min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain p-3 ${isSidebarCollapsed ? 'md:p-2' : ''}`}
+        >
+          {portalMode === 'admin' && navItems.map((item) => {
             const Icon = item.icon;
             const isRegistrationQueue = item.id === 'submissions';
             const isActive = isRegistrationQueue ? Boolean(activeQueueItem) : activeTab === item.id;
@@ -136,31 +163,32 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
                   type="button"
                   onClick={() => {
                     if (isRegistrationQueue) {
-                      setIsDevToolExpanded(false);
-                      setIsRegistrationQueueExpanded((expanded) => !expanded);
+                      setIsRegistrationQueueExpanded((expanded) => isSidebarCollapsed || !expanded);
+                      if (isSidebarCollapsed) setIsSidebarCollapsed(false);
                       if (!activeQueueItem) setActiveTab('submissions-pending');
                     } else {
                       setActiveTab(item.id);
                       setIsRegistrationQueueExpanded(false);
-                      setIsDevToolExpanded(false);
                     }
                   }}
                   aria-expanded={isRegistrationQueue ? isRegistrationQueueExpanded : undefined}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-semibold transition-all ${
+                  aria-label={isSidebarCollapsed ? item.label : undefined}
+                  title={isSidebarCollapsed ? item.label : undefined}
+                  className={`w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs font-semibold transition-all ${isSidebarCollapsed ? 'md:justify-center md:px-2' : ''} ${
                     isActive
                       ? 'bg-blue-600 text-white shadow-xs font-bold'
                       : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/80'
                   }`}
                 >
                   <Icon className="w-4 h-4 shrink-0" />
-                  <span className="flex-1 text-left">{item.label}</span>
+                  <span className={`flex-1 text-left ${isSidebarCollapsed ? 'md:hidden' : ''}`}>{item.label}</span>
                   {isRegistrationQueue && (
-                    <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isRegistrationQueueExpanded ? 'rotate-180' : ''}`} />
+                    <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isSidebarCollapsed ? 'md:hidden' : ''} ${isRegistrationQueueExpanded ? 'rotate-180' : ''}`} />
                   )}
                 </button>
 
                 {isRegistrationQueue && isRegistrationQueueExpanded && (
-                  <div className="ml-3 mt-1 space-y-1 border-l border-slate-700 pl-3">
+                  <div className={`ml-3 mt-1 space-y-1 border-l border-slate-700 pl-3 ${isSidebarCollapsed ? 'md:hidden' : ''}`}>
                     {registrationQueueItems.map((queueItem) => {
                       const QueueIcon = queueItem.icon;
                       const isQueueItemActive = activeTab === queueItem.id;
@@ -170,7 +198,6 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
                           type="button"
                           onClick={() => {
                             setActiveTab(queueItem.id);
-                            setIsDevToolExpanded(false);
                           }}
                           className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-xs font-semibold transition-all ${
                             isQueueItemActive
@@ -189,93 +216,64 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
             );
           })}
 
-          <div>
-            <button
-              type="button"
-              onClick={() => {
-                setIsRegistrationQueueExpanded(false);
-                setIsDevToolExpanded((expanded) => !expanded);
-              }}
-              aria-expanded={isDevToolExpanded}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-semibold transition-all ${
-                devToolItems.some((item) => item.id === activeTab)
-                  ? 'bg-slate-800 text-white'
-                  : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/80'
-              }`}
-            >
-              <Wrench className="w-4 h-4 shrink-0" />
-              <span className="flex-1 text-left">Dev Tool</span>
-              <ChevronDown
-                className={`w-3.5 h-3.5 transition-transform ${isDevToolExpanded ? 'rotate-180' : ''}`}
-              />
-            </button>
+          {portalMode === 'developer' && devToolItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.id;
 
-            {isDevToolExpanded && (
-              <div className="mt-1 ml-3 pl-3 border-l border-slate-700 space-y-1">
-                {devToolItems.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = activeTab === item.id;
-
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => {
-                        setActiveTab(item.id);
-                        setIsRegistrationQueueExpanded(false);
-                      }}
-                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
-                        isActive
-                          ? 'bg-blue-600 text-white shadow-xs font-bold'
-                          : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/80'
-                      }`}
-                    >
-                      <Icon className="w-3.5 h-3.5 shrink-0" />
-                      <span>{item.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setActiveTab(item.id)}
+                aria-label={isSidebarCollapsed ? item.label : undefined}
+                title={isSidebarCollapsed ? item.label : undefined}
+                className={`w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs font-semibold transition-all ${isSidebarCollapsed ? 'md:justify-center md:px-2' : ''} ${
+                  isActive
+                    ? 'bg-blue-600 text-white shadow-xs font-bold'
+                    : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/80'
+                }`}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                <span className={`flex-1 text-left ${isSidebarCollapsed ? 'md:hidden' : ''}`}>{item.label}</span>
+              </button>
+            );
+          })}
         </nav>
 
+        {/* Sidebar collapse control */}
+        <div className={`hidden shrink-0 justify-end px-3 py-2 md:flex ${isSidebarCollapsed ? 'md:justify-center md:px-2' : ''}`}>
+          <button
+            type="button"
+            onClick={() => setIsSidebarCollapsed((collapsed) => !collapsed)}
+            aria-label={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            title={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-600 bg-slate-900 text-slate-400 shadow-sm transition-all hover:border-slate-400 hover:bg-slate-800 hover:text-white hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
+          >
+            {isSidebarCollapsed ? (
+              <ChevronRight className="h-4 w-4" />
+            ) : (
+              <ChevronLeft className="h-4 w-4" />
+            )}
+          </button>
+        </div>
+
         {/* Sidebar Footer */}
-        <div className="p-3 border-t border-slate-800 space-y-2">
+        <div className={`shrink-0 border-t border-slate-800 space-y-2 p-3 ${isSidebarCollapsed ? 'md:p-2' : ''}`}>
           <button
             type="button"
-            onClick={() => void handleRefresh()}
-            disabled={isRefreshing}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-bold text-sky-200 bg-slate-800 hover:bg-slate-700 disabled:opacity-60 transition-colors"
+            onClick={switchPortal}
+            aria-label={portalMode === 'admin' ? 'Open Developer Site' : 'Return to Admin Portal'}
+            title={isSidebarCollapsed ? (portalMode === 'admin' ? 'Developer Site' : 'Admin Portal') : undefined}
+            className={`flex w-full items-center justify-center gap-2 rounded-lg bg-slate-800 px-3 py-2 text-xs font-bold text-slate-200 transition-colors hover:bg-slate-700 ${isSidebarCollapsed ? 'md:px-2' : ''}`}
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
-            {isRefreshing ? 'Checking...' : 'Refresh data'}
-          </button>
-
-          <button
-            type="button"
-            onClick={onSwitchToCustomer}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-bold text-slate-200 bg-slate-800 hover:bg-slate-700 transition-colors"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            Customer Portal View
-          </button>
-
-          <button
-            type="button"
-            onClick={onLogout}
-            className="w-full px-3 py-1.5 text-xs font-semibold text-slate-400 hover:text-rose-400 transition-colors"
-          >
-            Log out
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setShowResetConfirm(true)}
-            className="w-full flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg text-[11px] font-semibold text-slate-400 hover:text-rose-400 hover:bg-slate-800/40 transition-colors"
-          >
-            <RotateCcw className="w-3 h-3" />
-            Reset Demo Mock Data
+            {portalMode === 'admin' ? (
+              <Wrench className="h-3.5 w-3.5 shrink-0" />
+            ) : (
+              <LayoutDashboard className="h-3.5 w-3.5 shrink-0" />
+            )}
+            <span className={isSidebarCollapsed ? 'md:hidden' : ''}>
+              {portalMode === 'admin' ? 'Developer Site' : 'Admin Portal'}
+            </span>
           </button>
         </div>
       </aside>
@@ -285,56 +283,97 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
         {/* Top Header */}
         <header className="bg-white border-b border-slate-200 h-16 px-6 flex items-center justify-between sticky top-0 z-30">
           <div className="flex items-center gap-3">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Admin Portal</span>
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+              {portalMode === 'admin' ? 'Admin Portal' : 'Developer Portal'}
+            </span>
             <span className="text-slate-300">/</span>
             <h1 className="text-sm font-bold text-slate-900">
               {[...navItems, ...registrationQueueItems, ...devToolItems].find((item) => item.id === activeTab)?.label}
             </h1>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setIsDarkMode((darkMode) => !darkMode)}
-            aria-pressed={isDarkMode}
-            aria-label={isDarkMode ? 'Switch to light theme' : 'Switch to dark theme'}
-            title={isDarkMode ? 'Switch to light theme' : 'Switch to dark theme'}
-            className={`relative inline-flex w-12 h-7 shrink-0 items-center rounded-full border p-0.5 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-              isDarkMode
-                ? 'border-slate-600 bg-slate-700 focus:ring-offset-slate-800'
-                : 'border-slate-300 bg-slate-200 focus:ring-offset-white'
-            }`}
-          >
-            <span
-              className={`flex h-5 w-5 items-center justify-center rounded-full bg-white shadow-sm transition-transform ${
-                isDarkMode ? 'translate-x-5' : 'translate-x-0'
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void handleRefresh()}
+              disabled={isRefreshing}
+              aria-label={isRefreshing ? 'Checking for new data' : 'Refresh data'}
+              className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 text-[11px] font-bold text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">{isRefreshing ? 'Checking...' : 'Refresh data'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowResetConfirm(true)}
+              aria-label="Reset Demo Mock Data"
+              className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 text-[11px] font-bold text-slate-600 transition-colors hover:border-rose-300 hover:bg-rose-50 hover:text-rose-600"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Reset demo data</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsDarkMode((darkMode) => !darkMode)}
+              aria-pressed={isDarkMode}
+              aria-label={isDarkMode ? 'Switch to light theme' : 'Switch to dark theme'}
+              title={isDarkMode ? 'Switch to light theme' : 'Switch to dark theme'}
+              className={`relative inline-flex w-12 h-7 shrink-0 items-center rounded-full border p-0.5 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                isDarkMode
+                  ? 'border-slate-600 bg-slate-700 focus:ring-offset-slate-800'
+                  : 'border-slate-300 bg-slate-200 focus:ring-offset-white'
               }`}
             >
-              {isDarkMode ? (
-                <Moon className="w-3 h-3 text-slate-700" />
-              ) : (
-                <Sun className="w-3 h-3 text-amber-500" />
-              )}
-            </span>
-          </button>
+              <span
+                className={`flex h-5 w-5 items-center justify-center rounded-full bg-white shadow-sm transition-transform ${
+                  isDarkMode ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              >
+                {isDarkMode ? (
+                  <Moon className="w-3 h-3 text-slate-700" />
+                ) : (
+                  <Sun className="w-3 h-3 text-amber-500" />
+                )}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={onLogout}
+              className="inline-flex h-7 shrink-0 items-center gap-1.5 px-2 text-[11px] font-medium text-rose-500 transition-colors hover:text-rose-700 focus:outline-none"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Logout</span>
+            </button>
+          </div>
         </header>
 
         {/* Content Body */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
           {activeTab === 'dashboard' && (
-            <AdminDashboard onNavigate={(tab) => {
+            <AdminDashboard onNavigate={(tab, registrationType) => {
               const destination = tab === 'submissions' ? 'submissions-pending' : tab;
+              if (registrationType) setQueueRegistrationType(registrationType);
+              if (devToolItems.some((item) => item.id === destination)) {
+                setPortalMode('developer');
+              }
               setActiveTab(destination);
               if (destination.startsWith('submissions-')) {
                 setIsRegistrationQueueExpanded(true);
-                setIsDevToolExpanded(false);
               } else {
                 setIsRegistrationQueueExpanded(false);
-                setIsDevToolExpanded(false);
               }
             }} />
           )}
           {activeTab === 'companies' && <CompanyMaster />}
-          {activeQueueItem && <SubmissionsList status={activeQueueItem.status} />}
+          {activeQueueItem && (
+            <SubmissionsList
+              status={activeQueueItem.status}
+              initialType={queueRegistrationType}
+            />
+          )}
           {activeTab === 'user-registration' && <UserRegistration />}
           {activeTab === 'admin-user' && <AdminUser />}
           {activeTab === 'email-template' && <EmailTemplateManager />}

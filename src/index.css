@@ -189,6 +189,30 @@ code, kbd, samp, pre {
   color: #93c5fd !important;
 }
 
+/* Component colors that use gradients or arbitrary Tailwind values need
+   explicit dark-theme surfaces. */
+.admin-theme-dark .admin-summary-card {
+  background-color: #1e293b !important;
+  background-image: linear-gradient(135deg, #1e293b 0%, #1e293b 72%, #263449 100%) !important;
+  border-color: #334155 !important;
+}
+
+.admin-theme-dark .admin-registration-tab {
+  background-color: #1e293b !important;
+  border-color: #334155 !important;
+}
+
+.admin-theme-dark .admin-registration-tab[aria-selected='true'] {
+  background-color: #334155 !important;
+  border-color: #475569 !important;
+}
+
+.admin-theme-dark .admin-registration-table-header {
+  background-color: #0f172a !important;
+  border-color: #334155 !important;
+  color: #cbd5e1 !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .page-slide-forward,
   .page-slide-backward,

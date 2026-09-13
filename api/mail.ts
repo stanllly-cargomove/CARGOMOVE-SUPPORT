@@ -1,4 +1,5 @@
 import emailLogs from '../server-handlers/email/logs.js';
+import emailAttachments from '../server-handlers/email/attachments.js';
 import emailPreview from '../server-handlers/email/preview.js';
 import emailSend from '../server-handlers/email/send.js';
 import emailTemplates from '../server-handlers/email/templates.js';
@@ -10,6 +11,7 @@ type Handler = (request: any, response: any) => unknown;
 
 const handlers: Record<string, Handler> = {
   'GET email/logs': emailLogs,
+  'POST email/attachments': emailAttachments,
   'POST email/preview': emailPreview,
   'POST email/send': emailSend,
   'GET email/templates': emailTemplates,

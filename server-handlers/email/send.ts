@@ -3,13 +3,16 @@ import {
   bodyOf,
   configuredClient,
   createRawMessage,
+  EMAIL_ATTACHMENT_BUCKET,
   decryptRefreshToken,
   exchangeRefreshToken,
   noStore,
   publicError,
   requireAdmin,
+  validateTemplateAttachments,
   verifyPreviewToken,
 } from '../_email.js';
+import { serviceRoleKey, supabaseUrl } from '../../api/_runtime.js';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -34,7 +37,7 @@ export default async function sendEmail(request: any, response: any) {
 
   const [userResult, templateResult, connectionResult] = await Promise.all([
     client.from('external_user_access').select('id,email,status,email_status').eq('id', token.userId).maybeSingle(),
-    client.from('email_templates').select('id,name,version,active').eq('id', token.templateId).maybeSingle(),
+    client.from('email_templates').select('id,name,version,active,attachments').eq('id', token.templateId).maybeSingle(),
     client.from('gmail_connections').select('*').eq('id', 'system').eq('status', 'ACTIVE').maybeSingle(),
   ]);
   const readError = userResult.error || templateResult.error || connectionResult.error;
@@ -47,6 +50,13 @@ export default async function sendEmail(request: any, response: any) {
   if (!template?.active || template.version !== token.templateVersion) return response.status(409).json({ error: 'The email template changed. Generate a new preview.' });
   if (!connection) return response.status(409).json({ error: 'Connect a Gmail account before sending.' });
   if (user.email_status === 'SENDING') return response.status(409).json({ error: 'This email is already being sent.' });
+
+  let attachmentMetadata;
+  try {
+    attachmentMetadata = validateTemplateAttachments(template.attachments || []);
+  } catch (error) {
+    return response.status(409).json({ error: error instanceof Error ? error.message : 'The template attachments are invalid.' });
+  }
 
   const { data: claimed, error: claimError } = await client
     .from('external_user_access')
@@ -64,6 +74,7 @@ export default async function sendEmail(request: any, response: any) {
     template_version: template.version,
     recipient,
     subject,
+    attachments: attachmentMetadata,
     sent_by: session.id,
     sent_by_email: session.email,
     status: 'SENDING',
@@ -74,11 +85,30 @@ export default async function sendEmail(request: any, response: any) {
   }
 
   try {
+    if (!supabaseUrl || !serviceRoleKey) throw new Error('Supabase Storage is not configured.');
+    const attachments = [];
+    let downloadedBytes = 0;
+    for (const attachment of attachmentMetadata) {
+      const encodedPath = attachment.path.split('/').map(encodeURIComponent).join('/');
+      const fileResponse = await fetch(`${supabaseUrl}/storage/v1/object/${EMAIL_ATTACHMENT_BUCKET}/${encodedPath}`, {
+        headers: { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}` },
+      });
+      if (!fileResponse.ok) throw new Error(`Attachment is unavailable: ${attachment.name}`);
+      const contentLength = Number(fileResponse.headers.get('content-length') || 0);
+      if (contentLength && (contentLength !== attachment.size || downloadedBytes + contentLength > 15 * 1024 * 1024)) {
+        throw new Error(`Attachment size changed: ${attachment.name}`);
+      }
+      const data = Buffer.from(await fileResponse.arrayBuffer());
+      downloadedBytes += data.length;
+      if (downloadedBytes > 15 * 1024 * 1024) throw new Error('Template attachments exceed the 15 MB total limit.');
+      if (data.length !== attachment.size) throw new Error(`Attachment size changed: ${attachment.name}`);
+      attachments.push({ ...attachment, data });
+    }
     const accessToken = await exchangeRefreshToken(decryptRefreshToken(connection));
     const gmailResponse = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
       method: 'POST',
       headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ raw: createRawMessage(connection.email, recipient, subject, messageBody) }),
+      body: JSON.stringify({ raw: createRawMessage(connection.email, recipient, subject, messageBody, attachments) }),
     });
     const gmailMessage = await gmailResponse.json().catch(() => ({}));
     if (!gmailResponse.ok || !gmailMessage.id) throw new Error(String(gmailMessage.error?.status || gmailMessage.error?.message || 'gmail_send_failed'));

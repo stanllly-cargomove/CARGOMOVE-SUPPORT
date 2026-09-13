@@ -9,6 +9,7 @@ import emailTemplates from './server-handlers/email/templates.js';
 import emailPreview from './server-handlers/email/preview.js';
 import emailSend from './server-handlers/email/send.js';
 import emailLogs from './server-handlers/email/logs.js';
+import emailAttachments from './server-handlers/email/attachments.js';
 
 config({ path: '.env.local' });
 
@@ -316,6 +317,7 @@ app.put('/api/email/templates', emailTemplates);
 app.post('/api/email/preview', emailPreview);
 app.post('/api/email/send', emailSend);
 app.get('/api/email/logs', emailLogs);
+app.post('/api/email/attachments', emailAttachments);
 
 app.get('/api/snapshot', requireSession, async (request, response) => {
   try {

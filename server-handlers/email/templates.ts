@@ -1,7 +1,7 @@
 // Routed through the single Express Vercel function.
-import { bodyOf, configuredClient, EmailTemplate, noStore, requireAdmin, WELCOME_TEMPLATE_ID } from '../_email.js';
+import { bodyOf, configuredClient, EmailTemplate, noStore, requireAdmin, validateTemplateAttachments, WELCOME_TEMPLATE_ID } from '../_email.js';
 
-const fields = 'id,name,trigger_status,recipient_template,subject_template,body_template,active,version,updated_at';
+const fields = 'id,name,trigger_status,recipient_template,subject_template,body_template,attachments,active,version,updated_at';
 
 export default async function templates(request: any, response: any) {
   noStore(response);
@@ -34,6 +34,12 @@ export default async function templates(request: any, response: any) {
     if (variables.some((variable) => !allowed.has(variable))) {
       return response.status(400).json({ error: 'Only {{user.email}}, {{user.username}}, and {{user.password}} are supported.' });
     }
+    let attachments;
+    try {
+      attachments = validateTemplateAttachments(body.attachments ?? []);
+    } catch (error) {
+      return response.status(400).json({ error: error instanceof Error ? error.message : 'Invalid attachments.' });
+    }
     const { data: current, error: readError } = await client
       .from('email_templates').select(fields).eq('id', WELCOME_TEMPLATE_ID).maybeSingle();
     if (readError) return response.status(502).json({ error: readError.message });
@@ -44,6 +50,7 @@ export default async function templates(request: any, response: any) {
       recipient_template: recipientTemplate,
       subject_template: subjectTemplate,
       body_template: bodyTemplate,
+      attachments,
       active: body.active !== false,
       version: Number(current?.version || 0) + 1,
     };

@@ -1,3 +1,10 @@
+export interface EmailAttachment {
+  path: string;
+  name: string;
+  content_type: string;
+  size: number;
+}
+
 export interface WelcomeEmailTemplate {
   id: string;
   name: string;
@@ -5,6 +12,7 @@ export interface WelcomeEmailTemplate {
   recipient_template: '{{user.email}}';
   subject_template: string;
   body_template: string;
+  attachments: EmailAttachment[];
   active: boolean;
   version: number;
   updated_at?: string;
@@ -16,6 +24,7 @@ export interface EmailPreview {
   body: string;
   templateName: string;
   previewToken: string;
+  attachments: EmailAttachment[];
 }
 
 export interface EmailLog {
@@ -30,6 +39,7 @@ export interface EmailLog {
   status: 'SENDING' | 'SENT' | 'FAILED';
   gmail_message_id?: string;
   error_code?: string;
+  attachments?: EmailAttachment[];
 }
 
 async function parse<T>(response: Response): Promise<T> {
@@ -40,10 +50,11 @@ async function parse<T>(response: Response): Promise<T> {
 
 export async function getWelcomeEmailTemplate(): Promise<WelcomeEmailTemplate | null> {
   const response = await fetch('/api/email/templates', { credentials: 'include', cache: 'no-store' });
-  return (await parse<{ template: WelcomeEmailTemplate | null }>(response)).template;
+  const template = (await parse<{ template: WelcomeEmailTemplate | null }>(response)).template;
+  return template ? { ...template, attachments: template.attachments || [] } : null;
 }
 
-export async function saveWelcomeEmailTemplate(template: Pick<WelcomeEmailTemplate, 'name' | 'recipient_template' | 'subject_template' | 'body_template' | 'active'>) {
+export async function saveWelcomeEmailTemplate(template: Pick<WelcomeEmailTemplate, 'name' | 'recipient_template' | 'subject_template' | 'body_template' | 'attachments' | 'active'>) {
   const response = await fetch('/api/email/templates', {
     method: 'PUT',
     credentials: 'include',
@@ -51,6 +62,29 @@ export async function saveWelcomeEmailTemplate(template: Pick<WelcomeEmailTempla
     body: JSON.stringify(template),
   });
   return (await parse<{ template: WelcomeEmailTemplate }>(response)).template;
+}
+
+export async function uploadEmailAttachment(file: File): Promise<EmailAttachment> {
+  const signResponse = await fetch('/api/email/attachments', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: file.name, contentType: file.type, size: file.size }),
+  });
+  const signed = await parse<{ signedUrl: string; attachment: EmailAttachment }>(signResponse);
+  const form = new FormData();
+  form.append('cacheControl', '3600');
+  form.append('', file);
+  const uploadResponse = await fetch(signed.signedUrl, {
+    method: 'PUT',
+    headers: { 'x-upsert': 'false' },
+    body: form,
+  });
+  if (!uploadResponse.ok) {
+    const result = await uploadResponse.json().catch(() => ({}));
+    throw new Error(result.message || result.error || `Unable to upload ${file.name}.`);
+  }
+  return signed.attachment;
 }
 
 export async function getGmailStatus() {
@@ -71,7 +105,8 @@ export async function generateWelcomeEmailPreview(userId: string) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ userId }),
   });
-  return parse<EmailPreview>(response);
+  const preview = await parse<EmailPreview>(response);
+  return { ...preview, attachments: preview.attachments || [] };
 }
 
 export async function sendWelcomeEmail(preview: EmailPreview) {

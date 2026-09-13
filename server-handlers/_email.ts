@@ -3,6 +3,24 @@ import { adminClient, readSession, requestBody } from '../api/_runtime.js';
 
 export const GMAIL_SEND_SCOPE = 'https://www.googleapis.com/auth/gmail.send';
 export const WELCOME_TEMPLATE_ID = 'cargomove-welcome';
+export const EMAIL_ATTACHMENT_BUCKET = 'email-attachments';
+export const MAX_TOTAL_ATTACHMENT_BYTES = 15 * 1024 * 1024;
+export const ALLOWED_ATTACHMENT_TYPES = new Set([
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'image/jpeg',
+  'image/png',
+]);
+
+export type EmailAttachment = {
+  path: string;
+  name: string;
+  content_type: string;
+  size: number;
+};
 
 export type AdminSession = { id: string; email: string; type: string; exp: number };
 
@@ -13,6 +31,7 @@ export type EmailTemplate = {
   recipient_template: string;
   subject_template: string;
   body_template: string;
+  attachments: EmailAttachment[];
   active: boolean;
   version: number;
   updated_at?: string;
@@ -66,6 +85,34 @@ export function renderWelcomeTemplate(template: EmailTemplate, user: ExternalEma
     subject: render(template.subject_template),
     body: render(template.body_template),
   };
+}
+
+export function validateTemplateAttachments(value: unknown): EmailAttachment[] {
+  if (!Array.isArray(value) || value.length > 5) throw new Error('A template can have up to 5 attachments.');
+  const attachments = value.map((item) => {
+    const record = item && typeof item === 'object' ? item as Record<string, unknown> : {};
+    const attachment: EmailAttachment = {
+      path: String(record.path || ''),
+      name: String(record.name || '').trim(),
+      content_type: String(record.content_type || '').toLowerCase(),
+      size: Number(record.size || 0),
+    };
+    if (!/^cargomove-welcome\/[0-9a-f-]{36}(?:\.[a-z0-9]{1,10})?$/.test(attachment.path)) {
+      throw new Error('Invalid template attachment path.');
+    }
+    if (!attachment.name || attachment.name.length > 255 || /[\r\n]/.test(attachment.name)) {
+      throw new Error('Invalid template attachment name.');
+    }
+    if (!ALLOWED_ATTACHMENT_TYPES.has(attachment.content_type)) throw new Error(`Unsupported attachment type: ${attachment.name}`);
+    if (!Number.isSafeInteger(attachment.size) || attachment.size < 1 || attachment.size > MAX_TOTAL_ATTACHMENT_BYTES) {
+      throw new Error(`Invalid attachment size: ${attachment.name}`);
+    }
+    return attachment;
+  });
+  if (attachments.reduce((total, item) => total + item.size, 0) > MAX_TOTAL_ATTACHMENT_BYTES) {
+    throw new Error('Attachments must be 15 MB or smaller in total.');
+  }
+  return attachments;
 }
 
 function signingKey() {
@@ -172,18 +219,45 @@ function mimeSubject(value: string) {
   return `=?UTF-8?B?${Buffer.from(value, 'utf8').toString('base64')}?=`;
 }
 
-export function createRawMessage(from: string, to: string, subject: string, body: string) {
+export function createRawMessage(from: string, to: string, subject: string, body: string, attachments: Array<EmailAttachment & { data: Buffer }> = []) {
   const encodedBody = Buffer.from(body, 'utf8').toString('base64').replace(/.{1,76}/g, '$&\r\n').trimEnd();
-  const mime = [
+  const commonHeaders = [
     `From: ${safeHeader(from, 'sender')}`,
     `To: ${safeHeader(to, 'recipient')}`,
     `Subject: ${mimeSubject(safeHeader(subject, 'subject'))}`,
     'MIME-Version: 1.0',
-    'Content-Type: text/plain; charset=UTF-8',
-    'Content-Transfer-Encoding: base64',
-    '',
-    encodedBody,
-  ].join('\r\n');
+  ];
+  let mime: string;
+  if (attachments.length === 0) {
+    mime = [...commonHeaders, 'Content-Type: text/plain; charset=UTF-8', 'Content-Transfer-Encoding: base64', '', encodedBody].join('\r\n');
+  } else {
+    const boundary = `cargomove_${crypto.randomBytes(18).toString('hex')}`;
+    const parts = [
+      ...commonHeaders,
+      `Content-Type: multipart/mixed; boundary="${boundary}"`,
+      '',
+      `--${boundary}`,
+      'Content-Type: text/plain; charset=UTF-8',
+      'Content-Transfer-Encoding: base64',
+      '',
+      encodedBody,
+    ];
+    for (const attachment of attachments) {
+      const name = safeHeader(attachment.name, 'attachment name');
+      const fallbackName = name.replace(/[^a-zA-Z0-9._ -]/g, '_').replace(/["\\]/g, '_') || 'attachment';
+      const encodedName = encodeURIComponent(name).replace(/'/g, '%27');
+      parts.push(
+        `--${boundary}`,
+        `Content-Type: ${safeHeader(attachment.content_type, 'attachment content type')}; name="${fallbackName}"`,
+        'Content-Transfer-Encoding: base64',
+        `Content-Disposition: attachment; filename="${fallbackName}"; filename*=UTF-8''${encodedName}`,
+        '',
+        attachment.data.toString('base64').replace(/.{1,76}/g, '$&\r\n').trimEnd(),
+      );
+    }
+    parts.push(`--${boundary}--`, '');
+    mime = parts.join('\r\n');
+  }
   return Buffer.from(mime, 'utf8').toString('base64url');
 }
 
