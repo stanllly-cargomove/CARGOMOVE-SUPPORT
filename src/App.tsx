@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { RegistrationWizard } from './components/customer/RegistrationWizard';
 import { AdminLayout } from './components/admin/AdminLayout';
 import { LoginPage } from './components/auth/LoginPage';
+import { PasswordResetPage } from './components/auth/PasswordResetPage';
 import { clearProtectedStorage, initStorage } from './services/storage';
 import { getApplicationSession, logoutApplicationUser } from './services/auth';
 
 export default function App() {
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(() => window.location.hash.includes('type=recovery') || window.location.hash.includes('error_code=otp_expired'));
   const [viewMode, setViewMode] = useState<'CUSTOMER' | 'LOGIN' | 'ADMIN'>('CUSTOMER');
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -29,6 +31,10 @@ export default function App() {
 
   if (isAuthLoading) {
     return <div className="min-h-screen bg-[#f8fafc]" aria-busy="true" />;
+  }
+
+  if (isPasswordRecovery) {
+    return <PasswordResetPage onDone={() => { setIsPasswordRecovery(false); setViewMode('LOGIN'); }} />;
   }
 
   return (
