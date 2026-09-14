@@ -10,9 +10,9 @@ import emailPreview from './server-handlers/email/preview.js';
 import emailSend from './server-handlers/email/send.js';
 import emailLogs from './server-handlers/email/logs.js';
 import emailAttachments from './server-handlers/email/attachments.js';
-import companyRegistration from './api/company-registration.js';
-import companyLookup from './api/company-lookup.js';
-import registrationStatus from './api/registration-status.js';
+import companyRegistration from './server-handlers/registration/submit.js';
+import companyLookup from './server-handlers/registration/lookup.js';
+import registrationStatus from './server-handlers/registration/status.js';
 
 config({ path: '.env.local' });
 

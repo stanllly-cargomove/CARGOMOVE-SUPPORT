@@ -1,4 +1,4 @@
-import { adminClient, missingVariables } from './_runtime.js';
+import { adminClient, missingVariables } from '../../api/_runtime.js';
 
 // Accept existing four-digit references as well as the stronger references
 // generated for new registrations.

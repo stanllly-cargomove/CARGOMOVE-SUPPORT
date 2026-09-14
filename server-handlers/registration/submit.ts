@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { adminClient, missingVariables, requestBody } from './_runtime.js';
+import { adminClient, missingVariables, requestBody } from '../../api/_runtime.js';
 
 const registrationTypes = new Set(['COMPANY', 'DRIVER', 'TRAILER', 'VEHICLE']);
 const portLocations = new Set(['PORT_KLANG', 'JOHOR', 'OTHER']);

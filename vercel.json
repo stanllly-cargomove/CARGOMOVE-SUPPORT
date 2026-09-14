@@ -3,6 +3,9 @@
   "outputDirectory": "dist",
   "rewrites": [
     { "source": "/api/email/:path*", "destination": "/api/mail?route=email/:path*" },
-    { "source": "/api/gmail/:path*", "destination": "/api/mail?route=gmail/:path*" }
+    { "source": "/api/gmail/:path*", "destination": "/api/mail?route=gmail/:path*" },
+    { "source": "/api/company-registration", "destination": "/api/registration?route=submit" },
+    { "source": "/api/company-lookup", "destination": "/api/registration?route=lookup" },
+    { "source": "/api/registration-status", "destination": "/api/registration?route=status" }
   ]
 }

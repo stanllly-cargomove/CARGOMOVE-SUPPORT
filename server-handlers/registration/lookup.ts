@@ -1,4 +1,4 @@
-import { adminClient, missingVariables } from './_runtime.js';
+import { adminClient, missingVariables } from '../../api/_runtime.js';
 
 const publicCompanyFields = [
   'id',
