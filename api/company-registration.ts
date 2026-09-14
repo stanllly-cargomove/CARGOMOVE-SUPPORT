@@ -79,7 +79,9 @@ export default async function companyRegistration(request: any, response: any) {
 
   const now = new Date();
   const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
-  const referenceNo = `REG-${datePart}-${crypto.randomInt(1000, 10_000)}`;
+  // The reference acts as the customer's lookup key, so keep enough entropy to
+  // prevent other applications from being guessed through the public tracker.
+  const referenceNo = `REG-${datePart}-${crypto.randomBytes(6).toString('hex').toUpperCase()}`;
   const uniquePart = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
   let companyId = registrationType === 'COMPANY' ? `comp-${uniquePart}` : text(body.company_id);
   const submissionId = `sub-${uniquePart}`;

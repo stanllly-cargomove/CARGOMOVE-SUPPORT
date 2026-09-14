@@ -12,6 +12,7 @@ import emailLogs from './server-handlers/email/logs.js';
 import emailAttachments from './server-handlers/email/attachments.js';
 import companyRegistration from './api/company-registration.js';
 import companyLookup from './api/company-lookup.js';
+import registrationStatus from './api/registration-status.js';
 
 config({ path: '.env.local' });
 
@@ -353,6 +354,7 @@ app.get('/api/email/logs', emailLogs);
 app.post('/api/email/attachments', emailAttachments);
 app.post('/api/company-registration', companyRegistration);
 app.get('/api/company-lookup', companyLookup);
+app.get('/api/registration-status', registrationStatus);
 
 app.get('/api/snapshot', requireSession, async (request, response) => {
   response.setHeader('Cache-Control', 'no-store, max-age=0');

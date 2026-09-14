@@ -21,9 +21,10 @@ export function StatusBadge({ status }: { status: string }) {
         </span>
       );
     case 'DONE':
+    case 'SUCCESS':
       return (
         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-          Done
+          {status === 'SUCCESS' ? 'Successful' : 'Done'}
         </span>
       );
     case 'REJECTED':
