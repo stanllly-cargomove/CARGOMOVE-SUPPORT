@@ -1162,6 +1162,23 @@ export async function rejectCompanySubmission(
   return rejected;
 }
 
+export async function revertSubmissionToPending(submissionId: string): Promise<RegistrationSubmission> {
+  const submissions = getSubmissions();
+  const current = submissions.find((submission) => submission.id === submissionId);
+  if (!current) throw new Error('Registration submission not found.');
+  const pending: RegistrationSubmission = {
+    ...current,
+    status: 'PENDING',
+    rejection_reason: null,
+    rejection_detail: null,
+  };
+  await upsertSupabaseRow('registration_submissions', pending);
+  const next = submissions.map((submission) => submission.id === submissionId ? pending : submission);
+  localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(next));
+  notifyListeners();
+  return pending;
+}
+
 export function markSubmissionsExported(
   submissionIds: string[],
   filename: string

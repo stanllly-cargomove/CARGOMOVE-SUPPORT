@@ -104,6 +104,12 @@ begin
         rejection_reason = new.rejection_reason,
         rejection_detail = new.rejection_detail
     where id = linked_user_id;
+  elsif new.status = 'PENDING' and old.status <> 'PENDING' then
+    update public.external_user_access
+    set status = 'PENDING',
+        rejection_reason = null,
+        rejection_detail = null
+    where id = linked_user_id;
   elsif old.status = 'REJECTED' then
     update public.external_user_access
     set status = 'PENDING',

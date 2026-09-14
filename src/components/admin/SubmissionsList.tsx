@@ -7,6 +7,7 @@ import {
   deleteSubmission,
   updateSubmissionStatus,
   rejectCompanySubmission,
+  revertSubmissionToPending,
   subscribeToStorage,
 } from '../../services/storage';
 import { getExternalUserAccess } from '../../services/auth';
@@ -28,6 +29,7 @@ import {
   MoreVertical,
   Mail,
   X,
+  RotateCcw,
 } from 'lucide-react';
 import { notifyError, notifySuccess, notifyWarning, summarizeError } from '../common/notifications';
 
@@ -166,6 +168,17 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
     updateSubmissionStatus(submission.id, 'REJECTED');
     refreshList();
     setOpenActionMenu(null);
+  };
+
+  const handleRevertToPending = async (submission: RegistrationSubmission) => {
+    setOpenActionMenu(null);
+    try {
+      await revertSubmissionToPending(submission.id);
+      refreshList();
+      notifySuccess(`${submission.reference_no} reverted to pending.`);
+    } catch (error) {
+      notifyError(error instanceof Error ? error.message : 'Unable to revert the submission.');
+    }
   };
 
   const confirmCompanyRejection = async (event: React.FormEvent) => {
@@ -416,7 +429,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
                               return;
                             }
                             const rect = event.currentTarget.getBoundingClientRect();
-                            setOpenActionMenu({ id: sub.id, top: rect.bottom + 4, left: rect.right - 128 });
+                            setOpenActionMenu({ id: sub.id, top: rect.bottom + 4, left: rect.right - 160 });
                           }}
                           aria-label={`Actions for ${sub.reference_no}`}
                           aria-expanded={openActionMenu?.id === sub.id}
@@ -425,7 +438,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
                           <MoreVertical className="w-4 h-4" />
                         </button>
                         {openActionMenu?.id === sub.id && (
-                          <div style={{ top: openActionMenu.top, left: openActionMenu.left }} className="fixed z-50 w-32 rounded-lg border border-slate-200 bg-white p-1 text-left shadow-xl">
+                          <div style={{ top: openActionMenu.top, left: openActionMenu.left }} className="fixed z-50 w-40 rounded-lg border border-slate-200 bg-white p-1 text-left shadow-xl">
                             <button type="button" onClick={() => { setActiveSubmission(sub); setOpenActionMenu(null); }} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100">
                               <Eye className="w-3.5 h-3.5" /> Review
                             </button>
@@ -434,6 +447,11 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
                                 <button type="button" onClick={() => { updateSubmissionStatus(sub.id, 'DONE'); refreshList(); setOpenActionMenu(null); }} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50">Register</button>
                                 <button type="button" onClick={() => rejectSubmission(sub)} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50">Reject</button>
                               </>
+                            )}
+                            {sub.status !== 'PENDING' && (
+                              <button type="button" onClick={() => void handleRevertToPending(sub)} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-50">
+                                <RotateCcw className="h-3.5 w-3.5" /> Revert to Pending
+                              </button>
                             )}
                           </div>
                         )}
