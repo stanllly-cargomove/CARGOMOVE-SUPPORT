@@ -1,7 +1,10 @@
 import React, { useRef, useState } from 'react';
+import * as XLSX from 'xlsx';
 import { PortLocation, CompanyFormData } from '../../../types';
 import { getAutoAssignedPorts } from '../../../services/storage';
-import { ArrowLeft, ArrowRight, Building2, Phone, CheckCircle2 } from 'lucide-react';
+import { normalizeCompanyType } from '../../../services/companyHelper';
+import { notifyError, notifySuccess, notifyWarning } from '../../common/notifications';
+import { ArrowLeft, ArrowRight, Building2, Phone, CheckCircle2, LoaderCircle, Upload } from 'lucide-react';
 
 interface CompanyFormProps {
   initialLocation: PortLocation;
@@ -33,6 +36,76 @@ const statesByCountry: Record<string, string[]> = {
   ],
   Singapore: ['Central Region', 'East Region', 'North Region', 'North-East Region', 'West Region'],
 };
+
+const companyExcelHeaders: Record<string, keyof CompanyFormData> = {
+  NAME: 'name',
+  COMPANYNAME: 'name',
+  COMPANYFULLLEGALNAME: 'name',
+  SHORTNAME: 'short_name',
+  COMPANYSHORTNAME: 'short_name',
+  COMPANYSHORTNAMETRADENAME: 'short_name',
+  TRADENAME: 'short_name',
+  TYPE: 'company_type',
+  COMPANYTYPE: 'company_type',
+  COMPANYCATEGORY: 'company_type',
+  COMPANYCATEGORYTYPE: 'company_type',
+  REGISTRATION: 'registration_number_old',
+  REGISTRATIONOLD: 'registration_number_old',
+  OLDREGISTRATIONNUMBER: 'registration_number_old',
+  OLDCOMPANYREGNUMBER: 'registration_number_old',
+  COMPANYREGISTRATIONNUMBER: 'registration_number_old',
+  REGISTRATIONNEW: 'registration_number_new',
+  NEWREGISTRATIONNUMBER: 'registration_number_new',
+  NEWCOMPANYREGNUMBER: 'registration_number_new',
+  NEWCOMPANYREGNUMBERSSM12DIGIT: 'registration_number_new',
+  SSMNUMBER: 'registration_number_new',
+  HAULIERID: 'haulier_id',
+  FORWARDINGAGENTID: 'forwarding_agent_id',
+  PORT: 'port_id',
+  PORTS: 'port_id',
+  PORTID: 'port_id',
+  DEPOT: 'depot_id',
+  DEPOTS: 'depot_id',
+  DEPOTID: 'depot_id',
+  BLOCK: 'block',
+  BUILDINGBLOCKFLOORLOT: 'block',
+  ADDRESS1: 'address1',
+  ADDRESSLINE1: 'address1',
+  ADDRESS2: 'address2',
+  ADDRESSLINE2: 'address2',
+  CITY: 'city',
+  CITYTOWN: 'city',
+  STATE: 'state',
+  STATEREGION: 'state',
+  POSTCODE: 'postcode',
+  POSTALCODE: 'postcode',
+  COUNTRY: 'country',
+  CONTACTNAME: 'contact_name',
+  CONTACTPERSON: 'contact_name',
+  CONTACTPERSONNAME: 'contact_name',
+  CONTACTEMAIL: 'contact_email',
+  EMAIL: 'contact_email',
+  EMAILADDRESS: 'contact_email',
+  CONTACTDESGN: 'contact_designation',
+  CONTACTDESIGNATION: 'contact_designation',
+  DESIGNATION: 'contact_designation',
+  JOBDESIGNATION: 'contact_designation',
+  CONTACTMOBILE: 'contact_mobile',
+  MOBILENUMBER: 'contact_mobile',
+  MOBILE: 'contact_mobile',
+  OFFICE: 'office_phone',
+  OFFICEPHONE: 'office_phone',
+  FAX: 'fax',
+  FAXNUMBER: 'fax',
+};
+
+function normalizeExcelHeader(value: unknown): string {
+  return String(value ?? '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
+function excelCellValue(value: unknown): string {
+  return String(value ?? '').trim();
+}
 
 function FieldError({ message }: { message?: string }) {
   return (
@@ -78,7 +151,9 @@ export function CompanyForm({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [currentPage, setCurrentPage] = useState(initialPage);
   const [transitionDirection, setTransitionDirection] = useState<'forward' | 'backward'>('forward');
+  const [isImportingExcel, setIsImportingExcel] = useState(false);
   const touchStartX = useRef<number | null>(null);
+  const excelInputRef = useRef<HTMLInputElement>(null);
 
   const handleChange = (field: keyof CompanyFormData, val: string) => {
     setFormData((prev) => {
@@ -110,6 +185,94 @@ export function CompanyForm({
       delete next.country;
       return next;
     });
+  };
+
+  const handleExcelUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    setIsImportingExcel(true);
+    try {
+      const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+      const firstSheetName = workbook.SheetNames[0];
+      if (!firstSheetName) throw new Error('The Excel workbook does not contain a worksheet.');
+
+      const rows = XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[firstSheetName], {
+        header: 1,
+        raw: false,
+        defval: '',
+      });
+
+      let headerRowIndex = -1;
+      let mappedColumns: Array<{ columnIndex: number; field: keyof CompanyFormData }> = [];
+      rows.slice(0, 20).forEach((row, rowIndex) => {
+        const candidate = row
+          .map((header, columnIndex) => ({
+            columnIndex,
+            field: companyExcelHeaders[normalizeExcelHeader(header)],
+          }))
+          .filter((column): column is { columnIndex: number; field: keyof CompanyFormData } => Boolean(column.field));
+        if (candidate.length > mappedColumns.length) {
+          headerRowIndex = rowIndex;
+          mappedColumns = candidate;
+        }
+      });
+
+      if (headerRowIndex < 0 || mappedColumns.length === 0) {
+        throw new Error('No recognized company headers were found in the first worksheet.');
+      }
+
+      const populatedDataRows = rows
+        .slice(headerRowIndex + 1)
+        .filter((row) => mappedColumns.some(({ columnIndex }) => excelCellValue(row[columnIndex])));
+      const dataRow = populatedDataRows[0];
+      if (!dataRow) throw new Error('No company data row was found below the Excel headers.');
+
+      const imported: Partial<Record<keyof CompanyFormData, string>> = {};
+      const importWarnings: string[] = [];
+      mappedColumns.forEach(({ columnIndex, field }) => {
+        const value = excelCellValue(dataRow[columnIndex]);
+        if (value) imported[field] = value;
+      });
+
+      if (imported.company_type) imported.company_type = normalizeCompanyType(imported.company_type);
+      if (imported.country) {
+        const supportedCountry = Object.keys(statesByCountry).find(
+          (country) => country.toLowerCase() === imported.country?.toLowerCase()
+        );
+        if (supportedCountry) {
+          imported.country = supportedCountry;
+        } else {
+          importWarnings.push(`Country “${imported.country}” is not supported and was not imported.`);
+          delete imported.country;
+        }
+      }
+      if (imported.state) {
+        const country = imported.country || formData.country;
+        const supportedState = statesByCountry[country]?.find(
+          (state) => state.toLowerCase() === imported.state?.toLowerCase()
+        );
+        if (supportedState) imported.state = supportedState;
+      }
+      if (imported.registration_number_old) {
+        imported.registration_number_old = imported.registration_number_old.toUpperCase();
+        imported.registration_number = imported.registration_number_old;
+      }
+
+      const importedFieldCount = Object.keys(imported).length;
+      setFormData((current) => ({ ...current, ...imported }));
+      setErrors({});
+      notifySuccess(`${importedFieldCount} company field${importedFieldCount === 1 ? '' : 's'} filled from ${file.name}.`);
+      if (populatedDataRows.length > 1) {
+        importWarnings.push('Only the first populated company row was imported.');
+      }
+      if (importWarnings.length > 0) notifyWarning(importWarnings.join(' '));
+    } catch (error) {
+      notifyError(error instanceof Error ? error.message : 'Unable to read the Excel file.');
+    } finally {
+      setIsImportingExcel(false);
+    }
   };
 
   const validate = () => {
@@ -219,6 +382,26 @@ export function CompanyForm({
             Fill in legal company profile and primary operational contact details.
           </p>
         </div>
+
+        <input
+          ref={excelInputRef}
+          type="file"
+          accept=".xlsx,.xls,.xlsm"
+          onChange={handleExcelUpload}
+          className="hidden"
+          aria-label="Upload company details Excel file"
+        />
+        <button
+          type="button"
+          onClick={() => excelInputRef.current?.click()}
+          disabled={isImportingExcel}
+          className="inline-flex shrink-0 items-center rounded border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isImportingExcel
+            ? <LoaderCircle className="mr-1 h-3 w-3 animate-spin" />
+            : <Upload className="mr-1 h-3 w-3" />}
+          {isImportingExcel ? 'Reading Excel...' : 'Upload Excel'}
+        </button>
 
       </div>
 
