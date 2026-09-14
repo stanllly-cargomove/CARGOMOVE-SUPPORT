@@ -77,6 +77,17 @@ export default async function externalUserAccess(request: any, response: any) {
       const body = typeof request.body === 'string' ? JSON.parse(request.body) : request.body || {};
       const id = String(body.id || '').trim();
       const changes: Record<string, unknown> = {};
+      const requiredTextFields = ['username', 'email', 'password', 'full_name', 'mobile_number'] as const;
+      for (const field of requiredTextFields) {
+        if (body[field] === undefined) continue;
+        const value = String(body[field]).trim();
+        if (!value) {
+          response.status(400).json({ error: `${field.replace('_', ' ')} is required.` });
+          return;
+        }
+        changes[field] = field === 'username' || field === 'email' ? value.toLowerCase() : value;
+      }
+      if (body.company_name !== undefined) changes.company_name = String(body.company_name).trim();
       if (body.status !== undefined) {
         if (!['PENDING', 'DONE', 'REJECTED'].includes(body.status)) {
           response.status(400).json({ error: 'Invalid registration status.' });
@@ -102,8 +113,10 @@ export default async function externalUserAccess(request: any, response: any) {
       });
       const saved = await result.json().catch(() => ({}));
       if (!result.ok) {
-        response.status(400).json({
-          error: isMissingWorkflowColumn(saved)
+        response.status(result.status === 409 ? 409 : 400).json({
+          error: result.status === 409
+            ? 'That username or email is already in use.'
+            : isMissingWorkflowColumn(saved)
             ? 'The external user workflow migration has not been applied yet.'
             : 'Unable to update external user access.',
         });

@@ -39,7 +39,7 @@ export async function saveExternalUserAccess(input: Omit<ExternalUserAccess, 'id
 
 export async function updateExternalUserAccess(
   id: string,
-  changes: Partial<Pick<ExternalUserAccess, 'status'>>,
+  changes: Partial<Pick<ExternalUserAccess, 'username' | 'email' | 'password' | 'company_name' | 'full_name' | 'mobile_number' | 'status'>>,
 ): Promise<ExternalUserAccess> {
   const response = await fetch('/api/external-user-access', {
     method: 'PATCH',

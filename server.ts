@@ -271,6 +271,17 @@ app.patch('/api/external-user-access', requireSession, async (request, response)
   }
   const id = String(request.body?.id || '').trim();
   const changes: Record<string, unknown> = {};
+  const requiredTextFields = ['username', 'email', 'password', 'full_name', 'mobile_number'] as const;
+  for (const field of requiredTextFields) {
+    if (request.body?.[field] === undefined) continue;
+    const value = String(request.body[field]).trim();
+    if (!value) {
+      response.status(400).json({ error: `${field.replace('_', ' ')} is required.` });
+      return;
+    }
+    changes[field] = field === 'username' || field === 'email' ? value.toLowerCase() : value;
+  }
+  if (request.body?.company_name !== undefined) changes.company_name = String(request.body.company_name).trim();
   if (request.body?.status !== undefined) {
     if (!['PENDING', 'DONE', 'REJECTED'].includes(request.body.status)) {
       response.status(400).json({ error: 'Invalid registration status.' });
@@ -295,8 +306,10 @@ app.patch('/api/external-user-access', requireSession, async (request, response)
     .select()
     .single();
   if (error) {
-    response.status(400).json({
-      error: error.message.includes('status') || error.message.includes('email_sent')
+    response.status(error.code === '23505' ? 409 : 400).json({
+      error: error.code === '23505'
+        ? 'That username or email is already in use.'
+        : error.message.includes('status') || error.message.includes('email_sent')
         ? 'The external user workflow migration has not been applied yet.'
         : 'Unable to update external user access.',
     });

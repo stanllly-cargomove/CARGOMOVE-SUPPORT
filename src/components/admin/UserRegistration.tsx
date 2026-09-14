@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Download, Mail, Search, UsersRound, X } from 'lucide-react';
+import { Download, Mail, Pencil, Save, Search, UsersRound, X } from 'lucide-react';
 import { getExternalUserAccess, ExternalUserAccess, updateExternalUserAccess } from '../../services/auth';
 import { EmailPreview, generateWelcomeEmailPreview, sendWelcomeEmail } from '../../services/email';
 import { notifyError, notifySuccess } from '../common/notifications';
@@ -7,6 +7,7 @@ import { subscribeToStorage } from '../../services/storage';
 
 const statuses: ExternalUserAccess['status'][] = ['PENDING', 'DONE', 'REJECTED'];
 const emailStatuses: ExternalUserAccess['email_status'][] = ['NOT_READY', 'READY', 'SENDING', 'SENT', 'FAILED'];
+type EditableUserField = 'username' | 'email' | 'password' | 'company_name' | 'full_name' | 'mobile_number' | 'status';
 
 export function UserRegistration() {
   const [users, setUsers] = useState<ExternalUserAccess[]>([]);
@@ -19,6 +20,8 @@ export function UserRegistration() {
   const [previewUserId, setPreviewUserId] = useState('');
   const [openingPreview, setOpeningPreview] = useState('');
   const [sending, setSending] = useState(false);
+  const [editingUser, setEditingUser] = useState<ExternalUserAccess | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -80,6 +83,42 @@ export function UserRegistration() {
   const changeStatus = async (user: ExternalUserAccess, status: ExternalUserAccess['status']) => {
     const saved = await updateUser(user, { status });
     if (saved?.status === 'DONE') await openPreview(saved);
+  };
+
+  const saveUserDetails = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!editingUser) return;
+    const requiredValues = [editingUser.username, editingUser.email, editingUser.password, editingUser.full_name, editingUser.mobile_number];
+    if (requiredValues.some((value) => !value.trim())) {
+      notifyError('Username, email, password, full name, and mobile number are required.');
+      return;
+    }
+
+    const previousStatus = users.find((user) => user.id === editingUser.id)?.status;
+    setSavingEdit(true);
+    try {
+      const saved = await updateExternalUserAccess(editingUser.id, {
+        username: editingUser.username,
+        email: editingUser.email,
+        password: editingUser.password,
+        company_name: editingUser.company_name,
+        full_name: editingUser.full_name,
+        mobile_number: editingUser.mobile_number,
+        status: editingUser.status,
+      });
+      setUsers((current) => current.map((user) => user.id === saved.id ? { ...user, ...saved } : user));
+      setEditingUser(null);
+      notifySuccess('User details updated in the database.');
+      if (previousStatus !== 'DONE' && saved.status === 'DONE') await openPreview(saved);
+    } catch (error) {
+      notifyError(error instanceof Error ? error.message : 'Unable to update user details.');
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const changeEditField = (field: EditableUserField, value: string) => {
+    setEditingUser((current) => current ? { ...current, [field]: value } : current);
   };
 
   const sendPreview = async () => {
@@ -210,13 +249,13 @@ export function UserRegistration() {
             <colgroup>
               <col className="w-[9%]" />
               <col className="w-[15%]" />
-              <col className="w-[10%]" />
+              <col className="w-[9%]" />
               <col className="w-[10%]" />
               <col className="w-[11%]" />
-              <col className="w-[12%]" />
               <col className="w-[11%]" />
+              <col className="w-[8%]" />
               <col className="w-[10%]" />
-              <col className="w-[12%]" />
+              <col className="w-[17%]" />
             </colgroup>
             <thead>
               <tr className="whitespace-nowrap border-b border-slate-200 bg-slate-50 text-[9px] font-bold uppercase tracking-wide text-slate-600 xl:text-[10px]">
@@ -252,7 +291,7 @@ export function UserRegistration() {
                       value={user.status || 'PENDING'}
                       onChange={(event) => void changeStatus(user, event.target.value as ExternalUserAccess['status'])}
                       disabled={savingKeys.has(`${user.id}-status`)}
-                      className="h-7 w-full max-w-[6.25rem] rounded-md border border-slate-300 bg-white px-1.5 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-wait disabled:opacity-60"
+                      className="h-6 w-full max-w-[5.5rem] rounded-md border border-slate-300 bg-white px-1 text-[10px] font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-wait disabled:opacity-60"
                       aria-label={`Status for ${user.username}`}
                     >
                       {statuses.map((status) => <option key={status} value={status}>{status}</option>)}
@@ -260,15 +299,25 @@ export function UserRegistration() {
                   </td>
                   <td className="px-2 py-2 text-center"><span className="whitespace-nowrap text-[10px] font-semibold text-slate-600">{user.email_status || (user.status === 'DONE' ? 'READY' : 'NOT_READY')}</span></td>
                   <td className="px-2 py-2 text-center">
-                    <button
-                      type="button"
-                      onClick={() => void openPreview(user)}
-                      disabled={user.status !== 'DONE' || openingPreview === user.id || user.email_status === 'SENDING'}
-                      className="inline-flex h-7 w-full max-w-[6.75rem] items-center justify-center gap-1 whitespace-nowrap rounded-md border border-blue-200 bg-blue-50 px-1.5 text-[10px] font-bold text-blue-700 transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-500"
-                    >
-                      <Mail className="h-3 w-3 shrink-0" />
-                      {openingPreview === user.id ? 'Loading...' : user.email_status === 'SENT' ? 'Resend' : user.status === 'DONE' ? 'Preview' : 'Set DONE'}
-                    </button>
+                    <div className="flex items-center justify-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setEditingUser({ ...user })}
+                        className="inline-flex h-7 items-center justify-center gap-1 whitespace-nowrap rounded-md border border-slate-300 bg-white px-2 text-[10px] font-bold text-slate-700 transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+                      >
+                        <Pencil className="h-3 w-3 shrink-0" />
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void openPreview(user)}
+                        disabled={user.status !== 'DONE' || openingPreview === user.id || user.email_status === 'SENDING'}
+                        className="inline-flex h-7 min-w-0 items-center justify-center gap-1 whitespace-nowrap rounded-md border border-blue-200 bg-blue-50 px-2 text-[10px] font-bold text-blue-700 transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-500"
+                      >
+                        <Mail className="h-3 w-3 shrink-0" />
+                        {openingPreview === user.id ? 'Loading...' : user.email_status === 'SENT' ? 'Resend' : user.status === 'DONE' ? 'Preview' : 'Set DONE'}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -276,6 +325,49 @@ export function UserRegistration() {
           </table>
         </div>
       </div>
+
+      {editingUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-slate-900/55 p-4 backdrop-blur-xs">
+          <form onSubmit={saveUserDetails} role="dialog" aria-modal="true" aria-labelledby="edit-user-title" className="w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-3.5">
+              <div>
+                <h3 id="edit-user-title" className="font-bold text-slate-900">Edit User Access</h3>
+                <p className="mt-0.5 text-xs text-slate-500">Changes are saved directly to the user access database.</p>
+              </div>
+              <button type="button" onClick={() => setEditingUser(null)} disabled={savingEdit} aria-label="Close edit user popup" className="rounded-lg p-1 text-slate-400 hover:text-slate-700 disabled:opacity-50"><X className="h-5 w-5" /></button>
+            </div>
+            <div className="grid grid-cols-1 gap-x-4 gap-y-3 p-5 sm:grid-cols-2">
+              <label className="text-xs font-semibold text-slate-700">Username
+                <input autoFocus required value={editingUser.username} onChange={(event) => changeEditField('username', event.target.value)} className="mt-1.5 h-9 w-full rounded-lg border border-slate-300 px-3 font-normal focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </label>
+              <label className="text-xs font-semibold text-slate-700">Email address
+                <input type="email" required value={editingUser.email} onChange={(event) => changeEditField('email', event.target.value)} className="mt-1.5 h-9 w-full rounded-lg border border-slate-300 px-3 font-normal focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </label>
+              <label className="text-xs font-semibold text-slate-700">Password
+                <input required value={editingUser.password} onChange={(event) => changeEditField('password', event.target.value)} className="mt-1.5 h-9 w-full rounded-lg border border-slate-300 px-3 font-mono font-normal focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </label>
+              <label className="text-xs font-semibold text-slate-700">Company
+                <input value={editingUser.company_name} onChange={(event) => changeEditField('company_name', event.target.value)} className="mt-1.5 h-9 w-full rounded-lg border border-slate-300 px-3 font-normal focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </label>
+              <label className="text-xs font-semibold text-slate-700">Full name
+                <input required value={editingUser.full_name} onChange={(event) => changeEditField('full_name', event.target.value)} className="mt-1.5 h-9 w-full rounded-lg border border-slate-300 px-3 font-normal focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </label>
+              <label className="text-xs font-semibold text-slate-700">Mobile number
+                <input type="tel" required value={editingUser.mobile_number} onChange={(event) => changeEditField('mobile_number', event.target.value)} className="mt-1.5 h-9 w-full rounded-lg border border-slate-300 px-3 font-normal focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </label>
+              <label className="text-xs font-semibold text-slate-700 sm:col-span-2">Registration status
+                <select value={editingUser.status} onChange={(event) => changeEditField('status', event.target.value)} className="mt-1.5 h-9 w-full rounded-lg border border-slate-300 bg-white px-3 font-normal focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  {statuses.map((status) => <option key={status} value={status}>{status}</option>)}
+                </select>
+              </label>
+            </div>
+            <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-3.5">
+              <button type="button" onClick={() => setEditingUser(null)} disabled={savingEdit} className="rounded-lg px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200 disabled:opacity-50">Cancel</button>
+              <button type="submit" disabled={savingEdit} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700 disabled:cursor-wait disabled:opacity-60"><Save className="h-4 w-4" />{savingEdit ? 'Saving...' : 'Save Changes'}</button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {preview && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 p-4 backdrop-blur-xs">
