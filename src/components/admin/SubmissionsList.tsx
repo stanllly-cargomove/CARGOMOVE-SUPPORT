@@ -351,11 +351,11 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
                 </th>
                 <th className="py-3 px-4">Reference No</th>
                 <th className="py-3 px-4">Company Name</th>
-                <th className="py-3 px-3">Type</th>
+                <th className="py-3 px-3 text-center">Type</th>
                 <th className="py-3 px-3">Facility</th>
                 <th className="py-3 px-3">Cargomove ID</th>
                 <th className="py-3 px-3">Status</th>
-                <th className="py-3 px-3">Submitted</th>
+                <th className="py-3 px-3 text-center">Submitted</th>
                 <th className="py-3 px-4 text-right">Actions</th>
               </tr>
             </thead>
@@ -393,10 +393,12 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
                       </td>
 
                       <td className="py-3 px-4">
-                        <div className="font-bold text-slate-900">{sub.company_name.toUpperCase()}</div>
+                        <div className="truncate whitespace-nowrap font-bold text-slate-900" title={sub.company_name}>
+                          {sub.company_name.toUpperCase()}
+                        </div>
                       </td>
 
-                      <td className="py-3 px-3">
+                      <td className="py-3 px-3 text-center">
                         <span className="text-[11px] font-semibold text-slate-700">
                           {(company?.company_type || sub.company_type || '—').toUpperCase()}
                         </span>
@@ -428,7 +430,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
                         <StatusBadge status={sub.status} />
                       </td>
 
-                      <td className="py-3 px-3 text-[11px] text-slate-500">
+                      <td className="py-3 px-3 text-center text-[11px] text-slate-500">
                         {new Date(sub.submitted_at).toLocaleDateString()}
                       </td>
 
