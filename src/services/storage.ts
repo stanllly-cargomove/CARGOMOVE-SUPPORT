@@ -878,33 +878,38 @@ export function checkDuplicateRegNo(regNo: string, excludeId?: string): boolean 
 export function saveCompany(companyData: Partial<Company> & { registration_number: string; name: string }): Company {
   const companies = getCompanies();
   const now = new Date().toISOString();
+  const normalizedCompanyData = {
+    ...companyData,
+    name: companyData.name.trim().toUpperCase(),
+    short_name: companyData.short_name?.trim().toUpperCase(),
+  };
 
   let target: Company;
 
-  if (companyData.id) {
-    const index = companies.findIndex((c) => c.id === companyData.id);
+  if (normalizedCompanyData.id) {
+    const index = companies.findIndex((c) => c.id === normalizedCompanyData.id);
     if (index >= 0) {
       target = {
         ...companies[index],
-        ...companyData,
+        ...normalizedCompanyData,
         updated_at: now,
       };
       companies[index] = target;
     } else {
       target = {
-        ...companyData,
-        id: companyData.id || `comp-${Date.now()}`,
-        status: companyData.status || 'ACTIVE',
-        created_at: companyData.created_at || now,
+        ...normalizedCompanyData,
+        id: normalizedCompanyData.id || `comp-${Date.now()}`,
+        status: normalizedCompanyData.status || 'ACTIVE',
+        created_at: normalizedCompanyData.created_at || now,
         updated_at: now,
       } as Company;
       companies.push(target);
     }
   } else {
     target = {
-      ...companyData,
+      ...normalizedCompanyData,
       id: `comp-${Date.now()}`,
-      status: companyData.status || 'ACTIVE',
+      status: normalizedCompanyData.status || 'ACTIVE',
       created_at: now,
       updated_at: now,
     } as Company;
@@ -995,6 +1000,7 @@ export function saveSubmission(
   const reference_no = `REG-${yyyy}${mm}${dd}-${randomSuffix}`;
   const newSubmission: RegistrationSubmission = {
     ...submission,
+    company_name: submission.company_name.trim().toUpperCase(),
     id: `sub-${Date.now()}-${randomSuffix}`,
     reference_no,
     submitted_at: now.toISOString(),

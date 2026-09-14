@@ -87,7 +87,7 @@ export default async function externalUserAccess(request: any, response: any) {
         }
         changes[field] = field === 'username' || field === 'email' ? value.toLowerCase() : value;
       }
-      if (body.company_name !== undefined) changes.company_name = String(body.company_name).trim();
+      if (body.company_name !== undefined) changes.company_name = String(body.company_name).trim().toUpperCase();
       if (body.status !== undefined) {
         if (!['PENDING', 'DONE', 'REJECTED'].includes(body.status)) {
           response.status(400).json({ error: 'Invalid registration status.' });
@@ -145,7 +145,7 @@ export default async function externalUserAccess(request: any, response: any) {
     const result = await fetch(`${url}/rest/v1/external_user_access`, {
       method: 'POST',
       headers: { ...headers, Prefer: 'resolution=merge-duplicates,return=representation' },
-      body: JSON.stringify({ ...body, id: body.id || `external-user-${Date.now()}`, username, email, password, full_name: fullName, mobile_number: mobileNumber }),
+      body: JSON.stringify({ ...body, id: body.id || `external-user-${Date.now()}`, username, email, password, company_name: String(body.company_name || '').trim().toUpperCase(), full_name: fullName, mobile_number: mobileNumber }),
     });
     const saved = await result.json().catch(() => ({}));
     if (!result.ok) {

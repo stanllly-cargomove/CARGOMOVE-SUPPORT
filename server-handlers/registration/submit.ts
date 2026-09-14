@@ -100,7 +100,7 @@ export default async function companyRegistration(request: any, response: any) {
   try {
     if (registrationType === 'COMPANY') {
       const registrationNumber = text(companyInput.registration_number_old || companyInput.registration_number || companyInput.registration_number_new);
-      const companyName = text(companyInput.name);
+      const companyName = text(companyInput.name).toUpperCase();
       const companyType = text(companyInput.company_type);
       const username = text(userInput.username).toLowerCase();
       const email = text(userInput.email).toLowerCase();
@@ -152,6 +152,8 @@ export default async function companyRegistration(request: any, response: any) {
             : text(companyInput[field]);
       });
       companyRow.registration_number = registrationNumber;
+      companyRow.name = companyName;
+      companyRow.short_name = text(companyInput.short_name).toUpperCase();
 
       const companyResult = await client.from('companies').insert(companyRow).select().single();
       if (companyResult.error) throw new RegistrationWriteError('company details', companyResult.error);
@@ -205,7 +207,7 @@ export default async function companyRegistration(request: any, response: any) {
       registration_type: registrationType,
       company_id: companyId,
       company_reg_no: text(body.company_reg_no),
-      company_name: text(body.company_name),
+      company_name: text(body.company_name).toUpperCase(),
       company_type: text(body.company_type),
       port_location: portLocation,
       port_id: portId,

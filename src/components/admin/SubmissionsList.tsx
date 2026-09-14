@@ -298,7 +298,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
                       </td>
 
                       <td className="py-3 px-4">
-                        <div className="font-bold text-slate-900">{sub.company_name}</div>
+                        <div className="font-bold text-slate-900">{sub.company_name.toUpperCase()}</div>
                       </td>
 
                       <td className="py-2.5 px-3">

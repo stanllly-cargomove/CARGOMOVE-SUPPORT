@@ -114,7 +114,7 @@ export function UserRegistration() {
         username: editingUser.username,
         email: editingUser.email,
         password: editingUser.password,
-        company_name: editingUser.company_name,
+        company_name: editingUser.company_name.trim().toUpperCase(),
         full_name: editingUser.full_name,
         mobile_number: editingUser.mobile_number,
         status: editingUser.status,
@@ -191,7 +191,7 @@ export function UserRegistration() {
       user.username,
       user.email,
       user.password,
-      user.company_name,
+      user.company_name.toUpperCase(),
       user.full_name,
       user.mobile_number,
       user.status,
@@ -302,7 +302,7 @@ export function UserRegistration() {
                   <td className="px-2 py-2 font-semibold text-slate-900"><span className="block truncate" title={user.username}>{user.username}</span></td>
                   <td className="px-2 py-2 text-slate-700"><span className="block truncate" title={user.email}>{user.email}</span></td>
                   <td className="px-2 py-2 font-mono text-[10px] text-slate-700"><span className="block truncate" title={user.password || 'Unavailable (legacy record)'}>{user.password || 'Unavailable'}</span></td>
-                  <td className="px-2 py-2 text-slate-700"><span className="block truncate" title={user.company_name}>{user.company_name}</span></td>
+                  <td className="px-2 py-2 text-slate-700"><span className="block truncate" title={user.company_name.toUpperCase()}>{user.company_name.toUpperCase()}</span></td>
                   <td className="px-2 py-2 text-slate-700"><span className="block truncate" title={user.full_name}>{user.full_name}</span></td>
                   <td className="px-2 py-2 text-center text-slate-700"><span className="block truncate" title={user.mobile_number}>{user.mobile_number}</span></td>
                   <td className="px-2 py-2 text-center">
@@ -370,7 +370,7 @@ export function UserRegistration() {
                 <input required value={editingUser.password} onChange={(event) => changeEditField('password', event.target.value)} className="mt-1.5 h-9 w-full rounded-lg border border-slate-300 px-3 font-mono font-normal focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </label>
               <label className="text-xs font-semibold text-slate-700">Company
-                <input value={editingUser.company_name} onChange={(event) => changeEditField('company_name', event.target.value)} className="mt-1.5 h-9 w-full rounded-lg border border-slate-300 px-3 font-normal focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <input value={editingUser.company_name} onChange={(event) => changeEditField('company_name', event.target.value.toUpperCase())} className="mt-1.5 h-9 w-full rounded-lg border border-slate-300 px-3 font-normal uppercase focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </label>
               <label className="text-xs font-semibold text-slate-700">Full name
                 <input required value={editingUser.full_name} onChange={(event) => changeEditField('full_name', event.target.value)} className="mt-1.5 h-9 w-full rounded-lg border border-slate-300 px-3 font-normal focus:outline-none focus:ring-2 focus:ring-blue-500" />

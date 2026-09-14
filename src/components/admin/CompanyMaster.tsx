@@ -182,7 +182,7 @@ export function CompanyMaster() {
                       className="hover:bg-slate-50/70 transition-colors"
                     >
                       <td className="py-3 px-4">
-                        <div className="font-bold text-slate-900">{comp.name}</div>
+                        <div className="font-bold text-slate-900">{comp.name.toUpperCase()}</div>
                       </td>
 
                       <td className="py-3 px-3 text-center font-mono text-[11px] text-slate-600">
@@ -475,8 +475,8 @@ function CompanyEditModal({
           <div className="min-h-[280px]">
             {activeSection === 0 && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <Field label="Company Legal Name *" value={form.name} onChange={(value) => setField('name', value)} className="sm:col-span-2" placeholder="LUMORA TECH SDN BHD" />
-                <Field label="Short Name" value={form.short_name} onChange={(value) => setField('short_name', value)} placeholder="LUMORA" />
+                <Field label="Company Legal Name *" value={form.name} onChange={(value) => setField('name', value.toUpperCase())} className="uppercase sm:col-span-2" placeholder="LUMORA TECH SDN BHD" />
+                <Field label="Short Name" value={form.short_name} onChange={(value) => setField('short_name', value.toUpperCase())} className="uppercase" placeholder="LUMORA" />
                 <SelectField label="Company Category *" value={form.company_type} onChange={(value) => setField('company_type', value)} options={['FORWARDER', 'HAULAGE', 'TRANSPORT']} />
                 <Field label="Registration No (Primary) *" value={form.registration_number} onChange={(value) => setField('registration_number', value)} className="font-mono" placeholder="AAAAAA-2" />
                 <Field label="Old Registration No" value={form.registration_number_old || ''} onChange={(value) => setField('registration_number_old', value)} className="font-mono" placeholder="AAAAAA-2" />

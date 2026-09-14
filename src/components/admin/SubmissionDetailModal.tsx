@@ -113,7 +113,7 @@ export function SubmissionDetailModal({
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div>
                 <span className="text-slate-500 block">Company Name</span>
-                <span className="font-bold text-slate-900">{submission.company_name}</span>
+                <span className="font-bold text-slate-900">{submission.company_name.toUpperCase()}</span>
               </div>
               <div>
                 <span className="text-slate-500 block">Registration No</span>

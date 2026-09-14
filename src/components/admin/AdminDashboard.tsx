@@ -288,7 +288,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                       {item.type}
                     </td>
                     <td className="py-2 px-3 text-slate-900">
-                      {item.companyName}
+                      {item.companyName.toUpperCase()}
                     </td>
                     <td className="py-2 px-3 text-center text-slate-700">
                       {item.portLocation === 'PORT_KLANG' ? 'PORT KLANG' : item.portLocation === 'JOHOR' ? 'JOHOR' : 'OTHER PORT'}

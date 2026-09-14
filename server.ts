@@ -281,7 +281,7 @@ app.patch('/api/external-user-access', requireSession, async (request, response)
     }
     changes[field] = field === 'username' || field === 'email' ? value.toLowerCase() : value;
   }
-  if (request.body?.company_name !== undefined) changes.company_name = String(request.body.company_name).trim();
+  if (request.body?.company_name !== undefined) changes.company_name = String(request.body.company_name).trim().toUpperCase();
   if (request.body?.status !== undefined) {
     if (!['PENDING', 'DONE', 'REJECTED'].includes(request.body.status)) {
       response.status(400).json({ error: 'Invalid registration status.' });
@@ -340,7 +340,7 @@ app.post('/api/external-user-access', async (request, response) => {
     email,
     password,
     company_id: body.company_id || null,
-    company_name: String(body.company_name || ''),
+    company_name: String(body.company_name || '').trim().toUpperCase(),
     full_name: fullName,
     mobile_number: mobileNumber,
   }).select().single();
