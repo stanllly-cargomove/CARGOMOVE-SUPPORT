@@ -35,6 +35,7 @@ import { EmailTemplateManager } from './EmailTemplateManager';
 import { Logo } from '../common/Logo';
 import { notifyError, notifySuccess } from '../common/notifications';
 import { RegistrationType } from '../../types';
+import collapsedSidebarLogo from '../../../media/LOGO2.png';
 
 interface AdminLayoutProps {
   onSwitchToCustomer: () => void;
@@ -114,12 +115,11 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
             </div>
           </div>
 
-          <div
-            className={`hidden text-sm font-black tracking-tight text-sky-400 ${isSidebarCollapsed ? 'md:block' : ''}`}
-            aria-hidden="true"
-          >
-            CM
-          </div>
+          <img
+            src={collapsedSidebarLogo}
+            alt="CargoMove"
+            className={`hidden h-10 w-10 object-contain ${isSidebarCollapsed ? 'md:block' : ''}`}
+          />
 
         </div>
 
