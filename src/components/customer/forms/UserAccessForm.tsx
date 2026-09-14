@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, ArrowRight, KeyRound, UserRound } from 'lucide-react';
+import { ArrowLeft, ArrowRight, UserRound } from 'lucide-react';
 
 export interface UserAccessFormData {
   username: string;
@@ -54,7 +54,7 @@ export function UserAccessForm({ companyName, initialData, onSubmit, onBack }: U
     const nextErrors: Record<string, string> = {};
     if (!formData.username.trim()) nextErrors.username = 'Username is required.';
     if (!formData.email.trim() || !formData.email.includes('@')) nextErrors.email = 'A valid email is required.';
-    if (formData.password.length < 8) nextErrors.password = 'Password must be at least 8 characters.';
+    if (formData.password.length < 6) nextErrors.password = 'Password must be at least 6 characters.';
     if (!formData.full_name.trim()) nextErrors.full_name = 'Full name is required.';
     if (!formData.mobile_number.trim()) nextErrors.mobile_number = 'Mobile number is required.';
     setErrors(nextErrors);
@@ -82,7 +82,6 @@ export function UserAccessForm({ companyName, initialData, onSubmit, onBack }: U
           <h2 className="text-base font-bold text-slate-900 tracking-tight">Register User Access</h2>
           <p className="text-slate-500 text-xs mt-0.5">Create the first Cargomove login for {companyName || 'your company'}.</p>
         </div>
-        <KeyRound className="w-5 h-5 text-[#0090e7]" />
       </div>
 
       <div className="flex items-center justify-center gap-2 text-[10px] font-semibold text-[#0090e7]">
@@ -99,7 +98,7 @@ export function UserAccessForm({ companyName, initialData, onSubmit, onBack }: U
           {[
             { field: 'username' as const, label: 'Username', type: 'text', placeholder: 'company.admin' },
             { field: 'email' as const, label: 'Email address', type: 'email', placeholder: 'admin@company.com' },
-            { field: 'password' as const, label: 'Password', type: 'password', placeholder: 'Minimum 8 characters' },
+            { field: 'password' as const, label: 'Password', type: 'password', placeholder: 'Minimum 6 characters' },
             { field: 'full_name' as const, label: 'Full name', type: 'text', placeholder: 'Kevin Tan' },
             { field: 'mobile_number' as const, label: 'Mobile number', type: 'tel', placeholder: '+60123456789' },
           ].map((item) => (
@@ -113,6 +112,7 @@ export function UserAccessForm({ companyName, initialData, onSubmit, onBack }: U
                 onChange={(event) => handleChange(item.field, event.target.value)}
                 placeholder={item.placeholder}
                 autoComplete={item.field === 'password' ? 'new-password' : item.field}
+                minLength={item.field === 'password' ? 6 : undefined}
                 className="w-full px-2.5 py-1.5 rounded border border-slate-300 text-xs focus:ring-1 focus:ring-sky-500 focus:outline-none"
               />
               <FieldError message={errors[item.field]} />

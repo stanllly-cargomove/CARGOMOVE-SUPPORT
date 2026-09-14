@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Company, TrailerData, PortConfig } from '../../../types';
 import { getAutoAssignedPorts } from '../../../services/storage';
-import { Building2, Sparkles, CheckCircle2, Plus, Trash2, Container, Scale } from 'lucide-react';
+import { Building2, CheckCircle2, Plus, Trash2, Container, Scale } from 'lucide-react';
 
 interface TrailerFormProps {
   company: Company;
@@ -61,24 +61,6 @@ export function TrailerForm({ company, onSubmit, onBack }: TrailerFormProps) {
     }
   };
 
-  const handleFillDemo = () => {
-    setTrailers([
-      {
-        registration_number: 'JTE 8832',
-        weight: '6400',
-        trailer_type: 'FL',
-        bdm_weight: '38000',
-      },
-      {
-        registration_number: 'JTE 8833',
-        weight: '6800',
-        trailer_type: 'SL',
-        bdm_weight: '40000',
-      },
-    ]);
-    setErrors({});
-  };
-
   const validate = () => {
     const errMap: { [index: number]: Partial<Record<keyof TrailerData, string>> } = {};
     let isValid = true;
@@ -129,14 +111,6 @@ export function TrailerForm({ company, onSubmit, onBack }: TrailerFormProps) {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={handleFillDemo}
-          className="inline-flex items-center px-2.5 py-1 rounded text-xs font-semibold bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 transition-colors"
-        >
-          <Sparkles className="w-3 h-3 mr-1 text-sky-600" />
-          Auto-fill Sample
-        </button>
       </div>
 
       {/* Verified Company & Auto Port Context Box */}

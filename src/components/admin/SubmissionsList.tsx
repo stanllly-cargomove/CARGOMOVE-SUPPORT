@@ -3,6 +3,7 @@ import { RegistrationSubmission, RegistrationType, SubmissionStatus, Company } f
 import {
   getSubmissions,
   getCompanyById,
+  ensureSubmissionCompany,
   deleteSubmission,
   updateSubmissionStatus,
   subscribeToStorage,
@@ -127,12 +128,11 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
   };
 
   const handleOpenAssignIdForSub = (sub: RegistrationSubmission) => {
-    if (sub.company_id) {
-      const comp = getCompanyById(sub.company_id);
-      if (comp) {
-        setAssignIdCompany(comp);
-        return;
-      }
+    const company = ensureSubmissionCompany(sub.id);
+    if (company) {
+      setAssignIdCompany(company);
+    } else {
+      notifyWarning('This submission does not contain enough company information to create a master record.');
     }
   };
 

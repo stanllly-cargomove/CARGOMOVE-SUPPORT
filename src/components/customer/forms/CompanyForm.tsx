@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { PortLocation, CompanyFormData } from '../../../types';
 import { getAutoAssignedPorts } from '../../../services/storage';
-import { ArrowLeft, ArrowRight, Building2, Phone, Sparkles, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Building2, Phone, CheckCircle2 } from 'lucide-react';
 
 interface CompanyFormProps {
   initialLocation: PortLocation;
@@ -112,34 +112,6 @@ export function CompanyForm({
     });
   };
 
-  const handleFillDemo = () => {
-    const isKlang = initialLocation === 'PORT_KLANG';
-    setFormData({
-      name: isKlang ? 'MALAYSIAN MARITIME LOGISTICS SDN BHD' : 'SOUTHERN GATEWAY TRANSLOG SDN BHD',
-      short_name: isKlang ? 'MML LOGISTICS' : 'SOUTHERN TRANSLOG',
-      company_type: 'FORWARDER',
-      registration_number: isKlang ? 'MML-88192-K' : 'SGT-44102-J',
-      registration_number_old: isKlang ? 'MML-88192-K' : 'SGT-44102-J',
-      registration_number_new: '202401019821',
-      port_id: autoPorts.backendIdsString,
-      depot_id: '',
-      block: 'Level 4, Wisma Pelabuhan',
-      address1: 'Plot 18, Commercial Maritime Zone',
-      address2: 'Persiaran Pelabuhan Barat',
-      city: isKlang ? 'Pelabuhan Klang' : 'Pasir Gudang',
-      state: isKlang ? 'Selangor' : 'Johor',
-      postcode: isKlang ? '42000' : '81700',
-      country: 'Malaysia',
-      contact_name: 'Daniel Lim',
-      contact_email: 'daniel.lim@gatewaymaritime.com.my',
-      contact_designation: 'General Manager',
-      contact_mobile: '+60128833441',
-      office_phone: '+60331889900',
-      fax: '+60331889901',
-    });
-    setErrors({});
-  };
-
   const validate = () => {
     const errs: Record<string, string> = {};
     if (!formData.name.trim()) errs.name = 'Company Name is required.';
@@ -248,14 +220,6 @@ export function CompanyForm({
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={handleFillDemo}
-          className="inline-flex items-center px-2.5 py-1 rounded text-xs font-semibold bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 transition-colors"
-        >
-          <Sparkles className="w-3 h-3 mr-1 text-sky-600" />
-          Auto-fill Sample
-        </button>
       </div>
 
       <div className="flex items-center justify-center gap-2 text-[10px] font-semibold text-slate-500">

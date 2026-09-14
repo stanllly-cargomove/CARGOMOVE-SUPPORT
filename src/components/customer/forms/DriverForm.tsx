@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Company, DriverData, PortConfig } from '../../../types';
 import { getAutoAssignedPorts } from '../../../services/storage';
-import { Building2, Sparkles, CheckCircle2, Plus, Trash2, IdCard, User, Phone } from 'lucide-react';
+import { Building2, CheckCircle2, Plus, Trash2, IdCard, User, Phone } from 'lucide-react';
 
 interface DriverFormProps {
   company: Company;
@@ -46,22 +46,6 @@ export function DriverForm({ company, onSubmit, onBack }: DriverFormProps) {
         [index]: { ...prev[index], [field]: undefined },
       }));
     }
-  };
-
-  const handleFillDemo = () => {
-    setDrivers([
-      {
-        driving_license: 'DL-880521019943',
-        name: 'MOHD RAZALI BIN HASSAN',
-        mobile_no: '+60183399210',
-      },
-      {
-        driving_license: 'DL-910214045521',
-        name: 'CHUA BOON SOON',
-        mobile_no: '+60127718920',
-      },
-    ]);
-    setErrors({});
   };
 
   const validate = () => {
@@ -114,14 +98,6 @@ export function DriverForm({ company, onSubmit, onBack }: DriverFormProps) {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={handleFillDemo}
-          className="inline-flex items-center px-2.5 py-1 rounded text-xs font-semibold bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 transition-colors"
-        >
-          <Sparkles className="w-3 h-3 mr-1 text-sky-600" />
-          Auto-fill Sample
-        </button>
       </div>
 
       {/* Verified Company & Auto Port Context Box */}

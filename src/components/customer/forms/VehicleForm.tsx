@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Company, VehicleData, PortConfig } from '../../../types';
 import { getAutoAssignedPorts } from '../../../services/storage';
-import { Building2, Sparkles, CheckCircle2, Plus, Trash2, Truck, Scale, Hash } from 'lucide-react';
+import { Building2, CheckCircle2, Plus, Trash2, Truck, Scale, Hash } from 'lucide-react';
 
 interface VehicleFormProps {
   company: Company;
@@ -61,24 +61,6 @@ export function VehicleForm({ company, onSubmit, onBack }: VehicleFormProps) {
     }
   };
 
-  const handleFillDemo = () => {
-    setVehicles([
-      {
-        registration_number: 'JVF 4920',
-        head: 'HD-801',
-        weight: '8400',
-        bgk_weight: '44000',
-      },
-      {
-        registration_number: 'JVF 4921',
-        head: 'HD-802',
-        weight: '8600',
-        bgk_weight: '44000',
-      },
-    ]);
-    setErrors({});
-  };
-
   const validate = () => {
     const errMap: { [index: number]: Partial<Record<keyof VehicleData, string>> } = {};
     let isValid = true;
@@ -133,14 +115,6 @@ export function VehicleForm({ company, onSubmit, onBack }: VehicleFormProps) {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={handleFillDemo}
-          className="inline-flex items-center px-2.5 py-1 rounded text-xs font-semibold bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 transition-colors"
-        >
-          <Sparkles className="w-3 h-3 mr-1 text-sky-600" />
-          Auto-fill Sample
-        </button>
       </div>
 
       {/* Verified Company & Auto Port Context Box */}

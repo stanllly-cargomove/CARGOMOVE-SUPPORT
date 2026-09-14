@@ -3,6 +3,7 @@ import {
   getCompanies,
   getSubmissions,
   getCompanyById,
+  ensureSubmissionCompany,
   subscribeToStorage,
 } from '../../services/storage';
 import { getCompanyExternalId } from '../../services/companyHelper';
@@ -10,6 +11,7 @@ import { Company, RegistrationSubmission, RegistrationType } from '../../types';
 import { StatusBadge } from '../common/Badge';
 import { AssignIdModal } from './AssignIdModal';
 import { SubmissionDetailModal } from './SubmissionDetailModal';
+import { notifyWarning } from '../common/notifications';
 import {
   Building2,
   FileSpreadsheet,
@@ -234,9 +236,21 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                           {idInfo.active_id_value}
                         </span>
                       ) : (
-                        <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const company = ensureSubmissionCompany(sub.id);
+                            if (company) {
+                              setSelectedCompanyForId(company);
+                            } else {
+                              notifyWarning('This submission does not contain enough company information to create a master record.');
+                            }
+                          }}
+                          className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700 hover:bg-amber-100"
+                          title="Assign ID and save it to Company Master"
+                        >
                           ID Required
-                        </span>
+                        </button>
                       )}
                     </td>
                     <td className="py-2 px-3">

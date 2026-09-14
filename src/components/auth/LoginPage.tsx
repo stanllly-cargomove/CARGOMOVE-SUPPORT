@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { AlertCircle, ArrowLeft, LoaderCircle, LockKeyhole, LogIn, Mail } from 'lucide-react';
 import { loginApplicationUser } from '../../services/auth';
 
@@ -8,6 +8,7 @@ interface LoginPageProps {
 }
 
 export function LoginPage({ onBack, onSuccess }: LoginPageProps) {
+  const passwordInputRef = useRef<HTMLInputElement>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -68,8 +69,14 @@ export function LoginPage({ onBack, onSuccess }: LoginPageProps) {
                 type="text"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    passwordInputRef.current?.focus();
+                  }
+                }}
                 name="login-identifier"
-                autoComplete="off"
+                autoComplete="username"
                 placeholder="admin or admin@company.com"
                 className="w-full rounded-lg border border-slate-300 py-2.5 pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
               />
@@ -81,12 +88,13 @@ export function LoginPage({ onBack, onSuccess }: LoginPageProps) {
             <div className="relative">
               <LockKeyhole className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
               <input
+                ref={passwordInputRef}
                 id="login-password"
                 type="password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 name="login-secret"
-                autoComplete="new-password"
+                autoComplete="current-password"
                 placeholder="Enter your password"
                 className="w-full rounded-lg border border-slate-300 py-2.5 pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
               />
@@ -104,14 +112,6 @@ export function LoginPage({ onBack, onSuccess }: LoginPageProps) {
 
           <button type="button" onClick={onBack} className="w-full inline-flex items-center justify-center gap-2 py-2 text-xs font-semibold text-slate-500 hover:text-slate-800">
             <ArrowLeft className="w-3.5 h-3.5" /> Back to registration
-          </button>
-
-          <button
-            type="button"
-            onClick={() => onSuccess(false)}
-            className="w-full rounded-lg border border-dashed border-amber-400 bg-amber-50 px-4 py-2 text-[11px] font-bold text-amber-800 hover:bg-amber-100"
-          >
-            Developer: bypass login
           </button>
 
         </form>

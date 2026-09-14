@@ -1035,6 +1035,55 @@ export function saveSubmission(
   return newSubmission;
 }
 
+/**
+ * Resolve the Company Master record behind a queue item. Legacy submissions may
+ * not have a company_id, so link a matching master record or create one from
+ * the submitted company details before an administrator assigns its backend ID.
+ */
+export function ensureSubmissionCompany(submissionId: string): Company | null {
+  const submissions = getSubmissions();
+  const submission = submissions.find((item) => item.id === submissionId);
+  if (!submission) return null;
+
+  const linkedCompany = submission.company_id ? getCompanyById(submission.company_id) : undefined;
+  if (linkedCompany) return linkedCompany;
+
+  const companyDetails = submission.data?.company || {};
+  const registrationNumber = (
+    submission.company_reg_no ||
+    companyDetails.registration_number_old ||
+    companyDetails.registration_number_new ||
+    companyDetails.registration_number ||
+    ''
+  ).trim();
+  const companyName = (submission.company_name || companyDetails.name || '').trim();
+  if (!registrationNumber || !companyName) return null;
+
+  const company = findCompanyByRegNo(registrationNumber) || saveCompany({
+    ...companyDetails,
+    registration_number: registrationNumber,
+    registration_number_old: companyDetails.registration_number_old || registrationNumber,
+    name: companyName,
+    short_name: companyDetails.short_name || companyName,
+    company_type: submission.company_type || companyDetails.company_type || 'FORWARDER',
+    port_id: companyDetails.port_id || submission.port_id,
+    depot_id: companyDetails.depot_id || submission.depot_id,
+    status: 'ACTIVE',
+  });
+
+  submission.company_id = company.id;
+  localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(submissions));
+
+  // Preserve FK ordering when a legacy queue item creates a new master record.
+  void (async () => {
+    await upsertSupabaseRow('companies', companyRow(company));
+    await upsertSupabaseRow('registration_submissions', submission);
+  })().catch((error) => console.error('Unable to link submission to Company Master:', error));
+
+  notifyListeners();
+  return company;
+}
+
 export function getUserRegistrations(): UserRegistration[] {
   initStorage();
   try {
