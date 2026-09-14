@@ -492,13 +492,13 @@ async function syncFromSupabase(fullSync = false): Promise<void> {
     const since = fullSync ? undefined : localStorage.getItem(STORAGE_KEYS.SYNC_CURSOR) || undefined;
     const snapshot = await fetchSupabaseSnapshot(since);
     if (!snapshot) return;
-    const changed = fullSync || [
+    const changed = [
       fullSync ? replaceCachedRows(STORAGE_KEYS.PORTS, snapshot.ports) : mergeCachedRows(STORAGE_KEYS.PORTS, snapshot.ports),
       fullSync ? replaceCachedRows(STORAGE_KEYS.DEPOTS, snapshot.depots) : mergeCachedRows(STORAGE_KEYS.DEPOTS, snapshot.depots),
       fullSync ? replaceCachedRows(STORAGE_KEYS.COMPANIES, snapshot.companies) : mergeCachedRows(STORAGE_KEYS.COMPANIES, snapshot.companies),
       fullSync ? replaceCachedRows(STORAGE_KEYS.SUBMISSIONS, snapshot.submissions) : mergeCachedRows(STORAGE_KEYS.SUBMISSIONS, snapshot.submissions),
       fullSync ? replaceCachedRows(STORAGE_KEYS.USER_REGISTRATIONS, snapshot.userRegistrations) : mergeCachedRows(STORAGE_KEYS.USER_REGISTRATIONS, snapshot.userRegistrations),
-    ].some(Boolean);
+    ].some(Boolean) || fullSync;
     if (snapshot.guideline) {
       localStorage.setItem(STORAGE_KEYS.HAULIER_GUIDELINE, JSON.stringify(snapshot.guideline));
     } else if (fullSync) {
@@ -513,17 +513,29 @@ async function syncFromSupabase(fullSync = false): Promise<void> {
 }
 
 export async function refreshProtectedStorage(): Promise<void> {
-  await syncFromSupabase(false);
+  // A full reconciliation is required here. Incremental reads cannot observe
+  // rows that were deleted directly in Supabase, leaving them stranded in the
+  // browser cache indefinitely.
+  await syncFromSupabase(true);
 }
 
 export function startProtectedStorageSync(): () => void {
   protectedDataEnabled = true;
   remoteHydrationStarted = true;
+
+  // Never render protected records from an earlier login while the first
+  // authoritative database snapshot is loading.
+  localStorage.removeItem(STORAGE_KEYS.COMPANIES);
+  localStorage.removeItem(STORAGE_KEYS.SUBMISSIONS);
+  localStorage.removeItem(STORAGE_KEYS.USER_REGISTRATIONS);
+  localStorage.removeItem(STORAGE_KEYS.SYNC_CURSOR);
+  notifyListeners();
+
   void syncFromSupabase(true).catch((error) => console.error('Initial protected data sync failed:', error));
   if (remoteSyncTimer) clearInterval(remoteSyncTimer);
   remoteSyncTimer = setInterval(() => {
-    void syncFromSupabase(false).catch((error) => console.error('Scheduled protected data sync failed:', error));
-  }, 60_000);
+    void syncFromSupabase(true).catch((error) => console.error('Scheduled protected data sync failed:', error));
+  }, 15_000);
   return stopProtectedStorageSync;
 }
 
@@ -563,21 +575,10 @@ export function initStorage(options: { hydrateRemote?: boolean } = {}): void {
   if (!initialized) {
     localStorage.setItem(STORAGE_KEYS.PORTS, JSON.stringify(INITIAL_PORTS));
     localStorage.setItem(STORAGE_KEYS.DEPOTS, JSON.stringify(INITIAL_DEPOTS));
-    localStorage.setItem(STORAGE_KEYS.COMPANIES, JSON.stringify(INITIAL_COMPANIES.map((company) => ({
-      ...company,
-      port_id: company.port_id === 'jh-pg-ics' || company.port_id === 'jh-pg-depot' ? 'johor-port' : company.port_id,
-    }))));
-    localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(INITIAL_SUBMISSIONS.map((submission) => ({
-      ...submission,
-      port_id: submission.port_id === 'jh-pg-ics' || submission.port_id === 'jh-pg-depot' ? 'johor-port' : submission.port_id,
-      data: {
-        ...submission.data,
-        company: submission.data.company ? {
-          ...submission.data.company,
-          port_id: submission.data.company.port_id === 'jh-pg-ics' || submission.data.company.port_id === 'jh-pg-depot' ? 'johor-port' : submission.data.company.port_id,
-        } : submission.data.company,
-      },
-    }))));
+    // Operational records are database-owned. A fresh browser must not invent
+    // companies or registration submissions that do not exist in Supabase.
+    localStorage.setItem(STORAGE_KEYS.COMPANIES, JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify([]));
     localStorage.setItem(STORAGE_KEYS.USER_REGISTRATIONS, JSON.stringify([]));
     localStorage.setItem(STORAGE_KEYS.INITIALIZED, 'true');
   } else {
@@ -632,12 +633,6 @@ export function initStorage(options: { hydrateRemote?: boolean } = {}): void {
         const rawCompanies = localStorage.getItem(STORAGE_KEYS.COMPANIES);
         if (rawCompanies) {
           const companies: Company[] = JSON.parse(rawCompanies);
-          if (companies.length === 0) {
-            localStorage.setItem(STORAGE_KEYS.COMPANIES, JSON.stringify(INITIAL_COMPANIES.map((company) => ({
-              ...company,
-              port_id: company.port_id === 'jh-pg-ics' || company.port_id === 'jh-pg-depot' ? 'johor-port' : company.port_id,
-            }))));
-          }
           const normalizedCompanies = companies.map((company) => company.port_id === 'jh-pg-ics' || company.port_id === 'jh-pg-depot'
             ? { ...company, port_id: 'johor-port' }
             : company);
@@ -648,9 +643,6 @@ export function initStorage(options: { hydrateRemote?: boolean } = {}): void {
         const rawSubmissions = localStorage.getItem(STORAGE_KEYS.SUBMISSIONS);
         if (rawSubmissions) {
           const submissions: RegistrationSubmission[] = JSON.parse(rawSubmissions);
-          if (submissions.length === 0) {
-            localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(INITIAL_SUBMISSIONS));
-          }
           const normalizedSubmissions = submissions.map((submission) => ({
             ...submission,
             port_id: submission.port_id === 'jh-pg-ics' || submission.port_id === 'jh-pg-depot' ? 'johor-port' : submission.port_id,
@@ -684,26 +676,6 @@ export function clearProtectedStorage(): void {
   localStorage.removeItem(STORAGE_KEYS.USER_REGISTRATIONS);
   localStorage.removeItem(STORAGE_KEYS.SYNC_CURSOR);
 }
-
-// Reset data to defaults
-export function resetStorage(): void {
-  localStorage.setItem(STORAGE_KEYS.PORTS, JSON.stringify(INITIAL_PORTS));
-  localStorage.setItem(STORAGE_KEYS.DEPOTS, JSON.stringify(INITIAL_DEPOTS));
-  localStorage.setItem(STORAGE_KEYS.COMPANIES, JSON.stringify(INITIAL_COMPANIES.map((company) => ({
-    ...company,
-    port_id: company.port_id === 'jh-pg-ics' || company.port_id === 'jh-pg-depot' ? 'johor-port' : company.port_id,
-  }))));
-  localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(INITIAL_SUBMISSIONS.map((submission) => ({
-    ...submission,
-    port_id: submission.port_id === 'jh-pg-ics' || submission.port_id === 'jh-pg-depot' ? 'johor-port' : submission.port_id,
-  }))));
-  localStorage.setItem(STORAGE_KEYS.USER_REGISTRATIONS, JSON.stringify([]));
-  localStorage.setItem(STORAGE_KEYS.HAULIER_GUIDELINE, JSON.stringify(DEFAULT_HAULIER_GUIDELINE));
-  localStorage.setItem(STORAGE_KEYS.INITIALIZED, 'true');
-  notifyListeners();
-}
-
-export const resetToDemoData = resetStorage;
 
 // ==================== PORTS & DEPOTS ====================
 
@@ -855,7 +827,7 @@ export function getCompanies(): Company[] {
   if (!protectedDataEnabled) return [];
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.COMPANIES);
-    const companies: Company[] = raw ? JSON.parse(raw) : INITIAL_COMPANIES;
+    const companies: Company[] = raw ? JSON.parse(raw) : [];
     const normalized = companies.map((company) => ({
       ...company,
       company_type: normalizeCompanyType(company.company_type),
@@ -865,7 +837,7 @@ export function getCompanies(): Company[] {
     }
     return normalized;
   } catch {
-    return INITIAL_COMPANIES;
+    return [];
   }
 }
 
@@ -978,7 +950,7 @@ export function getSubmissions(): RegistrationSubmission[] {
   if (!protectedDataEnabled) return [];
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.SUBMISSIONS);
-    const list: RegistrationSubmission[] = raw ? JSON.parse(raw) : INITIAL_SUBMISSIONS;
+    const list: RegistrationSubmission[] = raw ? JSON.parse(raw) : [];
     list.forEach((sub) => {
       sub.company_type = normalizeCompanyType(sub.company_type);
       if (sub.data?.company) {
@@ -1001,7 +973,7 @@ export function getSubmissions(): RegistrationSubmission[] {
     });
     return list;
   } catch {
-    return INITIAL_SUBMISSIONS;
+    return [];
   }
 }
 

@@ -79,6 +79,7 @@ async function readTable(supabaseUrl: string, serviceRoleKey: string, table: str
 
 export default async function snapshot(request: any, response: any) {
   try {
+    response.setHeader('Cache-Control', 'no-store, max-age=0');
     if (request.method !== 'GET') {
       response.status(405).json({ error: 'Method not allowed.' });
       return;

@@ -53,7 +53,7 @@ export async function updateExternalUserAccess(
 }
 
 export async function getExternalUserAccess(): Promise<ExternalUserAccess[]> {
-  const response = await fetch('/api/external-user-access', { credentials: 'include' });
+  const response = await fetch('/api/external-user-access', { credentials: 'include', cache: 'no-store' });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body.error || 'Unable to load external user access records.');
   return body.users || [];

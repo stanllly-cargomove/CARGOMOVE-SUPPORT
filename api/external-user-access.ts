@@ -37,6 +37,7 @@ function isAdmin(request: any) {
 }
 
 export default async function externalUserAccess(request: any, response: any) {
+  response.setHeader('Cache-Control', 'no-store, max-age=0');
   const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !serviceRoleKey) {

@@ -11,6 +11,7 @@ import emailSend from './server-handlers/email/send.js';
 import emailLogs from './server-handlers/email/logs.js';
 import emailAttachments from './server-handlers/email/attachments.js';
 import companyRegistration from './api/company-registration.js';
+import companyLookup from './api/company-lookup.js';
 
 config({ path: '.env.local' });
 
@@ -229,6 +230,7 @@ app.get('/api/auth/users', requireSession, async (_request, response) => {
 });
 
 app.get('/api/external-user-access', requireSession, async (_request, response) => {
+  response.setHeader('Cache-Control', 'no-store, max-age=0');
   if (!supabase) {
     response.status(503).json({ error: 'Supabase server access is not configured.' });
     return;
@@ -350,8 +352,10 @@ app.post('/api/email/send', emailSend);
 app.get('/api/email/logs', emailLogs);
 app.post('/api/email/attachments', emailAttachments);
 app.post('/api/company-registration', companyRegistration);
+app.get('/api/company-lookup', companyLookup);
 
 app.get('/api/snapshot', requireSession, async (request, response) => {
+  response.setHeader('Cache-Control', 'no-store, max-age=0');
   try {
     if (!supabaseUrl || !serviceRoleKey) {
       response.status(503).json({ error: 'Supabase server access is not configured.', missing: missingServerVariables });

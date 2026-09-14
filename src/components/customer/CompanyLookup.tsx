@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { Company } from '../../types';
-import { findCompanyByRegNo, getCompanies } from '../../services/storage';
-import { Search, Building2, CheckCircle2, AlertCircle, ArrowLeft, ArrowRight } from 'lucide-react';
+import { lookupRegisteredCompany } from '../../services/registration';
+import { Search, CheckCircle2, AlertCircle, ArrowLeft, ArrowRight } from 'lucide-react';
 
 interface CompanyLookupProps {
   selectedCompany: Company | null;
-  onSelectCompany: (company: Company) => void;
+  onSelectCompany: (company: Company | null) => void;
   onBack: () => void;
   onNext: () => void;
   onRegisterNewCompany: () => void;
@@ -19,35 +19,35 @@ export function CompanyLookup({
   onRegisterNewCompany,
 }: CompanyLookupProps) {
   const [query, setQuery] = useState(selectedCompany?.registration_number || '');
-  const [searched, setSearched] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
 
-  const companies = getCompanies();
-
-  const handleSearch = (searchTerm?: string) => {
-    const term = (searchTerm ?? query).trim();
+  const handleSearch = async () => {
+    const term = query.trim();
     if (!term) {
       setErrorMsg('Please enter a Company Registration Number to search.');
       return;
     }
 
     setErrorMsg('');
-    setSearched(true);
-    const found = findCompanyByRegNo(term);
-    if (found) {
-      if (found.status === 'INACTIVE') {
-        setErrorMsg(`Company "${found.name}" is currently inactive in the port master. Please contact port support.`);
-        return;
+    setIsSearching(true);
+    onSelectCompany(null);
+    try {
+      const found = await lookupRegisteredCompany(term);
+      if (found) {
+        if (found.status === 'INACTIVE') {
+          setErrorMsg(`Company "${found.name}" is currently inactive in the port master. Please contact port support.`);
+          return;
+        }
+        onSelectCompany(found);
+      } else {
+        setErrorMsg(`No master company record found matching "${term}". Please ensure you entered the exact registration number or register your company first.`);
       }
-      onSelectCompany(found);
-    } else {
-      setErrorMsg(`No master company record found matching "${term}". Please ensure you entered the exact registration number or register your company first.`);
+    } catch (error) {
+      setErrorMsg(error instanceof Error ? error.message : 'Unable to verify the company right now.');
+    } finally {
+      setIsSearching(false);
     }
-  };
-
-  const handleQuickSelect = (regNo: string) => {
-    setQuery(regNo);
-    handleSearch(regNo);
   };
 
   return (
@@ -74,11 +74,12 @@ export function CompanyLookup({
               value={query}
               onChange={(e) => {
                 setQuery(e.target.value);
-                setSearched(false);
                 setErrorMsg('');
               }}
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-              placeholder="AAAAAA-2 or BBBBBB-1"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void handleSearch();
+              }}
+              placeholder="Enter the registered company number"
               className="w-full px-2.5 py-1.5 pl-8 rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-sky-500 text-xs font-medium tracking-wide uppercase font-mono"
             />
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2" />
@@ -86,28 +87,12 @@ export function CompanyLookup({
 
           <button
             type="button"
-            onClick={() => handleSearch()}
-            className="px-3.5 py-1.5 rounded bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold transition-colors"
+            onClick={() => void handleSearch()}
+            disabled={isSearching}
+            className="px-3.5 py-1.5 rounded bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold transition-colors disabled:cursor-wait disabled:opacity-60"
           >
-            Verify Company
+            {isSearching ? 'Verifying...' : 'Verify Company'}
           </button>
-        </div>
-
-        {/* Quick Demo Preloads */}
-        <div className="mt-3 pt-3 border-t border-slate-100">
-          <div className="text-[11px] text-slate-500 mb-1.5">Quick Demo Pre-fills from Master Database:</div>
-          <div className="flex flex-wrap gap-1.5">
-            {companies.slice(0, 3).map((comp) => (
-              <button
-                key={comp.id}
-                type="button"
-                onClick={() => handleQuickSelect(comp.registration_number)}
-                className="px-2 py-1 rounded bg-slate-50 hover:bg-sky-50 border border-slate-200 hover:border-sky-200 text-[11px] text-slate-700 font-mono transition-colors text-left"
-              >
-                <span className="font-bold text-slate-900">{comp.registration_number}</span> &bull; {comp.short_name}
-              </button>
-            ))}
-          </div>
         </div>
       </div>
 

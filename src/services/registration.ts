@@ -18,6 +18,14 @@ export interface RegistrationRequest {
   data: RegistrationSubmission['data'];
 }
 
+export async function lookupRegisteredCompany(registrationNumber: string): Promise<Company | null> {
+  const query = new URLSearchParams({ registration_number: registrationNumber });
+  const response = await fetch(`/api/company-lookup?${query.toString()}`, { cache: 'no-store' });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.error || 'Unable to verify the company.');
+  return body.company || null;
+}
+
 export async function submitRegistration(input: RegistrationRequest): Promise<{
   company: Company | null;
   submission: RegistrationSubmission;

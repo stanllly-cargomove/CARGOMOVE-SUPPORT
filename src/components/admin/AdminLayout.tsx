@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { Toaster } from 'react-hot-toast';
 import {
   LayoutDashboard,
@@ -7,7 +7,6 @@ import {
   FileSpreadsheet,
   Settings,
   TableProperties,
-  RotateCcw,
   BookOpen,
   Wrench,
   UserRoundPlus,
@@ -33,7 +32,6 @@ import { GuidelineManager } from './GuidelineManager';
 import { UserRegistration } from './UserRegistration';
 import { AdminUser } from './AdminUser';
 import { EmailTemplateManager } from './EmailTemplateManager';
-import { resetToDemoData } from '../../services/storage';
 import { Logo } from '../common/Logo';
 import { notifyError, notifySuccess } from '../common/notifications';
 import { RegistrationType } from '../../types';
@@ -51,37 +49,14 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
   const [queueRegistrationType, setQueueRegistrationType] = useState<RegistrationType>('COMPANY');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
-  const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const reloadTimerRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (reloadTimerRef.current !== null) {
-        window.clearTimeout(reloadTimerRef.current);
-      }
-    };
-  }, []);
-
-  const handleReset = () => {
-    try {
-      resetToDemoData();
-      setShowResetConfirm(false);
-      notifySuccess('Demo data reset successfully.');
-      reloadTimerRef.current = window.setTimeout(() => {
-        window.location.reload();
-      }, 800);
-    } catch {
-      notifyError('Unable to reset demo data.');
-    }
-  };
 
   const handleRefresh = async () => {
     if (isRefreshing) return;
     setIsRefreshing(true);
     try {
       await onRefreshData();
-      notifySuccess('Data cache checked for updates.');
+      notifySuccess('Latest database data loaded.');
     } catch {
       notifyError('Unable to check for new data.');
     } finally {
@@ -306,16 +281,6 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
 
             <button
               type="button"
-              onClick={() => setShowResetConfirm(true)}
-              aria-label="Reset Demo Mock Data"
-              className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 text-[11px] font-bold text-slate-600 transition-colors hover:border-rose-300 hover:bg-rose-50 hover:text-rose-600"
-            >
-              <RotateCcw className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Reset demo data</span>
-            </button>
-
-            <button
-              type="button"
               onClick={() => setIsDarkMode((darkMode) => !darkMode)}
               aria-pressed={isDarkMode}
               aria-label={isDarkMode ? 'Switch to light theme' : 'Switch to dark theme'}
@@ -385,40 +350,6 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
           {activeTab === 'schema' && <SchemaMappingInspector />}
         </main>
       </div>
-
-      {/* Reset Confirmation Modal */}
-      {showResetConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs" role="presentation">
-          <div role="dialog" aria-modal="true" aria-labelledby="reset-demo-title" className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-slate-100 text-center space-y-4">
-            <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
-              <RotateCcw className="w-6 h-6" />
-            </div>
-            <div>
-              <h3 id="reset-demo-title" className="font-bold text-slate-900 text-base">Reset Demo Data?</h3>
-              <p className="text-xs text-slate-500 mt-1">
-                This will re-initialize the mock database with standard companies (including missing ID cases for testing) and sample registration submissions.
-              </p>
-            </div>
-
-            <div className="flex items-center justify-center gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setShowResetConfirm(false)}
-                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleReset}
-                className="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow-sm"
-              >
-                Confirm Reset
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       <Toaster
         position="top-center"

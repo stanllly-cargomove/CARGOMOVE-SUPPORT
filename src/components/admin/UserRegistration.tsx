@@ -3,6 +3,7 @@ import { Download, Mail, Search, UsersRound, X } from 'lucide-react';
 import { getExternalUserAccess, ExternalUserAccess, updateExternalUserAccess } from '../../services/auth';
 import { EmailPreview, generateWelcomeEmailPreview, sendWelcomeEmail } from '../../services/email';
 import { notifyError, notifySuccess } from '../common/notifications';
+import { subscribeToStorage } from '../../services/storage';
 
 const statuses: ExternalUserAccess['status'][] = ['PENDING', 'DONE', 'REJECTED'];
 const emailStatuses: ExternalUserAccess['email_status'][] = ['NOT_READY', 'READY', 'SENDING', 'SENT', 'FAILED'];
@@ -21,7 +22,7 @@ export function UserRegistration() {
 
   useEffect(() => {
     let isMounted = true;
-    void getExternalUserAccess().then((records) => {
+    const loadUsers = () => void getExternalUserAccess().then((records) => {
       if (isMounted) {
         setUsers(records);
         setLoadError('');
@@ -32,7 +33,12 @@ export function UserRegistration() {
         setLoadError(error instanceof Error ? error.message : 'Unable to load company users.');
       }
     });
-    return () => { isMounted = false; };
+    loadUsers();
+    const unsubscribe = subscribeToStorage(loadUsers);
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
   }, []);
 
   const updateUser = async (user: ExternalUserAccess, changes: Partial<Pick<ExternalUserAccess, 'status'>>) => {
