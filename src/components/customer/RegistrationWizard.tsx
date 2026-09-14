@@ -209,27 +209,33 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
         <>
       {/* Top Navbar */}
       <header className="bg-[#0b1930] text-white border-b border-slate-800 sticky top-0 z-40">
-        <div className="max-w-[1320px] mx-auto px-4 sm:px-8 lg:px-[44px] h-[54px] flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Logo size="md" light />
+        <div className="max-w-[1320px] mx-auto px-3 sm:px-8 lg:px-[44px] h-[54px] flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="shrink-0 sm:hidden">
+              <Logo size="sm" light />
+            </div>
+            <div className="hidden shrink-0 sm:block">
+              <Logo size="md" light />
+            </div>
             <div className="hidden sm:flex items-center gap-4 pl-5 border-l border-slate-600/70 h-6">
               <span className="text-white text-sm sm:text-base font-semibold">Customer Registration</span>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             <button
               type="button"
               onClick={() => setShowTrackerModal(true)}
-              className="inline-flex items-center justify-center gap-2 h-[30px] px-3 text-xs font-semibold rounded-md bg-transparent hover:bg-white/10 text-slate-100 border border-sky-500/80 transition-colors"
+              className="inline-flex h-[30px] items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-sky-500/80 bg-transparent px-2 text-[11px] font-semibold text-slate-100 transition-colors hover:bg-white/10 sm:gap-2 sm:px-3 sm:text-xs"
             >
               <Search className="w-3.5 h-3.5 text-[#0095e8]" />
-              Track registration
+              <span className="sm:hidden">Track</span>
+              <span className="hidden sm:inline">Track registration</span>
             </button>
             <button
               type="button"
               onClick={onSwitchToAdmin}
-              className="inline-flex items-center justify-center h-[30px] px-4 text-xs font-semibold rounded-md bg-[#0095e8] hover:bg-[#0078c8] text-white border border-[#0095e8] transition-colors"
+              className="inline-flex h-[30px] items-center justify-center whitespace-nowrap rounded-md border border-[#0095e8] bg-[#0095e8] px-3 text-[11px] font-semibold text-white transition-colors hover:bg-[#0078c8] sm:px-4 sm:text-xs"
             >
               Login
             </button>
@@ -239,21 +245,23 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
 
       {/* Progress Bar (visible through the Review screen) */}
       {currentStep <= reviewStep && (
-        <div className="h-[68px] flex items-center bg-white border-b border-[#e8eef5] px-4">
-          <div className="max-w-[640px] mx-auto w-full flex items-center justify-between text-xs font-semibold">
+        <div className="min-h-[68px] flex items-center bg-white border-b border-[#e8eef5] px-2 py-2 sm:px-4">
+          <div className="max-w-[640px] mx-auto w-full flex items-start justify-between text-xs font-semibold">
             {progressSteps.map((step, idx) => {
               const isPast = activeProgressStep > step.num;
               const isCurrent = activeProgressStep === step.num;
 
               return (
                 <React.Fragment key={step.num}>
-                  <div className="flex items-center gap-2">
+                  <div className="flex min-w-0 flex-1 flex-col items-center gap-1 text-center sm:flex-row sm:gap-2 sm:text-left">
                     <div className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-[11px] transition-colors ${
                       isPast ? 'bg-emerald-600 text-white' : isCurrent ? 'bg-[#0095e8] text-white ring-4 ring-sky-100' : 'bg-[#eef3f8] text-[#5b6b84]'
                     }`}>
                       {isPast ? <Check className="w-3.5 h-3.5" /> : step.num}
                     </div>
-                    <span className={`hidden sm:inline whitespace-nowrap ${isCurrent ? 'text-[#102a56] font-bold' : 'text-[#5b6b84]'}`}>{step.label}</span>
+                    <span className={`max-w-[76px] text-[9px] leading-3 sm:max-w-none sm:whitespace-nowrap sm:text-xs ${isCurrent ? 'text-[#102a56] font-bold' : 'text-[#5b6b84]'}`}>
+                      {step.label}
+                    </span>
                   </div>
                 </React.Fragment>
               );

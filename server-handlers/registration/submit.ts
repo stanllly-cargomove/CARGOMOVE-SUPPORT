@@ -3,6 +3,11 @@ import { adminClient, missingVariables, requestBody } from '../../api/_runtime.j
 
 const registrationTypes = new Set(['COMPANY', 'DRIVER', 'TRAILER', 'VEHICLE']);
 const portLocations = new Set(['PORT_KLANG', 'JOHOR', 'OTHER']);
+const companyTypesByLocation: Record<string, Set<string>> = {
+  PORT_KLANG: new Set(['TRANSPORT', 'FORWARDER']),
+  JOHOR: new Set(['TRANSPORT', 'FORWARDER', 'HAULAGE']),
+  OTHER: new Set(['TRANSPORT', 'FORWARDER', 'HAULAGE']),
+};
 const companyFields = [
   'registration_number',
   'registration_number_old',
@@ -101,7 +106,7 @@ export default async function companyRegistration(request: any, response: any) {
     if (registrationType === 'COMPANY') {
       const registrationNumber = text(companyInput.registration_number_old || companyInput.registration_number || companyInput.registration_number_new);
       const companyName = text(companyInput.name).toUpperCase();
-      const companyType = text(companyInput.company_type);
+      const companyType = text(companyInput.company_type).toUpperCase();
       const username = text(userInput.username).toLowerCase();
       const email = text(userInput.email).toLowerCase();
       const password = String(userInput.password || '');
@@ -109,6 +114,17 @@ export default async function companyRegistration(request: any, response: any) {
       const mobileNumber = text(userInput.mobile_number);
       if (!registrationNumber || !companyName || !companyType) {
         response.status(400).json({ error: 'Company name, type, and registration number are required.' });
+        return;
+      }
+      if (!companyTypesByLocation[portLocation].has(companyType)) {
+        const facilityLabel = portLocation === 'PORT_KLANG'
+          ? 'Port Klang'
+          : portLocation === 'JOHOR'
+            ? 'Johor Depot'
+            : 'the selected facility';
+        response.status(400).json({
+          error: `${companyType} is not an available company category for ${facilityLabel}.`,
+        });
         return;
       }
       if (!username || !email || !email.includes('@') || password.length < 6 || !fullName || !mobileNumber) {

@@ -155,59 +155,60 @@ export function LoginPage({ onBack, onSuccess }: LoginPageProps) {
           </form>
         </div>
 
-        <AnimatePresence>
-          {isInformationOpen && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 z-20 flex items-center justify-center bg-slate-950/35 p-6 backdrop-blur-[2px]"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="login-information-title"
-              onClick={() => setIsInformationOpen(false)}
-            >
-              <motion.div
-                initial={{ opacity: 0, scale: 0.96, y: 8 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.96, y: 8 }}
-                transition={{ duration: 0.2 }}
-                className="relative w-full rounded-lg bg-white p-6 shadow-2xl"
-                onClick={(event) => event.stopPropagation()}
-              >
-                <button
-                  type="button"
-                  onClick={() => setIsInformationOpen(false)}
-                  className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0095e8]"
-                  aria-label="Close information"
-                >
-                  <X className="h-4 w-4" aria-hidden="true" />
-                </button>
-
-                <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-sky-50 text-[#008bd2]">
-                  <Info className="h-5 w-5" aria-hidden="true" />
-                </div>
-                <h2 id="login-information-title" className="pr-8 text-lg font-bold text-slate-800">Registration website only</h2>
-                <p className="mt-3 text-sm leading-6 text-slate-600">
-                  Please note that <strong className="font-semibold text-slate-800">this is not the CargoMove website for creating bookings</strong>. This website is <strong className="font-semibold text-slate-800">for registration purposes only</strong>.
-                </p>
-                <p className="mt-3 text-sm leading-6 text-slate-600">
-                  To create and manage your bookings, please log in to the CargoMove system here:
-                </p>
-                <a
-                  href="https://www.cargomove.my"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-5 inline-flex w-full items-center justify-center rounded bg-[#0095e8] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#0078c8] focus:outline-none focus:ring-2 focus:ring-[#0095e8] focus:ring-offset-2"
-                >
-                  CargoMove Login
-                </a>
-                <p className="mt-2 text-center text-xs text-slate-400">www.cargomove.my</p>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </motion.section>
+
+      <AnimatePresence>
+        {isInformationOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-[3px] sm:p-8"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="login-information-title"
+            onClick={() => setIsInformationOpen(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 8 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-2xl rounded-xl bg-white p-6 shadow-2xl sm:p-10"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <button
+                type="button"
+                onClick={() => setIsInformationOpen(false)}
+                className="absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0095e8]"
+                aria-label="Close information"
+              >
+                <X className="h-5 w-5" aria-hidden="true" />
+              </button>
+
+              <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-full bg-sky-50 text-[#008bd2] sm:h-14 sm:w-14">
+                <Info className="h-6 w-6 sm:h-7 sm:w-7" aria-hidden="true" />
+              </div>
+              <h2 id="login-information-title" className="pr-10 text-xl font-bold text-slate-800 sm:text-2xl">Registration website only</h2>
+              <p className="mt-4 text-base leading-7 text-slate-600">
+                Please note that <strong className="font-semibold text-slate-800">this is not the CargoMove website for creating bookings</strong>. This website is <strong className="font-semibold text-slate-800">for registration purposes only</strong>.
+              </p>
+              <p className="mt-4 text-base leading-7 text-slate-600">
+                To create and manage your bookings, please log in to the CargoMove system here:
+              </p>
+              <a
+                href="https://www.cargomove.my"
+                target="_blank"
+                rel="noreferrer"
+                className="mt-6 inline-flex w-full items-center justify-center rounded bg-[#0095e8] px-5 py-3.5 text-base font-bold text-white transition hover:bg-[#0078c8] focus:outline-none focus:ring-2 focus:ring-[#0095e8] focus:ring-offset-2"
+              >
+                CargoMove Login
+              </a>
+              <p className="mt-3 text-center text-sm text-slate-400">www.cargomove.my</p>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <p className="absolute bottom-5 left-4 right-4 z-10 text-center text-[9px] font-normal italic tracking-[0.14em] text-white sm:bottom-8 sm:text-[10px]">
         COPYRIGHT © 2026 ALL RIGHTS RESERVED. CARGOFLOW.

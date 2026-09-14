@@ -2,7 +2,7 @@ import React, { useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { PortLocation, CompanyFormData } from '../../../types';
 import { getAutoAssignedPorts } from '../../../services/storage';
-import { normalizeCompanyType } from '../../../services/companyHelper';
+import { CompanyType, normalizeCompanyType } from '../../../services/companyHelper';
 import { notifyError, notifySuccess, notifyWarning } from '../../common/notifications';
 import { ArrowLeft, ArrowRight, Building2, Phone, CheckCircle2, LoaderCircle, Upload } from 'lucide-react';
 
@@ -123,11 +123,33 @@ export function CompanyForm({
   onBack,
 }: CompanyFormProps) {
   const autoPorts = getAutoAssignedPorts(initialLocation);
+  const facilityLabel = initialLocation === 'PORT_KLANG'
+    ? 'Port Klang'
+    : initialLocation === 'JOHOR'
+      ? 'Johor Depot'
+      : 'Other Facility';
+  const companyTypeOptions: Array<{ value: CompanyType; label: string }> = initialLocation === 'PORT_KLANG'
+    ? [
+        { value: 'TRANSPORT', label: 'TRANSPORTER' },
+        { value: 'FORWARDER', label: 'FORWARDER' },
+      ]
+    : [
+        { value: 'TRANSPORT', label: 'TRANSPORTER' },
+        { value: 'FORWARDER', label: 'FORWARDER' },
+        { value: 'HAULAGE', label: 'HAULAGE' },
+      ];
+  const importedOrSavedCompanyType = normalizeCompanyType(initialData?.company_type);
+  const initialCompanyType = companyTypeOptions.some(({ value }) => value === importedOrSavedCompanyType)
+    ? importedOrSavedCompanyType
+    : companyTypeOptions[0].value;
 
-  const [formData, setFormData] = useState<CompanyFormData>(initialData || {
+  const [formData, setFormData] = useState<CompanyFormData>(initialData ? {
+    ...initialData,
+    company_type: initialCompanyType,
+  } : {
     name: '',
     short_name: '',
-    company_type: 'FORWARDER',
+    company_type: initialCompanyType,
     registration_number: '',
     registration_number_old: '',
     registration_number_new: '',
@@ -236,7 +258,15 @@ export function CompanyForm({
         if (value) imported[field] = value;
       });
 
-      if (imported.company_type) imported.company_type = normalizeCompanyType(imported.company_type);
+      if (imported.company_type) {
+        const normalizedCompanyType = normalizeCompanyType(imported.company_type);
+        if (companyTypeOptions.some(({ value }) => value === normalizedCompanyType)) {
+          imported.company_type = normalizedCompanyType;
+        } else {
+          importWarnings.push(`${normalizedCompanyType} is not available for ${facilityLabel} and was not imported.`);
+          delete imported.company_type;
+        }
+      }
       if (imported.country) {
         const supportedCountry = Object.keys(statesByCountry).find(
           (country) => country.toLowerCase() === imported.country?.toLowerCase()
@@ -279,6 +309,9 @@ export function CompanyForm({
     const errs: Record<string, string> = {};
     if (!formData.name.trim()) errs.name = 'Company Name is required.';
     if (!formData.short_name.trim()) errs.short_name = 'Company Short Name is required.';
+    if (!companyTypeOptions.some(({ value }) => value === formData.company_type)) {
+      errs.company_type = `Select a company category available for ${facilityLabel}.`;
+    }
     if (!formData.registration_number_old?.trim()) errs.registration_number_old = 'Old Registration Number is required.';
     if (!formData.address1?.trim()) errs.address1 = 'Address Line 1 is required.';
     if (!formData.city?.trim()) errs.city = 'City is required.';
@@ -296,7 +329,7 @@ export function CompanyForm({
 
   const validatePage = (page: number) => {
     const pageFields: Record<number, (keyof CompanyFormData)[]> = {
-      1: ['name', 'short_name', 'registration_number_old'],
+      1: ['name', 'short_name', 'company_type', 'registration_number_old'],
       2: ['address1', 'city', 'state', 'postcode'],
       3: ['contact_name', 'contact_email', 'contact_mobile'],
     };
@@ -305,6 +338,9 @@ export function CompanyForm({
     if (pageFields[page].includes('name') && !formData.name.trim()) allErrors.name = 'Company Name is required.';
     if (pageFields[page].includes('short_name') && !formData.short_name.trim()) {
       allErrors.short_name = 'Company Short Name is required.';
+    }
+    if (pageFields[page].includes('company_type') && !companyTypeOptions.some(({ value }) => value === formData.company_type)) {
+      allErrors.company_type = `Select a company category available for ${facilityLabel}.`;
     }
     if (pageFields[page].includes('registration_number_old') && !formData.registration_number_old?.trim()) {
       allErrors.registration_number_old = 'Old Registration Number is required.';
@@ -377,7 +413,9 @@ export function CompanyForm({
       {/* Header */}
       <div className="flex items-center justify-between pb-3">
         <div>
-          <h2 className="text-base font-bold text-slate-900 tracking-tight">Company Registration Form</h2>
+          <h2 className="text-base font-bold text-slate-900 tracking-tight">
+            Company Registration Form - {facilityLabel}
+          </h2>
           <p className="text-slate-500 text-xs mt-0.5">
             Fill in legal company profile and primary operational contact details.
           </p>
@@ -395,7 +433,7 @@ export function CompanyForm({
           type="button"
           onClick={() => excelInputRef.current?.click()}
           disabled={isImportingExcel}
-          className="inline-flex shrink-0 items-center rounded border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+          className="hidden shrink-0 items-center rounded border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60 lg:inline-flex"
         >
           {isImportingExcel
             ? <LoaderCircle className="mr-1 h-3 w-3 animate-spin" />
@@ -455,32 +493,18 @@ export function CompanyForm({
             <label className="block text-[11px] font-semibold text-slate-700 mb-1">
               Company Category / Type <span className="text-rose-500">*</span>
             </label>
-            {initialLocation === 'PORT_KLANG' ? (
-              <div>
-                <select
-                  value={formData.company_type}
-                  onChange={(e) => handleChange('company_type', e.target.value)}
-                  className="w-full px-2.5 py-1.5 rounded border border-slate-300 text-xs focus:ring-1 focus:ring-sky-500 focus:outline-none bg-white font-semibold text-slate-800"
-                >
-                  <option value="FORWARDER">FORWARDER</option>
-                  <option value="TRANSPORT">TRANSPORTER</option>
-                  <option value="HAULAGE">HAULAGE</option>
-                </select>
-                <p className="text-[10px] text-sky-700 mt-1 font-medium bg-sky-50 p-1.5 rounded border border-sky-100">
-                  Select the applicable company type for this registration.
-                </p>
-              </div>
-            ) : (
+            <div>
               <select
                 value={formData.company_type}
                 onChange={(e) => handleChange('company_type', e.target.value)}
                 className="w-full px-2.5 py-1.5 rounded border border-slate-300 text-xs focus:ring-1 focus:ring-sky-500 focus:outline-none bg-white font-medium text-slate-800"
               >
-                <option value="FORWARDER">FORWARDER</option>
-                <option value="TRANSPORT">TRANSPORTER</option>
-                <option value="HAULAGE">HAULAGE</option>
+                {companyTypeOptions.map(({ value, label }) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
               </select>
-            )}
+              <FieldError message={errors.company_type} />
+            </div>
           </div>
 
           <div>

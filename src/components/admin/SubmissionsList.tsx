@@ -38,6 +38,8 @@ interface SubmissionsListProps {
   initialType?: RegistrationType;
 }
 
+type IdFilter = 'ALL' | 'MISSING' | 'WITH_ID';
+
 const statusTitles: Record<SubmissionStatus, string> = {
   PENDING: 'Pending Registration Submissions',
   DONE: 'Closed / Done Registration Submissions',
@@ -56,7 +58,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<RegistrationType | 'ALL'>(initialType);
   const [portFilter, setPortFilter] = useState<string>('ALL');
-  const [missingIdOnly, setMissingIdOnly] = useState(false);
+  const [idFilter, setIdFilter] = useState<IdFilter>('ALL');
   const [openActionMenu, setOpenActionMenu] = useState<{ id: string; top: number; left: number } | null>(null);
 
   // Modals
@@ -80,7 +82,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
     setOpenActionMenu(null);
     setActiveSubmission(null);
     setAssignIdCompany(null);
-    setMissingIdOnly(false);
+    setIdFilter('ALL');
     setRejectingSubmission(null);
     setPreview(null);
   }, [status]);
@@ -120,9 +122,12 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
     // Check if parent company has required ID
     const company = sub.company_id ? getCompanyById(sub.company_id) : undefined;
     const idInfo = getCompanyExternalId(company || { company_type: sub.company_type });
-    const matchesMissingId = !missingIdOnly || !idInfo.has_required_id;
+    const matchesId =
+      idFilter === 'ALL' ||
+      (idFilter === 'MISSING' && !idInfo.has_required_id) ||
+      (idFilter === 'WITH_ID' && idInfo.has_required_id);
 
-    return matchesSearch && matchesType && matchesStatus && matchesPort && matchesMissingId;
+    return matchesSearch && matchesType && matchesStatus && matchesPort && matchesId;
   });
 
   const handleBulkExport = () => {
@@ -264,19 +269,18 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
             <option value="JOHOR">JOHOR</option>
           </select>
 
-          {/* Missing IDs are actionable only while a submission is pending. */}
+          {/* ID completeness is actionable only while a submission is pending. */}
           {status === 'PENDING' && (
-            <button
-              type="button"
-              onClick={() => setMissingIdOnly(!missingIdOnly)}
-              className={`h-9 whitespace-nowrap rounded-lg border px-3 text-xs font-bold uppercase transition-colors ${
-                missingIdOnly
-                  ? 'bg-amber-100 text-amber-800 border-amber-300'
-                  : 'bg-slate-50 text-slate-600 border-slate-300 hover:bg-slate-100'
-              }`}
+            <select
+              value={idFilter}
+              onChange={(event) => setIdFilter(event.target.value as IdFilter)}
+              aria-label="Filter submissions by CargoMove ID status"
+              className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold uppercase focus:ring-2 focus:ring-blue-500"
             >
-              ⚠ MISSING ID ONLY
-            </button>
+              <option value="ALL">ALL IDS</option>
+              <option value="MISSING">MISSING ID</option>
+              <option value="WITH_ID">WITH ID</option>
+            </select>
           )}
 
           <button
