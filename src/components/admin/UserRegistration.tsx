@@ -2,12 +2,25 @@ import React, { useEffect, useState } from 'react';
 import { Download, Mail, Pencil, Save, Search, UsersRound, X } from 'lucide-react';
 import { getExternalUserAccess, ExternalUserAccess, updateExternalUserAccess } from '../../services/auth';
 import { EmailPreview, generateWelcomeEmailPreview, sendWelcomeEmail } from '../../services/email';
+import { RichTextEmailEditor } from './RichTextEmailEditor';
 import { notifyError, notifySuccess } from '../common/notifications';
 import { subscribeToStorage } from '../../services/storage';
 
 const statuses: ExternalUserAccess['status'][] = ['PENDING', 'DONE', 'REJECTED'];
 const emailStatuses: ExternalUserAccess['email_status'][] = ['NOT_READY', 'READY', 'SENDING', 'SENT', 'FAILED'];
 type EditableUserField = 'username' | 'email' | 'password' | 'company_name' | 'full_name' | 'mobile_number' | 'status';
+
+const statusSelectClasses: Record<ExternalUserAccess['status'], string> = {
+  PENDING: 'border-amber-300 bg-amber-50 text-amber-700',
+  DONE: 'border-emerald-300 bg-emerald-50 text-emerald-700',
+  REJECTED: 'border-rose-300 bg-rose-50 text-rose-700',
+};
+
+const queueStatusPriority: Record<ExternalUserAccess['status'], number> = {
+  PENDING: 0,
+  REJECTED: 1,
+  DONE: 2,
+};
 
 export function UserRegistration() {
   const [users, setUsers] = useState<ExternalUserAccess[]>([]);
@@ -141,22 +154,28 @@ export function UserRegistration() {
     }
   };
 
-  const filteredUsers = users.filter((user) => {
-    const term = searchTerm.toLowerCase();
-    const resolvedEmailStatus = user.email_status || (user.status === 'DONE' ? 'READY' : 'NOT_READY');
-    const matchesSearch = !term || [
-      user.username,
-      user.email,
-      user.company_name,
-      user.full_name,
-      user.mobile_number,
-      user.status,
-      resolvedEmailStatus,
-    ].some((value) => String(value || '').toLowerCase().includes(term));
-    return matchesSearch
-      && (registrationStatusFilter === 'ALL' || user.status === registrationStatusFilter)
-      && (emailStatusFilter === 'ALL' || resolvedEmailStatus === emailStatusFilter);
-  });
+  const filteredUsers = users
+    .filter((user) => {
+      const term = searchTerm.toLowerCase();
+      const resolvedEmailStatus = user.email_status || (user.status === 'DONE' ? 'READY' : 'NOT_READY');
+      const matchesSearch = !term || [
+        user.username,
+        user.email,
+        user.company_name,
+        user.full_name,
+        user.mobile_number,
+        user.status,
+        resolvedEmailStatus,
+      ].some((value) => String(value || '').toLowerCase().includes(term));
+      return matchesSearch
+        && (registrationStatusFilter === 'ALL' || user.status === registrationStatusFilter)
+        && (emailStatusFilter === 'ALL' || resolvedEmailStatus === emailStatusFilter);
+    })
+    .sort((left, right) => {
+      const statusDifference = queueStatusPriority[left.status] - queueStatusPriority[right.status];
+      const dateDifference = Date.parse(left.created_at) - Date.parse(right.created_at);
+      return statusDifference || dateDifference || left.id.localeCompare(right.id);
+    });
 
   const downloadReport = () => {
     if (!filteredUsers.length) {
@@ -248,14 +267,14 @@ export function UserRegistration() {
           <table className="w-full table-fixed border-collapse text-left text-[11px]">
             <colgroup>
               <col className="w-[9%]" />
-              <col className="w-[15%]" />
-              <col className="w-[9%]" />
+              <col className="w-[16%]" />
               <col className="w-[10%]" />
               <col className="w-[11%]" />
-              <col className="w-[11%]" />
+              <col className="w-[12%]" />
+              <col className="w-[12%]" />
               <col className="w-[8%]" />
-              <col className="w-[10%]" />
-              <col className="w-[17%]" />
+              <col className="w-[8%]" />
+              <col className="w-[14%]" />
             </colgroup>
             <thead>
               <tr className="whitespace-nowrap border-b border-slate-200 bg-slate-50 text-[9px] font-bold uppercase tracking-wide text-slate-600 xl:text-[10px]">
@@ -264,7 +283,7 @@ export function UserRegistration() {
                 <th className="px-2 py-2.5">Password</th>
                 <th className="px-2 py-2.5">Company</th>
                 <th className="px-2 py-2.5">Full name</th>
-                <th className="px-2 py-2.5">Mobile number</th>
+                <th className="px-2 py-2.5 text-center">Mobile number</th>
                 <th className="px-2 py-2.5 text-center">Status</th>
                 <th className="px-2 py-2.5 text-center">Email Status</th>
                 <th className="px-2 py-2.5 text-center">Action</th>
@@ -285,19 +304,23 @@ export function UserRegistration() {
                   <td className="px-2 py-2 font-mono text-[10px] text-slate-700"><span className="block truncate" title={user.password || 'Unavailable (legacy record)'}>{user.password || 'Unavailable'}</span></td>
                   <td className="px-2 py-2 text-slate-700"><span className="block truncate" title={user.company_name}>{user.company_name}</span></td>
                   <td className="px-2 py-2 text-slate-700"><span className="block truncate" title={user.full_name}>{user.full_name}</span></td>
-                  <td className="px-2 py-2 text-slate-700"><span className="block truncate" title={user.mobile_number}>{user.mobile_number}</span></td>
+                  <td className="px-2 py-2 text-center text-slate-700"><span className="block truncate" title={user.mobile_number}>{user.mobile_number}</span></td>
                   <td className="px-2 py-2 text-center">
                     <select
                       value={user.status || 'PENDING'}
                       onChange={(event) => void changeStatus(user, event.target.value as ExternalUserAccess['status'])}
                       disabled={savingKeys.has(`${user.id}-status`)}
-                      className="h-6 w-full max-w-[5.5rem] rounded-md border border-slate-300 bg-white px-1 text-[10px] font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-wait disabled:opacity-60"
+                      className={`h-6 w-full max-w-[5.5rem] rounded-md border px-1 text-[10px] font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-wait disabled:opacity-60 ${statusSelectClasses[user.status || 'PENDING']}`}
                       aria-label={`Status for ${user.username}`}
                     >
                       {statuses.map((status) => <option key={status} value={status}>{status}</option>)}
                     </select>
                   </td>
-                  <td className="px-2 py-2 text-center"><span className="whitespace-nowrap text-[10px] font-semibold text-slate-600">{user.email_status || (user.status === 'DONE' ? 'READY' : 'NOT_READY')}</span></td>
+                  <td className="px-2 py-2 text-center">
+                    <span className="inline-flex h-7 w-[4.75rem] items-center justify-center whitespace-nowrap rounded-md bg-slate-50 text-[10px] font-semibold text-slate-600">
+                      {user.email_status || (user.status === 'DONE' ? 'READY' : 'NOT_READY')}
+                    </span>
+                  </td>
                   <td className="px-2 py-2 text-center">
                     <div className="flex items-center justify-center gap-1">
                       <button
@@ -312,7 +335,7 @@ export function UserRegistration() {
                         type="button"
                         onClick={() => void openPreview(user)}
                         disabled={user.status !== 'DONE' || openingPreview === user.id || user.email_status === 'SENDING'}
-                        className="inline-flex h-7 min-w-0 items-center justify-center gap-1 whitespace-nowrap rounded-md border border-blue-200 bg-blue-50 px-2 text-[10px] font-bold text-blue-700 transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-500"
+                        className="inline-flex h-7 w-[4.75rem] shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-md border border-blue-200 bg-blue-50 px-1 text-[10px] font-bold text-blue-700 transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-500"
                       >
                         <Mail className="h-3 w-3 shrink-0" />
                         {openingPreview === user.id ? 'Loading...' : user.email_status === 'SENT' ? 'Resend' : user.status === 'DONE' ? 'Preview' : 'Set DONE'}
@@ -356,7 +379,7 @@ export function UserRegistration() {
                 <input type="tel" required value={editingUser.mobile_number} onChange={(event) => changeEditField('mobile_number', event.target.value)} className="mt-1.5 h-9 w-full rounded-lg border border-slate-300 px-3 font-normal focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </label>
               <label className="text-xs font-semibold text-slate-700 sm:col-span-2">Registration status
-                <select value={editingUser.status} onChange={(event) => changeEditField('status', event.target.value)} className="mt-1.5 h-9 w-full rounded-lg border border-slate-300 bg-white px-3 font-normal focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <select value={editingUser.status} onChange={(event) => changeEditField('status', event.target.value)} className={`mt-1.5 h-9 w-full rounded-lg border px-3 font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 ${statusSelectClasses[editingUser.status]}`}>
                   {statuses.map((status) => <option key={status} value={status}>{status}</option>)}
                 </select>
               </label>
@@ -383,9 +406,9 @@ export function UserRegistration() {
               <label className="block text-xs font-semibold text-slate-700">Subject
                 <input value={preview.subject} onChange={(event) => setPreview({ ...preview, subject: event.target.value })} className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
               </label>
-              <label className="block text-xs font-semibold text-slate-700">Message
-                <textarea value={preview.body} onChange={(event) => setPreview({ ...preview, body: event.target.value })} rows={20} className="mt-1.5 w-full resize-y rounded-lg border border-slate-300 px-3 py-2 font-mono text-xs font-normal leading-5" />
-              </label>
+              <div className="text-xs font-semibold text-slate-700">Message
+                <RichTextEmailEditor value={preview.body} onChange={(body) => setPreview((current) => current ? { ...current, body } : current)} minHeightClassName="min-h-64" />
+              </div>
               {preview.attachments.length > 0 && (
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
                   <div className="mb-2 text-xs font-semibold text-slate-700">Attachments</div>

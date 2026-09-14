@@ -15,14 +15,16 @@ export default async function attachmentUpload(request: any, response: any) {
   const name = String(body.name || '').trim();
   const contentType = String(body.contentType || '').toLowerCase();
   const size = Number(body.size || 0);
+  const templateId = String(body.templateId || '');
   if (!name || name.length > 255 || /[\r\n]/.test(name)) return response.status(400).json({ error: 'A valid attachment name is required.' });
   if (!ALLOWED_ATTACHMENT_TYPES.has(contentType)) return response.status(400).json({ error: 'This attachment type is not supported.' });
   if (!Number.isSafeInteger(size) || size < 1 || size > MAX_TOTAL_ATTACHMENT_BYTES) {
     return response.status(400).json({ error: 'Each attachment must be 15 MB or smaller.' });
   }
+  if (!/^[a-z0-9][a-z0-9-]{0,99}$/.test(templateId)) return response.status(400).json({ error: 'A valid template ID is required.' });
 
   const extension = name.match(/\.([a-z0-9]{1,10})$/i)?.[1]?.toLowerCase();
-  const path = `cargomove-welcome/${crypto.randomUUID()}${extension ? `.${extension}` : ''}`;
+  const path = `${templateId}/${crypto.randomUUID()}${extension ? `.${extension}` : ''}`;
   const storageResponse = await fetch(`${supabaseUrl}/storage/v1/object/upload/sign/${BUCKET}/${path}`, {
     method: 'POST',
     headers: {

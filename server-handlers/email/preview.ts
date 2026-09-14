@@ -1,5 +1,5 @@
 // Routed through the single Express Vercel function.
-import { bodyOf, configuredClient, createPreviewToken, noStore, renderWelcomeTemplate, requireAdmin, WELCOME_TEMPLATE_ID } from '../_email.js';
+import { bodyOf, configuredClient, createPreviewToken, noStore, renderWelcomeTemplate, requireAdmin } from '../_email.js';
 
 export default async function preview(request: any, response: any) {
   noStore(response);
@@ -14,7 +14,7 @@ export default async function preview(request: any, response: any) {
 
   const [userResult, templateResult] = await Promise.all([
     client.from('external_user_access').select('id,email,username,password,status,email_status').eq('id', userId).maybeSingle(),
-    client.from('email_templates').select('*').eq('id', WELCOME_TEMPLATE_ID).eq('active', true).maybeSingle(),
+    client.from('email_templates').select('*').eq('active', true).order('updated_at', { ascending: false }).limit(1).maybeSingle(),
   ]);
   if (userResult.error || templateResult.error) {
     return response.status(502).json({ error: userResult.error?.message || templateResult.error?.message });

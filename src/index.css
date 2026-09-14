@@ -166,6 +166,26 @@ code, kbd, samp, pre {
   color: #94a3b8;
 }
 
+.rich-email-editor:empty::before {
+  content: attr(data-placeholder);
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+.rich-email-editor h1 { font-size: 1.5rem; font-weight: 700; line-height: 2rem; }
+.rich-email-editor h2 { font-size: 1.25rem; font-weight: 700; line-height: 1.75rem; }
+.rich-email-editor h3 { font-size: 1.125rem; font-weight: 700; line-height: 1.75rem; }
+.rich-email-editor p { margin: 0.5rem 0; }
+.rich-email-editor ul { list-style: disc; padding-left: 1.5rem; }
+.rich-email-editor ol { list-style: decimal; padding-left: 1.5rem; }
+.rich-email-editor blockquote { border-left: 3px solid #cbd5e1; color: #475569; margin: 0.5rem 0; padding-left: 0.75rem; }
+.rich-email-editor a { color: #2563eb; text-decoration: underline; }
+
+.admin-theme-dark .rich-email-editor {
+  background-color: #1e293b;
+  color: #f8fafc;
+}
+
 .admin-theme-dark .divide-slate-100 > :not(:last-child),
 .admin-theme-dark .divide-slate-200 > :not(:last-child) {
   border-color: #334155 !important;

@@ -5,7 +5,7 @@ export interface EmailAttachment {
   size: number;
 }
 
-export interface WelcomeEmailTemplate {
+export interface EmailTemplate {
   id: string;
   name: string;
   trigger_status: 'DONE';
@@ -17,6 +17,8 @@ export interface WelcomeEmailTemplate {
   version: number;
   updated_at?: string;
 }
+
+export type WelcomeEmailTemplate = EmailTemplate;
 
 export interface EmailPreview {
   recipient: string;
@@ -48,28 +50,43 @@ async function parse<T>(response: Response): Promise<T> {
   return body as T;
 }
 
-export async function getWelcomeEmailTemplate(): Promise<WelcomeEmailTemplate | null> {
+export async function getEmailTemplates(): Promise<EmailTemplate[]> {
   const response = await fetch('/api/email/templates', { credentials: 'include', cache: 'no-store' });
-  const template = (await parse<{ template: WelcomeEmailTemplate | null }>(response)).template;
-  return template ? { ...template, attachments: template.attachments || [] } : null;
+  const result = await parse<{ templates?: EmailTemplate[]; template?: EmailTemplate | null }>(response);
+  // During a rolling/local update the API may still be serving the previous
+  // single-template response shape. Supporting it prevents the page crashing
+  // while the API process restarts or frontend/backend deployments overlap.
+  const templates = Array.isArray(result.templates)
+    ? result.templates
+    : result.template
+      ? [result.template]
+      : [];
+  return templates.map((template) => ({ ...template, attachments: Array.isArray(template.attachments) ? template.attachments : [] }));
 }
 
-export async function saveWelcomeEmailTemplate(template: Pick<WelcomeEmailTemplate, 'name' | 'recipient_template' | 'subject_template' | 'body_template' | 'attachments' | 'active'>) {
+export async function saveEmailTemplate(template: Pick<EmailTemplate, 'id' | 'name' | 'recipient_template' | 'subject_template' | 'body_template' | 'attachments' | 'active'>, create = false) {
   const response = await fetch('/api/email/templates', {
-    method: 'PUT',
+    method: create ? 'POST' : 'PUT',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(template),
   });
-  return (await parse<{ template: WelcomeEmailTemplate }>(response)).template;
+  return (await parse<{ template: EmailTemplate }>(response)).template;
 }
 
-export async function uploadEmailAttachment(file: File): Promise<EmailAttachment> {
+export async function deleteEmailTemplate(id: string) {
+  const response = await fetch('/api/email/templates', {
+    method: 'DELETE', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }),
+  });
+  return parse<{ activeTemplateId: string }>(response);
+}
+
+export async function uploadEmailAttachment(file: File, templateId = 'cargomove-welcome'): Promise<EmailAttachment> {
   const signResponse = await fetch('/api/email/attachments', {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: file.name, contentType: file.type, size: file.size }),
+    body: JSON.stringify({ name: file.name, contentType: file.type, size: file.size, templateId }),
   });
   const signed = await parse<{ signedUrl: string; attachment: EmailAttachment }>(signResponse);
   const form = new FormData();

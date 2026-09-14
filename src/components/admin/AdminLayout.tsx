@@ -50,6 +50,7 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [emailTemplateView, setEmailTemplateView] = useState<'list' | 'design'>('list');
 
   const handleRefresh = async () => {
     if (isRefreshing) return;
@@ -199,7 +200,10 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
               <button
                 key={item.id}
                 type="button"
-                onClick={() => setActiveTab(item.id)}
+                onClick={() => {
+                  setActiveTab(item.id);
+                  if (item.id === 'email-template') setEmailTemplateView('list');
+                }}
                 aria-label={isSidebarCollapsed ? item.label : undefined}
                 title={isSidebarCollapsed ? item.label : undefined}
                 className={`w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs font-semibold transition-all ${isSidebarCollapsed ? 'md:justify-center md:px-2' : ''} ${
@@ -262,8 +266,9 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
               {portalMode === 'admin' ? 'Admin Portal' : 'Developer Portal'}
             </span>
             <span className="text-slate-300">/</span>
-            <h1 className="text-sm font-bold text-slate-900">
-              {[...navItems, ...registrationQueueItems, ...devToolItems].find((item) => item.id === activeTab)?.label}
+            <h1 className="flex items-center gap-3 text-sm font-bold text-slate-900">
+              <span>{[...navItems, ...registrationQueueItems, ...devToolItems].find((item) => item.id === activeTab)?.label}</span>
+              {activeTab === 'email-template' && emailTemplateView === 'design' && <><span className="font-normal text-slate-300">/</span><span>Design Template</span></>}
             </h1>
           </div>
 
@@ -341,7 +346,7 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
           )}
           {activeTab === 'user-registration' && <UserRegistration />}
           {activeTab === 'admin-user' && <AdminUser />}
-          {activeTab === 'email-template' && <EmailTemplateManager />}
+          {activeTab === 'email-template' && <EmailTemplateManager onViewChange={setEmailTemplateView} />}
           {activeTab === 'guidelines' && (
             <GuidelineManager onPreviewCustomerView={onSwitchToCustomer} />
           )}

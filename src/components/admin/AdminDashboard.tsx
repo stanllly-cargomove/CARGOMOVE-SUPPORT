@@ -7,6 +7,7 @@ import {
   subscribeToStorage,
 } from '../../services/storage';
 import { getCompanyExternalId } from '../../services/companyHelper';
+import { ExternalUserAccess, getExternalUserAccess } from '../../services/auth';
 import { Company, RegistrationSubmission, RegistrationType } from '../../types';
 import { StatusBadge } from '../common/Badge';
 import { AssignIdModal } from './AssignIdModal';
@@ -28,9 +29,29 @@ interface AdminDashboardProps {
   onNavigate: (tab: string, registrationType?: RegistrationType) => void;
 }
 
+interface RecentQueueItem {
+  rowKey: string;
+  referenceNo: string;
+  type: RegistrationType | 'USER';
+  companyId?: string;
+  companyName: string;
+  companyType: string;
+  portLocation: RegistrationSubmission['port_location'];
+  status: RegistrationSubmission['status'];
+  submittedAt: string;
+  submission: RegistrationSubmission;
+}
+
+const queueStatusPriority: Record<RegistrationSubmission['status'], number> = {
+  PENDING: 0,
+  REJECTED: 1,
+  DONE: 2,
+};
+
 export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const [companies, setCompanies] = useState(getCompanies());
   const [submissions, setSubmissions] = useState(getSubmissions());
+  const [externalUsers, setExternalUsers] = useState<ExternalUserAccess[]>([]);
   const [queuePageSize, setQueuePageSize] = useState<20 | 30 | 50>(20);
   const [queuePage, setQueuePage] = useState(1);
 
@@ -41,9 +62,13 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const refresh = () => {
     setCompanies(getCompanies());
     setSubmissions(getSubmissions());
+    void getExternalUserAccess().then(setExternalUsers).catch(() => setExternalUsers([]));
   };
 
-  useEffect(() => subscribeToStorage(refresh), []);
+  useEffect(() => {
+    refresh();
+    return subscribeToStorage(refresh);
+  }, []);
 
   useEffect(() => {
     setQueuePage(1);
@@ -55,9 +80,46 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const registeredByType = (type: RegistrationType) =>
     submissions.filter((s) => s.registration_type === type && s.status === 'DONE').length;
 
-  const recentQueue = [...submissions].sort((left, right) => {
-    const dateDifference = Date.parse(right.submitted_at) - Date.parse(left.submitted_at);
-    return dateDifference || left.reference_no.localeCompare(right.reference_no);
+  const submissionQueue: RecentQueueItem[] = submissions.map((submission) => ({
+    rowKey: `submission:${submission.id}`,
+    referenceNo: submission.reference_no,
+    type: submission.registration_type,
+    companyId: submission.company_id,
+    companyName: submission.company_name,
+    companyType: submission.company_type,
+    portLocation: submission.port_location,
+    status: submission.status,
+    submittedAt: submission.submitted_at,
+    submission,
+  }));
+  const companySubmissionById = new Map<string, RegistrationSubmission>();
+  submissions.forEach((submission) => {
+    if (submission.registration_type !== 'COMPANY' || !submission.company_id) return;
+    const current = companySubmissionById.get(submission.company_id);
+    if (!current || Date.parse(submission.submitted_at) > Date.parse(current.submitted_at)) {
+      companySubmissionById.set(submission.company_id, submission);
+    }
+  });
+  const userQueue: RecentQueueItem[] = externalUsers.flatMap((user) => {
+    const submission = user.company_id ? companySubmissionById.get(user.company_id) : undefined;
+    if (!submission) return [];
+    return [{
+      rowKey: `user:${user.id}`,
+      referenceNo: submission.reference_no,
+      type: 'USER',
+      companyId: user.company_id,
+      companyName: user.company_name || submission.company_name,
+      companyType: submission.company_type,
+      portLocation: submission.port_location,
+      status: user.status,
+      submittedAt: user.created_at || submission.submitted_at,
+      submission,
+    }];
+  });
+  const recentQueue = [...submissionQueue, ...userQueue].sort((left, right) => {
+    const statusDifference = queueStatusPriority[left.status] - queueStatusPriority[right.status];
+    const dateDifference = Date.parse(left.submittedAt) - Date.parse(right.submittedAt);
+    return statusDifference || dateDifference || left.rowKey.localeCompare(right.rowKey);
   });
   const queuePageCount = Math.max(1, Math.ceil(recentQueue.length / queuePageSize));
   const currentQueuePage = Math.min(queuePage, queuePageCount);
@@ -201,7 +263,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                 <th className="py-2 px-3">Company</th>
                 <th className="py-2 px-3 text-center">Facility</th>
                 <th className="py-2 px-3">Cargomove ID</th>
-                <th className="py-2 px-3">Status</th>
+                <th className="py-2 px-3 text-center">Status</th>
                 <th className="py-2 px-3 text-right">Action</th>
               </tr>
             </thead>
@@ -212,23 +274,24 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                     No registrations found.
                   </td>
                 </tr>
-              ) : visibleQueue.map((sub) => {
-                const comp = sub.company_id ? getCompanyById(sub.company_id) : undefined;
-                const idInfo = getCompanyExternalId(comp || { company_type: sub.company_type });
+              ) : visibleQueue.map((item) => {
+                const sub = item.submission;
+                const comp = item.companyId ? getCompanyById(item.companyId) : undefined;
+                const idInfo = getCompanyExternalId(comp || { company_type: item.companyType });
 
                 return (
-                  <tr key={sub.id} className="hover:bg-slate-50/70">
+                  <tr key={item.rowKey} className="hover:bg-slate-50/70">
                     <td className="py-2 px-3 font-mono text-slate-900">
-                      {sub.reference_no}
+                      {item.referenceNo}
                     </td>
                     <td className="py-2 px-3 text-center text-slate-700">
-                      {sub.registration_type}
+                      {item.type}
                     </td>
                     <td className="py-2 px-3 text-slate-900">
-                      {sub.company_name}
+                      {item.companyName}
                     </td>
                     <td className="py-2 px-3 text-center text-slate-700">
-                      {sub.port_location === 'PORT_KLANG' ? 'PORT KLANG' : sub.port_location === 'JOHOR' ? 'JOHOR' : 'OTHER PORT'}
+                      {item.portLocation === 'PORT_KLANG' ? 'PORT KLANG' : item.portLocation === 'JOHOR' ? 'JOHOR' : 'OTHER PORT'}
                     </td>
                     <td className="py-2 px-3 font-mono">
                       {idInfo.has_required_id ? (
@@ -253,16 +316,18 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                         </button>
                       )}
                     </td>
-                    <td className="py-2 px-3">
-                      <StatusBadge status={sub.status} />
+                    <td className="py-2 px-3 text-center">
+                      <div className="flex justify-center [&>span]:w-20 [&>span]:justify-center">
+                        <StatusBadge status={item.status} />
+                      </div>
                     </td>
                     <td className="py-2 px-3 text-right">
                       <button
                         type="button"
-                        onClick={() => setActiveSubmission(sub)}
+                        onClick={() => item.type === 'USER' ? onNavigate('user-registration') : setActiveSubmission(sub)}
                         className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px]"
                       >
-                        Inspect
+                        {item.type === 'USER' ? 'Manage' : 'Inspect'}
                       </button>
                     </td>
                   </tr>

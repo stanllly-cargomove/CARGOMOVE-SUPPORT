@@ -76,14 +76,14 @@ export function renderWelcomeTemplate(template: EmailTemplate, user: ExternalEma
     'user.username': user.username,
     'user.password': user.password,
   };
-  const render = (source: string) => source.replace(/{{\s*([a-z.]+)\s*}}/g, (_match, key: string) => {
+  const render = (source: string, html = false) => source.replace(/{{\s*([a-z.]+)\s*}}/g, (_match, key: string) => {
     if (!(key in values)) throw new Error(`Unsupported template variable: {{${key}}}`);
-    return values[key];
+    return html ? escapeHtml(values[key]) : values[key];
   });
   return {
     recipient: render(template.recipient_template),
     subject: render(template.subject_template),
-    body: render(template.body_template),
+    body: sanitizeEmailHtml(render(template.body_template, true)),
   };
 }
 
@@ -97,7 +97,7 @@ export function validateTemplateAttachments(value: unknown): EmailAttachment[] {
       content_type: String(record.content_type || '').toLowerCase(),
       size: Number(record.size || 0),
     };
-    if (!/^cargomove-welcome\/[0-9a-f-]{36}(?:\.[a-z0-9]{1,10})?$/.test(attachment.path)) {
+    if (!/^[a-z0-9][a-z0-9-]{0,99}\/[0-9a-f-]{36}(?:\.[a-z0-9]{1,10})?$/.test(attachment.path)) {
       throw new Error('Invalid template attachment path.');
     }
     if (!attachment.name || attachment.name.length > 255 || /[\r\n]/.test(attachment.name)) {
@@ -219,17 +219,83 @@ function mimeSubject(value: string) {
   return `=?UTF-8?B?${Buffer.from(value, 'utf8').toString('base64')}?=`;
 }
 
+const EMAIL_HTML_TAGS = new Set(['p', 'div', 'br', 'strong', 'b', 'em', 'i', 'u', 's', 'ul', 'ol', 'li', 'a', 'h1', 'h2', 'h3', 'blockquote']);
+const VOID_EMAIL_HTML_TAGS = new Set(['br']);
+
+function escapeHtml(value: string) {
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+export function sanitizeEmailHtml(value: string) {
+  const source = String(value || '').trim();
+  const hasFormatting = /<\/?(?:p|div|br|strong|b|em|i|u|s|ul|ol|li|a|h[1-3]|blockquote)\b/i.test(source);
+  if (!hasFormatting) {
+    return source.split(/\n{2,}/).map((paragraph) => `<p>${escapeHtml(paragraph).replace(/\n/g, '<br>') || '<br>'}</p>`).join('');
+  }
+  return source.replace(/<!--[\s\S]*?-->|<\/?[^>]+>/g, (token) => {
+    if (token.startsWith('<!--')) return '';
+    const closing = /^<\s*\//.test(token);
+    const match = token.match(/^<\s*\/?\s*([a-z0-9]+)/i);
+    const tag = match?.[1].toLowerCase();
+    if (!tag || !EMAIL_HTML_TAGS.has(tag)) return '';
+    if (closing) return VOID_EMAIL_HTML_TAGS.has(tag) ? '' : `</${tag}>`;
+    if (tag !== 'a') return `<${tag}>`;
+    const hrefMatch = token.match(/\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i);
+    const href = (hrefMatch?.[1] || hrefMatch?.[2] || hrefMatch?.[3] || '').trim();
+    if (!/^(?:https?:\/\/|mailto:)/i.test(href)) return '<a>';
+    return `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">`;
+  });
+}
+
+export function emailHtmlToText(value: string) {
+  return value
+    .replace(/<\s*br\s*\/?>/gi, '\n')
+    .replace(/<\s*\/\s*(?:p|div|h[1-3]|blockquote|li)\s*>/gi, '\n')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&#(\d+);/g, (_match, code) => String.fromCodePoint(Number(code)))
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function encodedMimeBody(value: string) {
+  return Buffer.from(value, 'utf8').toString('base64').replace(/.{1,76}/g, '$&\r\n').trimEnd();
+}
+
 export function createRawMessage(from: string, to: string, subject: string, body: string, attachments: Array<EmailAttachment & { data: Buffer }> = []) {
-  const encodedBody = Buffer.from(body, 'utf8').toString('base64').replace(/.{1,76}/g, '$&\r\n').trimEnd();
+  const htmlBody = sanitizeEmailHtml(body);
+  const plainBody = emailHtmlToText(htmlBody);
   const commonHeaders = [
     `From: ${safeHeader(from, 'sender')}`,
     `To: ${safeHeader(to, 'recipient')}`,
     `Subject: ${mimeSubject(safeHeader(subject, 'subject'))}`,
     'MIME-Version: 1.0',
   ];
+  const alternativeBoundary = `cargomove_alt_${crypto.randomBytes(18).toString('hex')}`;
+  const alternativeParts = [
+    `Content-Type: multipart/alternative; boundary="${alternativeBoundary}"`,
+    '',
+    `--${alternativeBoundary}`,
+    'Content-Type: text/plain; charset=UTF-8',
+    'Content-Transfer-Encoding: base64',
+    '',
+    encodedMimeBody(plainBody),
+    `--${alternativeBoundary}`,
+    'Content-Type: text/html; charset=UTF-8',
+    'Content-Transfer-Encoding: base64',
+    '',
+    encodedMimeBody(htmlBody),
+    `--${alternativeBoundary}--`,
+    '',
+  ];
   let mime: string;
   if (attachments.length === 0) {
-    mime = [...commonHeaders, 'Content-Type: text/plain; charset=UTF-8', 'Content-Transfer-Encoding: base64', '', encodedBody].join('\r\n');
+    mime = [...commonHeaders, ...alternativeParts].join('\r\n');
   } else {
     const boundary = `cargomove_${crypto.randomBytes(18).toString('hex')}`;
     const parts = [
@@ -237,10 +303,7 @@ export function createRawMessage(from: string, to: string, subject: string, body
       `Content-Type: multipart/mixed; boundary="${boundary}"`,
       '',
       `--${boundary}`,
-      'Content-Type: text/plain; charset=UTF-8',
-      'Content-Transfer-Encoding: base64',
-      '',
-      encodedBody,
+      ...alternativeParts,
     ];
     for (const attachment of attachments) {
       const name = safeHeader(attachment.name, 'attachment name');

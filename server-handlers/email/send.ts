@@ -9,6 +9,8 @@ import {
   noStore,
   publicError,
   requireAdmin,
+  emailHtmlToText,
+  sanitizeEmailHtml,
   validateTemplateAttachments,
   verifyPreviewToken,
 } from '../_email.js';
@@ -30,10 +32,10 @@ export default async function sendEmail(request: any, response: any) {
 
   const recipient = String(body.recipient || '').trim().toLowerCase();
   const subject = String(body.subject || '').trim();
-  const messageBody = String(body.body || '');
+  const messageBody = sanitizeEmailHtml(String(body.body || ''));
   if (!EMAIL_PATTERN.test(recipient) || /[\r\n]/.test(recipient)) return response.status(400).json({ error: 'A valid recipient is required.' });
   if (!subject || /[\r\n]/.test(subject) || subject.length > 998) return response.status(400).json({ error: 'A valid subject is required.' });
-  if (!messageBody || messageBody.length > 100_000) return response.status(400).json({ error: 'A valid email body is required.' });
+  if (!emailHtmlToText(messageBody) || messageBody.length > 100_000) return response.status(400).json({ error: 'A valid email body is required.' });
 
   const [userResult, templateResult, connectionResult] = await Promise.all([
     client.from('external_user_access').select('id,email,status,email_status').eq('id', token.userId).maybeSingle(),
