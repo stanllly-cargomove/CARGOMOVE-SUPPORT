@@ -321,7 +321,11 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
         </header>
 
         {/* Content Body */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
+        <main
+          className={`flex-1 w-full p-4 sm:p-6 lg:p-8 transition-[max-width] duration-200 ${
+            activeQueueItem && isSidebarCollapsed ? 'max-w-none' : 'mx-auto max-w-7xl'
+          }`}
+        >
           {activeTab === 'dashboard' && (
             <AdminDashboard onNavigate={(tab, registrationType) => {
               const destination = tab === 'submissions' ? 'submissions-pending' : tab;
