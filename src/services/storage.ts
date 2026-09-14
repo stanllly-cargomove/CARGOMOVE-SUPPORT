@@ -1035,6 +1035,25 @@ export function saveSubmission(
   return newSubmission;
 }
 
+export function cacheSavedRegistration(company: Company | null, submission: RegistrationSubmission): void {
+  if (company) {
+    let companies: Company[] = [];
+    try { companies = JSON.parse(localStorage.getItem(STORAGE_KEYS.COMPANIES) || '[]'); } catch { companies = []; }
+    const companyIndex = companies.findIndex((item) => item.id === company.id);
+    if (companyIndex >= 0) companies[companyIndex] = company;
+    else companies.unshift(company);
+    localStorage.setItem(STORAGE_KEYS.COMPANIES, JSON.stringify(companies));
+  }
+
+  let submissions: RegistrationSubmission[] = [];
+  try { submissions = JSON.parse(localStorage.getItem(STORAGE_KEYS.SUBMISSIONS) || '[]'); } catch { submissions = []; }
+  const submissionIndex = submissions.findIndex((item) => item.id === submission.id);
+  if (submissionIndex >= 0) submissions[submissionIndex] = submission;
+  else submissions.unshift(submission);
+  localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(submissions));
+  notifyListeners();
+}
+
 /**
  * Resolve the Company Master record behind a queue item. Legacy submissions may
  * not have a company_id, so link a matching master record or create one from

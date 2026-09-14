@@ -23,7 +23,11 @@ async function parseResponse<T>(response: Response): Promise<T | null> {
 
 export async function fetchSupabaseSnapshot(since?: string): Promise<Snapshot | null> {
   const query = since ? `?since=${encodeURIComponent(since)}` : '';
-  const response = await fetch(`/api/snapshot${query}`, { credentials: 'include' });
+  let response = await fetch(`/api/snapshot${query}`, { credentials: 'include' });
+  if ([500, 502, 503, 504].includes(response.status)) {
+    await new Promise((resolve) => window.setTimeout(resolve, 350));
+    response = await fetch(`/api/snapshot${query}`, { credentials: 'include' });
+  }
   return parseResponse<Snapshot>(response);
 }
 

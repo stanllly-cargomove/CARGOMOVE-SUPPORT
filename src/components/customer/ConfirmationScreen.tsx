@@ -42,7 +42,7 @@ interface ReviewAndSubmitProps {
     vehicles?: VehicleData[];
   };
   onBack: () => void;
-  onSubmitSuccess: (referenceNo: string) => void;
+  onSubmitSuccess: () => Promise<string>;
 }
 
 export function ReviewScreen({
@@ -55,23 +55,20 @@ export function ReviewScreen({
 }: ReviewAndSubmitProps) {
   const [agreed, setAgreed] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
   const touchStartX = useRef<number | null>(null);
 
   const handleSubmit = async () => {
     if (!agreed) return;
     setSubmitting(true);
-
-    setTimeout(() => {
-      const now = new Date();
-      const yyyy = now.getFullYear();
-      const mm = String(now.getMonth() + 1).padStart(2, '0');
-      const dd = String(now.getDate()).padStart(2, '0');
-      const rand = Math.floor(1000 + Math.random() * 9000);
-      const refNo = `REG-${yyyy}${mm}${dd}-${rand}`;
-
-      onSubmitSuccess(refNo);
+    setSubmitError('');
+    try {
+      await onSubmitSuccess();
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'Unable to submit the registration.');
+    } finally {
       setSubmitting(false);
-    }, 350);
+    }
   };
 
   const handleTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
@@ -385,6 +382,11 @@ export function ReviewScreen({
           )}
         </button>
       </div>
+      {submitError && (
+        <p role="alert" className="rounded border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+          {submitError}
+        </p>
+      )}
     </div>
   );
 }

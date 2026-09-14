@@ -1,6 +1,20 @@
 import crypto from 'node:crypto';
 
 const REQUEST_TIMEOUT_MS = 15_000;
+const MAX_READ_ATTEMPTS = 2;
+const RETRY_DELAY_MS = 250;
+
+class TableReadError extends Error {
+  constructor(
+    readonly table: string,
+    readonly status?: number,
+    readonly retryable = false,
+    cause?: unknown,
+  ) {
+    super(`${table}_query_failed${status ? `_${status}` : ''}`, { cause });
+    this.name = 'TableReadError';
+  }
+}
 
 function configuration() {
   const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -29,23 +43,38 @@ function readAdminSession(request: any, sessionSecret: string | undefined) {
 }
 
 async function readTable(supabaseUrl: string, serviceRoleKey: string, table: string, params: URLSearchParams) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-  try {
-    const result = await fetch(`${supabaseUrl}/rest/v1/${table}?${params.toString()}`, {
-      headers: {
-        apikey: serviceRoleKey,
-        Authorization: `Bearer ${serviceRoleKey}`,
-        Accept: 'application/json',
-      },
-      signal: controller.signal,
-    });
-    const body = await result.json().catch(() => null);
-    if (!result.ok) throw new Error(`${table}_query_failed_${result.status}`);
-    return body;
-  } finally {
-    clearTimeout(timeout);
+  for (let attempt = 1; attempt <= MAX_READ_ATTEMPTS; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    try {
+      const result = await fetch(`${supabaseUrl}/rest/v1/${table}?${params.toString()}`, {
+        headers: {
+          apikey: serviceRoleKey,
+          Authorization: `Bearer ${serviceRoleKey}`,
+          Accept: 'application/json',
+        },
+        signal: controller.signal,
+      });
+      const body = await result.json().catch(() => null);
+      if (result.ok) return body;
+
+      const retryable = result.status === 408 || result.status === 429 || result.status >= 500;
+      if (!retryable || attempt === MAX_READ_ATTEMPTS) {
+        throw new TableReadError(table, result.status, retryable);
+      }
+    } catch (error) {
+      if (error instanceof TableReadError) throw error;
+      if (attempt === MAX_READ_ATTEMPTS) {
+        throw new TableReadError(table, undefined, true, error);
+      }
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
   }
+
+  throw new TableReadError(table, undefined, true);
 }
 
 export default async function snapshot(request: any, response: any) {
@@ -99,7 +128,9 @@ export default async function snapshot(request: any, response: any) {
       syncCursor,
     });
   } catch (error) {
-    console.error('Snapshot function failed:', error);
+    console.error('Snapshot function failed:', error instanceof TableReadError
+      ? { table: error.table, status: error.status, retryable: error.retryable, cause: error.cause }
+      : error);
     response.status(500).json({ error: 'Unable to load application data.' });
   }
 }

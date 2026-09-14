@@ -9,7 +9,8 @@ import {
   VehicleData,
   PortConfig,
 } from '../../types';
-import { getPorts, getCompanyById, saveSubmission, saveCompany, saveUserRegistration, getAutoAssignedPorts } from '../../services/storage';
+import { cacheSavedRegistration, getPorts, getCompanyById, getAutoAssignedPorts } from '../../services/storage';
+import { submitRegistration } from '../../services/registration';
 import { PortSelection } from './PortSelection';
 import { TypeSelection } from './TypeSelection';
 import { CompanyLookup } from './CompanyLookup';
@@ -122,8 +123,8 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
     setCurrentStep(5); // Review
   };
 
-  const handleFinalConfirm = (refNo: string) => {
-    if (!selectedLocation || !selectedType) return;
+  const handleFinalConfirm = async (): Promise<string> => {
+    if (!selectedLocation || !selectedType) throw new Error('Registration details are incomplete.');
 
     // Build submission record
     let compId = selectedCompany?.id || '';
@@ -142,46 +143,6 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
       subByName = companyFormData.contact_name || '';
       subByEmail = companyFormData.contact_email || '';
       subByMobile = companyFormData.contact_mobile || '';
-
-      // Also create a company record in Company Master so future asset registrations can immediately find it!
-      const newComp = saveCompany({
-        name: companyFormData.name,
-        short_name: companyFormData.short_name,
-        company_type: companyFormData.company_type,
-        registration_number: compReg,
-        registration_number_old: companyFormData.registration_number_old,
-        registration_number_new: companyFormData.registration_number_new,
-        port_id: companyFormData.port_id,
-        depot_id: companyFormData.depot_id,
-        block: companyFormData.block,
-        address1: companyFormData.address1,
-        address2: companyFormData.address2,
-        city: companyFormData.city,
-        state: companyFormData.state,
-        postcode: companyFormData.postcode,
-        country: companyFormData.country,
-        contact_name: companyFormData.contact_name,
-        contact_email: companyFormData.contact_email,
-        contact_designation: companyFormData.contact_designation,
-        contact_mobile: companyFormData.contact_mobile,
-        office_phone: companyFormData.office_phone,
-        fax: companyFormData.fax,
-        status: 'ACTIVE',
-      });
-      compId = newComp.id;
-      if (userAccessFormData) {
-        saveUserRegistration({
-          username: userAccessFormData.username,
-          email: userAccessFormData.email,
-          password_hash: userAccessFormData.password_hash,
-          password: userAccessFormData.password || '',
-          full_name: userAccessFormData.full_name,
-          mobile_number: userAccessFormData.mobile_number,
-          type: 'COMPANY_ADMIN',
-          company_id: newComp.id,
-          company_name: newComp.name,
-        });
-      }
     } else {
       subByName = selectedCompany?.contact_name || 'Fleet Operator';
       subByEmail = selectedCompany?.contact_email || '';
@@ -191,20 +152,25 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
     // Auto-assigned ports resolution
     const autoPorts = getAutoAssignedPorts(selectedLocation);
 
-    // Save into central database
-    saveSubmission({
+    const primaryPortId = autoPorts.ports[0]?.id || currentPort?.id;
+    if (!primaryPortId) throw new Error('No database port is configured for this location.');
+
+    const result = await submitRegistration({
       registration_type: selectedType,
-      company_id: compId,
+      company_id: compId || undefined,
       company_reg_no: compReg,
       company_name: compName,
       company_type: compType,
       port_location: selectedLocation,
-      port_id: autoPorts.backendIdsString,
-      depot_id: selectedCompany?.depot_id,
-      status: 'PENDING',
+      port_id: primaryPortId,
+      depot_id: selectedType === 'COMPANY' ? companyFormData?.depot_id : selectedCompany?.depot_id,
       submitted_by_name: subByName,
       submitted_by_email: subByEmail,
       submitted_by_mobile: subByMobile,
+      company: selectedType === 'COMPANY' && companyFormData
+        ? { ...companyFormData, registration_number: compReg, port_id: primaryPortId }
+        : undefined,
+      user_access: selectedType === 'COMPANY' ? userAccessFormData : undefined,
       data: {
         company: companyFormData,
         driver: driverFormDataList[0],
@@ -216,8 +182,10 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
       },
     });
 
-    setSubmittedRefNo(refNo);
+    cacheSavedRegistration(result.company, result.submission);
+    setSubmittedRefNo(result.submission.reference_no);
     setCurrentStep(7); // Success
+    return result.submission.reference_no;
   };
 
   const handleReset = () => {

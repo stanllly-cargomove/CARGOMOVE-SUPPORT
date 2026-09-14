@@ -10,6 +10,7 @@ import emailPreview from './server-handlers/email/preview.js';
 import emailSend from './server-handlers/email/send.js';
 import emailLogs from './server-handlers/email/logs.js';
 import emailAttachments from './server-handlers/email/attachments.js';
+import companyRegistration from './api/company-registration.js';
 
 config({ path: '.env.local' });
 
@@ -19,6 +20,21 @@ const sessionSecret = process.env.SESSION_SECRET;
 const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+const SNAPSHOT_READ_TIMEOUT_MS = 15_000;
+const SNAPSHOT_MAX_READ_ATTEMPTS = 2;
+const SNAPSHOT_RETRY_DELAY_MS = 250;
+
+class SnapshotTableReadError extends Error {
+  constructor(
+    readonly table: string,
+    readonly status?: number,
+    readonly retryable = false,
+    cause?: unknown,
+  ) {
+    super(`${table}_query_failed${status ? `_${status}` : ''}`, { cause });
+    this.name = 'SnapshotTableReadError';
+  }
+}
 
 const missingServerVariables = [
   !supabaseUrl && 'SUPABASE_URL (or VITE_SUPABASE_URL)',
@@ -52,23 +68,38 @@ function createAuthClient() {
 
 async function fetchSupabaseTable(table: string, params: URLSearchParams) {
   if (!supabaseUrl || !serviceRoleKey) throw new Error('Supabase server access is not configured.');
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15_000);
-  try {
-    const result = await fetch(`${supabaseUrl}/rest/v1/${table}?${params.toString()}`, {
-      headers: {
-        apikey: serviceRoleKey,
-        Authorization: `Bearer ${serviceRoleKey}`,
-        Accept: 'application/json',
-      },
-      signal: controller.signal,
-    });
-    const body = await result.json().catch(() => null);
-    if (!result.ok) throw new Error(`${table}_query_failed_${result.status}`);
-    return body;
-  } finally {
-    clearTimeout(timeout);
+  for (let attempt = 1; attempt <= SNAPSHOT_MAX_READ_ATTEMPTS; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), SNAPSHOT_READ_TIMEOUT_MS);
+    try {
+      const result = await fetch(`${supabaseUrl}/rest/v1/${table}?${params.toString()}`, {
+        headers: {
+          apikey: serviceRoleKey,
+          Authorization: `Bearer ${serviceRoleKey}`,
+          Accept: 'application/json',
+        },
+        signal: controller.signal,
+      });
+      const body = await result.json().catch(() => null);
+      if (result.ok) return body;
+
+      const retryable = result.status === 408 || result.status === 429 || result.status >= 500;
+      if (!retryable || attempt === SNAPSHOT_MAX_READ_ATTEMPTS) {
+        throw new SnapshotTableReadError(table, result.status, retryable);
+      }
+    } catch (error) {
+      if (error instanceof SnapshotTableReadError) throw error;
+      if (attempt === SNAPSHOT_MAX_READ_ATTEMPTS) {
+        throw new SnapshotTableReadError(table, undefined, true, error);
+      }
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, SNAPSHOT_RETRY_DELAY_MS));
   }
+
+  throw new SnapshotTableReadError(table, undefined, true);
 }
 
 app.use(express.json({ limit: '1mb' }));
@@ -318,6 +349,7 @@ app.post('/api/email/preview', emailPreview);
 app.post('/api/email/send', emailSend);
 app.get('/api/email/logs', emailLogs);
 app.post('/api/email/attachments', emailAttachments);
+app.post('/api/company-registration', companyRegistration);
 
 app.get('/api/snapshot', requireSession, async (request, response) => {
   try {
@@ -360,7 +392,9 @@ app.get('/api/snapshot', requireSession, async (request, response) => {
       syncCursor,
     });
   } catch (error) {
-    console.error('Snapshot request failed:', error);
+    console.error('Snapshot request failed:', error instanceof SnapshotTableReadError
+      ? { table: error.table, status: error.status, retryable: error.retryable, cause: error.cause }
+      : error);
     response.status(502).json({ error: 'Unable to load application data.' });
   }
 });
