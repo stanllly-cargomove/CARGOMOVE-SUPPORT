@@ -27,7 +27,8 @@ export type AdminSession = { id: string; email: string; type: string; exp: numbe
 export type EmailTemplate = {
   id: string;
   name: string;
-  trigger_status: 'DONE';
+  trigger_status: 'DONE' | 'REJECTED';
+  rejection_reason?: 'ALREADY_REGISTERED_BOTH' | 'NORTHPORT_ADDED' | 'OTHER' | null;
   recipient_template: string;
   subject_template: string;
   body_template: string;
@@ -43,6 +44,8 @@ export type ExternalEmailUser = {
   username: string;
   password: string;
   status: 'PENDING' | 'DONE' | 'REJECTED';
+  rejection_reason?: 'ALREADY_REGISTERED_BOTH' | 'NORTHPORT_ADDED' | 'OTHER' | null;
+  rejection_detail?: string | null;
   email_status: 'NOT_READY' | 'READY' | 'SENDING' | 'SENT' | 'FAILED';
 };
 
@@ -75,6 +78,7 @@ export function renderWelcomeTemplate(template: EmailTemplate, user: ExternalEma
     'user.email': user.email,
     'user.username': user.username,
     'user.password': user.password,
+    'rejection.reason': user.rejection_detail || '',
   };
   const render = (source: string, html = false) => source.replace(/{{\s*([a-z.]+)\s*}}/g, (_match, key: string) => {
     if (!(key in values)) throw new Error(`Unsupported template variable: {{${key}}}`);

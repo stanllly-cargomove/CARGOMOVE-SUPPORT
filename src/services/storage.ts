@@ -6,6 +6,7 @@ import {
   PortLocation,
   RegistrationType,
   SubmissionStatus,
+  RejectionReason,
   HaulierGuideline,
   UserRegistration,
 } from '../types';
@@ -1118,6 +1119,10 @@ export function updateSubmissionStatus(
   if (!sub) return null;
 
   sub.status = status;
+  if (status !== 'REJECTED') {
+    sub.rejection_reason = null;
+    sub.rejection_detail = null;
+  }
   if (status === 'DONE' && !sub.reviewed_at) {
     sub.reviewed_at = new Date().toISOString();
   }
@@ -1131,6 +1136,32 @@ export function updateSubmissionStatus(
   return sub;
 }
 
+export async function rejectCompanySubmission(
+  submissionId: string,
+  reason: RejectionReason,
+  detail?: string,
+): Promise<RegistrationSubmission> {
+  const submissions = getSubmissions();
+  const current = submissions.find((submission) => submission.id === submissionId);
+  if (!current || current.registration_type !== 'COMPANY') {
+    throw new Error('Company registration submission not found.');
+  }
+  const rejectionDetail = reason === 'OTHER' ? String(detail || '').trim() : null;
+  if (reason === 'OTHER' && !rejectionDetail) throw new Error('Enter the reason for rejecting this registration.');
+
+  const rejected: RegistrationSubmission = {
+    ...current,
+    status: 'REJECTED',
+    rejection_reason: reason,
+    rejection_detail: rejectionDetail,
+  };
+  await upsertSupabaseRow('registration_submissions', rejected);
+  const next = submissions.map((submission) => submission.id === submissionId ? rejected : submission);
+  localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(next));
+  notifyListeners();
+  return rejected;
+}
+
 export function markSubmissionsExported(
   submissionIds: string[],
   filename: string
@@ -1141,6 +1172,8 @@ export function markSubmissionsExported(
   subs.forEach((s) => {
     if (submissionIds.includes(s.id)) {
       s.status = 'DONE';
+      s.rejection_reason = null;
+      s.rejection_detail = null;
       s.exported_at = now;
       s.export_filename = filename;
     }

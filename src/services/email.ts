@@ -8,7 +8,8 @@ export interface EmailAttachment {
 export interface EmailTemplate {
   id: string;
   name: string;
-  trigger_status: 'DONE';
+  trigger_status: 'DONE' | 'REJECTED';
+  rejection_reason?: 'ALREADY_REGISTERED_BOTH' | 'NORTHPORT_ADDED' | 'OTHER' | null;
   recipient_template: '{{user.email}}';
   subject_template: string;
   body_template: string;

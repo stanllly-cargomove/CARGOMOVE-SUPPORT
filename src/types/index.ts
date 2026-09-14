@@ -5,6 +5,7 @@ export type RegistrationType = 'COMPANY' | 'DRIVER' | 'TRAILER' | 'VEHICLE';
 export type CompanyCategory = 'HAULIER' | 'FORWARDING';
 
 export type SubmissionStatus = 'PENDING' | 'DONE' | 'REJECTED';
+export type RejectionReason = 'ALREADY_REGISTERED_BOTH' | 'NORTHPORT_ADDED' | 'OTHER';
 
 export interface PortConfig {
   id: string;
@@ -88,6 +89,8 @@ export interface RegistrationSubmission {
   port_id: string;
   depot_id?: string;
   status: SubmissionStatus;
+  rejection_reason?: RejectionReason | null;
+  rejection_detail?: string | null;
   submitted_at: string;
   submitted_by_name: string;
   submitted_by_email: string;

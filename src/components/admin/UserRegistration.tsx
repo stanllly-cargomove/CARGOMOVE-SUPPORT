@@ -94,6 +94,10 @@ export function UserRegistration() {
   };
 
   const changeStatus = async (user: ExternalUserAccess, status: ExternalUserAccess['status']) => {
+    if (status === 'REJECTED') {
+      notifyError('Reject the linked Company Registration to select a reason and prepare the rejection email.');
+      return;
+    }
     const saved = await updateUser(user, { status });
     if (saved?.status === 'DONE') await openPreview(saved);
   };
@@ -118,6 +122,8 @@ export function UserRegistration() {
         full_name: editingUser.full_name,
         mobile_number: editingUser.mobile_number,
         status: editingUser.status,
+        rejection_reason: editingUser.status === 'REJECTED' ? editingUser.rejection_reason : undefined,
+        rejection_detail: editingUser.status === 'REJECTED' ? editingUser.rejection_detail : undefined,
       });
       setUsers((current) => current.map((user) => user.id === saved.id ? { ...user, ...saved } : user));
       setEditingUser(null);
@@ -143,7 +149,7 @@ export function UserRegistration() {
         ? { ...item, email_status: 'SENT', email_sent: 1 }
         : item));
       setPreview(null);
-      notifySuccess('Welcome email sent through Gmail.');
+      notifySuccess('Registration email sent through Gmail.');
     } catch (error) {
       setUsers((current) => current.map((item) => item.id === previewUserId
         ? { ...item, email_status: 'FAILED', email_sent: 0 }
@@ -157,7 +163,7 @@ export function UserRegistration() {
   const filteredUsers = users
     .filter((user) => {
       const term = searchTerm.toLowerCase();
-      const resolvedEmailStatus = user.email_status || (user.status === 'DONE' ? 'READY' : 'NOT_READY');
+      const resolvedEmailStatus = user.email_status || (['DONE', 'REJECTED'].includes(user.status) ? 'READY' : 'NOT_READY');
       const matchesSearch = !term || [
         user.username,
         user.email,
@@ -195,7 +201,7 @@ export function UserRegistration() {
       user.full_name,
       user.mobile_number,
       user.status,
-      user.email_status || (user.status === 'DONE' ? 'READY' : 'NOT_READY'),
+      user.email_status || (['DONE', 'REJECTED'].includes(user.status) ? 'READY' : 'NOT_READY'),
     ]);
     const csv = [
       ['Username', 'Email Address', 'Password', 'Company', 'Full Name', 'Mobile Number', 'Registration Status', 'Email Status'],
@@ -309,16 +315,17 @@ export function UserRegistration() {
                     <select
                       value={user.status || 'PENDING'}
                       onChange={(event) => void changeStatus(user, event.target.value as ExternalUserAccess['status'])}
-                      disabled={savingKeys.has(`${user.id}-status`)}
+                      disabled={user.status === 'REJECTED' || savingKeys.has(`${user.id}-status`)}
+                      title={user.status === 'REJECTED' ? 'Reopen this registration from Company Registration' : undefined}
                       className={`h-6 w-full max-w-[5.5rem] rounded-md border px-1 text-[10px] font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-wait disabled:opacity-60 ${statusSelectClasses[user.status || 'PENDING']}`}
                       aria-label={`Status for ${user.username}`}
                     >
-                      {statuses.map((status) => <option key={status} value={status}>{status}</option>)}
+                      {statuses.map((status) => <option key={status} value={status} disabled={status === 'REJECTED' && user.status !== 'REJECTED'}>{status}</option>)}
                     </select>
                   </td>
                   <td className="px-2 py-2 text-center">
                     <span className="inline-flex h-7 w-[4.75rem] items-center justify-center whitespace-nowrap rounded-md bg-slate-50 text-[10px] font-semibold text-slate-600">
-                      {user.email_status || (user.status === 'DONE' ? 'READY' : 'NOT_READY')}
+                      {user.email_status || (['DONE', 'REJECTED'].includes(user.status) ? 'READY' : 'NOT_READY')}
                     </span>
                   </td>
                   <td className="px-2 py-2 text-center">
@@ -334,11 +341,11 @@ export function UserRegistration() {
                       <button
                         type="button"
                         onClick={() => void openPreview(user)}
-                        disabled={user.status !== 'DONE' || openingPreview === user.id || user.email_status === 'SENDING'}
+                        disabled={!['DONE', 'REJECTED'].includes(user.status) || (user.status === 'REJECTED' && !user.rejection_reason) || openingPreview === user.id || user.email_status === 'SENDING'}
                         className="inline-flex h-7 w-[4.75rem] shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-md border border-blue-200 bg-blue-50 px-1 text-[10px] font-bold text-blue-700 transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-500"
                       >
                         <Mail className="h-3 w-3 shrink-0" />
-                        {openingPreview === user.id ? 'Loading...' : user.email_status === 'SENT' ? 'Resend' : user.status === 'DONE' ? 'Preview' : 'Set DONE'}
+                        {openingPreview === user.id ? 'Loading...' : user.email_status === 'SENT' ? 'Resend' : ['DONE', 'REJECTED'].includes(user.status) ? 'Preview' : 'Set status'}
                       </button>
                     </div>
                   </td>
@@ -379,8 +386,8 @@ export function UserRegistration() {
                 <input type="tel" required value={editingUser.mobile_number} onChange={(event) => changeEditField('mobile_number', event.target.value)} className="mt-1.5 h-9 w-full rounded-lg border border-slate-300 px-3 font-normal focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </label>
               <label className="text-xs font-semibold text-slate-700 sm:col-span-2">Registration status
-                <select value={editingUser.status} onChange={(event) => changeEditField('status', event.target.value)} className={`mt-1.5 h-9 w-full rounded-lg border px-3 font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 ${statusSelectClasses[editingUser.status]}`}>
-                  {statuses.map((status) => <option key={status} value={status}>{status}</option>)}
+                <select value={editingUser.status} disabled={editingUser.status === 'REJECTED'} title={editingUser.status === 'REJECTED' ? 'Reopen this registration from Company Registration' : undefined} onChange={(event) => changeEditField('status', event.target.value)} className={`mt-1.5 h-9 w-full rounded-lg border px-3 font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-70 ${statusSelectClasses[editingUser.status]}`}>
+                  {statuses.map((status) => <option key={status} value={status} disabled={status === 'REJECTED' && editingUser.status !== 'REJECTED'}>{status}</option>)}
                 </select>
               </label>
             </div>

@@ -22,6 +22,7 @@ interface SubmissionDetailModalProps {
   onClose: () => void;
   onOpenAssignId: (companyId: string) => void;
   onStatusChange?: () => void;
+  onReject?: (submission: RegistrationSubmission) => void;
 }
 
 export function SubmissionDetailModal({
@@ -30,6 +31,7 @@ export function SubmissionDetailModal({
   onClose,
   onOpenAssignId,
   onStatusChange,
+  onReject,
 }: SubmissionDetailModalProps) {
   const [adminNotes, setAdminNotes] = useState(submission?.admin_notes || '');
 
@@ -39,6 +41,10 @@ export function SubmissionDetailModal({
   const idInfo = getCompanyExternalId(company || { company_type: submission.company_type });
 
   const handleUpdateStatus = (newStatus: any) => {
+    if (newStatus === 'REJECTED' && submission.registration_type === 'COMPANY' && onReject) {
+      onReject(submission);
+      return;
+    }
     updateSubmissionStatus(submission.id, newStatus, adminNotes);
     onStatusChange?.();
   };

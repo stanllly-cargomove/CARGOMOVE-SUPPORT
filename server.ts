@@ -238,9 +238,9 @@ app.get('/api/external-user-access', requireSession, async (_request, response) 
   }
   let { data, error } = await supabase
     .from('external_user_access')
-    .select('id, username, email, password, company_id, company_name, full_name, mobile_number, status, email_status, email_sent, created_at')
+    .select('id, username, email, password, company_id, company_name, full_name, mobile_number, status, rejection_reason, rejection_detail, email_status, email_sent, created_at')
     .order('created_at', { ascending: false });
-  if (error && (error.message.includes('status') || error.message.includes('email_sent') || error.message.includes('email_status'))) {
+  if (error && (error.message.includes('status') || error.message.includes('email_sent') || error.message.includes('email_status') || error.message.includes('rejection_reason') || error.message.includes('rejection_detail'))) {
     const legacyResult = await supabase
       .from('external_user_access')
       .select('id, username, email, password, company_id, company_name, full_name, mobile_number, created_at')
@@ -259,7 +259,7 @@ app.get('/api/external-user-access', requireSession, async (_request, response) 
       email_sent: user.email_sent === 1 ? 1 : 0,
       email_status: ['NOT_READY', 'READY', 'SENDING', 'SENT', 'FAILED'].includes(user.email_status)
         ? user.email_status
-        : user.email_sent === 1 ? 'SENT' : user.status === 'DONE' ? 'READY' : 'NOT_READY',
+        : user.email_sent === 1 ? 'SENT' : ['DONE', 'REJECTED'].includes(user.status) ? 'READY' : 'NOT_READY',
     })),
   });
 });
@@ -289,6 +289,34 @@ app.patch('/api/external-user-access', requireSession, async (request, response)
     }
     changes.status = request.body.status;
   }
+  if (request.body?.rejection_reason !== undefined) {
+    if (request.body.rejection_reason !== null && !['ALREADY_REGISTERED_BOTH', 'NORTHPORT_ADDED', 'OTHER'].includes(request.body.rejection_reason)) {
+      response.status(400).json({ error: 'Invalid rejection reason.' });
+      return;
+    }
+    changes.rejection_reason = request.body.rejection_reason;
+  }
+  if (request.body?.rejection_detail !== undefined) {
+    const detail = request.body.rejection_detail === null ? null : String(request.body.rejection_detail).trim();
+    if (detail && detail.length > 2000) {
+      response.status(400).json({ error: 'The rejection details must be 2,000 characters or fewer.' });
+      return;
+    }
+    changes.rejection_detail = detail || null;
+  }
+  if (request.body?.status === 'REJECTED') {
+    if (!['ALREADY_REGISTERED_BOTH', 'NORTHPORT_ADDED', 'OTHER'].includes(request.body.rejection_reason)) {
+      response.status(400).json({ error: 'Select a rejection reason.' });
+      return;
+    }
+    if (request.body.rejection_reason === 'OTHER' && !String(request.body.rejection_detail || '').trim()) {
+      response.status(400).json({ error: 'Enter the reason for rejecting this registration.' });
+      return;
+    }
+  } else if (request.body?.status !== undefined) {
+    changes.rejection_reason = null;
+    changes.rejection_detail = null;
+  }
   if (request.body?.email_sent !== undefined) {
     if (![0, 1, true, false].includes(request.body.email_sent)) {
       response.status(400).json({ error: 'Invalid email sent status.' });
@@ -309,7 +337,7 @@ app.patch('/api/external-user-access', requireSession, async (request, response)
     response.status(error.code === '23505' ? 409 : 400).json({
       error: error.code === '23505'
         ? 'That username or email is already in use.'
-        : error.message.includes('status') || error.message.includes('email_sent')
+        : error.message.includes('status') || error.message.includes('email_sent') || error.message.includes('rejection_reason') || error.message.includes('rejection_detail')
         ? 'The external user workflow migration has not been applied yet.'
         : 'Unable to update external user access.',
     });

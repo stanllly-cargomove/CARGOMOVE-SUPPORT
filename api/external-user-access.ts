@@ -1,11 +1,11 @@
 import crypto from 'node:crypto';
 
-const externalUserFields = 'id,username,email,password,company_id,company_name,full_name,mobile_number,status,email_status,email_sent,created_at';
+const externalUserFields = 'id,username,email,password,company_id,company_name,full_name,mobile_number,status,rejection_reason,rejection_detail,email_status,email_sent,created_at';
 const legacyExternalUserFields = 'id,username,email,password,company_id,company_name,full_name,mobile_number,created_at';
 
 function isMissingWorkflowColumn(error: unknown) {
   const detail = JSON.stringify(error).toLowerCase();
-  return detail.includes('status') || detail.includes('email_sent') || detail.includes('email_status');
+  return detail.includes('status') || detail.includes('email_sent') || detail.includes('email_status') || detail.includes('rejection_reason') || detail.includes('rejection_detail');
 }
 
 function normalizeExternalUsers(users: unknown) {
@@ -16,7 +16,7 @@ function normalizeExternalUsers(users: unknown) {
     email_sent: user?.email_sent === 1 ? 1 : 0,
     email_status: ['NOT_READY', 'READY', 'SENDING', 'SENT', 'FAILED'].includes(user?.email_status)
       ? user.email_status
-      : user?.email_sent === 1 ? 'SENT' : user?.status === 'DONE' ? 'READY' : 'NOT_READY',
+      : user?.email_sent === 1 ? 'SENT' : ['DONE', 'REJECTED'].includes(user?.status) ? 'READY' : 'NOT_READY',
   }));
 }
 
@@ -94,6 +94,35 @@ export default async function externalUserAccess(request: any, response: any) {
           return;
         }
         changes.status = body.status;
+      }
+      if (body.rejection_reason !== undefined) {
+        if (body.rejection_reason !== null && !['ALREADY_REGISTERED_BOTH', 'NORTHPORT_ADDED', 'OTHER'].includes(body.rejection_reason)) {
+          response.status(400).json({ error: 'Invalid rejection reason.' });
+          return;
+        }
+        changes.rejection_reason = body.rejection_reason;
+      }
+      if (body.rejection_detail !== undefined) {
+        const detail = body.rejection_detail === null ? null : String(body.rejection_detail).trim();
+        if (detail && detail.length > 2000) {
+          response.status(400).json({ error: 'The rejection details must be 2,000 characters or fewer.' });
+          return;
+        }
+        changes.rejection_detail = detail || null;
+      }
+      if (body.status === 'REJECTED') {
+        const reason = body.rejection_reason;
+        if (!['ALREADY_REGISTERED_BOTH', 'NORTHPORT_ADDED', 'OTHER'].includes(reason)) {
+          response.status(400).json({ error: 'Select a rejection reason.' });
+          return;
+        }
+        if (reason === 'OTHER' && !String(body.rejection_detail || '').trim()) {
+          response.status(400).json({ error: 'Enter the reason for rejecting this registration.' });
+          return;
+        }
+      } else if (body.status !== undefined) {
+        changes.rejection_reason = null;
+        changes.rejection_detail = null;
       }
       if (body.email_sent !== undefined) {
         if (![0, 1, true, false].includes(body.email_sent)) {

@@ -2,8 +2,13 @@
 import { bodyOf, configuredClient, emailHtmlToText, EmailTemplate, noStore, requireAdmin, sanitizeEmailHtml, validateTemplateAttachments } from '../_email.js';
 import { serviceRoleKey, supabaseUrl } from '../../api/_runtime.js';
 
-const fields = 'id,name,trigger_status,recipient_template,subject_template,body_template,attachments,active,version,updated_at';
+const fields = 'id,name,trigger_status,rejection_reason,recipient_template,subject_template,body_template,attachments,active,version,updated_at';
 const TEMPLATE_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,99}$/;
+const REQUIRED_REJECTION_TEMPLATE_IDS = new Set([
+  'rejection-already-registered-both',
+  'rejection-northport-added',
+  'rejection-other',
+]);
 
 export default async function templates(request: any, response: any) {
   noStore(response);
@@ -23,6 +28,7 @@ export default async function templates(request: any, response: any) {
     const body: Record<string, unknown> = await bodyOf(request).catch(() => ({}));
     const id = String(body.id || '');
     if (!TEMPLATE_ID_PATTERN.test(id)) return response.status(400).json({ error: 'A valid template ID is required.' });
+    if (REQUIRED_REJECTION_TEMPLATE_IDS.has(id)) return response.status(409).json({ error: 'Built-in rejection templates can be edited but cannot be removed.' });
     const { data: all, error: readError } = await client.from('email_templates').select('id,active,attachments').order('updated_at', { ascending: false });
     if (readError) return response.status(502).json({ error: readError.message });
     const target = all?.find((item) => item.id === id);
@@ -51,15 +57,21 @@ export default async function templates(request: any, response: any) {
     const subjectTemplate = String(body.subject_template || '').trim();
     const bodyTemplate = sanitizeEmailHtml(String(body.body_template || ''));
     const recipientTemplate = String(body.recipient_template || '').trim();
+    const triggerStatus = body.trigger_status === 'REJECTED' ? 'REJECTED' : 'DONE';
+    const rejectionReason = (triggerStatus === 'REJECTED' ? String(body.rejection_reason || '') : null) as EmailTemplate['rejection_reason'];
     if (!TEMPLATE_ID_PATTERN.test(id)) return response.status(400).json({ error: 'A valid template ID is required.' });
     if (!name || !subjectTemplate || !emailHtmlToText(bodyTemplate) || recipientTemplate !== '{{user.email}}') {
       return response.status(400).json({ error: 'Name, subject, body, and the {{user.email}} recipient are required.' });
     }
+    if (triggerStatus === 'REJECTED' && !['ALREADY_REGISTERED_BOTH', 'NORTHPORT_ADDED', 'OTHER'].includes(rejectionReason || '')) {
+      return response.status(400).json({ error: 'A valid rejection reason is required for a rejection template.' });
+    }
     if (name.length > 120 || subjectTemplate.length > 998 || bodyTemplate.length > 100_000) return response.status(400).json({ error: 'The email template is too large.' });
     const combined = `${recipientTemplate}\n${subjectTemplate}\n${bodyTemplate}`;
     const variables = [...combined.matchAll(/{{\s*([^}]+)\s*}}/g)].map((match) => match[1].trim());
-    const allowed = new Set(['user.email', 'user.username', 'user.password']);
-    if (variables.some((variable) => !allowed.has(variable))) return response.status(400).json({ error: 'Only {{user.email}}, {{user.username}}, and {{user.password}} are supported.' });
+    const allowed = new Set(['user.email', 'user.username', 'user.password', 'rejection.reason']);
+    if (variables.some((variable) => !allowed.has(variable))) return response.status(400).json({ error: 'The template contains an unsupported variable.' });
+    if (variables.includes('rejection.reason') && rejectionReason !== 'OTHER') return response.status(400).json({ error: '{{rejection.reason}} is only available for the Other rejection template.' });
     let attachments;
     try {
       attachments = validateTemplateAttachments(body.attachments ?? []);
@@ -77,7 +89,7 @@ export default async function templates(request: any, response: any) {
       if (!otherActive?.length) return response.status(409).json({ error: 'Activate another template before making this template inactive.' });
     }
     const template: EmailTemplate = {
-      id, name, trigger_status: 'DONE', recipient_template: recipientTemplate, subject_template: subjectTemplate,
+      id, name, trigger_status: triggerStatus, rejection_reason: rejectionReason, recipient_template: recipientTemplate, subject_template: subjectTemplate,
       body_template: bodyTemplate, attachments, active: current?.active === true, version: Number(current?.version || 0) + 1,
     };
     const { error } = await client.from('email_templates').upsert({
@@ -87,7 +99,9 @@ export default async function templates(request: any, response: any) {
     if (active) {
       const { error: activateError } = await client.from('email_templates').update({ active: true, updated_by: session.id }).eq('id', id);
       if (activateError) return response.status(502).json({ error: activateError.message });
-      const { error: deactivateError } = await client.from('email_templates').update({ active: false, updated_by: session.id }).neq('id', id).eq('active', true);
+      let deactivateQuery = client.from('email_templates').update({ active: false, updated_by: session.id }).neq('id', id).eq('active', true).eq('trigger_status', triggerStatus);
+      if (rejectionReason) deactivateQuery = deactivateQuery.eq('rejection_reason', rejectionReason);
+      const { error: deactivateError } = await deactivateQuery;
       if (deactivateError) return response.status(502).json({ error: deactivateError.message });
     }
     const { data, error: resultError } = await client.from('email_templates').select(fields).eq('id', id).single();

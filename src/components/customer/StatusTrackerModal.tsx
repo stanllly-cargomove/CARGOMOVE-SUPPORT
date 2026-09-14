@@ -143,7 +143,9 @@ export function StatusTrackerModal({
                   </tr>
                   {tracking.registration_type === 'COMPANY' && (
                     <tr>
-                      <td className="px-3 py-2 text-slate-700">Welcome email</td>
+                      <td className="px-3 py-2 text-slate-700">
+                        {tracking.status === 'REJECTED' ? 'Rejection notification email' : 'Welcome email'}
+                      </td>
                       <td className="px-3 py-2 text-right font-semibold text-slate-800">
                         {tracking.user_email_sent ? 'Sent' : 'Pending'}
                       </td>

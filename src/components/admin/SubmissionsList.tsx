@@ -1,18 +1,22 @@
 import React, { useState } from 'react';
-import { RegistrationSubmission, RegistrationType, SubmissionStatus, Company } from '../../types';
+import { RegistrationSubmission, RegistrationType, SubmissionStatus, Company, RejectionReason } from '../../types';
 import {
   getSubmissions,
   getCompanyById,
   ensureSubmissionCompany,
   deleteSubmission,
   updateSubmissionStatus,
+  rejectCompanySubmission,
   subscribeToStorage,
 } from '../../services/storage';
+import { getExternalUserAccess } from '../../services/auth';
+import { EmailPreview, generateWelcomeEmailPreview, sendWelcomeEmail } from '../../services/email';
 import { getCompanyExternalId } from '../../services/companyHelper';
 import { exportSubmissionsToExcel } from '../../services/excelExport';
 import { StatusBadge } from '../common/Badge';
 import { SubmissionDetailModal } from './SubmissionDetailModal';
 import { AssignIdModal } from './AssignIdModal';
+import { RichTextEmailEditor } from './RichTextEmailEditor';
 import {
   Search,
   Filter,
@@ -22,6 +26,8 @@ import {
   Trash2,
   Key,
   MoreVertical,
+  Mail,
+  X,
 } from 'lucide-react';
 import { notifyError, notifySuccess, notifyWarning, summarizeError } from '../common/notifications';
 
@@ -54,6 +60,12 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
   // Modals
   const [activeSubmission, setActiveSubmission] = useState<RegistrationSubmission | null>(null);
   const [assignIdCompany, setAssignIdCompany] = useState<Company | null>(null);
+  const [rejectingSubmission, setRejectingSubmission] = useState<RegistrationSubmission | null>(null);
+  const [rejectionReason, setRejectionReason] = useState<RejectionReason | ''>('');
+  const [rejectionDetail, setRejectionDetail] = useState('');
+  const [savingRejection, setSavingRejection] = useState(false);
+  const [preview, setPreview] = useState<EmailPreview | null>(null);
+  const [sendingEmail, setSendingEmail] = useState(false);
 
   const refreshList = () => {
     setSubmissions(getSubmissions());
@@ -67,6 +79,8 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
     setActiveSubmission(null);
     setAssignIdCompany(null);
     setMissingIdOnly(false);
+    setRejectingSubmission(null);
+    setPreview(null);
   }, [status]);
 
   React.useEffect(() => {
@@ -133,6 +147,68 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
       setAssignIdCompany(company);
     } else {
       notifyWarning('This submission does not contain enough company information to create a master record.');
+    }
+  };
+
+  const openCompanyRejection = (submission: RegistrationSubmission) => {
+    setOpenActionMenu(null);
+    setActiveSubmission(null);
+    setRejectingSubmission(submission);
+    setRejectionReason(submission.rejection_reason || '');
+    setRejectionDetail(submission.rejection_detail || '');
+  };
+
+  const rejectSubmission = (submission: RegistrationSubmission) => {
+    if (submission.registration_type === 'COMPANY') {
+      openCompanyRejection(submission);
+      return;
+    }
+    updateSubmissionStatus(submission.id, 'REJECTED');
+    refreshList();
+    setOpenActionMenu(null);
+  };
+
+  const confirmCompanyRejection = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!rejectingSubmission || !rejectionReason) {
+      notifyError('Select a rejection reason.');
+      return;
+    }
+    if (rejectionReason === 'OTHER' && !rejectionDetail.trim()) {
+      notifyError('Enter the reason for rejecting this registration.');
+      return;
+    }
+    setSavingRejection(true);
+    try {
+      const rejected = await rejectCompanySubmission(rejectingSubmission.id, rejectionReason, rejectionDetail);
+      const linkedUser = (await getExternalUserAccess()).find((user) => user.company_id === rejected.company_id);
+      if (!linkedUser || linkedUser.status !== 'REJECTED') throw new Error('The linked User Registration could not be synchronized.');
+      const generated = await generateWelcomeEmailPreview(linkedUser.id);
+      setRejectingSubmission(null);
+      setRejectionReason('');
+      setRejectionDetail('');
+      refreshList();
+      setPreview(generated);
+      notifySuccess('Company and User Registration rejected. Review the email before sending.');
+    } catch (error) {
+      refreshList();
+      notifyError(error instanceof Error ? error.message : 'Unable to reject the company registration.');
+    } finally {
+      setSavingRejection(false);
+    }
+  };
+
+  const sendRejectionEmail = async () => {
+    if (!preview) return;
+    setSendingEmail(true);
+    try {
+      await sendWelcomeEmail(preview);
+      setPreview(null);
+      notifySuccess('Rejection email sent through Gmail.');
+    } catch (error) {
+      notifyError(error instanceof Error ? error.message : 'Unable to send the rejection email.');
+    } finally {
+      setSendingEmail(false);
     }
   };
 
@@ -356,7 +432,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
                             {sub.status === 'PENDING' && (
                               <>
                                 <button type="button" onClick={() => { updateSubmissionStatus(sub.id, 'DONE'); refreshList(); setOpenActionMenu(null); }} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50">Register</button>
-                                <button type="button" onClick={() => { updateSubmissionStatus(sub.id, 'REJECTED'); refreshList(); setOpenActionMenu(null); }} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50">Reject</button>
+                                <button type="button" onClick={() => rejectSubmission(sub)} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50">Reject</button>
                               </>
                             )}
                           </div>
@@ -387,6 +463,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
             setActiveSubmission(updated || null);
           }
         }}
+        onReject={rejectSubmission}
       />
 
       {/* Assign ID Modal */}
@@ -398,6 +475,59 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
           refreshList();
         }}
       />
+
+      {rejectingSubmission && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 p-4 backdrop-blur-xs">
+          <form onSubmit={confirmCompanyRejection} role="dialog" aria-modal="true" aria-labelledby="reject-company-title" className="w-full max-w-lg overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 bg-rose-50 px-5 py-4">
+              <div><h3 id="reject-company-title" className="font-bold text-slate-900">Reject Company Registration</h3><p className="mt-0.5 text-xs text-slate-600">{rejectingSubmission.company_name.toUpperCase()} · {rejectingSubmission.reference_no}</p></div>
+              <button type="button" onClick={() => setRejectingSubmission(null)} disabled={savingRejection} aria-label="Close rejection popup" className="rounded-lg p-1 text-slate-400 hover:text-slate-700 disabled:opacity-50">×</button>
+            </div>
+            <div className="space-y-3 p-5">
+              <p className="text-xs font-semibold text-slate-700">Select the company rejection reason. The linked User Registration will also be rejected.</p>
+              {([
+                ['ALREADY_REGISTERED_BOTH', 'Already registered (Westport & Northport)'],
+                ['NORTHPORT_ADDED', 'Only need to add Northport'],
+                ['OTHER', 'Other'],
+              ] as const).map(([value, label]) => (
+                <label key={value} className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm transition ${rejectionReason === value ? 'border-rose-400 bg-rose-50' : 'border-slate-200 hover:bg-slate-50'}`}>
+                  <input type="radio" name="company-rejection-reason" value={value} checked={rejectionReason === value} onChange={() => setRejectionReason(value)} className="mt-0.5 text-rose-600 focus:ring-rose-500" />
+                  <span className="font-semibold text-slate-800">{label}</span>
+                </label>
+              ))}
+              {rejectionReason === 'OTHER' && (
+                <label className="block text-xs font-semibold text-slate-700">Rejection details
+                  <textarea autoFocus required maxLength={2000} rows={4} value={rejectionDetail} onChange={(event) => setRejectionDetail(event.target.value)} placeholder="Explain why this company registration cannot proceed..." className="mt-1.5 w-full resize-y rounded-lg border border-slate-300 px-3 py-2 font-normal focus:outline-none focus:ring-2 focus:ring-rose-500" />
+                </label>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4">
+              <button type="button" onClick={() => setRejectingSubmission(null)} disabled={savingRejection} className="rounded-lg px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200 disabled:opacity-50">Cancel</button>
+              <button type="submit" disabled={savingRejection || !rejectionReason || (rejectionReason === 'OTHER' && !rejectionDetail.trim())} className="inline-flex items-center gap-2 rounded-lg bg-rose-600 px-4 py-2 text-xs font-bold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"><Mail className="h-4 w-4" />{savingRejection ? 'Rejecting...' : 'Reject & Preview Email'}</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {preview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 p-4 backdrop-blur-xs">
+          <div role="dialog" aria-modal="true" aria-labelledby="rejection-email-preview-title" className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-4">
+              <div><h3 id="rejection-email-preview-title" className="font-bold text-slate-900">Rejection Email Preview</h3><p className="mt-0.5 text-xs text-slate-500">{preview.templateName}</p></div>
+              <button type="button" onClick={() => setPreview(null)} disabled={sendingEmail} aria-label="Close email preview" className="rounded-lg p-1 text-slate-400 hover:text-slate-700"><X className="h-5 w-5" /></button>
+            </div>
+            <div className="space-y-4 overflow-y-auto p-5">
+              <label className="block text-xs font-semibold text-slate-700">To<input value={preview.recipient} readOnly className="mt-1.5 w-full rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 font-normal text-slate-700" /></label>
+              <label className="block text-xs font-semibold text-slate-700">Subject<input value={preview.subject} onChange={(event) => setPreview({ ...preview, subject: event.target.value })} className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" /></label>
+              <div className="text-xs font-semibold text-slate-700">Message<RichTextEmailEditor value={preview.body} onChange={(body) => setPreview((current) => current ? { ...current, body } : current)} minHeightClassName="min-h-64" /></div>
+            </div>
+            <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4">
+              <button type="button" onClick={() => setPreview(null)} disabled={sendingEmail} className="rounded-lg px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200">Cancel</button>
+              <button type="button" onClick={() => void sendRejectionEmail()} disabled={sendingEmail} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-60"><Mail className="h-4 w-4" />{sendingEmail ? 'Sending...' : 'Send Email'}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

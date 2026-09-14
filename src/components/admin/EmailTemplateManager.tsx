@@ -16,6 +16,12 @@ import { RichTextEmailEditor } from './RichTextEmailEditor';
 
 type EmailTemplateManagerProps = { onViewChange?: (view: 'list' | 'design') => void };
 
+const isRequiredRejectionTemplate = (id: string) => [
+  'rejection-already-registered-both',
+  'rejection-northport-added',
+  'rejection-other',
+].includes(id);
+
 const newTemplate = (active: boolean): EmailTemplate => ({
   id: `email-${crypto.randomUUID()}`,
   name: '',
@@ -119,7 +125,7 @@ export function EmailTemplateManager({ onViewChange }: EmailTemplateManagerProps
       <div>
         <p className="text-xs font-semibold uppercase tracking-wider text-blue-600">{isCreating ? 'New template' : 'Edit template'}</p>
         <h2 className="mt-1 text-xl font-bold tracking-tight text-slate-900">Design Template</h2>
-        <p className="mt-1 text-xs text-slate-500">Design the message recipients will receive when their registration is marked DONE.</p>
+        <p className="mt-1 text-xs text-slate-500">Design the message recipients will receive for this registration outcome.</p>
       </div>
       <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="grid gap-4 md:grid-cols-2">
@@ -127,7 +133,7 @@ export function EmailTemplateManager({ onViewChange }: EmailTemplateManagerProps
             <input autoFocus value={editing.name} onChange={(event) => setEditing({ ...editing, name: event.target.value })} placeholder="e.g. Standard welcome email" className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
           </label>
           <label className="text-xs font-semibold text-slate-700">Trigger
-            <input value="User Registration Status = DONE" disabled className="mt-1.5 w-full rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 font-normal text-slate-600" />
+            <input value={`User Registration Status = ${editing.trigger_status}${editing.rejection_reason ? ` / ${editing.rejection_reason.replaceAll('_', ' ')}` : ''}`} disabled className="mt-1.5 w-full rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 font-normal text-slate-600" />
           </label>
           <label className="text-xs font-semibold text-slate-700">Recipient
             <input value={editing.recipient_template} disabled className="mt-1.5 w-full rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 font-mono font-normal text-slate-600" />
@@ -138,7 +144,7 @@ export function EmailTemplateManager({ onViewChange }: EmailTemplateManagerProps
         </div>
         <div className="text-xs font-semibold text-slate-700">Email body
           <RichTextEmailEditor value={editing.body_template} onChange={(body_template) => setEditing((current) => current ? { ...current, body_template } : current)} />
-          <p className="mt-1.5 text-[11px] font-normal text-slate-500">Available variables: <code>{'{{user.email}}'}</code>, <code>{'{{user.username}}'}</code>, <code>{'{{user.password}}'}</code></p>
+          <p className="mt-1.5 text-[11px] font-normal text-slate-500">Available variables: <code>{'{{user.email}}'}</code>, <code>{'{{user.username}}'}</code>, <code>{'{{user.password}}'}</code>{editing.rejection_reason === 'OTHER' && <>, <code>{'{{rejection.reason}}'}</code></>}</p>
         </div>
         <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -153,7 +159,7 @@ export function EmailTemplateManager({ onViewChange }: EmailTemplateManagerProps
           )}
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
-          <label className="flex items-center gap-2 text-xs font-semibold text-slate-700"><input type="checkbox" checked={editing.active} disabled={!isCreating && editing.active} onChange={(event) => setEditing({ ...editing, active: event.target.checked })} />{editing.active ? 'Active welcome template' : 'Use as the active welcome template'}</label>
+          <label className="flex items-center gap-2 text-xs font-semibold text-slate-700"><input type="checkbox" checked={editing.active} disabled={!isCreating && editing.active} onChange={(event) => setEditing({ ...editing, active: event.target.checked })} />{editing.active ? 'Active template' : 'Use as the active template'}</label>
           <div className="flex gap-2"><button type="button" onClick={closeDesigner} className="rounded-lg px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100">Cancel</button><button type="button" onClick={() => void save()} disabled={saving} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-60"><Save className="h-4 w-4" />{saving ? 'Saving...' : 'Save Template'}</button></div>
         </div>
       </div>
@@ -163,7 +169,7 @@ export function EmailTemplateManager({ onViewChange }: EmailTemplateManagerProps
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div><h2 className="text-xl font-bold tracking-tight text-slate-900">Email Templates</h2><p className="mt-1 text-xs text-slate-500">Create and manage reusable emails for completed user registrations.</p></div>
+        <div><h2 className="text-xl font-bold tracking-tight text-slate-900">Email Templates</h2><p className="mt-1 text-xs text-slate-500">Create and manage reusable registration outcome emails.</p></div>
         <div className="flex flex-wrap gap-2"><button type="button" onClick={() => void connect()} disabled={connecting} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-60"><PlugZap className="h-4 w-4" />{connecting ? 'Connecting...' : gmailEmail ? 'Reconnect Gmail' : 'Connect Gmail'}</button><button type="button" onClick={() => openDesigner(newTemplate(templates.length === 0), true)} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700"><Plus className="h-4 w-4" />New Template</button></div>
       </div>
       <div className={`rounded-xl border p-4 text-xs ${gmailEmail ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}><div className="flex items-center gap-2 font-bold"><Mail className="h-4 w-4" />{gmailEmail ? `Connected as ${gmailEmail}` : 'Gmail is not connected'}</div></div>
@@ -171,7 +177,7 @@ export function EmailTemplateManager({ onViewChange }: EmailTemplateManagerProps
         <div className="grid gap-4 md:grid-cols-2">
           {templates.map((template) => <div key={template.id} onClick={() => openDesigner(template)} className="group cursor-pointer rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-blue-300 hover:shadow-md">
             <div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="truncate text-sm font-bold text-slate-900">{template.name}</h3>{template.active && <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700">Active</span>}</div><p className="mt-2 line-clamp-2 text-xs text-slate-500">{template.subject_template}</p></div><Mail className="h-5 w-5 shrink-0 text-slate-300 group-hover:text-blue-500" /></div>
-            <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-3"><span className="inline-flex items-center gap-1.5 text-[11px] text-slate-400"><CalendarClock className="h-3.5 w-3.5" />{template.updated_at ? new Date(template.updated_at).toLocaleDateString() : `Version ${template.version}`}</span><div className="flex gap-1"><button type="button" onClick={(event) => { event.stopPropagation(); openDesigner(template); }} className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-50"><Pencil className="h-3.5 w-3.5" />Edit</button><button type="button" disabled={deletingId === template.id || templates.length === 1} title={templates.length === 1 ? 'At least one template is required' : 'Remove template'} onClick={(event) => { event.stopPropagation(); void remove(template); }} className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-bold text-rose-600 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-40"><Trash2 className="h-3.5 w-3.5" />{deletingId === template.id ? 'Removing...' : 'Remove'}</button></div></div>
+            <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-3"><span className="inline-flex items-center gap-1.5 text-[11px] text-slate-400"><CalendarClock className="h-3.5 w-3.5" />{template.updated_at ? new Date(template.updated_at).toLocaleDateString() : `Version ${template.version}`}</span><div className="flex gap-1"><button type="button" onClick={(event) => { event.stopPropagation(); openDesigner(template); }} className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-50"><Pencil className="h-3.5 w-3.5" />Edit</button><button type="button" disabled={deletingId === template.id || templates.length === 1 || isRequiredRejectionTemplate(template.id)} title={isRequiredRejectionTemplate(template.id) ? 'Built-in rejection templates can be edited but not removed' : templates.length === 1 ? 'At least one template is required' : 'Remove template'} onClick={(event) => { event.stopPropagation(); void remove(template); }} className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-bold text-rose-600 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-40"><Trash2 className="h-3.5 w-3.5" />{deletingId === template.id ? 'Removing...' : 'Remove'}</button></div></div>
           </div>)}
         </div>
       )}
