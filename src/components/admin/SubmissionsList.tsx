@@ -327,13 +327,14 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
           <table className="w-full min-w-[1120px] table-fixed text-left text-xs border-collapse">
             <colgroup>
               <col style={{ width: '5%' }} />
-              <col style={{ width: '16%' }} />
-              <col style={{ width: '26%' }} />
+              <col style={{ width: '15%' }} />
+              <col style={{ width: '20%' }} />
+              <col style={{ width: '11%' }} />
               <col style={{ width: '11%' }} />
               <col style={{ width: '14%' }} />
-              <col style={{ width: '10%' }} />
+              <col style={{ width: '9%' }} />
               <col style={{ width: '8%' }} />
-              <col style={{ width: '10%' }} />
+              <col style={{ width: '7%' }} />
             </colgroup>
             <thead>
               <tr className="admin-registration-table-header whitespace-nowrap border-b border-slate-400 bg-[#CBD5E1] font-bold uppercase tracking-wider text-slate-700">
@@ -350,6 +351,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
                 </th>
                 <th className="py-3 px-4">Reference No</th>
                 <th className="py-3 px-4">Company Name</th>
+                <th className="py-3 px-3">Type</th>
                 <th className="py-3 px-3">Facility</th>
                 <th className="py-3 px-3">Cargomove ID</th>
                 <th className="py-3 px-3">Status</th>
@@ -360,7 +362,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
             <tbody className="divide-y divide-slate-100">
               {filteredSubmissions.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-8 text-center text-slate-500">
+                  <td colSpan={9} className="py-8 text-center text-slate-500">
                     No submissions found matching criteria.
                   </td>
                 </tr>
@@ -392,6 +394,12 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
 
                       <td className="py-3 px-4">
                         <div className="font-bold text-slate-900">{sub.company_name.toUpperCase()}</div>
+                      </td>
+
+                      <td className="py-3 px-3">
+                        <span className="text-[11px] font-semibold text-slate-700">
+                          {(company?.company_type || sub.company_type || '—').toUpperCase()}
+                        </span>
                       </td>
 
                       <td className="py-2.5 px-3">
