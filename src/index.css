@@ -235,12 +235,27 @@ code, kbd, samp, pre {
 .admin-theme-dark .admin-registration-tab[aria-selected='true'] {
   background-color: #334155 !important;
   border-color: #475569 !important;
+  border-bottom-color: #334155 !important;
 }
 
 .admin-theme-dark .admin-registration-table-header {
   background-color: #0f172a !important;
   border-color: #334155 !important;
   color: #cbd5e1 !important;
+}
+
+.admin-registration-copy-text {
+  transition: color 150ms ease;
+}
+
+.admin-registration-copy-text:hover,
+.admin-registration-copy-text:hover > span {
+  color: #2563eb !important;
+}
+
+.admin-theme-dark .admin-registration-copy-text:hover,
+.admin-theme-dark .admin-registration-copy-text:hover > span {
+  color: #60a5fa !important;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -30,6 +30,7 @@ import {
   Mail,
   X,
   RotateCcw,
+  Info,
 } from 'lucide-react';
 import { notifyError, notifySuccess, notifyWarning, summarizeError } from '../common/notifications';
 
@@ -155,6 +156,27 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
       setSelectedIds(selectedIds.filter((item) => item !== id));
     } else {
       setSelectedIds([...selectedIds, id]);
+    }
+  };
+
+  const handleCopyQueueValue = async (value: string, label: string) => {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+      } else {
+        const copyInput = document.createElement('textarea');
+        copyInput.value = value;
+        copyInput.style.position = 'fixed';
+        copyInput.style.opacity = '0';
+        document.body.appendChild(copyInput);
+        copyInput.select();
+        const copied = document.execCommand('copy');
+        copyInput.remove();
+        if (!copied) throw new Error('Copy command failed.');
+      }
+      notifySuccess(`${label} copied.`);
+    } catch {
+      notifyError(`Unable to copy ${label.toLowerCase()}.`);
     }
   };
 
@@ -349,6 +371,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
 
       {/* Registration type chrome tabs and table */}
       <div className="rounded-xl">
+        <div className="flex flex-wrap items-end justify-between gap-x-4">
         <div className="flex w-fit items-end gap-0">
         {[
           ['COMPANY', 'Company'],
@@ -364,7 +387,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
             role="tab"
             className={`admin-registration-tab min-w-[132px] rounded-t-lg border px-5 py-3 text-xs font-bold uppercase tracking-wider transition-colors ${
               typeFilter === value
-                ? `relative z-10 border-slate-400 bg-[#CBD5E1] ${statusTitleColors[status]}`
+                ? `relative z-10 -mb-px border-slate-400 border-b-[#CBD5E1] bg-[#CBD5E1] ${statusTitleColors[status]}`
                 : 'border-slate-300 bg-[#F1F5F9] text-slate-500 hover:bg-slate-200 hover:text-slate-900'
             }`}
           >
@@ -372,9 +395,14 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
           </button>
         ))}
         </div>
+        <div className="flex items-center gap-1.5 px-2 pb-2 text-[11px] font-medium text-slate-500" title="Double-click a table value to copy it to your clipboard.">
+          <Info className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <span>Double-click any table value to copy</span>
+        </div>
+        </div>
 
       {/* Submissions Table */}
-        <div className="overflow-x-auto rounded-b-xl border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-x-auto rounded-b-xl rounded-tr-lg border border-slate-200 bg-white shadow-sm">
           <table className="w-full min-w-[1120px] table-fixed text-left text-xs border-collapse">
             <colgroup>
               <col style={{ width: '4%' }} />
@@ -422,6 +450,10 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
                   const company = sub.company_id ? getCompanyById(sub.company_id) : undefined;
                   const idInfo = getCompanyExternalId(company || { company_type: sub.company_type });
                   const isSelected = selectedIds.includes(sub.id);
+                  const companyName = sub.company_name.toUpperCase();
+                  const companyType = (company?.company_type || sub.company_type || '—').toUpperCase();
+                  const facility = sub.port_location === 'PORT_KLANG' ? 'PORT KLANG' : sub.port_location === 'JOHOR' ? 'JOHOR' : 'OTHER PORT';
+                  const submittedDate = new Date(sub.submitted_at).toLocaleDateString();
 
                   return (
                     <tr
@@ -439,32 +471,54 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
                         />
                       </td>
 
-                      <td className="py-3 px-4 font-mono font-bold text-slate-900">
-                        {sub.reference_no}
-                      </td>
-
-                      <td className="py-3 px-4">
-                        <div className="truncate whitespace-nowrap font-bold text-slate-900" title={sub.company_name}>
-                          {sub.company_name.toUpperCase()}
-                        </div>
-                      </td>
-
-                      <td className="py-3 px-3 text-center">
-                        <span className="text-[11px] font-semibold text-slate-700">
-                          {(company?.company_type || sub.company_type || '—').toUpperCase()}
+                      <td
+                        className="cursor-copy select-none py-3 px-4 font-mono font-bold text-slate-900"
+                        onDoubleClick={() => void handleCopyQueueValue(sub.reference_no, 'Reference number')}
+                        title="Double-click to copy reference number"
+                      >
+                        <span className="admin-registration-copy-text">
+                          {sub.reference_no}
                         </span>
                       </td>
 
-                      <td className="py-2.5 px-3">
-                        <span className="text-[11px] font-semibold text-slate-700">
-                          {sub.port_location === 'PORT_KLANG' ? 'PORT KLANG' : sub.port_location === 'JOHOR' ? 'JOHOR' : 'OTHER PORT'}
+                      <td
+                        className="cursor-copy select-none py-3 px-4"
+                        onDoubleClick={() => void handleCopyQueueValue(companyName, 'Company name')}
+                        title="Double-click to copy company name"
+                      >
+                        <div className="admin-registration-copy-text truncate whitespace-nowrap font-bold text-slate-900" title={sub.company_name}>
+                          {companyName}
+                        </div>
+                      </td>
+
+                      <td
+                        className="cursor-copy select-none py-3 px-3 text-center"
+                        onDoubleClick={() => void handleCopyQueueValue(companyType, 'Type')}
+                        title="Double-click to copy type"
+                      >
+                        <span className="admin-registration-copy-text text-[11px] font-semibold text-slate-700">
+                          {companyType}
+                        </span>
+                      </td>
+
+                      <td
+                        className="cursor-copy select-none py-2.5 px-3"
+                        onDoubleClick={() => void handleCopyQueueValue(facility, 'Facility')}
+                        title="Double-click to copy facility"
+                      >
+                        <span className="admin-registration-copy-text text-[11px] font-semibold text-slate-700">
+                          {facility}
                         </span>
                       </td>
 
                       {/* Backend ID Linkage Status */}
-                      <td className="py-3 px-3 font-mono">
+                      <td
+                        className={`${idInfo.has_required_id ? 'cursor-copy select-none' : ''} py-3 px-3 font-mono`}
+                        onDoubleClick={idInfo.has_required_id ? () => void handleCopyQueueValue(idInfo.active_id_value || '', 'Cargomove ID') : undefined}
+                        title={idInfo.has_required_id ? 'Double-click to copy Cargomove ID' : undefined}
+                      >
                         {idInfo.has_required_id ? (
-                          <span className="font-mono text-[11px] text-slate-700">{idInfo.active_id_value}</span>
+                          <span className="admin-registration-copy-text font-mono text-[11px] text-slate-700">{idInfo.active_id_value}</span>
                         ) : (
                           <button
                             type="button"
@@ -477,12 +531,24 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
                         )}
                       </td>
 
-                      <td className="py-3 px-3">
-                        <StatusBadge status={sub.status} />
+                      <td
+                        className="cursor-copy select-none py-3 px-3"
+                        onDoubleClick={() => void handleCopyQueueValue(sub.status, 'Status')}
+                        title="Double-click to copy status"
+                      >
+                        <span className="admin-registration-copy-text inline-flex">
+                          <StatusBadge status={sub.status} />
+                        </span>
                       </td>
 
-                      <td className="py-3 px-3 text-center text-[11px] text-slate-500">
-                        {new Date(sub.submitted_at).toLocaleDateString()}
+                      <td
+                        className="cursor-copy select-none py-3 px-3 text-center text-[11px] text-slate-500"
+                        onDoubleClick={() => void handleCopyQueueValue(submittedDate, 'Submitted date')}
+                        title="Double-click to copy submitted date"
+                      >
+                        <span className="admin-registration-copy-text">
+                          {submittedDate}
+                        </span>
                       </td>
 
                       <td className="relative py-3 px-4 text-right">
