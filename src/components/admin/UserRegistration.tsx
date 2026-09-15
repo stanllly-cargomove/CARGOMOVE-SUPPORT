@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Download, Mail, Pencil, Save, Search, UsersRound, X } from 'lucide-react';
+import { Download, Info, Mail, Pencil, Save, Search, UsersRound, X } from 'lucide-react';
 import { getExternalUserAccess, ExternalUserAccess, updateExternalUserAccess } from '../../services/auth';
 import { EmailPreview, generateWelcomeEmailPreview, sendWelcomeEmail } from '../../services/email';
 import { RichTextEmailEditor } from './RichTextEmailEditor';
@@ -272,8 +272,25 @@ export function UserRegistration() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-bold text-slate-900 tracking-tight">User Registration</h2>
-        <p className="text-xs text-slate-500 mt-1">Users registered through the company registration form. Double-click a text value to copy it.</p>
+        <div className="flex items-center gap-2">
+          <h2 className="text-xl font-bold text-slate-900 tracking-tight">User Registration</h2>
+          <div className="group relative">
+            <button
+              type="button"
+              aria-label="User Registration table information"
+              className="flex h-5 w-5 items-center justify-center rounded-full text-blue-600 outline-none transition-colors hover:bg-blue-50 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500"
+            >
+              <Info className="h-4 w-4" />
+            </button>
+            <div
+              role="tooltip"
+              className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 hidden w-64 -translate-x-1/2 rounded-lg bg-slate-900 px-3 py-2 text-center text-[11px] font-medium leading-relaxed text-white shadow-lg group-hover:block group-focus-within:block"
+            >
+              Double-click any text value to copy the complete value to your clipboard as plain text.
+            </div>
+          </div>
+        </div>
+        <p className="text-xs text-slate-500 mt-1">Users registered through the company registration form.</p>
       </div>
 
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
