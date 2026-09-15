@@ -17,12 +17,14 @@ import {
   Building2,
   FileSpreadsheet,
   Users,
+  UserRound,
   Container,
   Truck,
   ArrowUpRight,
   ShieldCheck,
   ChevronLeft,
   ChevronRight,
+  Search,
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -42,18 +44,14 @@ interface RecentQueueItem {
   submission: RegistrationSubmission;
 }
 
-const queueStatusPriority: Record<RegistrationSubmission['status'], number> = {
-  PENDING: 0,
-  REJECTED: 1,
-  DONE: 2,
-};
-
 export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const [companies, setCompanies] = useState(getCompanies());
   const [submissions, setSubmissions] = useState(getSubmissions());
   const [externalUsers, setExternalUsers] = useState<ExternalUserAccess[]>([]);
   const [queuePageSize, setQueuePageSize] = useState<20 | 30 | 50>(20);
   const [queuePage, setQueuePage] = useState(1);
+  const [queueSearch, setQueueSearch] = useState('');
+  const [queueType, setQueueType] = useState<RegistrationType | 'USER' | 'ALL'>('ALL');
 
   // Modals
   const [selectedCompanyForId, setSelectedCompanyForId] = useState<Company | null>(null);
@@ -72,13 +70,16 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
 
   useEffect(() => {
     setQueuePage(1);
-  }, [queuePageSize]);
+  }, [queuePageSize, queueSearch, queueType]);
 
   const pendingByType = (type: RegistrationType) =>
     submissions.filter((s) => s.registration_type === type && s.status === 'PENDING').length;
 
   const registeredByType = (type: RegistrationType) =>
     submissions.filter((s) => s.registration_type === type && s.status === 'DONE').length;
+
+  const pendingUserCount = externalUsers.filter((user) => user.status === 'PENDING').length;
+  const registeredUserCount = externalUsers.filter((user) => user.status === 'DONE').length;
 
   const submissionQueue: RecentQueueItem[] = submissions.map((submission) => ({
     rowKey: `submission:${submission.id}`,
@@ -116,15 +117,23 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
       submission,
     }];
   });
-  const recentQueue = [...submissionQueue, ...userQueue].sort((left, right) => {
-    const statusDifference = queueStatusPriority[left.status] - queueStatusPriority[right.status];
-    const dateDifference = Date.parse(left.submittedAt) - Date.parse(right.submittedAt);
-    return statusDifference || dateDifference || left.rowKey.localeCompare(right.rowKey);
-  });
-  const queuePageCount = Math.max(1, Math.ceil(recentQueue.length / queuePageSize));
+  const normalizedQueueSearch = queueSearch.trim().toLowerCase();
+  const pendingQueue = [...submissionQueue, ...userQueue]
+    .filter((item) => item.status === 'PENDING')
+    .filter((item) => queueType === 'ALL' || item.type === queueType)
+    .filter((item) => {
+      if (!normalizedQueueSearch) return true;
+      return [item.referenceNo, item.companyName, item.companyType, item.type, item.portLocation]
+        .some((value) => value.toLowerCase().includes(normalizedQueueSearch));
+    })
+    .sort((left, right) => {
+      const dateDifference = Date.parse(left.submittedAt) - Date.parse(right.submittedAt);
+      return dateDifference || left.rowKey.localeCompare(right.rowKey);
+    });
+  const queuePageCount = Math.max(1, Math.ceil(pendingQueue.length / queuePageSize));
   const currentQueuePage = Math.min(queuePage, queuePageCount);
   const queueStart = (currentQueuePage - 1) * queuePageSize;
-  const visibleQueue = recentQueue.slice(queueStart, queueStart + queuePageSize);
+  const visibleQueue = pendingQueue.slice(queueStart, queueStart + queuePageSize);
 
   return (
     <div className="space-y-6">
@@ -132,7 +141,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         <div>
           <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Admin Operations Center</h2>
           <p className="text-xs text-slate-500 mt-1">
-            Real-time monitoring of port registrations, master ID resolution, and EDI exports.
+            Manage registration approvals, user access, CargoMove IDs, and port-ready data exports.
           </p>
         </div>
 
@@ -149,19 +158,36 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
       </div>
 
       {/* Pending and registered counts by type */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {[
           {
             type: 'COMPANY' as RegistrationType,
             label: 'Company',
+            pendingCount: pendingByType('COMPANY'),
+            registeredCount: registeredByType('COMPANY'),
+            destination: 'submissions',
             icon: Building2,
             iconClass: 'bg-blue-100 text-blue-600',
             cardClass: 'border-blue-100 bg-gradient-to-br from-white via-white to-blue-50',
             accentClass: 'bg-blue-200/30',
           },
           {
+            type: 'USER' as const,
+            label: 'User',
+            pendingCount: pendingUserCount,
+            registeredCount: registeredUserCount,
+            destination: 'user-registration',
+            icon: UserRound,
+            iconClass: 'bg-cyan-100 text-cyan-600',
+            cardClass: 'border-cyan-100 bg-gradient-to-br from-white via-white to-cyan-50',
+            accentClass: 'bg-cyan-200/30',
+          },
+          {
             type: 'DRIVER' as RegistrationType,
             label: 'Driver',
+            pendingCount: pendingByType('DRIVER'),
+            registeredCount: registeredByType('DRIVER'),
+            destination: 'submissions',
             icon: Users,
             iconClass: 'bg-emerald-100 text-emerald-600',
             cardClass: 'border-emerald-100 bg-gradient-to-br from-white via-white to-emerald-50',
@@ -170,6 +196,9 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           {
             type: 'TRAILER' as RegistrationType,
             label: 'Trailer',
+            pendingCount: pendingByType('TRAILER'),
+            registeredCount: registeredByType('TRAILER'),
+            destination: 'submissions',
             icon: Container,
             iconClass: 'bg-violet-100 text-violet-600',
             cardClass: 'border-violet-100 bg-gradient-to-br from-white via-white to-violet-50',
@@ -178,47 +207,50 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           {
             type: 'VEHICLE' as RegistrationType,
             label: 'Vehicle',
+            pendingCount: pendingByType('VEHICLE'),
+            registeredCount: registeredByType('VEHICLE'),
+            destination: 'submissions',
             icon: Truck,
             iconClass: 'bg-fuchsia-100 text-fuchsia-600',
             cardClass: 'border-fuchsia-100 bg-gradient-to-br from-white via-white to-fuchsia-50',
             accentClass: 'bg-fuchsia-200/30',
           },
-        ].map(({ type, label, icon: Icon, iconClass, cardClass, accentClass }) => (
+        ].map(({ type, label, pendingCount, registeredCount, destination, icon: Icon, iconClass, cardClass, accentClass }) => (
           <button
             type="button"
             key={type}
-            onClick={() => onNavigate('submissions', type)}
-            aria-label={`View ${label} registrations: ${pendingByType(type)} pending and ${registeredByType(type)} registered`}
-            className={`admin-summary-card group relative min-h-28 overflow-hidden rounded-xl border p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${cardClass}`}
+            onClick={() => type === 'USER' ? onNavigate(destination) : onNavigate(destination, type)}
+            aria-label={`View ${label} registrations: ${pendingCount} pending and ${registeredCount} registered`}
+            className={`admin-summary-card group relative min-h-24 overflow-hidden rounded-xl border p-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${cardClass}`}
           >
             <span
-              className={`pointer-events-none absolute -bottom-12 -right-10 h-28 w-28 rounded-full ${accentClass}`}
+              className={`pointer-events-none absolute -bottom-10 -right-8 h-24 w-24 rounded-full ${accentClass}`}
               aria-hidden="true"
             />
 
-            <div className="relative flex gap-4">
-              <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${iconClass}`}>
-                <Icon className="h-6 w-6" strokeWidth={2.2} />
+            <div className="relative flex gap-2.5">
+              <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${iconClass}`}>
+                <Icon className="h-4.5 w-4.5" strokeWidth={2.2} />
               </div>
 
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="truncate text-sm font-bold text-slate-900">{label}</span>
-                  <ChevronRight className="h-5 w-5 shrink-0 text-slate-500 transition-transform group-hover:translate-x-0.5" />
+                  <span className="truncate text-xs font-bold text-slate-900">{label}</span>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-slate-500 transition-transform group-hover:translate-x-0.5" />
                 </div>
 
-                <div className="mt-3 grid grid-cols-2">
-                  <div className="min-w-0 pr-3">
-                    <div className="text-xl font-bold leading-none tabular-nums text-slate-900">
-                      {pendingByType(type)}
+                <div className="mt-2 grid grid-cols-2">
+                  <div className="min-w-0 pr-2">
+                    <div className="text-lg font-bold leading-none tabular-nums text-slate-900">
+                      {pendingCount}
                     </div>
-                    <div className="mt-1 text-[10px] font-bold text-amber-600">Pending</div>
+                    <div className="mt-1 text-[9px] font-bold text-amber-600">Pending</div>
                   </div>
-                  <div className="min-w-0 border-l border-slate-200 pl-4">
-                    <div className="text-xl font-bold leading-none tabular-nums text-slate-900">
-                      {registeredByType(type)}
+                  <div className="min-w-0 border-l border-slate-200 pl-2.5">
+                    <div className="text-lg font-bold leading-none tabular-nums text-slate-900">
+                      {registeredCount}
                     </div>
-                    <div className="mt-1 truncate text-[10px] font-bold text-emerald-600">Registered</div>
+                    <div className="mt-1 truncate text-[9px] font-bold text-emerald-600">Registered</div>
                   </div>
                 </div>
               </div>
@@ -227,11 +259,39 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         ))}
       </div>
 
-      {/* Recent Submissions Queue */}
+      {/* Pending Submissions Queue */}
+      <section className="space-y-3">
+        <h3 className="text-sm font-bold text-slate-900">Pending Registrations Queue</h3>
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
-          <h3 className="font-bold text-sm text-slate-900">Recent Registrations Queue</h3>
+          <div className="relative w-full lg:max-w-sm">
+            <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+            <input
+              type="search"
+              value={queueSearch}
+              onChange={(event) => setQueueSearch(event.target.value)}
+              placeholder="Search reference or company..."
+              aria-label="Search pending registrations"
+              className="h-8 w-full rounded-lg border border-slate-300 bg-white pl-9 pr-3 text-[11px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
           <div className="flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-2 text-[9px] font-bold uppercase tracking-[0.16em] text-slate-500">
+              Reg. Type
+              <select
+                value={queueType}
+                onChange={(event) => setQueueType(event.target.value as RegistrationType | 'USER' | 'ALL')}
+                className="h-8 rounded-lg border border-slate-300 bg-slate-100 px-2.5 text-[10px] font-bold tracking-normal text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                aria-label="Filter by registration type"
+              >
+                <option value="ALL">ALL</option>
+                <option value="COMPANY">COMPANY</option>
+                <option value="DRIVER">DRIVER</option>
+                <option value="TRAILER">TRAILER</option>
+                <option value="VEHICLE">VEHICLE</option>
+                <option value="USER">USER</option>
+              </select>
+            </label>
             <label className="flex items-center gap-2 text-[9px] font-bold uppercase tracking-[0.16em] text-slate-500">
               Show
               <select
@@ -249,7 +309,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
               onClick={() => onNavigate('submissions')}
               className="flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-800"
             >
-              View All Submissions <ArrowUpRight className="w-3.5 h-3.5" />
+              View All Pending <ArrowUpRight className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
@@ -259,7 +319,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             <thead>
               <tr className="bg-slate-100 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider">
                 <th className="py-2 px-3">Reference</th>
-                <th className="py-2 px-3 text-center">Type</th>
+                <th className="py-2 px-3 text-center">Reg. Type</th>
                 <th className="py-2 px-3">Company</th>
                 <th className="py-2 px-3 text-center">Facility</th>
                 <th className="py-2 px-3">Cargomove ID</th>
@@ -271,7 +331,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
               {visibleQueue.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-3 py-8 text-center text-slate-500">
-                    No registrations found.
+                    No pending registrations match the current filters.
                   </td>
                 </tr>
               ) : visibleQueue.map((item) => {
@@ -336,10 +396,10 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             </tbody>
           </table>
         </div>
-        {recentQueue.length > queuePageSize && (
+        {pendingQueue.length > queuePageSize && (
           <div className="flex flex-col gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3 text-[10px] text-slate-500 sm:flex-row sm:items-center sm:justify-between">
             <span>
-              Showing {queueStart + 1}–{Math.min(queueStart + queuePageSize, recentQueue.length)} of {recentQueue.length} records
+              Showing {queueStart + 1}–{Math.min(queueStart + queuePageSize, pendingQueue.length)} of {pendingQueue.length} records
             </span>
             <div className="flex items-center gap-2">
               <button
@@ -365,6 +425,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           </div>
         )}
       </div>
+      </section>
 
       {/* Assign ID Modal */}
       <AssignIdModal
