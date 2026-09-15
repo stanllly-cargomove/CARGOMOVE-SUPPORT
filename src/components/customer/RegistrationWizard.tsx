@@ -214,12 +214,22 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
       <header className="bg-[#0b1930] text-white border-b border-slate-800 sticky top-0 z-40">
         <div className="max-w-[1320px] mx-auto px-3 sm:px-8 lg:px-[44px] h-[54px] flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="shrink-0 sm:hidden">
+            <button
+              type="button"
+              onClick={handleReset}
+              aria-label="Go to main registration page"
+              className="shrink-0 rounded-sm transition-opacity hover:opacity-85 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2 focus:ring-offset-[#0b1930] sm:hidden"
+            >
               <Logo size="sm" light />
-            </div>
-            <div className="hidden shrink-0 sm:block">
+            </button>
+            <button
+              type="button"
+              onClick={handleReset}
+              aria-label="Go to main registration page"
+              className="hidden shrink-0 rounded-sm transition-opacity hover:opacity-85 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2 focus:ring-offset-[#0b1930] sm:block"
+            >
               <Logo size="md" light />
-            </div>
+            </button>
             <div className="hidden sm:flex items-center gap-4 pl-5 border-l border-slate-600/70 h-6">
               <span className="text-white text-sm sm:text-base font-semibold">Customer Registration</span>
             </div>
