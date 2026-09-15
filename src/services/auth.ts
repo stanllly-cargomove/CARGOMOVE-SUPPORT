@@ -29,11 +29,12 @@ export interface ExternalUserAccess {
   email_status: 'NOT_READY' | 'READY' | 'SENDING' | 'SENT' | 'FAILED';
   email_sent: 0 | 1;
   created_at: string;
+  updated_at: string;
 }
 
 export type RejectionReason = 'ALREADY_REGISTERED_BOTH' | 'NORTHPORT_ADDED' | 'OTHER';
 
-export async function saveExternalUserAccess(input: Omit<ExternalUserAccess, 'id' | 'created_at' | 'status' | 'email_status' | 'email_sent'> & Partial<Pick<ExternalUserAccess, 'status' | 'email_sent'>> & { id?: string }): Promise<void> {
+export async function saveExternalUserAccess(input: Omit<ExternalUserAccess, 'id' | 'created_at' | 'updated_at' | 'status' | 'email_status' | 'email_sent'> & Partial<Pick<ExternalUserAccess, 'status' | 'email_sent'>> & { id?: string }): Promise<void> {
   await fetch('/api/external-user-access', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -53,14 +54,63 @@ export async function updateExternalUserAccess(
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body.error || 'Unable to update external user access.');
+  if (body.user?.id && externalUserCache) {
+    externalUserCache.set(body.user.id, body.user);
+    externalUserCursor = newestTimestamp(externalUserCursor, body.user.updated_at);
+  }
   return body.user;
 }
 
+let externalUserCache: Map<string, ExternalUserAccess> | null = null;
+let externalUserCursor: string | undefined;
+let externalUserRefresh: Promise<boolean> | null = null;
+let externalUserRefreshedAt = 0;
+
+function newestTimestamp(current: string | undefined, candidate: unknown) {
+  if (typeof candidate !== 'string' || Number.isNaN(Date.parse(candidate))) return current;
+  return !current || Date.parse(candidate) > Date.parse(current) ? candidate : current;
+}
+
+export function clearExternalUserAccessCache(): void {
+  externalUserCache = null;
+  externalUserCursor = undefined;
+  externalUserRefreshedAt = 0;
+}
+
+export async function refreshExternalUserAccess(options: { fullSync?: boolean } = {}): Promise<boolean> {
+  if (externalUserRefresh) return externalUserRefresh;
+  if (!options.fullSync && externalUserCache && Date.now() - externalUserRefreshedAt < 1_000) return false;
+
+  externalUserRefresh = (async () => {
+    const wasInitialized = externalUserCache !== null;
+    const since = options.fullSync ? undefined : externalUserCursor;
+    const query = since ? `?since=${encodeURIComponent(since)}` : '';
+    const response = await fetch(`/api/external-user-access${query}`, { credentials: 'include', cache: 'no-store' });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || 'Unable to load external user access records.');
+
+    const incoming = Array.isArray(body.users) ? body.users as ExternalUserAccess[] : [];
+    const next = options.fullSync || !externalUserCache
+      ? new Map(incoming.map((user) => [user.id, user]))
+      : new Map(externalUserCache);
+    incoming.forEach((user) => next.set(user.id, user));
+    const changed = !wasInitialized || !!options.fullSync || incoming.length > 0;
+    externalUserCache = next;
+    externalUserCursor = typeof body.syncCursor === 'string'
+      ? body.syncCursor
+      : incoming.reduce((cursor, user) => newestTimestamp(cursor, user.updated_at), externalUserCursor);
+    externalUserRefreshedAt = Date.now();
+    return changed;
+  })().finally(() => {
+    externalUserRefresh = null;
+  });
+  return externalUserRefresh;
+}
+
 export async function getExternalUserAccess(): Promise<ExternalUserAccess[]> {
-  const response = await fetch('/api/external-user-access', { credentials: 'include', cache: 'no-store' });
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(body.error || 'Unable to load external user access records.');
-  return body.users || [];
+  await refreshExternalUserAccess();
+  return Array.from(externalUserCache?.values() || [])
+    .sort((left, right) => Date.parse(right.created_at) - Date.parse(left.created_at));
 }
 
 export async function getApplicationSession(): Promise<{ authenticated: boolean; user: ApplicationUser | null }> {

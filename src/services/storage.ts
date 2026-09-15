@@ -12,7 +12,7 @@ import {
 } from '../types';
 import { normalizeCompanyType, normalizeRegNo } from './companyHelper';
 import { deleteSupabaseRow, fetchSupabaseSnapshot, isSupabaseConfigured, upsertSupabaseRow } from './supabase';
-import { saveExternalUserAccess } from './auth';
+import { clearExternalUserAccessCache, refreshExternalUserAccess, saveExternalUserAccess } from './auth';
 
 const STORAGE_KEYS = {
   COMPANIES: 'port_reg_companies_v1',
@@ -511,7 +511,10 @@ async function syncFromSupabase(fullSync = false): Promise<void> {
   if (!isSupabaseConfigured || !protectedDataEnabled || protectedWriteInFlight || remoteSyncInFlight) return remoteSyncInFlight || Promise.resolve();
   remoteSyncInFlight = (async () => {
     const since = fullSync ? undefined : localStorage.getItem(STORAGE_KEYS.SYNC_CURSOR) || undefined;
-    const snapshot = await fetchSupabaseSnapshot(since);
+    const [snapshot, externalUsersChanged] = await Promise.all([
+      fetchSupabaseSnapshot(since),
+      refreshExternalUserAccess({ fullSync }),
+    ]);
     if (!snapshot) return;
     const changed = [
       fullSync ? replaceCachedRows(STORAGE_KEYS.PORTS, snapshot.ports) : mergeCachedRows(STORAGE_KEYS.PORTS, snapshot.ports),
@@ -526,7 +529,7 @@ async function syncFromSupabase(fullSync = false): Promise<void> {
       localStorage.removeItem(STORAGE_KEYS.HAULIER_GUIDELINE);
     }
     if (snapshot.syncCursor) localStorage.setItem(STORAGE_KEYS.SYNC_CURSOR, snapshot.syncCursor);
-    if (changed || snapshot.guideline) notifyListeners();
+    if (changed || snapshot.guideline || externalUsersChanged) notifyListeners();
   })().finally(() => {
     remoteSyncInFlight = null;
   });
@@ -550,12 +553,13 @@ export function startProtectedStorageSync(): () => void {
   localStorage.removeItem(STORAGE_KEYS.SUBMISSIONS);
   localStorage.removeItem(STORAGE_KEYS.USER_REGISTRATIONS);
   localStorage.removeItem(STORAGE_KEYS.SYNC_CURSOR);
+  clearExternalUserAccessCache();
   notifyListeners();
 
   void syncFromSupabase(true).catch((error) => console.error('Initial protected data sync failed:', error));
   if (remoteSyncTimer) clearInterval(remoteSyncTimer);
   remoteSyncTimer = setInterval(() => {
-    void syncFromSupabase(true).catch((error) => console.error('Scheduled protected data sync failed:', error));
+    void syncFromSupabase(false).catch((error) => console.error('Scheduled protected data sync failed:', error));
   }, 15_000);
   return stopProtectedStorageSync;
 }
@@ -692,6 +696,7 @@ export function initStorage(options: { hydrateRemote?: boolean } = {}): void {
 export function clearProtectedStorage(): void {
   stopProtectedStorageSync();
   protectedDataEnabled = false;
+  clearExternalUserAccessCache();
   localStorage.removeItem(STORAGE_KEYS.COMPANIES);
   localStorage.removeItem(STORAGE_KEYS.SUBMISSIONS);
   localStorage.removeItem(STORAGE_KEYS.USER_REGISTRATIONS);

@@ -1,7 +1,8 @@
 import crypto from 'node:crypto';
 
-const externalUserFields = 'id,username,email,password,company_id,company_name,full_name,mobile_number,status,rejection_reason,rejection_detail,email_status,email_sent,created_at';
-const legacyExternalUserFields = 'id,username,email,password,company_id,company_name,full_name,mobile_number,created_at';
+const externalUserFields = 'id,username,email,password,company_id,company_name,full_name,mobile_number,status,rejection_reason,rejection_detail,email_status,email_sent,created_at,updated_at';
+const legacyExternalUserFields = 'id,username,email,password,company_id,company_name,full_name,mobile_number,created_at,updated_at';
+const INCREMENTAL_READ_LIMIT = 200;
 
 function isMissingWorkflowColumn(error: unknown) {
   const detail = JSON.stringify(error).toLowerCase();
@@ -53,14 +54,25 @@ export default async function externalUserAccess(request: any, response: any) {
   try {
     const headers = { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}`, 'Content-Type': 'application/json' };
     if (request.method === 'GET') {
-      const query = new URLSearchParams({ select: externalUserFields, order: 'created_at.desc' });
+      const requestedSince = typeof request.query?.since === 'string' ? request.query.since : '';
+      const since = requestedSince && !Number.isNaN(Date.parse(requestedSince)) ? requestedSince : null;
+      let syncCursor = new Date().toISOString();
+      const query = new URLSearchParams({ select: externalUserFields, order: since ? 'updated_at.asc' : 'created_at.desc' });
+      if (since) {
+        query.set('updated_at', `gt.${since}`);
+        query.set('limit', String(INCREMENTAL_READ_LIMIT));
+      }
       let result = await fetch(`${url}/rest/v1/external_user_access?${query.toString()}`, { headers });
       let users = await result.json().catch(() => null);
 
       // Some installations created this table before the workflow columns were
       // introduced. Keep their records visible while migration 000040 is applied.
       if (!result.ok && isMissingWorkflowColumn(users)) {
-        const legacyQuery = new URLSearchParams({ select: legacyExternalUserFields, order: 'created_at.desc' });
+        const legacyQuery = new URLSearchParams({ select: legacyExternalUserFields, order: since ? 'updated_at.asc' : 'created_at.desc' });
+        if (since) {
+          legacyQuery.set('updated_at', `gt.${since}`);
+          legacyQuery.set('limit', String(INCREMENTAL_READ_LIMIT));
+        }
         result = await fetch(`${url}/rest/v1/external_user_access?${legacyQuery.toString()}`, { headers });
         users = await result.json().catch(() => null);
       }
@@ -69,7 +81,10 @@ export default async function externalUserAccess(request: any, response: any) {
         response.status(502).json({ error: 'Unable to load external user access from Supabase.' });
         return;
       }
-      response.json({ users: normalizeExternalUsers(users) });
+      if (since && Array.isArray(users) && users.length === INCREMENTAL_READ_LIMIT) {
+        syncCursor = users[users.length - 1]?.updated_at || syncCursor;
+      }
+      response.json({ users: normalizeExternalUsers(users), syncCursor });
       return;
     }
 

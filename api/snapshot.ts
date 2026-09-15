@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 const REQUEST_TIMEOUT_MS = 15_000;
 const MAX_READ_ATTEMPTS = 2;
 const RETRY_DELAY_MS = 250;
+const INCREMENTAL_READ_LIMIT = 200;
 
 class TableReadError extends Error {
   constructor(
@@ -96,11 +97,16 @@ export default async function snapshot(request: any, response: any) {
 
     const requestedSince = typeof request.query?.since === 'string' ? request.query.since : '';
     const since = requestedSince && !Number.isNaN(Date.parse(requestedSince)) ? requestedSince : null;
-    const syncCursor = new Date().toISOString();
+    let syncCursor = new Date().toISOString();
     const changedParams = (select: string, order?: string) => {
       const params = new URLSearchParams({ select });
-      if (since) params.set('updated_at', `gt.${since}`);
-      if (order) params.set('order', order);
+      if (since) {
+        params.set('updated_at', `gt.${since}`);
+        params.set('order', 'updated_at.asc');
+        params.set('limit', String(INCREMENTAL_READ_LIMIT));
+      } else if (order) {
+        params.set('order', order);
+      }
       return params;
     };
     const tables = await Promise.all([
@@ -117,6 +123,14 @@ export default async function snapshot(request: any, response: any) {
       })()),
     ]);
     const [ports, depots, companies, submissions, userRegistrations, guidelines] = tables as any[];
+    const cappedTables = [ports, depots, companies, submissions, userRegistrations]
+      .filter((rows) => Array.isArray(rows) && rows.length === INCREMENTAL_READ_LIMIT);
+    if (since && cappedTables.length > 0) {
+      syncCursor = cappedTables.reduce((oldest, rows) => {
+        const timestamp = rows[rows.length - 1]?.updated_at;
+        return timestamp && Date.parse(timestamp) < Date.parse(oldest) ? timestamp : oldest;
+      }, syncCursor);
+    }
     const guideline = guidelines?.[0] || null;
     response.status(200).json({
       ports: ports || [],

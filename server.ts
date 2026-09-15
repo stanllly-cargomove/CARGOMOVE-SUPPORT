@@ -230,21 +230,28 @@ app.get('/api/auth/users', requireSession, async (_request, response) => {
   response.json({ users: data || [] });
 });
 
-app.get('/api/external-user-access', requireSession, async (_request, response) => {
+app.get('/api/external-user-access', requireSession, async (request, response) => {
   response.setHeader('Cache-Control', 'no-store, max-age=0');
   if (!supabase) {
     response.status(503).json({ error: 'Supabase server access is not configured.' });
     return;
   }
-  let { data, error } = await supabase
+  const requestedSince = typeof request.query.since === 'string' ? request.query.since : '';
+  const since = requestedSince && !Number.isNaN(Date.parse(requestedSince)) ? requestedSince : null;
+  let syncCursor = new Date().toISOString();
+  let query = supabase
     .from('external_user_access')
-    .select('id, username, email, password, company_id, company_name, full_name, mobile_number, status, rejection_reason, rejection_detail, email_status, email_sent, created_at')
-    .order('created_at', { ascending: false });
+    .select('id, username, email, password, company_id, company_name, full_name, mobile_number, status, rejection_reason, rejection_detail, email_status, email_sent, created_at, updated_at')
+    .order(since ? 'updated_at' : 'created_at', { ascending: !!since });
+  if (since) query = query.gt('updated_at', since).limit(200);
+  let { data, error } = await query;
   if (error && (error.message.includes('status') || error.message.includes('email_sent') || error.message.includes('email_status') || error.message.includes('rejection_reason') || error.message.includes('rejection_detail'))) {
-    const legacyResult = await supabase
+    let legacyQuery = supabase
       .from('external_user_access')
-      .select('id, username, email, password, company_id, company_name, full_name, mobile_number, created_at')
-      .order('created_at', { ascending: false });
+      .select('id, username, email, password, company_id,company_name,full_name,mobile_number,created_at,updated_at')
+      .order(since ? 'updated_at' : 'created_at', { ascending: !!since });
+    if (since) legacyQuery = legacyQuery.gt('updated_at', since).limit(200);
+    const legacyResult = await legacyQuery;
     data = legacyResult.data as typeof data;
     error = legacyResult.error;
   }
@@ -252,6 +259,7 @@ app.get('/api/external-user-access', requireSession, async (_request, response) 
     response.status(502).json({ error: error.message });
     return;
   }
+  if (since && data?.length === 200) syncCursor = (data as any[])[data.length - 1]?.updated_at || syncCursor;
   response.json({
     users: (data || []).map((user: any) => ({
       ...user,
@@ -261,6 +269,7 @@ app.get('/api/external-user-access', requireSession, async (_request, response) 
         ? user.email_status
         : user.email_sent === 1 ? 'SENT' : ['DONE', 'REJECTED'].includes(user.status) ? 'READY' : 'NOT_READY',
     })),
+    syncCursor,
   });
 });
 
@@ -408,11 +417,16 @@ app.get('/api/snapshot', requireSession, async (request, response) => {
     }
     const requestedSince = typeof request.query.since === 'string' ? request.query.since : '';
     const since = requestedSince && !Number.isNaN(Date.parse(requestedSince)) ? requestedSince : null;
-    const syncCursor = new Date().toISOString();
+    let syncCursor = new Date().toISOString();
     const changedParams = (select: string, order?: string) => {
       const params = new URLSearchParams({ select });
-      if (since) params.set('updated_at', `gt.${since}`);
-      if (order) params.set('order', order);
+      if (since) {
+        params.set('updated_at', `gt.${since}`);
+        params.set('order', 'updated_at.asc');
+        params.set('limit', '200');
+      } else if (order) {
+        params.set('order', order);
+      }
       return params;
     };
     const tables = await Promise.all([
@@ -429,6 +443,14 @@ app.get('/api/snapshot', requireSession, async (request, response) => {
       })()),
     ]);
     const [ports, depots, companies, submissions, userRegistrations, guidelines] = tables as any[];
+    const cappedTables = [ports, depots, companies, submissions, userRegistrations]
+      .filter((rows) => Array.isArray(rows) && rows.length === 200);
+    if (since && cappedTables.length > 0) {
+      syncCursor = cappedTables.reduce((oldest, rows) => {
+        const timestamp = rows[rows.length - 1]?.updated_at;
+        return timestamp && Date.parse(timestamp) < Date.parse(oldest) ? timestamp : oldest;
+      }, syncCursor);
+    }
     const guideline = guidelines?.[0] || null;
     response.status(200).json({
       ports: ports || [],
