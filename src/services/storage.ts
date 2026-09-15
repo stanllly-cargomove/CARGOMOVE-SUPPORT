@@ -443,10 +443,30 @@ let remoteHydrationStarted = false;
 let protectedDataEnabled = false;
 let remoteSyncTimer: ReturnType<typeof setInterval> | null = null;
 let remoteSyncInFlight: Promise<void> | null = null;
+let protectedWriteInFlight = false;
 
 function companyRow(company: Company) {
   const { block, address1, address2, city, state, postcode, country, contact_name, contact_email, contact_designation, contact_mobile, office_phone, fax, ...master } = company;
-  return { ...master, block, address1, address2, city, state, postcode, country, contact_name, contact_email, contact_designation, contact_mobile, office_phone, fax };
+  return {
+    ...master,
+    // Empty strings are not valid foreign keys in Postgres. The Company Master
+    // form represents "not assigned" as '', so persist those values as NULL.
+    port_id: company.port_id || null,
+    depot_id: company.depot_id || null,
+    block,
+    address1,
+    address2,
+    city,
+    state,
+    postcode,
+    country,
+    contact_name,
+    contact_email,
+    contact_designation,
+    contact_mobile,
+    office_phone,
+    fax,
+  };
 }
 
 function syncCompany(company: Company) { void upsertSupabaseRow('companies', companyRow(company)); }
@@ -488,7 +508,7 @@ function replaceCachedRows(key: string, rows: unknown[]) {
 }
 
 async function syncFromSupabase(fullSync = false): Promise<void> {
-  if (!isSupabaseConfigured || !protectedDataEnabled || remoteSyncInFlight) return remoteSyncInFlight || Promise.resolve();
+  if (!isSupabaseConfigured || !protectedDataEnabled || protectedWriteInFlight || remoteSyncInFlight) return remoteSyncInFlight || Promise.resolve();
   remoteSyncInFlight = (async () => {
     const since = fullSync ? undefined : localStorage.getItem(STORAGE_KEYS.SYNC_CURSOR) || undefined;
     const snapshot = await fetchSupabaseSnapshot(since);
@@ -877,6 +897,13 @@ export function checkDuplicateRegNo(regNo: string, excludeId?: string): boolean 
 }
 
 export function saveCompany(companyData: Partial<Company> & { registration_number: string; name: string }): Company {
+  const target = prepareCompany(companyData);
+  cacheCompany(target);
+  syncCompany(target);
+  return target;
+}
+
+function prepareCompany(companyData: Partial<Company> & { registration_number: string; name: string }): Company {
   const companies = getCompanies();
   const now = new Date().toISOString();
   const normalizedCompanyData = {
@@ -917,10 +944,40 @@ export function saveCompany(companyData: Partial<Company> & { registration_numbe
     companies.push(target);
   }
 
-  localStorage.setItem(STORAGE_KEYS.COMPANIES, JSON.stringify(companies));
-  syncCompany(target);
-  notifyListeners();
   return target;
+}
+
+function cacheCompany(company: Company): void {
+  const companies = getCompanies();
+  const index = companies.findIndex((item) => item.id === company.id);
+  if (index >= 0) companies[index] = company;
+  else companies.push(company);
+  localStorage.setItem(STORAGE_KEYS.COMPANIES, JSON.stringify(companies));
+  notifyListeners();
+}
+
+/**
+ * Persist an administrator's Company Master edit before updating the browser
+ * cache. This prevents a failed or overlapping remote sync from producing a
+ * false success followed by the old database value reappearing.
+ */
+export async function saveCompanyPersisted(
+  companyData: Partial<Company> & { registration_number: string; name: string }
+): Promise<Company> {
+  if (remoteSyncInFlight) await remoteSyncInFlight;
+
+  const target = prepareCompany(companyData);
+  protectedWriteInFlight = true;
+  try {
+    const saved = await upsertSupabaseRow<Company & { details?: Partial<Company> }>('companies', companyRow(target));
+    if (!saved) throw new Error('The database did not return the saved company.');
+    const { details, ...master } = saved;
+    const confirmed = { ...(details || {}), ...master } as Company;
+    cacheCompany(confirmed);
+    return confirmed;
+  } finally {
+    protectedWriteInFlight = false;
+  }
 }
 
 /**

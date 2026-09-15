@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Company } from '../../types';
 import {
   getCompanies,
-  saveCompany,
+  saveCompanyPersisted,
   checkDuplicateRegNo,
   getPorts,
   getDepots,
@@ -21,7 +21,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
-import { notifySuccess, notifyWarning } from '../common/notifications';
+import { notifyError, notifySuccess, notifyWarning } from '../common/notifications';
 
 export function CompanyMaster() {
   const [companies, setCompanies] = useState<Company[]>(getCompanies());
@@ -353,6 +353,7 @@ function CompanyEditModal({
   const depots = getDepots();
 
   const [activeSection, setActiveSection] = useState(0);
+  const [isSaving, setIsSaving] = useState(false);
   const [form, setForm] = useState<CompanyFormState>({
     id: company?.id || '',
     name: company?.name || '',
@@ -393,7 +394,7 @@ function CompanyEditModal({
 
   const isEditing = !!company;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim() || !form.registration_number.trim()) {
       const message = 'Company Name and Registration Number are required.';
@@ -408,36 +409,43 @@ function CompanyEditModal({
       return;
     }
 
-    saveCompany({
-      id: company?.id,
-      name: form.name.trim().toUpperCase(),
-      short_name: form.short_name.trim().toUpperCase(),
-      company_type: form.company_type,
-      registration_number: form.registration_number.trim().toUpperCase(),
-      registration_number_old: form.registration_number_old.trim().toUpperCase(),
-      registration_number_new: form.registration_number_new.trim().toUpperCase(),
-      haulier_id: form.haulier_id.trim().toUpperCase(),
-      forwarding_agent_id: form.forwarding_agent_id.trim().toUpperCase(),
-      port_id: form.port_id,
-      depot_id: form.depot_id,
-      block: form.block.trim(),
-      address1: form.address1.trim(),
-      address2: form.address2.trim(),
-      city: form.city.trim(),
-      state: form.state.trim(),
-      postcode: form.postcode.trim(),
-      country: form.country.trim(),
-      contact_name: form.contact_name.trim(),
-      contact_email: form.contact_email.trim(),
-      contact_designation: form.contact_designation.trim(),
-      contact_mobile: form.contact_mobile.trim(),
-      office_phone: form.office_phone.trim(),
-      fax: form.fax.trim(),
-      status: form.status,
-    });
+    setIsSaving(true);
+    try {
+      await saveCompanyPersisted({
+        id: company?.id,
+        name: form.name.trim().toUpperCase(),
+        short_name: form.short_name.trim().toUpperCase(),
+        company_type: form.company_type,
+        registration_number: form.registration_number.trim().toUpperCase(),
+        registration_number_old: form.registration_number_old.trim().toUpperCase(),
+        registration_number_new: form.registration_number_new.trim().toUpperCase(),
+        haulier_id: form.haulier_id.trim().toUpperCase(),
+        forwarding_agent_id: form.forwarding_agent_id.trim().toUpperCase(),
+        port_id: form.port_id,
+        depot_id: form.depot_id,
+        block: form.block.trim(),
+        address1: form.address1.trim(),
+        address2: form.address2.trim(),
+        city: form.city.trim(),
+        state: form.state.trim(),
+        postcode: form.postcode.trim(),
+        country: form.country.trim(),
+        contact_name: form.contact_name.trim(),
+        contact_email: form.contact_email.trim(),
+        contact_designation: form.contact_designation.trim(),
+        contact_mobile: form.contact_mobile.trim(),
+        office_phone: form.office_phone.trim(),
+        fax: form.fax.trim(),
+        status: form.status,
+      });
 
-    notifySuccess(isEditing ? 'Company updated successfully.' : 'Company added successfully.');
-    onSuccess();
+      notifySuccess(isEditing ? 'Company updated successfully.' : 'Company added successfully.');
+      onSuccess();
+    } catch (error) {
+      notifyError(error instanceof Error ? error.message : 'Unable to save the company. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -528,8 +536,8 @@ function CompanyEditModal({
                 Next <ChevronRight className="w-3.5 h-3.5" />
               </button>
             ) : (
-              <button type="submit" className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-sm">
-                {isEditing ? 'Save Changes' : 'Create Master Company'}
+              <button type="submit" disabled={isSaving} className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 text-white font-bold rounded-lg shadow-sm">
+                {isSaving ? 'Saving...' : isEditing ? 'Save Changes' : 'Create Master Company'}
               </button>
             )}
           </div>

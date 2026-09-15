@@ -32,14 +32,14 @@ export async function fetchSupabaseSnapshot(since?: string): Promise<Snapshot | 
   return parseResponse<Snapshot>(response);
 }
 
-export async function upsertSupabaseRow(table: string, row: object) {
+export async function upsertSupabaseRow<T = unknown>(table: string, row: object): Promise<T | null> {
   const response = await fetch(`/api/data/${encodeURIComponent(table)}`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(row),
   });
-  await parseResponse(response);
+  return parseResponse<T>(response);
 }
 
 export async function deleteSupabaseRow(table: string, id: string) {
