@@ -560,7 +560,7 @@ export function startProtectedStorageSync(): () => void {
   if (remoteSyncTimer) clearInterval(remoteSyncTimer);
   remoteSyncTimer = setInterval(() => {
     void syncFromSupabase(false).catch((error) => console.error('Scheduled protected data sync failed:', error));
-  }, 15_000);
+  }, 30_000);
   return stopProtectedStorageSync;
 }
 

@@ -227,15 +227,18 @@ code, kbd, samp, pre {
   border-color: #334155 !important;
 }
 
-.admin-theme-dark .admin-registration-tab {
-  background-color: #1e293b !important;
+.admin-theme-dark .admin-registration-tabs {
+  background-color: #0f172a !important;
   border-color: #334155 !important;
+}
+
+.admin-theme-dark .admin-registration-tab {
+  background-color: transparent !important;
 }
 
 .admin-theme-dark .admin-registration-tab[aria-selected='true'] {
   background-color: #334155 !important;
-  border-color: #475569 !important;
-  border-bottom-color: #334155 !important;
+  --tw-ring-color: #475569 !important;
 }
 
 .admin-theme-dark .admin-registration-table-header {
