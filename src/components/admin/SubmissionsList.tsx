@@ -40,6 +40,18 @@ interface SubmissionsListProps {
 
 type IdFilter = 'ALL' | 'MISSING' | 'WITH_ID';
 
+interface ActionMenuPosition {
+  id: string;
+  top: number;
+  left: number;
+  anchorTop: number;
+  anchorBottom: number;
+  anchorRight: number;
+}
+
+const ACTION_MENU_GAP = 4;
+const VIEWPORT_EDGE_PADDING = 8;
+
 const statusTitles: Record<SubmissionStatus, string> = {
   PENDING: 'Pending Registration Submissions',
   DONE: 'Closed / Done Registration Submissions',
@@ -59,7 +71,8 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
   const [typeFilter, setTypeFilter] = useState<RegistrationType | 'ALL'>(initialType);
   const [portFilter, setPortFilter] = useState<string>('ALL');
   const [idFilter, setIdFilter] = useState<IdFilter>('ALL');
-  const [openActionMenu, setOpenActionMenu] = useState<{ id: string; top: number; left: number } | null>(null);
+  const [openActionMenu, setOpenActionMenu] = useState<ActionMenuPosition | null>(null);
+  const actionMenuRef = React.useRef<HTMLDivElement | null>(null);
 
   // Modals
   const [activeSubmission, setActiveSubmission] = useState<RegistrationSubmission | null>(null);
@@ -90,6 +103,44 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
   React.useEffect(() => {
     setTypeFilter(initialType);
   }, [initialType]);
+
+  // Keep the action list inside the viewport. In particular, rows near the
+  // bottom edge need the list to open above the action button.
+  React.useLayoutEffect(() => {
+    if (!openActionMenu || !actionMenuRef.current) return;
+
+    const menuRect = actionMenuRef.current.getBoundingClientRect();
+    const belowTop = openActionMenu.anchorBottom + ACTION_MENU_GAP;
+    const fitsBelow = belowTop + menuRect.height <= window.innerHeight - VIEWPORT_EDGE_PADDING;
+    const top = fitsBelow
+      ? belowTop
+      : Math.max(VIEWPORT_EDGE_PADDING, openActionMenu.anchorTop - menuRect.height - ACTION_MENU_GAP);
+    const left = Math.min(
+      Math.max(VIEWPORT_EDGE_PADDING, openActionMenu.anchorRight - menuRect.width),
+      Math.max(VIEWPORT_EDGE_PADDING, window.innerWidth - menuRect.width - VIEWPORT_EDGE_PADDING),
+    );
+
+    if (top !== openActionMenu.top || left !== openActionMenu.left) {
+      setOpenActionMenu((current) => current ? { ...current, top, left } : null);
+    }
+  }, [
+    openActionMenu?.id,
+    openActionMenu?.anchorTop,
+    openActionMenu?.anchorBottom,
+    openActionMenu?.anchorRight,
+  ]);
+
+  React.useEffect(() => {
+    if (!openActionMenu) return;
+
+    const closeActionMenu = () => setOpenActionMenu(null);
+    window.addEventListener('resize', closeActionMenu);
+    window.addEventListener('scroll', closeActionMenu, true);
+    return () => {
+      window.removeEventListener('resize', closeActionMenu);
+      window.removeEventListener('scroll', closeActionMenu, true);
+    };
+  }, [openActionMenu?.id]);
 
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
@@ -443,7 +494,14 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
                               return;
                             }
                             const rect = event.currentTarget.getBoundingClientRect();
-                            setOpenActionMenu({ id: sub.id, top: rect.bottom + 4, left: rect.right - 160 });
+                            setOpenActionMenu({
+                              id: sub.id,
+                              top: rect.bottom + ACTION_MENU_GAP,
+                              left: Math.max(VIEWPORT_EDGE_PADDING, rect.right - 160),
+                              anchorTop: rect.top,
+                              anchorBottom: rect.bottom,
+                              anchorRight: rect.right,
+                            });
                           }}
                           aria-label={`Actions for ${sub.reference_no}`}
                           aria-expanded={openActionMenu?.id === sub.id}
@@ -452,7 +510,16 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
                           <MoreVertical className="w-4 h-4" />
                         </button>
                         {openActionMenu?.id === sub.id && (
-                          <div style={{ top: openActionMenu.top, left: openActionMenu.left }} className="fixed z-50 w-40 rounded-lg border border-slate-200 bg-white p-1 text-left shadow-xl">
+                          <div
+                            ref={actionMenuRef}
+                            role="menu"
+                            style={{
+                              top: openActionMenu.top,
+                              left: openActionMenu.left,
+                              maxHeight: `calc(100vh - ${VIEWPORT_EDGE_PADDING * 2}px)`,
+                            }}
+                            className="fixed z-50 w-40 overflow-y-auto rounded-lg border border-slate-200 bg-white p-1 text-left shadow-xl"
+                          >
                             <button type="button" onClick={() => { setActiveSubmission(sub); setOpenActionMenu(null); }} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100">
                               <Eye className="w-3.5 h-3.5" /> Review
                             </button>
