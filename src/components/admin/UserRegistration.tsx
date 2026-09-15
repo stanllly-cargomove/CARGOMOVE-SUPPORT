@@ -22,6 +22,57 @@ const queueStatusPriority: Record<ExternalUserAccess['status'], number> = {
   DONE: 2,
 };
 
+const copyPlainText = async (value: string, label: string) => {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value);
+    } else {
+      const textarea = document.createElement('textarea');
+      textarea.value = value;
+      textarea.setAttribute('readonly', '');
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      const copied = document.execCommand('copy');
+      textarea.remove();
+      if (!copied) throw new Error('Copy command was unavailable.');
+    }
+    notifySuccess(`${label} copied to clipboard.`);
+  } catch {
+    notifyError(`Unable to copy ${label.toLowerCase()}.`);
+  }
+};
+
+interface CopyableValueProps {
+  value: string;
+  label: string;
+  className?: string;
+}
+
+function CopyableValue({ value, label, className = '' }: CopyableValueProps) {
+  const copyValue = () => void copyPlainText(value, label);
+
+  return (
+    <span
+      role="button"
+      tabIndex={0}
+      onDoubleClick={copyValue}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          copyValue();
+        }
+      }}
+      className={`block cursor-copy select-none truncate rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${className}`}
+      title={`${value}\nDouble-click to copy ${label.toLowerCase()}`}
+      aria-label={`${value}. Double-click or press Enter to copy ${label.toLowerCase()}`}
+    >
+      {value}
+    </span>
+  );
+}
+
 export function UserRegistration() {
   const [users, setUsers] = useState<ExternalUserAccess[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -222,7 +273,7 @@ export function UserRegistration() {
     <div className="space-y-6">
       <div>
         <h2 className="text-xl font-bold text-slate-900 tracking-tight">User Registration</h2>
-        <p className="text-xs text-slate-500 mt-1">Users registered through the company registration form.</p>
+        <p className="text-xs text-slate-500 mt-1">Users registered through the company registration form. Double-click a text value to copy it.</p>
       </div>
 
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
@@ -269,8 +320,8 @@ export function UserRegistration() {
       </div>
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="w-full overflow-hidden">
-          <table className="w-full table-fixed border-collapse text-left text-[11px]">
+        <div className="w-full overflow-x-auto">
+          <table className="w-full min-w-[1180px] table-fixed border-collapse text-left text-[11px]">
             <colgroup>
               <col className="w-[9%]" />
               <col className="w-[16%]" />
@@ -305,12 +356,12 @@ export function UserRegistration() {
                 </tr>
               ) : filteredUsers.map((user) => (
                 <tr key={user.id} className="hover:bg-slate-50/70 transition-colors">
-                  <td className="px-2 py-2 font-semibold text-slate-900"><span className="block truncate" title={user.username}>{user.username}</span></td>
-                  <td className="px-2 py-2 text-slate-700"><span className="block truncate" title={user.email}>{user.email}</span></td>
-                  <td className="px-2 py-2 font-mono text-[10px] text-slate-700"><span className="block truncate" title={user.password || 'Unavailable (legacy record)'}>{user.password || 'Unavailable'}</span></td>
-                  <td className="px-2 py-2 text-slate-700"><span className="block truncate" title={user.company_name.toUpperCase()}>{user.company_name.toUpperCase()}</span></td>
-                  <td className="px-2 py-2 text-slate-700"><span className="block truncate" title={user.full_name}>{user.full_name}</span></td>
-                  <td className="px-2 py-2 text-center text-slate-700"><span className="block truncate" title={user.mobile_number}>{user.mobile_number}</span></td>
+                  <td className="px-2 py-2 font-semibold text-slate-900"><CopyableValue value={user.username} label="Username" /></td>
+                  <td className="px-2 py-2 text-slate-700"><CopyableValue value={user.email} label="Email address" /></td>
+                  <td className="px-2 py-2 font-mono text-[10px] text-slate-700"><CopyableValue value={user.password || 'Unavailable'} label="Password" /></td>
+                  <td className="px-2 py-2 text-slate-700"><CopyableValue value={user.company_name.toUpperCase()} label="Company name" /></td>
+                  <td className="px-2 py-2 text-slate-700"><CopyableValue value={user.full_name} label="Full name" /></td>
+                  <td className="px-2 py-2 text-center text-slate-700"><CopyableValue value={user.mobile_number} label="Mobile number" /></td>
                   <td className="px-2 py-2 text-center">
                     <select
                       value={user.status || 'PENDING'}
@@ -324,9 +375,11 @@ export function UserRegistration() {
                     </select>
                   </td>
                   <td className="px-2 py-2 text-center">
-                    <span className="inline-flex h-7 w-[4.75rem] items-center justify-center whitespace-nowrap rounded-md bg-slate-50 text-[10px] font-semibold text-slate-600">
-                      {user.email_status || (['DONE', 'REJECTED'].includes(user.status) ? 'READY' : 'NOT_READY')}
-                    </span>
+                    <CopyableValue
+                      value={user.email_status || (['DONE', 'REJECTED'].includes(user.status) ? 'READY' : 'NOT_READY')}
+                      label="Email status"
+                      className="mx-auto h-7 w-[4.75rem] whitespace-nowrap bg-slate-50 py-1.5 text-[10px] font-semibold text-slate-600"
+                    />
                   </td>
                   <td className="px-2 py-2 text-center">
                     <div className="flex items-center justify-center gap-1">

@@ -323,7 +323,7 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
         {/* Content Body */}
         <main
           className={`flex-1 w-full p-4 sm:p-6 lg:p-8 transition-[max-width] duration-200 ${
-            activeQueueItem && isSidebarCollapsed ? 'max-w-none' : 'mx-auto max-w-7xl'
+            (activeQueueItem || activeTab === 'user-registration') && isSidebarCollapsed ? 'max-w-none' : 'mx-auto max-w-7xl'
           }`}
         >
           {activeTab === 'dashboard' && (
