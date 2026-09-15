@@ -369,14 +369,10 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
         </div>
       </div>
 
-      {/* Registration type tabs and table */}
+      {/* Registration type chrome tabs and table */}
       <div className="rounded-xl">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-        <div
-          className="admin-registration-tabs flex max-w-full items-center gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-slate-100 p-1"
-          role="tablist"
-          aria-label="Registration type"
-        >
+        <div className="flex flex-wrap items-end justify-between gap-x-4">
+        <div className="flex w-fit items-end gap-0">
         {[
           ['COMPANY', 'Company'],
           ['DRIVER', 'Driver'],
@@ -389,24 +385,24 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
             onClick={() => setTypeFilter(value as RegistrationType)}
             aria-selected={typeFilter === value}
             role="tab"
-            className={`admin-registration-tab min-w-[132px] flex-none rounded-lg px-5 py-2.5 text-xs font-bold uppercase tracking-wider transition-colors ${
+            className={`admin-registration-tab min-w-[132px] rounded-t-lg border px-5 py-3 text-xs font-bold uppercase tracking-wider transition-colors ${
               typeFilter === value
-                ? `bg-white shadow-sm ring-1 ring-slate-200 ${statusTitleColors[status]}`
-                : 'text-slate-500 hover:bg-white/70 hover:text-slate-900'
+                ? `relative z-10 -mb-px border-slate-400 border-b-[#CBD5E1] bg-[#CBD5E1] ${statusTitleColors[status]}`
+                : 'border-slate-300 bg-[#F1F5F9] text-slate-500 hover:bg-slate-200 hover:text-slate-900'
             }`}
           >
             {label}
           </button>
         ))}
         </div>
-        <div className="flex items-center gap-1.5 px-2 text-[11px] font-medium text-slate-500" title="Double-click a table value to copy it to your clipboard.">
+        <div className="flex items-center gap-1.5 px-2 pb-2 text-[11px] font-medium text-slate-500" title="Double-click a table value to copy it to your clipboard.">
           <Info className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           <span>Double-click any table value to copy</span>
         </div>
         </div>
 
       {/* Submissions Table */}
-        <div className="mt-3 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-x-auto rounded-b-xl rounded-tr-lg border border-slate-200 bg-white shadow-sm">
           <table className="w-full min-w-[1120px] table-fixed text-left text-xs border-collapse">
             <colgroup>
               <col style={{ width: '4%' }} />
