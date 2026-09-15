@@ -13,12 +13,11 @@ import {
   CheckCircle2,
   Building2,
   User,
-  Container,
-  Truck,
-  ShieldCheck,
   Copy,
   Check,
   RefreshCw,
+  MapPin,
+  Send,
 } from 'lucide-react';
 
 interface ReviewAndSubmitProps {
@@ -42,28 +41,38 @@ interface ReviewAndSubmitProps {
     vehicles?: VehicleData[];
   };
   onBack: () => void;
-  onSubmitSuccess: () => Promise<string>;
+  onSubmitSuccess: (consent: { declarationAccepted: boolean; dataProcessingAccepted: boolean }) => Promise<string>;
 }
 
 export function ReviewScreen({
   location,
+  port,
   type,
   company,
   formData,
   onBack,
   onSubmitSuccess,
 }: ReviewAndSubmitProps) {
-  const [agreed, setAgreed] = useState(true);
+  const [declarationAccepted, setDeclarationAccepted] = useState(false);
+  const [dataProcessingAccepted, setDataProcessingAccepted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const touchStartX = useRef<number | null>(null);
+  const categoryTitle = type === 'COMPANY'
+    ? 'Company Master Onboarding'
+    : type === 'DRIVER'
+    ? 'Driver Gate Access'
+    : type === 'TRAILER'
+    ? 'Trailer / Chassis Registration'
+    : 'Prime Mover / Vehicle Registration';
+  const locationLabel = location === 'PORT_KLANG' ? 'Port Klang' : location === 'JOHOR' ? 'Johor' : port.display_name;
 
   const handleSubmit = async () => {
-    if (!agreed) return;
+    if (!declarationAccepted || !dataProcessingAccepted) return;
     setSubmitting(true);
     setSubmitError('');
     try {
-      await onSubmitSuccess();
+      await onSubmitSuccess({ declarationAccepted, dataProcessingAccepted });
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : 'Unable to submit the registration.');
     } finally {
@@ -86,32 +95,30 @@ export function ReviewScreen({
     <div
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
-      className="max-w-4xl mx-auto min-h-[calc(100vh-220px)] flex flex-col gap-2 pb-2 touch-pan-y page-slide-forward"
+      className="mx-auto flex max-w-5xl flex-col gap-3 touch-pan-y page-slide-forward"
     >
-      <div className="text-center shrink-0">
-        <h2 className="text-sm font-bold text-slate-900 tracking-tight">Review & Confirm Submission</h2>
-        <p className="text-slate-500 text-[11px] mt-0.5">
-          Please verify all entered details before queueing into the Port Master database.
+      <div className="w-full shrink-0 text-center">
+        <h2 className="text-lg font-bold tracking-tight text-[#102a56]">Review & Confirm Submission</h2>
+        <p className="mt-0.5 text-[11px] text-slate-500">
+          Check the information below before submitting your registration.
         </p>
       </div>
 
-      <div className="bg-white rounded-lg border border-slate-200 p-3 shadow-xs space-y-2">
+      <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
         {/* Header Summary */}
-        <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-          <div>
-            <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Category</div>
-            <div className="text-sm font-bold text-slate-900 mt-0.5">
-              {type === 'COMPANY' && 'Company Master Onboarding'}
-              {type === 'DRIVER' && 'Driver Gate Access'}
-              {type === 'TRAILER' && 'Trailer / Chassis Registration'}
-              {type === 'VEHICLE' && 'Prime Mover / Vehicle Registration'}
-            </div>
+        <div className="flex flex-col gap-3 border-b border-slate-100 pb-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <div className="truncate text-sm font-bold text-[#102a56]">{categoryTitle}</div>
+            <div className="mt-0.5 text-[11px] text-slate-500">Please check your registration and account details.</div>
           </div>
 
-          <div className="text-right">
-            <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Port Location</div>
-            <div className="text-xs font-bold text-[#0090e7] mt-0.5">
-              {location === 'PORT_KLANG' ? 'Port Klang' : 'Johor'}
+          <div className="self-end sm:self-auto">
+            <div className="rounded-lg bg-sky-50 px-3 py-2">
+              <div className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Port location</div>
+              <div className="mt-0.5 flex items-center gap-1 text-xs font-bold text-[#0090e7]">
+                <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
+                {locationLabel}
+              </div>
             </div>
           </div>
         </div>
@@ -129,51 +136,51 @@ export function ReviewScreen({
 
         {/* Company Registration Summary */}
         {type === 'COMPANY' && formData.company && (
-          <div className="space-y-1.5 text-xs">
-            <section className="rounded border border-sky-100 bg-sky-50/50 p-2">
-              <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-900 border-b border-sky-100 pb-1 mb-1.5">
-                Company Details
+          <div className="grid gap-2 text-xs lg:grid-cols-[minmax(0,2fr)_minmax(220px,1fr)]">
+            <section className="rounded-lg border border-sky-100 bg-sky-50/50 p-3">
+              <h3 className="mb-2 flex items-center gap-2 border-b border-sky-100 pb-2 text-xs font-bold text-[#102a56]">
+                <Building2 className="h-4 w-4 text-blue-600" aria-hidden="true" /> Company Details
               </h3>
-              <div className="grid grid-cols-2 gap-x-12 items-start">
-                <div className="space-y-1.5 min-w-0">
-                  <div>
-                    <span className="text-[11px] text-slate-900 block font-bold">Legal Name</span>
-                    <span className="text-[10px] leading-4 font-normal text-slate-900 break-words block">{formData.company.name}</span>
+              <div className="grid grid-cols-1 gap-x-5 md:grid-cols-2">
+                <div className="min-w-0 space-y-2">
+                  <div className="grid grid-cols-[94px_minmax(0,1fr)] gap-2">
+                    <span className="text-[10px] font-bold text-slate-900">Legal Name</span>
+                    <span className="break-words text-[10px] text-slate-600">{formData.company.name}</span>
                   </div>
-                  <div>
-                    <span className="text-[11px] text-slate-900 block font-bold">Short Name</span>
-                    <span className="text-[10px] leading-4 font-normal text-slate-900 break-words block">{formData.company.short_name}</span>
+                  <div className="grid grid-cols-[94px_minmax(0,1fr)] gap-2">
+                    <span className="text-[10px] font-bold text-slate-900">Short Name</span>
+                    <span className="break-words text-[10px] text-slate-600">{formData.company.short_name}</span>
                   </div>
-                  <div>
-                    <span className="text-[11px] text-slate-900 block font-bold">Company Type</span>
-                    <span className="text-[10px] leading-4 font-normal text-slate-900 block">{formData.company.company_type}</span>
+                  <div className="grid grid-cols-[94px_minmax(0,1fr)] gap-2">
+                    <span className="text-[10px] font-bold text-slate-900">Company Type</span>
+                    <span className="text-[10px] text-slate-600">{formData.company.company_type}</span>
                   </div>
-                  <div>
-                    <span className="text-[11px] text-slate-900 block font-bold">Registration (Old / SSM)</span>
-                    <span className="text-[10px] leading-4 font-normal text-slate-900 break-words block">
+                  <div className="grid grid-cols-[94px_minmax(0,1fr)] gap-2">
+                    <span className="text-[10px] font-bold text-slate-900">Registration</span>
+                    <span className="break-words text-[10px] text-slate-600">
                       {formData.company.registration_number_old} {formData.company.registration_number_new ? `/ ${formData.company.registration_number_new}` : ''}
                     </span>
                   </div>
                 </div>
-                <div className="space-y-1.5 min-w-0">
-                  <div>
-                    <span className="text-[11px] text-slate-900 block font-bold">Registered Address</span>
-                    <span className="text-[10px] leading-4 text-slate-900 block break-words">
+                <div className="mt-2 min-w-0 space-y-2 border-t border-sky-100 pt-2 md:mt-0 md:border-l md:border-t-0 md:pl-5 md:pt-0">
+                  <div className="grid grid-cols-[94px_minmax(0,1fr)] gap-2">
+                    <span className="text-[10px] font-bold text-slate-900">Registered Address</span>
+                    <span className="break-words text-[10px] leading-4 text-slate-600">
                       {formData.company.block ? `${formData.company.block}, ` : ''}
                       {formData.company.address1}, {formData.company.address2 ? `${formData.company.address2}, ` : ''}
                       {formData.company.city}, {formData.company.state} {formData.company.postcode}, {formData.company.country}
                     </span>
                   </div>
-                  <div>
-                    <span className="text-[11px] text-slate-900 block font-bold">Contact Person</span>
-                    <span className="text-[10px] leading-4 font-normal text-slate-900 block break-words">
+                  <div className="grid grid-cols-[94px_minmax(0,1fr)] gap-2">
+                    <span className="text-[10px] font-bold text-slate-900">Contact Person</span>
+                    <span className="break-words text-[10px] text-slate-600">
                       {formData.company.contact_name}
                       {formData.company.contact_designation ? ` (${formData.company.contact_designation})` : ''}
                     </span>
                   </div>
-                  <div>
-                    <span className="text-[11px] text-slate-900 block font-bold">PIC Contact Details</span>
-                    <span className="text-[10px] leading-4 text-slate-900 block break-words">
+                  <div className="grid grid-cols-[94px_minmax(0,1fr)] gap-2">
+                    <span className="text-[10px] font-bold text-slate-900">PIC Contact</span>
+                    <span className="break-words text-[10px] leading-4 text-slate-600">
                       {formData.company.contact_email} &bull; {formData.company.contact_mobile}
                       {formData.company.office_phone ? ` &bull; Office: ${formData.company.office_phone}` : ''}
                       {formData.company.fax ? ` &bull; Fax: ${formData.company.fax}` : ''}
@@ -183,26 +190,26 @@ export function ReviewScreen({
               </div>
             </section>
             {formData.userAccess && (
-              <section className="rounded border border-emerald-100 bg-emerald-50/50 p-2">
-                <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-900 border-b border-emerald-100 pb-1 mb-1.5">
-                  Login Account
+              <section className="rounded-lg border border-emerald-100 bg-emerald-50/50 p-3">
+                <h3 className="mb-2 flex items-center gap-2 border-b border-emerald-100 pb-2 text-xs font-bold text-[#102a56]">
+                  <User className="h-4 w-4 text-emerald-600" aria-hidden="true" /> Login Account
                 </h3>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                  <div>
-                    <span className="text-[11px] text-slate-900 block font-bold">Username</span>
-                    <span className="text-[10px] leading-4 font-normal text-slate-900 block break-words">{formData.userAccess.username}</span>
+                <div className="grid grid-cols-1 gap-y-2">
+                  <div className="grid grid-cols-[90px_minmax(0,1fr)] gap-2">
+                    <span className="text-[10px] font-bold text-slate-900">Username</span>
+                    <span className="break-words text-[10px] text-slate-600">{formData.userAccess.username}</span>
                   </div>
-                  <div>
-                    <span className="text-[11px] text-slate-900 block font-bold">Full Name</span>
-                    <span className="text-[10px] leading-4 font-normal text-slate-900 block break-words">{formData.userAccess.full_name}</span>
+                  <div className="grid grid-cols-[90px_minmax(0,1fr)] gap-2">
+                    <span className="text-[10px] font-bold text-slate-900">Full Name</span>
+                    <span className="break-words text-[10px] text-slate-600">{formData.userAccess.full_name}</span>
                   </div>
-                  <div>
-                    <span className="text-[11px] text-slate-900 block font-bold">Email</span>
-                    <span className="text-[10px] leading-4 text-slate-900 block break-words">{formData.userAccess.email}</span>
+                  <div className="grid grid-cols-[90px_minmax(0,1fr)] gap-2">
+                    <span className="text-[10px] font-bold text-slate-900">Email</span>
+                    <span className="break-words text-[10px] text-slate-600">{formData.userAccess.email}</span>
                   </div>
-                  <div>
-                    <span className="text-[11px] text-slate-900 block font-bold">Mobile Number</span>
-                    <span className="text-[10px] leading-4 text-slate-900 block break-words">{formData.userAccess.mobile_number}</span>
+                  <div className="grid grid-cols-[90px_minmax(0,1fr)] gap-2">
+                    <span className="text-[10px] font-bold text-slate-900">Mobile Number</span>
+                    <span className="break-words text-[10px] text-slate-600">{formData.userAccess.mobile_number}</span>
                   </div>
                 </div>
               </section>
@@ -338,49 +345,66 @@ export function ReviewScreen({
           </div>
         )}
 
-        {/* Declaration Checkbox */}
-        <div className="pt-1.5 border-t border-slate-100">
-          <label className="flex items-start gap-2 cursor-pointer text-[11px] text-slate-700">
+        {/* Required declarations */}
+        <fieldset className="grid gap-2 rounded-lg bg-slate-50 p-3 md:grid-cols-2 md:gap-4">
+          <legend className="sr-only">Required submission declarations</legend>
+          <label className="flex cursor-pointer items-start gap-2.5 text-[11px] leading-4 text-slate-600">
             <input
               type="checkbox"
-              checked={agreed}
-              onChange={(e) => setAgreed(e.target.checked)}
-              className="mt-0.5 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+              required
+              checked={declarationAccepted}
+              onChange={(event) => setDeclarationAccepted(event.target.checked)}
+              className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
             />
             <span>
               I declare that the information submitted above is true, accurate, and authorized by company management.
             </span>
           </label>
-        </div>
+          <label className="flex cursor-pointer items-start gap-2.5 text-[11px] leading-4 text-slate-600">
+            <input
+              type="checkbox"
+              required
+              checked={dataProcessingAccepted}
+              onChange={(event) => setDataProcessingAccepted(event.target.checked)}
+              className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+            />
+            <span>
+              I consent to CargoMove collecting, using, storing, and processing the submitted company and personal data for registration verification, account administration, operational support, and related communications. I confirm that I am authorized to provide this data.
+            </span>
+          </label>
+        </fieldset>
       </div>
 
-      <div className="flex items-center justify-between pt-0.5 mt-auto shrink-0">
+      <div className="mt-auto flex shrink-0 flex-col-reverse gap-2 sm:flex-row sm:items-end sm:justify-between">
         <button
           type="button"
           onClick={onBack}
-          className="inline-flex h-9 items-center gap-1.5 px-3.5 py-0 rounded text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
+          className="inline-flex h-10 items-center justify-center gap-1.5 rounded-lg px-3.5 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 sm:justify-start"
         >
           &larr; Back to Edit
         </button>
 
-        <button
-          type="button"
-          disabled={!agreed || submitting}
-          onClick={handleSubmit}
-          className="inline-flex h-9 items-center px-5 py-0 rounded text-xs font-bold text-white bg-[#ea7a24] hover:bg-[#d96c1a] disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-xs"
-        >
-          {submitting ? (
-            <>
-              <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-              Submitting...
-            </>
-          ) : (
-            <>
-              <ShieldCheck className="w-3.5 h-3.5 mr-1.5" />
-              Confirm & Submit Registration
-            </>
-          )}
-        </button>
+        <div className="sm:text-right">
+          <button
+            type="button"
+            disabled={!declarationAccepted || !dataProcessingAccepted || submitting}
+            onClick={handleSubmit}
+            className="inline-flex h-11 w-full items-center justify-center rounded-lg bg-gradient-to-r from-orange-500 to-orange-600 px-6 text-xs font-bold text-white shadow-sm transition-colors hover:from-orange-600 hover:to-orange-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+          >
+            {submitting ? (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                Submitting...
+              </>
+            ) : (
+              <>
+                <Send className="mr-2 h-4 w-4" aria-hidden="true" />
+                Confirm & Submit Registration
+              </>
+            )}
+          </button>
+          <p className="mt-1 text-[10px] text-slate-400">Your registration will be sent to our team for processing.</p>
+        </div>
       </div>
       {submitError && (
         <p role="alert" className="rounded border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">

@@ -8,6 +8,7 @@ const companyTypesByLocation: Record<string, Set<string>> = {
   JOHOR: new Set(['TRANSPORT', 'FORWARDER', 'HAULAGE']),
   OTHER: new Set(['TRANSPORT', 'FORWARDER', 'HAULAGE']),
 };
+const CONSENT_NOTICE_VERSION = '2026-09-15';
 const companyFields = [
   'registration_number',
   'registration_number_old',
@@ -72,9 +73,15 @@ export default async function companyRegistration(request: any, response: any) {
   const portId = text(body?.port_id);
   const companyInput = body?.company && typeof body.company === 'object' ? body.company : null;
   const userInput = body?.user_access && typeof body.user_access === 'object' ? body.user_access : null;
+  const declarationAccepted = body?.declaration_accepted === true;
+  const dataProcessingAccepted = body?.data_processing_consent === true;
 
   if (!body || !registrationTypes.has(registrationType) || !portLocations.has(portLocation) || !portId) {
     response.status(400).json({ error: 'Registration type, port location, and a valid database port are required.' });
+    return;
+  }
+  if (!declarationAccepted || !dataProcessingAccepted) {
+    response.status(400).json({ error: 'Both the accuracy declaration and data-processing consent are required.' });
     return;
   }
   if (registrationType === 'COMPANY' && (!companyInput || !userInput)) {
@@ -91,6 +98,15 @@ export default async function companyRegistration(request: any, response: any) {
   let companyId = registrationType === 'COMPANY' ? `comp-${uniquePart}` : text(body.company_id);
   const submissionId = `sub-${uniquePart}`;
   const externalUserId = `external-user-${uniquePart}`;
+  const submittedData = {
+    ...(body.data && typeof body.data === 'object' ? body.data : {}),
+    consent: {
+      declaration_accepted: true,
+      data_processing_accepted: true,
+      accepted_at: now.toISOString(),
+      notice_version: CONSENT_NOTICE_VERSION,
+    },
+  };
 
   if (!companyId) {
     response.status(400).json({ error: 'A registered company is required for this registration type.' });
@@ -192,7 +208,7 @@ export default async function companyRegistration(request: any, response: any) {
         submitted_by_name: text(companyInput.contact_name),
         submitted_by_email: text(companyInput.contact_email),
         submitted_by_mobile: text(companyInput.contact_mobile),
-        data: body.data && typeof body.data === 'object' ? body.data : { company: companyInput },
+        data: submittedData,
       };
       const submissionResult = await client.from('registration_submissions').insert(submissionRow).select().single();
       if (submissionResult.error) throw new RegistrationWriteError('registration submission', submissionResult.error);
@@ -233,7 +249,7 @@ export default async function companyRegistration(request: any, response: any) {
       submitted_by_name: text(body.submitted_by_name),
       submitted_by_email: text(body.submitted_by_email),
       submitted_by_mobile: text(body.submitted_by_mobile),
-      data: body.data && typeof body.data === 'object' ? body.data : {},
+      data: submittedData,
     };
     const submissionResult = await client.from('registration_submissions').insert(submissionRow).select().single();
     if (submissionResult.error) throw new RegistrationWriteError('registration submission', submissionResult.error);

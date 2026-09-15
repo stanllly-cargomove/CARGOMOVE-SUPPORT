@@ -107,6 +107,12 @@ export interface RegistrationSubmission {
     drivers?: DriverData[];
     trailers?: TrailerData[];
     vehicles?: VehicleData[];
+    consent?: {
+      declaration_accepted: true;
+      data_processing_accepted: true;
+      accepted_at: string;
+      notice_version: string;
+    };
   };
 }
 

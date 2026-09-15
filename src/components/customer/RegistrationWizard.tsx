@@ -49,6 +49,7 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
   const ports = getPorts();
   const currentPort = ports.find((p) => p.location === selectedLocation) || ports[0];
   const reviewStep = selectedType === 'COMPANY' ? 6 : 5;
+  const isReviewScreen = currentStep === reviewStep;
   const activeProgressStep = currentStep === 1
     ? 1
     : currentStep <= 3
@@ -123,7 +124,7 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
     setCurrentStep(5); // Review
   };
 
-  const handleFinalConfirm = async (): Promise<string> => {
+  const handleFinalConfirm = async (consent: { declarationAccepted: boolean; dataProcessingAccepted: boolean }): Promise<string> => {
     if (!selectedLocation || !selectedType) throw new Error('Registration details are incomplete.');
 
     // Build submission record
@@ -167,6 +168,8 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
       submitted_by_name: subByName,
       submitted_by_email: subByEmail,
       submitted_by_mobile: subByMobile,
+      declaration_accepted: consent.declarationAccepted,
+      data_processing_consent: consent.dataProcessingAccepted,
       company: selectedType === 'COMPANY' && companyFormData
         ? { ...companyFormData, registration_number: compReg, port_id: primaryPortId }
         : undefined,
@@ -246,23 +249,27 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
       {/* Progress Bar (visible through the Review screen) */}
       {currentStep <= reviewStep && (
         <div className="min-h-[68px] flex items-center bg-white border-b border-[#e8eef5] px-2 py-2 sm:px-4">
-          <div className="max-w-[640px] mx-auto w-full flex items-start justify-between text-xs font-semibold">
+          <div className="mx-auto flex w-full max-w-[960px] items-start text-xs font-semibold sm:items-center">
             {progressSteps.map((step, idx) => {
               const isPast = activeProgressStep > step.num;
               const isCurrent = activeProgressStep === step.num;
 
               return (
                 <React.Fragment key={step.num}>
-                  <div className="flex min-w-0 flex-1 flex-col items-center gap-1 text-center sm:flex-row sm:gap-2 sm:text-left">
-                    <div className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-[11px] transition-colors ${
+                  <div className="flex min-w-0 shrink-0 flex-col items-center gap-1 text-center sm:flex-row sm:gap-2 sm:text-left">
+                    <div className={`h-7 w-7 shrink-0 rounded-full flex items-center justify-center font-bold text-[11px] transition-colors ${
                       isPast ? 'bg-emerald-600 text-white' : isCurrent ? 'bg-[#0095e8] text-white ring-4 ring-sky-100' : 'bg-[#eef3f8] text-[#5b6b84]'
                     }`}>
                       {isPast ? <Check className="w-3.5 h-3.5" /> : step.num}
                     </div>
                     <span className={`max-w-[76px] text-[9px] leading-3 sm:max-w-none sm:whitespace-nowrap sm:text-xs ${isCurrent ? 'text-[#102a56] font-bold' : 'text-[#5b6b84]'}`}>
+                      <span className="mr-1 hidden text-slate-400 lg:inline">{step.num}</span>
                       {step.label}
                     </span>
                   </div>
+                  {idx < progressSteps.length - 1 && (
+                    <div className={`mx-2 mt-3.5 h-px min-w-2 flex-1 sm:mt-0 lg:mx-4 ${isPast ? 'bg-emerald-200' : 'bg-slate-300'}`} aria-hidden="true" />
+                  )}
                 </React.Fragment>
               );
             })}
@@ -271,7 +278,7 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
       )}
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-[1080px] mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 sm:py-7">
+      <main className={`flex-1 max-w-[1080px] mx-auto w-full px-4 sm:px-6 lg:px-8 ${isReviewScreen ? 'py-3 sm:py-4' : 'py-6 sm:py-7'}`}>
         <div key={currentStep} className="wizard-step-enter">
         {/* Step 1: Port Selection */}
         {currentStep === 1 && (
