@@ -1,3 +1,8 @@
+import supportAnalyze from '../server-handlers/ai/analyze.js';
+import supportAnalysis from '../server-handlers/ai/analysis.js';
+import supportCases from '../server-handlers/support/cases.js';
+import supportCase from '../server-handlers/support/case.js';
+import supportStats from '../server-handlers/support/stats.js';
 import emailLogs from '../server-handlers/email/logs.js';
 import emailAttachments from '../server-handlers/email/attachments.js';
 import emailPreview from '../server-handlers/email/preview.js';
@@ -7,9 +12,19 @@ import gmailCallback from '../server-handlers/gmail/callback.js';
 import gmailConnect from '../server-handlers/gmail/connect.js';
 import gmailStatus from '../server-handlers/gmail/status.js';
 
+import gmailMessages from '../server-handlers/gmail/messages.js';
+import gmailMessage from '../server-handlers/gmail/message.js';
+import gmailThread from '../server-handlers/gmail/thread.js';
+import gmailSync from '../server-handlers/gmail/sync.js';
+
 type Handler = (request: any, response: any) => unknown;
 
 const handlers: Record<string, Handler> = {
+  'POST support/analyze': supportAnalyze,
+  'GET support/analysis': supportAnalysis,
+  'GET support/cases': supportCases,
+  'GET support/case': supportCase,
+  'GET support/stats': supportStats,
   'GET email/logs': emailLogs,
   'POST email/attachments': emailAttachments,
   'POST email/preview': emailPreview,
@@ -21,6 +36,10 @@ const handlers: Record<string, Handler> = {
   'GET gmail/callback': gmailCallback,
   'POST gmail/connect': gmailConnect,
   'GET gmail/status': gmailStatus,
+  'GET gmail/messages': gmailMessages,
+  'GET gmail/message': gmailMessage,
+  'GET gmail/thread': gmailThread,
+  'POST gmail/sync': gmailSync,
 };
 
 /**

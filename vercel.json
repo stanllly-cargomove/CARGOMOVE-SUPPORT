@@ -1,7 +1,10 @@
 {
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
+  "functions": { "api/mail.ts": { "maxDuration": 60 } },
   "rewrites": [
+    { "source": "/admin/support/:path*", "destination": "/index.html" },
+    { "source": "/api/support/:path*", "destination": "/api/mail?route=support/:path*" },
     { "source": "/api/email/:path*", "destination": "/api/mail?route=email/:path*" },
     { "source": "/api/gmail/:path*", "destination": "/api/mail?route=gmail/:path*" },
     { "source": "/api/company-registration", "destination": "/api/registration?route=submit" },

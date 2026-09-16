@@ -1,5 +1,6 @@
 // Routed through the single Express Vercel function.
 import crypto from 'node:crypto';
+import { GMAIL_READ_SCOPE } from './client.js';
 import { configuredClient, createPkce, GMAIL_SEND_SCOPE, googleOAuthConfig, noStore, requireAdmin } from '../_email.js';
 
 export default async function gmailConnect(request: any, response: any) {
@@ -26,7 +27,7 @@ export default async function gmailConnect(request: any, response: any) {
       client_id: config.clientId,
       redirect_uri: config.redirectUri,
       response_type: 'code',
-      scope: `openid email ${GMAIL_SEND_SCOPE}`,
+      scope: `openid email ${GMAIL_SEND_SCOPE} ${GMAIL_READ_SCOPE}`,
       access_type: 'offline',
       include_granted_scopes: 'true',
       prompt: 'consent',

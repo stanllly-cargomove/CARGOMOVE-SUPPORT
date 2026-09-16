@@ -42,6 +42,7 @@ class PostgrestBuilder implements PromiseLike<{ data: any; error: any }> {
   private filters = new URLSearchParams();
   private orderValue?: string;
   private limitValue?: number;
+  private timeoutMs?: number;
   private returnRepresentation = false;
   private singleMode: SingleMode = 'many';
 
@@ -105,6 +106,11 @@ class PostgrestBuilder implements PromiseLike<{ data: any; error: any }> {
     return this;
   }
 
+  timeout(milliseconds: number) {
+    this.timeoutMs = milliseconds;
+    return this;
+  }
+
   single() {
     this.singleMode = 'single';
     return this.execute();
@@ -150,6 +156,7 @@ class PostgrestBuilder implements PromiseLike<{ data: any; error: any }> {
           Prefer: prefer,
         },
         body: method === 'POST' || method === 'PATCH' ? JSON.stringify(this.payload) : undefined,
+        signal: this.timeoutMs ? AbortSignal.timeout(this.timeoutMs) : undefined,
       });
       const parsed = result.status === 204 ? null : await result.json().catch(() => null);
       if (!result.ok) {
@@ -177,7 +184,21 @@ class PostgrestBuilder implements PromiseLike<{ data: any; error: any }> {
 export function adminClient() {
   const { supabaseUrl: url, serviceRoleKey: key } = environment();
   if (!url || !key) return null;
-  return { from: (table: string) => new PostgrestBuilder(url, key, table) };
+  return {
+    from: (table: string) => new PostgrestBuilder(url, key, table),
+    async rpc<T = unknown>(name: string, args: Record<string, unknown>): Promise<{ data: T | null; error: { message: string; code?: string } | null }> {
+      try {
+        const response = await fetch(`${url}/rest/v1/rpc/${encodeURIComponent(name)}`, {
+          method: 'POST',
+          headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(args), signal: AbortSignal.timeout(8000),
+        });
+        const body = await response.json().catch(() => null);
+        return response.ok ? { data: body as T, error: null }
+          : { data: null, error: body || { message: 'Supabase function request failed.' } };
+      } catch { return { data: null, error: { message: 'Unable to reach Supabase.' } }; }
+    },
+  };
 }
 
 export function authClient() {

@@ -8,7 +8,7 @@ import { getApplicationSession, logoutApplicationUser } from './services/auth';
 
 export default function App() {
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(() => window.location.hash.includes('type=recovery') || window.location.hash.includes('error_code=otp_expired'));
-  const [viewMode, setViewMode] = useState<'CUSTOMER' | 'LOGIN' | 'ADMIN'>('CUSTOMER');
+  const [viewMode, setViewMode] = useState<'CUSTOMER' | 'LOGIN' | 'ADMIN'>(()=>window.location.pathname.startsWith('/admin/support') ? 'LOGIN' : 'CUSTOMER');
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 

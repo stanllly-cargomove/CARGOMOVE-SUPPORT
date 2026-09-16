@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Toaster } from 'react-hot-toast';
 import {
   LayoutDashboard,
@@ -37,6 +37,10 @@ import { notifyError, notifySuccess } from '../common/notifications';
 import { RegistrationType } from '../../types';
 import collapsedSidebarLogo from '../../../media/LOGO2.png';
 
+import { SupportDashboard } from './support/SupportDashboard';
+import { SupportInbox } from './support/SupportInbox';
+import { supportTab, supportCaseId } from '../../utils/support/routes';
+
 interface AdminLayoutProps {
   onSwitchToCustomer: () => void;
   onRefreshData: () => Promise<void>;
@@ -44,7 +48,20 @@ interface AdminLayoutProps {
 }
 
 export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: AdminLayoutProps) {
-  const [activeTab, setActiveTab] = useState<string>('dashboard');
+  const [activeTab, setActiveTab] = useState<string>(()=>supportTab(window.location.pathname) || 'dashboard');
+  const [supportPath,setSupportPath]=useState(window.location.pathname);
+  const navigateSupport=(path:string)=>{
+    window.history.pushState({},'',path);
+    setSupportPath(path);setActiveTab(supportTab(path) || 'dashboard');setPortalMode('admin');
+    setIsRegistrationQueueExpanded(false);
+  };
+  useEffect(()=>{
+    const back=()=>{setSupportPath(window.location.pathname);setActiveTab(supportTab(window.location.pathname) || 'dashboard');setPortalMode('admin');};
+    window.addEventListener('popstate',back);return()=>window.removeEventListener('popstate',back);
+  },[]);
+  useEffect(()=>{
+    if(!activeTab.startsWith('support-') && supportTab(window.location.pathname)) window.history.pushState({},'','/');
+  },[activeTab]);
   const [portalMode, setPortalMode] = useState<'admin' | 'developer'>('admin');
   const [isRegistrationQueueExpanded, setIsRegistrationQueueExpanded] = useState(false);
   const [queueRegistrationType, setQueueRegistrationType] = useState<RegistrationType>('COMPANY');
@@ -70,6 +87,11 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
     { id: 'dashboard', label: 'Operations Dashboard', icon: LayoutDashboard },
     { id: 'submissions', label: 'Registration Queue', icon: Inbox },
     { id: 'user-registration', label: 'User Access Registration', icon: UserRoundPlus },
+  ];
+
+  const supportItems = [
+    {id:'support-dashboard',label:'AI Support Dashboard',icon:LayoutDashboard,path:'/admin/support'},
+    {id:'support-inbox',label:'Support Inbox',icon:Mail,path:'/admin/support/inbox'},
   ];
 
   const registrationQueueItems = [
@@ -192,6 +214,11 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
             );
           })}
 
+          {portalMode === 'admin' && <div className="mt-5 space-y-1 border-t border-slate-800 pt-4">
+            <p className={`px-3 pb-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 ${isSidebarCollapsed ? 'md:hidden' : ''}`}>Support</p>
+            {supportItems.map(item=>{const Icon=item.icon;return <button key={item.id} type="button" onClick={()=>navigateSupport(item.path)} title={item.label} aria-label={item.label} className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-xs font-semibold ${isSidebarCollapsed ? 'md:justify-center md:px-2' : ''} ${activeTab===item.id ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}><Icon className="h-4 w-4 shrink-0"/><span className={isSidebarCollapsed ? 'md:hidden' : ''}>{item.label}</span></button>;})}
+          </div>}
+
           {portalMode === 'developer' && devToolItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
@@ -267,7 +294,7 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
             </span>
             <span className="text-slate-300">/</span>
             <h1 className="flex items-center gap-3 text-sm font-bold text-slate-900">
-              <span>{[...navItems, ...registrationQueueItems, ...devToolItems].find((item) => item.id === activeTab)?.label}</span>
+              <span>{[...navItems, ...registrationQueueItems, ...devToolItems, ...supportItems].find((item) => item.id === activeTab)?.label}</span>
               {activeTab === 'email-template' && emailTemplateView === 'design' && <><span className="font-normal text-slate-300">/</span><span>Design Template</span></>}
             </h1>
           </div>
@@ -341,6 +368,8 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
               }
             }} />
           )}
+          {activeTab === 'support-dashboard' && <SupportDashboard onNavigate={navigateSupport}/> }
+          {activeTab === 'support-inbox' && <SupportInbox caseId={supportCaseId(supportPath)} onNavigate={navigateSupport}/> }
           {activeTab === 'companies' && <CompanyMaster />}
           {activeQueueItem && (
             <SubmissionsList

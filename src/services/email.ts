@@ -107,7 +107,7 @@ export async function uploadEmailAttachment(file: File, templateId = 'cargomove-
 
 export async function getGmailStatus() {
   const response = await fetch('/api/gmail/status', { credentials: 'include', cache: 'no-store' });
-  return parse<{ connected: boolean; connection: { email: string; status: string; connected_at: string } | null }>(response);
+  return parse<{ connected: boolean; inboxPermissionGranted?: boolean; connection: { email: string; status: string; connected_at: string } | null }>(response);
 }
 
 export async function connectGmail() {

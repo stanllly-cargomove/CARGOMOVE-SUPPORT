@@ -196,9 +196,10 @@ export function googleOAuthConfig() {
   return { clientId, clientSecret, appUrl, redirectUri: `${appUrl}/api/gmail/callback` };
 }
 
-export async function exchangeRefreshToken(refreshToken: string) {
+export async function exchangeRefreshToken(refreshToken: string, timeoutMs?: number) {
   const { clientId, clientSecret } = googleOAuthConfig();
   const response = await fetch('https://oauth2.googleapis.com/token', {
+    signal: timeoutMs ? AbortSignal.timeout(timeoutMs) : undefined,
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({

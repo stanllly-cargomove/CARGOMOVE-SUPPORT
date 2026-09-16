@@ -1,5 +1,6 @@
 // Routed through the single Express Vercel function.
 import crypto from 'node:crypto';
+import { GMAIL_READ_SCOPE } from './client.js';
 import { configuredClient, encryptRefreshToken, GMAIL_SEND_SCOPE, googleOAuthConfig, requireAdmin } from '../_email.js';
 
 export default async function gmailCallback(request: any, response: any) {
@@ -37,13 +38,18 @@ export default async function gmailCallback(request: any, response: any) {
     });
     const identity = await identityResponse.json().catch(() => ({}));
     if (!identityResponse.ok || !identity.sub || !identity.email || identity.email_verified === false) throw new Error('google_identity_verification_failed');
+    const scopes = String(tokens.scope || '').split(' ');
+    if (!scopes.includes(GMAIL_SEND_SCOPE) || !scopes.includes(GMAIL_READ_SCOPE)) throw new Error('gmail_scopes_missing');
+    const { data: syncState, error: syncError } = await client.from('gmail_sync_state').select('google_subject').eq('id', 'system').maybeSingle();
+    if (syncError) throw new Error('gmail_sync_migration_required');
+    if (syncState && syncState.google_subject !== String(identity.sub)) throw new Error('gmail_mailbox_change_not_supported');
     const encrypted = encryptRefreshToken(String(tokens.refresh_token));
     const { error } = await client.from('gmail_connections').upsert({
       id: 'system',
       google_subject: String(identity.sub),
       email: String(identity.email).toLowerCase(),
       ...encrypted,
-      scopes: String(tokens.scope || GMAIL_SEND_SCOPE).split(' '),
+      scopes,
       status: 'ACTIVE',
       connected_by: session.id,
       connected_at: new Date().toISOString(),
