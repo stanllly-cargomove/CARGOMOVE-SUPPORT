@@ -15,7 +15,6 @@ import { SubmissionDetailModal } from './SubmissionDetailModal';
 import { notifyWarning } from '../common/notifications';
 import {
   Building2,
-  FileSpreadsheet,
   Users,
   UserRound,
   Container,
@@ -141,20 +140,10 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         <div>
           <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Admin Operations Center</h2>
           <p className="text-xs text-slate-500 mt-1">
-            Manage registration approvals, user access, CargoMove IDs, and port-ready data exports.
+            Manage registration approvals, user access, and CargoMove IDs.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => onNavigate('export')}
-            className="inline-flex items-center px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors shadow-sm"
-          >
-            <FileSpreadsheet className="w-4 h-4 mr-1.5" />
-            Go to Excel Export
-          </button>
-        </div>
       </div>
 
       {/* Pending and registered counts by type */}

@@ -512,11 +512,8 @@ try {
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto(origin + "/admin/support");
-  await page.getByRole("heading", { name: "Recent cases" }).waitFor();
-  checks++;
-  await page.getByRole("button", { name: "Open support inbox" }).click();
   await page.getByRole("heading", { name: "AI Email Assistant" }).waitFor();
-  assert.equal(new URL(page.url()).pathname, "/admin/support/inbox");
+  assert.equal(new URL(page.url()).pathname, "/admin/support");
   checks++;
   await page.getByRole("button", { name: /ABC Logistics/ }).click();
   await page

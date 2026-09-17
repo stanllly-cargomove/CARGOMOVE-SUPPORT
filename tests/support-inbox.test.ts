@@ -39,7 +39,7 @@ test('strictly validates filters, UUID assignment, UTC date ranges and bounded o
     );
 });
 test('recognizes support links and rejects unrelated path prefixes', () => {
-  assert.equal(supportTab('/admin/support'), 'support-dashboard');
+  assert.equal(supportTab('/admin/support'), 'support-inbox');
   assert.equal(supportTab('/admin/support/inbox'), 'support-inbox');
   assert.equal(supportCaseId('/admin/support/case/test'), 'test');
   assert.equal(supportTab('/admin/support/inbox/extra'), null);
