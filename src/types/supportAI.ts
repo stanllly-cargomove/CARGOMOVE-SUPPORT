@@ -72,3 +72,27 @@ export interface SupportAnalysisResult {
   interaction: AIInteraction;
   cached: boolean;
 }
+
+export const REPLY_TEMPLATES = [
+  'KNOWLEDGE',
+  'ACKNOWLEDGE',
+  'REQUEST_DETAILS',
+] as const;
+export type ReplyTemplate = (typeof REPLY_TEMPLATES)[number];
+export interface SupportReplyDraft {
+  context_fingerprint: string;
+  id: string;
+  case_id: string;
+  source_analysis_id: string;
+  interaction_id: string;
+  template_id: ReplyTemplate;
+  edited_reply: string;
+  created_at: string;
+  updated_at: string;
+  stale: boolean;
+  interaction: AIInteraction;
+  knowledge: import('./knowledge').SupportKnowledge[];
+}
+export interface StoredReply {
+  draft: SupportReplyDraft | null;
+}

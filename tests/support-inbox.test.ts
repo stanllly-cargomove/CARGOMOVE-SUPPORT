@@ -43,7 +43,7 @@ test('recognizes support links and rejects unrelated path prefixes', () => {
   assert.equal(supportTab('/admin/support/inbox'), 'support-inbox');
   assert.equal(supportCaseId('/admin/support/case/test'), 'test');
   assert.equal(supportTab('/admin/support/inbox/extra'), null);
-  assert.equal(supportTab('/admin/support/knowledge'), null);
+  assert.equal(supportTab('/admin/support/knowledge'), 'support-knowledge');
 });
 test('every support API requires ADMIN before database access and rejects write methods', async () => {
   for (const handler of [cases, caseDetail, stats]) {

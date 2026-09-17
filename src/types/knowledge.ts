@@ -1,4 +1,8 @@
-import type { KnowledgePort, SupportCategory, SupportSubcategory } from './support';
+import type {
+  KnowledgePort,
+  SupportCategory,
+  SupportSubcategory,
+} from './support';
 
 export interface SupportKnowledge {
   id: string;
@@ -37,3 +41,78 @@ export interface SupportLearningSuggestion {
   created_at: string;
   reviewed_at: string | null;
 }
+
+export type KnowledgeArticleInput = Pick<
+  SupportKnowledge,
+  | 'knowledge_code'
+  | 'title'
+  | 'category'
+  | 'subcategory'
+  | 'port'
+  | 'problem'
+  | 'possible_cause'
+  | 'resolution'
+  | 'suggested_action'
+  | 'keywords'
+  | 'requires_port_verification'
+  | 'human_review_required'
+  | 'ai_reply_allowed'
+  | 'active'
+>;
+export interface KnowledgeFilters {
+  q?: string;
+  category?: string;
+  subcategory?: string;
+  port?: string;
+  active?: string;
+  ai_reply_allowed?: string;
+  human_review_required?: string;
+  offset?: number;
+}
+export interface KnowledgePage {
+  articles: SupportKnowledge[];
+  total: number;
+}
+export interface KnowledgeMatches {
+  interaction_id: string | null;
+  stale: boolean;
+  articles: Array<SupportKnowledge & { match_score: number }>;
+}
+
+export const KNOWLEDGE_SUBCATEGORIES: Record<
+  SupportCategory,
+  readonly SupportSubcategory[]
+> = {
+  DRIVER: ['DRIVER_NOT_FOUND', 'PORT_PASS', 'DRIVER_REGISTRATION'],
+  VEHICLE: ['VEHICLE_NOT_FOUND', 'LPK_REGISTRATION', 'VEHICLE_ACTIVATION'],
+  BOOKING: [
+    'CONVENTIONAL_BOOKING',
+    'WAREHOUSE_BOOKING',
+    'NON_CARGO_BOOKING',
+    'BOOKING_CREATION',
+    'EARLY_ENTRY',
+  ],
+  CONTAINER: [
+    'CONTAINER_NOT_FOUND',
+    'YARD_OPENING',
+    'DG_DECLARATION',
+    'VESSEL_CHANGE',
+    'MT_PICKUP',
+  ],
+  PORT: ['PORT_CANCELLED'],
+  ACCOUNT: ['ACCOUNT_EXISTS', 'LOGIN', 'PASSWORD', 'LOCATION_ACCESS'],
+  REGISTRATION: [],
+  SYSTEM: ['SYSTEM_OUTAGE', 'UNKNOWN_ERROR'],
+  OTHER: [],
+};
+
+export const KNOWLEDGE_HIGH_RISK_SUBCATEGORIES = [
+  'EARLY_ENTRY',
+  'PORT_CANCELLED',
+  'VESSEL_CHANGE',
+  'UNKNOWN_ERROR',
+  'CONTAINER_NOT_FOUND',
+  'SYSTEM_OUTAGE',
+  'YARD_OPENING',
+  'DG_DECLARATION',
+];

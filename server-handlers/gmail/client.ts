@@ -1,6 +1,7 @@
 import { decryptRefreshToken, exchangeRefreshToken, GMAIL_SEND_SCOPE } from '../_email.js';
 import type { adminClient } from '../../api/_runtime.js';
 
+export const GMAIL_COMPOSE_SCOPE = 'https://www.googleapis.com/auth/gmail.compose';
 export const GMAIL_READ_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
 export type ServerClient = NonNullable<ReturnType<typeof adminClient>>;
 export class InboxError extends Error {

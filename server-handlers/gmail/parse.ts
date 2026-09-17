@@ -18,7 +18,7 @@ export interface GmailRawMessage {
 }
 export interface GmailRawThread { id: string; messages?: GmailRawMessage[] }
 const MAX_BODY_BYTES = 1024 * 1024;
-function decodeHeader(value: string): string {
+export function decodeHeader(value: string): string {
   return value.replace(/=\?([^?]+)\?([bq])\?([^?]*)\?=/gi, (original, charset: string, encoding: string, content: string) => {
     try {
       const bytes = encoding.toLowerCase() === 'b' ? Buffer.from(content, 'base64')

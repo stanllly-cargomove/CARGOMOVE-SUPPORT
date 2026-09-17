@@ -3,10 +3,6 @@ import {
   SUPPORT_PORTS,
   SUPPORT_URGENCIES,
 } from '../../src/types/support.js';
-import type {
-  SupportCategory,
-  SupportSubcategory,
-} from '../../src/types/support.js';
 import { SUPPORT_ACTIONS } from '../../src/types/supportAI.js';
 import type {
   SupportEntities,
@@ -22,32 +18,8 @@ export class AnalysisError extends Error {
     super(message);
   }
 }
-export const CATEGORY_SUBCATEGORIES: Record<
-  SupportCategory,
-  readonly SupportSubcategory[]
-> = {
-  DRIVER: ['DRIVER_NOT_FOUND', 'PORT_PASS', 'DRIVER_REGISTRATION'],
-  VEHICLE: ['VEHICLE_NOT_FOUND', 'LPK_REGISTRATION', 'VEHICLE_ACTIVATION'],
-  BOOKING: [
-    'CONVENTIONAL_BOOKING',
-    'WAREHOUSE_BOOKING',
-    'NON_CARGO_BOOKING',
-    'BOOKING_CREATION',
-    'EARLY_ENTRY',
-  ],
-  CONTAINER: [
-    'CONTAINER_NOT_FOUND',
-    'YARD_OPENING',
-    'DG_DECLARATION',
-    'VESSEL_CHANGE',
-    'MT_PICKUP',
-  ],
-  PORT: ['PORT_CANCELLED'],
-  ACCOUNT: ['ACCOUNT_EXISTS', 'LOGIN', 'PASSWORD', 'LOCATION_ACCESS'],
-  REGISTRATION: [],
-  SYSTEM: ['SYSTEM_OUTAGE', 'UNKNOWN_ERROR'],
-  OTHER: [],
-};
+export { KNOWLEDGE_SUBCATEGORIES as CATEGORY_SUBCATEGORIES } from '../../src/types/knowledge.js';
+import { KNOWLEDGE_SUBCATEGORIES as CATEGORY_SUBCATEGORIES } from '../../src/types/knowledge.js';
 export const ENTITY_KEYS = [
   'company_name',
   'vehicle_number',

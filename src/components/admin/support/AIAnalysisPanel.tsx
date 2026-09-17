@@ -1,3 +1,5 @@
+import { SuggestedReplyEditor } from './SuggestedReplyEditor';
+import { KnowledgeMatchesPanel } from './KnowledgeMatchesPanel';
 import React, { useRef, useState } from 'react';
 import {
   getSupportAnalysis,
@@ -125,6 +127,17 @@ export function AIAnalysisPanel({
             No AI analysis has been run for this case.
           </p>
         )
+      )}
+      {item && (
+        <SuggestedReplyEditor
+          caseId={caseId}
+          analysisId={item.id}
+          onDelivered={onAnalyzed}
+          blocked={resolved || !!resource.data?.stale}
+        />
+      )}
+      {item && (
+        <KnowledgeMatchesPanel caseId={caseId} interactionId={item.id} />
       )}
     </section>
   );

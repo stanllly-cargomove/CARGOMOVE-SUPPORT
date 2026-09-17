@@ -118,3 +118,58 @@ are fenced, and failures leave conversations readable. Verify English, Malay,
 mixed-language and operational-risk examples against real UAT messages; test
 missing configuration/provider errors and existing registration/email workflows.
 See `docs/support-ai-classification.md` for the full report and validation limits.
+
+## Support Knowledge Base (Milestone 5)
+
+Apply `20260916000040_support_knowledge.sql` after the earlier support migrations,
+first in nonproduction Supabase. Deploy/restart the updated API/UI afterward.
+No new secrets or OAuth permissions are needed.
+
+Sign in as ADMIN and open **Support → Knowledge Base** at
+`/admin/support/knowledge`. Create genuine support guidance as an inactive draft,
+edit it, and activate only after staff verification. Search/filter articles and
+verify two-tab stale-edit conflicts. Deactivate instead of deleting articles.
+Port-verification and high-risk operational scopes require human review.
+
+Open an analyzed case to view matching approved knowledge. Inactive and
+incompatible articles are excluded, and changed conversations require
+reanalysis before matching. Test activation/deactivation and refresh matches;
+confirm anonymous API access and browser-role RPC execution remain denied.
+No replies are generated yet. See `docs/support-knowledge.md` for the complete
+report, API details and manual UAT verification steps.
+
+## Support suggested replies (Milestone 6)
+
+Apply `20260917000000_support_reply_drafts.sql` after the earlier support
+migrations, first in nonproduction Supabase. Restart/deploy the updated API/UI.
+Reuse the existing server-only Gemini key/model settings; no new OAuth
+permissions are needed. Fixed acknowledgements/information requests require no
+model key.
+
+In Knowledge Base, activate verified guidance and explicitly enable **AI reply
+allowed** where appropriate. Analyze a matching case, choose a reply template,
+and click **Generate suggested reply**. Inspect the guidance/references and
+wording, edit, and **Save draft edits**. Drafts remain inside CargoMove and
+require human approval; no Gmail draft or email is created yet.
+
+Test saved edits/reload, cached template selection, two-tab conflicts, absent
+permitted knowledge, changed conversation/knowledge, provider failures and
+resolved cases. Verify approval/final-reply fields remain empty and existing
+registration/email/sync workflows still work. See
+`docs/support-suggested-replies.md` for the full report and validation limits.
+
+## Support reply delivery (Milestone 7)
+
+Apply `supabase/migrations/20260917000010_support_reply_delivery.sql` after the reply draft migration, then restart the API server. Gmail draft actions require adding `gmail.compose` in Google Data Access and reconnecting the same mailbox; existing OAuth credentials are reused. See [reviewed reply delivery](docs/support-reply-delivery.md) for setup, approval, audit records and uncertain-result reconciliation. No automatic sending is enabled.
+
+## Support learning suggestions (Milestone 8)
+
+Apply `supabase/migrations/20260917000020_support_learning.sql` after the reply delivery migration, then restart the API. Open `/admin/support/learning` and explicitly detect repeated staff corrections. Suggestions require human review before an atomic Knowledge Base update. No additional credentials, Gmail permissions or automatic sending are introduced. See [learning setup and review guide](docs/support-learning.md).
+
+## Support analytics (Milestone 9)
+
+Apply `supabase/migrations/20260917000030_support_analytics.sql` after the learning migration, then restart the API. Open `/admin/support/analytics`. Optional UTC dates select cases by application creation date; subsequent recorded activity is included. No additional secrets, OAuth permissions, AI calls or automatic sending are introduced. See [analytics setup and metric definitions](docs/support-analytics.md).
+
+## Controlled support automation (Milestone 10)
+
+Apply `supabase/migrations/20260917000040_support_automation.sql`, then restart the API. Open `/admin/support/automation`. Rules and the server-only `SUPPORT_AUTO_SEND_ENABLED` switch default to no automatic sending. The per-case runner may analyze/draft and, only when explicitly enabled and eligible, send the fixed acknowledgement. No scheduled worker is enabled. Read [automation setup and safeguards](docs/support-automation.md) before opting in; operational guidance still requires human approval.

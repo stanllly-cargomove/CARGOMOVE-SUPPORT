@@ -1,3 +1,7 @@
+import { AutomationSettings } from './support/AutomationSettings';
+import { SupportAnalytics } from './support/SupportAnalytics';
+import { LearningSuggestions } from './support/LearningSuggestions';
+import { KnowledgeBase } from './support/KnowledgeBase';
 import React, { useEffect, useState } from 'react';
 import { Toaster } from 'react-hot-toast';
 import {
@@ -92,6 +96,10 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
   const supportItems = [
     {id:'support-dashboard',label:'AI Support Dashboard',icon:LayoutDashboard,path:'/admin/support'},
     {id:'support-inbox',label:'Support Inbox',icon:Mail,path:'/admin/support/inbox'},
+    {id:'support-automation',label:'Support Automation',icon:LayoutDashboard,path:'/admin/support/automation'},
+    {id:'support-analytics',label:'Support Analytics',icon:LayoutDashboard,path:'/admin/support/analytics'},
+    {id:'support-learning',label:'AI Learning',icon:BookOpen,path:'/admin/support/learning'},
+    {id:'support-knowledge',label:'Knowledge Base',icon:BookOpen,path:'/admin/support/knowledge'},
   ];
 
   const registrationQueueItems = [
@@ -368,6 +376,10 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
               }
             }} />
           )}
+          {activeTab === 'support-automation' && <AutomationSettings/>}
+          {activeTab === 'support-analytics' && <SupportAnalytics/>}
+          {activeTab === 'support-learning' && <LearningSuggestions/>}
+          {activeTab === 'support-knowledge' && <KnowledgeBase/>}
           {activeTab === 'support-dashboard' && <SupportDashboard onNavigate={navigateSupport}/> }
           {activeTab === 'support-inbox' && <SupportInbox caseId={supportCaseId(supportPath)} onNavigate={navigateSupport}/> }
           {activeTab === 'companies' && <CompanyMaster />}

@@ -1,3 +1,5 @@
+import { AutomationCaseControl } from './AutomationSettings';
+import { CaseStatusControls } from './CaseStatusControls';
 import { AIAnalysisPanel } from './AIAnalysisPanel';
 import React, { useEffect, useState } from 'react';
 import { getSupportCase } from '../../../services/support';
@@ -79,6 +81,8 @@ export function SupportCaseDetail({
           </p>
         )}
       </div>
+      <AutomationCaseControl caseId={caseId} onChanged={onAnalyzed} />
+      <CaseStatusControls item={item} onChanged={onAnalyzed} />
       <AIAnalysisPanel
         key={caseId}
         caseId={caseId}

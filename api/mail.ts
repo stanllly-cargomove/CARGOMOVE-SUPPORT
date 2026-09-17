@@ -1,3 +1,10 @@
+import { automationRules, automationRun } from '../server-handlers/support/automation.js';
+import supportAnalytics from '../server-handlers/support/analytics.js';
+import { learningList, learningDetail, learningWrite } from '../server-handlers/support/learning.js';
+import { deliveryRead, deliveryWrite, deliveryReconcile, caseStatus } from '../server-handlers/support/delivery.js';
+import { replyRead,replyGenerate,replyEdit } from '../server-handlers/ai/reply-handlers.js';
+import knowledgeArticles from '../server-handlers/knowledge/articles.js';
+import knowledgeMatches from '../server-handlers/knowledge/matches.js';
 import supportAnalyze from '../server-handlers/ai/analyze.js';
 import supportAnalysis from '../server-handlers/ai/analysis.js';
 import supportCases from '../server-handlers/support/cases.js';
@@ -20,6 +27,25 @@ import gmailSync from '../server-handlers/gmail/sync.js';
 type Handler = (request: any, response: any) => unknown;
 
 const handlers: Record<string, Handler> = {
+  'GET support/automation': automationRules,
+  'POST support/automation': automationRules,
+  'PUT support/automation': automationRules,
+  'POST support/automation-run': automationRun,
+  'GET support/analytics': supportAnalytics,
+  'GET support/learning': learningList,
+  'GET support/learning-detail': learningDetail,
+  'POST support/learning': learningWrite,
+  'GET support/delivery': deliveryRead,
+  'POST support/delivery': deliveryWrite,
+  'POST support/delivery-check': deliveryReconcile,
+  'POST support/case-status': caseStatus,
+  'GET support/reply': replyRead,
+  'PUT support/reply': replyEdit,
+  'POST support/generate-reply': replyGenerate,
+  'GET support/knowledge': knowledgeArticles,
+  'POST support/knowledge': knowledgeArticles,
+  'PUT support/knowledge': knowledgeArticles,
+  'GET support/knowledge-matches': knowledgeMatches,
   'POST support/analyze': supportAnalyze,
   'GET support/analysis': supportAnalysis,
   'GET support/cases': supportCases,
