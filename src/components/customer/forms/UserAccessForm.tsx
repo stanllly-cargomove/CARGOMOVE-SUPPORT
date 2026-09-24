@@ -89,7 +89,7 @@ export function UserAccessForm({ companyName, initialData, onSubmit, onBack }: U
       </div>
 
       <div className="flex-1 bg-white rounded-lg border border-slate-200 p-4 shadow-xs space-y-4">
-        <div className="flex items-center gap-2 text-slate-900 font-bold text-xs uppercase tracking-wider pb-2 border-b border-slate-100">
+        <div className="flex items-center gap-2 text-slate-900 font-bold text-xs uppercase tracking-wider pb-2">
           <UserRound className="w-4 h-4 text-[#0090e7]" />
           Login Account
         </div>

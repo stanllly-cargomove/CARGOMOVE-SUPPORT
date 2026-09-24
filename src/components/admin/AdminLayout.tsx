@@ -194,33 +194,43 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
                   <Icon className="w-4 h-4 shrink-0" />
                   <span className={`flex-1 text-left ${isSidebarCollapsed ? 'md:hidden' : ''}`}>{item.label}</span>
                   {isRegistrationQueue && (
-                    <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isSidebarCollapsed ? 'md:hidden' : ''} ${isRegistrationQueueExpanded ? 'rotate-180' : ''}`} />
+                    <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ease-out ${isSidebarCollapsed ? 'md:hidden' : ''} ${isRegistrationQueueExpanded ? 'rotate-180' : ''}`} />
                   )}
                 </button>
 
-                {isRegistrationQueue && isRegistrationQueueExpanded && (
-                  <div className={`ml-3 mt-1 space-y-1 border-l border-slate-700 pl-3 ${isSidebarCollapsed ? 'md:hidden' : ''}`}>
-                    {registrationQueueItems.map((queueItem) => {
-                      const QueueIcon = queueItem.icon;
-                      const isQueueItemActive = activeTab === queueItem.id;
-                      return (
-                        <button
-                          key={queueItem.id}
-                          type="button"
-                          onClick={() => {
-                            setActiveTab(queueItem.id);
-                          }}
-                          className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-xs font-semibold transition-all ${
-                            isQueueItemActive
-                              ? 'bg-slate-800 font-bold text-white'
-                              : 'text-slate-400 hover:bg-slate-800/80 hover:text-slate-100'
-                          }`}
-                        >
-                          <QueueIcon className="h-3.5 w-3.5 shrink-0" />
-                          <span>{queueItem.label}</span>
-                        </button>
-                      );
-                    })}
+                {isRegistrationQueue && (
+                  <div
+                    aria-hidden={!isRegistrationQueueExpanded}
+                    className={`overflow-hidden transition-[max-height,opacity,transform] duration-200 ease-out motion-reduce:transition-none ${
+                      isRegistrationQueueExpanded
+                        ? 'max-h-[136px] translate-y-0 opacity-100'
+                        : 'pointer-events-none max-h-0 -translate-y-1 opacity-0'
+                    } ${isSidebarCollapsed ? 'md:hidden' : ''}`}
+                  >
+                    <div className="ml-3 mt-1 space-y-1 border-l border-slate-700 pl-3">
+                      {registrationQueueItems.map((queueItem) => {
+                        const QueueIcon = queueItem.icon;
+                        const isQueueItemActive = activeTab === queueItem.id;
+                        return (
+                          <button
+                            key={queueItem.id}
+                            type="button"
+                            tabIndex={isRegistrationQueueExpanded ? 0 : -1}
+                            onClick={() => {
+                              setActiveTab(queueItem.id);
+                            }}
+                            className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
+                              isQueueItemActive
+                                ? 'bg-slate-800 font-bold text-white'
+                                : 'text-slate-400 hover:bg-slate-800/80 hover:text-slate-100'
+                            }`}
+                          >
+                            <QueueIcon className="h-3.5 w-3.5 shrink-0" />
+                            <span>{queueItem.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
               </React.Fragment>

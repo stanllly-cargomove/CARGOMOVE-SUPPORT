@@ -1,4 +1,12 @@
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/inter/700.css";
 @import "tailwindcss";
+
+@theme {
+  --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
 
 :root {
   --primary: #0095e8;
@@ -12,12 +20,28 @@
   --border-light: #e8eef5;
 }
 
-body {
+html,
+body,
+button,
+input,
+select,
+textarea {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+body {
   color: var(--text);
   background-color: var(--background);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+.customer-theme,
+.customer-theme button,
+.customer-theme input,
+.customer-theme select,
+.customer-theme textarea {
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
 .customer-form input,
@@ -38,6 +62,20 @@ body {
 
 code, kbd, samp, pre {
   font-family: 'JetBrains Mono', monospace;
+}
+
+.admin-theme,
+.admin-theme button,
+.admin-theme input,
+.admin-theme select,
+.admin-theme textarea,
+.admin-theme table,
+.admin-theme code,
+.admin-theme kbd,
+.admin-theme samp,
+.admin-theme pre,
+.admin-theme .font-mono {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
 }
 
 @keyframes page-slide-forward {

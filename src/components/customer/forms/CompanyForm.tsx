@@ -1,10 +1,10 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { PortLocation, CompanyFormData } from '../../../types';
 import { getAutoAssignedPorts } from '../../../services/storage';
 import { CompanyType, normalizeCompanyType } from '../../../services/companyHelper';
 import { notifyError, notifySuccess, notifyWarning } from '../../common/notifications';
-import { ArrowLeft, ArrowRight, Building2, Phone, CheckCircle2, LoaderCircle, Upload } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Building2, Phone, CheckCircle2, Download, EllipsisVertical, LoaderCircle, Upload } from 'lucide-react';
 
 interface CompanyFormProps {
   initialLocation: PortLocation;
@@ -174,8 +174,62 @@ export function CompanyForm({
   const [currentPage, setCurrentPage] = useState(initialPage);
   const [transitionDirection, setTransitionDirection] = useState<'forward' | 'backward'>('forward');
   const [isImportingExcel, setIsImportingExcel] = useState(false);
+  const [isExcelMenuOpen, setIsExcelMenuOpen] = useState(false);
   const touchStartX = useRef<number | null>(null);
   const excelInputRef = useRef<HTMLInputElement>(null);
+  const excelMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isExcelMenuOpen) return;
+
+    const closeMenu = (event: MouseEvent) => {
+      if (!excelMenuRef.current?.contains(event.target as Node)) setIsExcelMenuOpen(false);
+    };
+    const closeMenuOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsExcelMenuOpen(false);
+    };
+
+    document.addEventListener('mousedown', closeMenu);
+    document.addEventListener('keydown', closeMenuOnEscape);
+    return () => {
+      document.removeEventListener('mousedown', closeMenu);
+      document.removeEventListener('keydown', closeMenuOnEscape);
+    };
+  }, [isExcelMenuOpen]);
+
+  const downloadCompanyTemplate = () => {
+    const headers = [
+      'COMPANY FULL LEGAL NAME',
+      'COMPANY SHORT NAME (TRADE NAME)',
+      'COMPANY CATEGORY / TYPE',
+      'OLD COMPANY REG. NUMBER',
+      'NEW COMPANY REG. NUMBER (SSM 12-DIGIT)',
+      'HAULIER ID',
+      'FORWARDING AGENT ID',
+      'PORT ID',
+      'DEPOT ID',
+      'BUILDING / BLOCK / FLOOR / LOT',
+      'ADDRESS LINE 1',
+      'ADDRESS LINE 2',
+      'CITY / TOWN',
+      'STATE / REGION',
+      'POSTCODE',
+      'COUNTRY',
+      'CONTACT PERSON NAME',
+      'EMAIL ADDRESS',
+      'DESIGNATION',
+      'MOBILE NUMBER',
+      'OFFICE PHONE',
+      'FAX NUMBER',
+    ];
+    const worksheet = XLSX.utils.aoa_to_sheet([headers, Array(headers.length).fill('')]);
+    worksheet['!cols'] = headers.map((header) => ({ wch: Math.max(16, Math.min(header.length + 3, 34)) }));
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Company Registration');
+    XLSX.writeFile(workbook, 'CargoMove_Company_Registration_Template.xlsx');
+    setIsExcelMenuOpen(false);
+    notifySuccess('Company registration template downloaded.');
+  };
 
   const handleChange = (field: keyof CompanyFormData, val: string) => {
     setFormData((prev) => {
@@ -208,6 +262,32 @@ export function CompanyForm({
       return next;
     });
   };
+
+  function getValidationErrors(data: CompanyFormData): Record<string, string> {
+    const validationErrors: Record<string, string> = {};
+    if (!data.name.trim()) validationErrors.name = 'Company Name is required.';
+    if (!data.short_name.trim()) validationErrors.short_name = 'Company Short Name is required.';
+    if (!companyTypeOptions.some(({ value }) => value === data.company_type)) {
+      validationErrors.company_type = `Select a company category available for ${facilityLabel}.`;
+    }
+    if (!data.registration_number_old?.trim()) validationErrors.registration_number_old = 'Old Registration Number is required.';
+    if (data.registration_number_new?.trim() && !/^\d{12}$/.test(data.registration_number_new.trim())) {
+      validationErrors.registration_number_new = 'New SSM registration number must contain exactly 12 digits.';
+    }
+    if (!data.address1?.trim()) validationErrors.address1 = 'Address Line 1 is required.';
+    if (!data.country?.trim() || !statesByCountry[data.country]) validationErrors.country = 'Select a supported country.';
+    if (!data.state?.trim() || !statesByCountry[data.country || '']?.includes(data.state)) {
+      validationErrors.state = 'Select a valid state or region for the selected country.';
+    }
+    if (!data.city?.trim()) validationErrors.city = 'City is required.';
+    if (!data.postcode?.trim()) validationErrors.postcode = 'Postcode is required.';
+    if (!data.contact_name?.trim()) validationErrors.contact_name = 'Contact Person Name is required.';
+    if (!data.contact_email?.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.contact_email.trim())) {
+      validationErrors.contact_email = 'A valid email is required.';
+    }
+    if (!data.contact_mobile?.trim()) validationErrors.contact_mobile = 'Mobile Number is required.';
+    return validationErrors;
+  }
 
   const handleExcelUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -255,7 +335,7 @@ export function CompanyForm({
       const importWarnings: string[] = [];
       mappedColumns.forEach(({ columnIndex, field }) => {
         const value = excelCellValue(dataRow[columnIndex]);
-        if (value) imported[field] = value;
+        imported[field] = value;
       });
 
       if (imported.company_type) {
@@ -263,8 +343,8 @@ export function CompanyForm({
         if (companyTypeOptions.some(({ value }) => value === normalizedCompanyType)) {
           imported.company_type = normalizedCompanyType;
         } else {
-          importWarnings.push(`${normalizedCompanyType} is not available for ${facilityLabel} and was not imported.`);
-          delete imported.company_type;
+          importWarnings.push(`${normalizedCompanyType} is not available for ${facilityLabel}.`);
+          imported.company_type = '';
         }
       }
       if (imported.country) {
@@ -274,8 +354,8 @@ export function CompanyForm({
         if (supportedCountry) {
           imported.country = supportedCountry;
         } else {
-          importWarnings.push(`Country “${imported.country}” is not supported and was not imported.`);
-          delete imported.country;
+          importWarnings.push(`Country "${imported.country}" is not supported.`);
+          imported.country = '';
         }
       }
       if (imported.state) {
@@ -283,17 +363,33 @@ export function CompanyForm({
         const supportedState = statesByCountry[country]?.find(
           (state) => state.toLowerCase() === imported.state?.toLowerCase()
         );
-        if (supportedState) imported.state = supportedState;
+        if (supportedState) {
+          imported.state = supportedState;
+        } else {
+          importWarnings.push(`State or region "${imported.state}" is not valid for ${country || 'the selected country'}.`);
+          imported.state = '';
+        }
       }
       if (imported.registration_number_old) {
         imported.registration_number_old = imported.registration_number_old.toUpperCase();
         imported.registration_number = imported.registration_number_old;
       }
 
-      const importedFieldCount = Object.keys(imported).length;
-      setFormData((current) => ({ ...current, ...imported }));
-      setErrors({});
-      notifySuccess(`${importedFieldCount} company field${importedFieldCount === 1 ? '' : 's'} filled from ${file.name}.`);
+      const nextFormData = { ...formData, ...imported } as CompanyFormData;
+      const validationErrors = getValidationErrors(nextFormData);
+      const importedFieldCount = Object.values(imported).filter((value) => value?.trim()).length;
+      setFormData(nextFormData);
+      setErrors(validationErrors);
+
+      const invalidFields = Object.keys(validationErrors);
+      if (invalidFields.length === 0) {
+        notifySuccess(`${importedFieldCount} fields filled from ${file.name}. All required details passed validation.`);
+      } else {
+        const pageOneFields = ['name', 'short_name', 'company_type', 'registration_number_old', 'registration_number_new'];
+        const pageTwoFields = ['address1', 'country', 'state', 'city', 'postcode'];
+        setCurrentPage(invalidFields.some((field) => pageOneFields.includes(field)) ? 1 : invalidFields.some((field) => pageTwoFields.includes(field)) ? 2 : 3);
+        importWarnings.push(`${invalidFields.length} required or invalid field${invalidFields.length === 1 ? '' : 's'} must be corrected before continuing.`);
+      }
       if (populatedDataRows.length > 1) {
         importWarnings.push('Only the first populated company row was imported.');
       }
@@ -306,58 +402,21 @@ export function CompanyForm({
   };
 
   const validate = () => {
-    const errs: Record<string, string> = {};
-    if (!formData.name.trim()) errs.name = 'Company Name is required.';
-    if (!formData.short_name.trim()) errs.short_name = 'Company Short Name is required.';
-    if (!companyTypeOptions.some(({ value }) => value === formData.company_type)) {
-      errs.company_type = `Select a company category available for ${facilityLabel}.`;
-    }
-    if (!formData.registration_number_old?.trim()) errs.registration_number_old = 'Old Registration Number is required.';
-    if (!formData.address1?.trim()) errs.address1 = 'Address Line 1 is required.';
-    if (!formData.city?.trim()) errs.city = 'City is required.';
-    if (!formData.state?.trim()) errs.state = 'State is required.';
-    if (!formData.postcode?.trim()) errs.postcode = 'Postcode is required.';
-    if (!formData.contact_name?.trim()) errs.contact_name = 'Contact Person Name is required.';
-    if (!formData.contact_email?.trim() || !formData.contact_email.includes('@')) {
-      errs.contact_email = 'A valid email is required.';
-    }
-    if (!formData.contact_mobile?.trim()) errs.contact_mobile = 'Mobile Number is required.';
-
+    const errs = getValidationErrors(formData);
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
 
   const validatePage = (page: number) => {
     const pageFields: Record<number, (keyof CompanyFormData)[]> = {
-      1: ['name', 'short_name', 'company_type', 'registration_number_old'],
-      2: ['address1', 'city', 'state', 'postcode'],
+      1: ['name', 'short_name', 'company_type', 'registration_number_old', 'registration_number_new'],
+      2: ['address1', 'country', 'city', 'state', 'postcode'],
       3: ['contact_name', 'contact_email', 'contact_mobile'],
     };
-    const allErrors: Record<string, string> = {};
-
-    if (pageFields[page].includes('name') && !formData.name.trim()) allErrors.name = 'Company Name is required.';
-    if (pageFields[page].includes('short_name') && !formData.short_name.trim()) {
-      allErrors.short_name = 'Company Short Name is required.';
-    }
-    if (pageFields[page].includes('company_type') && !companyTypeOptions.some(({ value }) => value === formData.company_type)) {
-      allErrors.company_type = `Select a company category available for ${facilityLabel}.`;
-    }
-    if (pageFields[page].includes('registration_number_old') && !formData.registration_number_old?.trim()) {
-      allErrors.registration_number_old = 'Old Registration Number is required.';
-    }
-    if (pageFields[page].includes('address1') && !formData.address1?.trim()) allErrors.address1 = 'Address Line 1 is required.';
-    if (pageFields[page].includes('city') && !formData.city?.trim()) allErrors.city = 'City is required.';
-    if (pageFields[page].includes('state') && !formData.state?.trim()) allErrors.state = 'State is required.';
-    if (pageFields[page].includes('postcode') && !formData.postcode?.trim()) allErrors.postcode = 'Postcode is required.';
-    if (pageFields[page].includes('contact_name') && !formData.contact_name?.trim()) {
-      allErrors.contact_name = 'Contact Person Name is required.';
-    }
-    if (pageFields[page].includes('contact_email') && (!formData.contact_email?.trim() || !formData.contact_email.includes('@'))) {
-      allErrors.contact_email = 'A valid email is required.';
-    }
-    if (pageFields[page].includes('contact_mobile') && !formData.contact_mobile?.trim()) {
-      allErrors.contact_mobile = 'Mobile Number is required.';
-    }
+    const formErrors = getValidationErrors(formData);
+    const allErrors = Object.fromEntries(
+      Object.entries(formErrors).filter(([field]) => pageFields[page].includes(field as keyof CompanyFormData))
+    );
 
     setErrors(allErrors);
     return Object.keys(allErrors).length === 0;
@@ -429,17 +488,50 @@ export function CompanyForm({
           className="hidden"
           aria-label="Upload company details Excel file"
         />
-        <button
-          type="button"
-          onClick={() => excelInputRef.current?.click()}
-          disabled={isImportingExcel}
-          className="hidden shrink-0 items-center rounded border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60 lg:inline-flex"
-        >
-          {isImportingExcel
-            ? <LoaderCircle className="mr-1 h-3 w-3 animate-spin" />
-            : <Upload className="mr-1 h-3 w-3" />}
-          {isImportingExcel ? 'Reading Excel...' : 'Upload Excel'}
-        </button>
+        <div ref={excelMenuRef} className="relative shrink-0">
+          <button
+            type="button"
+            onClick={() => setIsExcelMenuOpen((open) => !open)}
+            disabled={isImportingExcel}
+            aria-label="Company form options"
+            aria-haspopup="menu"
+            aria-expanded={isExcelMenuOpen}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 transition-colors hover:border-slate-400 hover:bg-slate-50 hover:text-slate-900 disabled:cursor-wait disabled:opacity-60"
+          >
+            {isImportingExcel
+              ? <LoaderCircle className="h-4 w-4 animate-spin" />
+              : <EllipsisVertical className="h-4 w-4" />}
+          </button>
+
+          {isExcelMenuOpen && (
+            <div
+              role="menu"
+              className="absolute right-0 top-full z-30 mt-1.5 w-56 overflow-hidden rounded-md border border-slate-200 bg-white py-1 shadow-lg"
+            >
+              <button
+                type="button"
+                role="menuitem"
+                onClick={downloadCompanyTemplate}
+                className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+              >
+                <Download className="h-4 w-4 text-[#0090e7]" />
+                Download Form Template
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setIsExcelMenuOpen(false);
+                  excelInputRef.current?.click();
+                }}
+                className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+              >
+                <Upload className="h-4 w-4 text-emerald-600" />
+                Upload Filled Form
+              </button>
+            </div>
+          )}
+        </div>
 
       </div>
 
@@ -455,7 +547,7 @@ export function CompanyForm({
       {/* Section 1: Corporate Registration Details */}
       <div key={currentPage} className={`flex-1 min-h-[330px] page-slide-${transitionDirection}`}>
       {currentPage === 1 && <div className="h-full bg-white rounded-lg border border-slate-200 p-4 shadow-xs space-y-3">
-        <div className="flex items-center gap-2 text-slate-900 font-bold text-xs uppercase tracking-wider pb-2 border-b border-slate-100">
+        <div className="flex items-center gap-2 text-slate-900 font-bold text-xs uppercase tracking-wider pb-2">
           <Building2 className="w-4 h-4 text-[#0090e7]" />
           Corporate & Registration Details
         </div>
@@ -499,6 +591,7 @@ export function CompanyForm({
                 onChange={(e) => handleChange('company_type', e.target.value)}
                 className="w-full px-2.5 py-1.5 rounded border border-slate-300 text-xs focus:ring-1 focus:ring-sky-500 focus:outline-none bg-white font-medium text-slate-800"
               >
+                <option value="" disabled>Select company category</option>
                 {companyTypeOptions.map(({ value, label }) => (
                   <option key={value} value={value}>{label}</option>
                 ))}
@@ -532,13 +625,14 @@ export function CompanyForm({
               placeholder="201901004521"
               className="w-full px-2.5 py-1.5 rounded border border-slate-300 text-xs focus:ring-1 focus:ring-sky-500 focus:outline-none font-mono"
             />
+            <FieldError message={errors.registration_number_new} />
           </div>
         </div>
       </div>}
 
       {/* Section 2: Registered Business Address */}
       {currentPage === 2 && <div className="h-full bg-white rounded-lg border border-slate-200 p-4 shadow-xs space-y-3">
-        <div className="flex items-center gap-2 text-slate-900 font-bold text-xs uppercase tracking-wider pb-2 border-b border-slate-100">
+        <div className="flex items-center gap-2 text-slate-900 font-bold text-xs uppercase tracking-wider pb-2">
           <Building2 className="w-4 h-4 text-[#0090e7]" />
           Registered Business Address
         </div>
@@ -594,9 +688,11 @@ export function CompanyForm({
                 onChange={(e) => handleCountryChange(e.target.value)}
                 className="w-full px-2.5 py-1.5 rounded border border-slate-300 text-xs focus:ring-1 focus:ring-sky-500 focus:outline-none bg-white text-slate-800"
               >
+                <option value="" disabled>Select country</option>
                 <option value="Malaysia">Malaysia</option>
                 <option value="Singapore">Singapore</option>
               </select>
+              <FieldError message={errors.country} />
             </div>
 
             <div>
@@ -648,7 +744,7 @@ export function CompanyForm({
 
       {/* Section 3: Primary Operational Contact */}
       {currentPage === 3 && <div className="h-full bg-white rounded-lg border border-slate-200 p-4 shadow-xs space-y-3">
-        <div className="flex items-center gap-2 text-slate-900 font-bold text-xs uppercase tracking-wider pb-2 border-b border-slate-100">
+        <div className="flex items-center gap-2 text-slate-900 font-bold text-xs uppercase tracking-wider pb-2">
           <Phone className="w-4 h-4 text-[#0090e7]" />
           Person-Incharge Information
         </div>

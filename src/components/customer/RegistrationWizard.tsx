@@ -50,6 +50,7 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
   const currentPort = ports.find((p) => p.location === selectedLocation) || ports[0];
   const reviewStep = selectedType === 'COMPANY' ? 6 : 5;
   const isReviewScreen = currentStep === reviewStep;
+  const isLandingStep = currentStep === 1;
   const activeProgressStep = currentStep === 1
     ? 1
     : currentStep <= 3
@@ -205,20 +206,20 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] flex flex-col">
+    <div className={`customer-theme min-h-screen flex flex-col ${isLandingStep ? 'bg-white' : 'bg-[#f8fafc]'}`}>
       {showGuideline ? (
         <HaulierGuidelinePage onBack={() => setShowGuideline(false)} />
       ) : (
         <>
       {/* Top Navbar */}
-      <header className="bg-[#0b1930] text-white border-b border-slate-800 sticky top-0 z-40">
-        <div className="max-w-[1320px] mx-auto px-3 sm:px-8 lg:px-[44px] h-[54px] flex items-center justify-between gap-2">
+      <header className={`${isLandingStep ? 'bg-[#08294b] shadow-[0_6px_24px_rgba(8,41,75,0.24)]' : 'bg-[#0b1930] border-b border-slate-800'} text-white sticky top-0 z-40`}>
+        <div className={`${isLandingStep ? 'h-[54px] max-w-[1320px] px-3 sm:px-8 lg:px-[44px]' : 'h-[54px] max-w-[1320px] px-3 sm:px-8 lg:px-[44px]'} mx-auto flex items-center justify-between gap-2`}>
           <div className="flex min-w-0 items-center gap-3">
             <button
               type="button"
               onClick={handleReset}
               aria-label="Go to main registration page"
-              className="shrink-0 rounded-sm transition-opacity hover:opacity-85 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2 focus:ring-offset-[#0b1930] sm:hidden"
+              className={`${isLandingStep ? 'hidden' : 'shrink-0'} rounded-sm transition-opacity hover:opacity-85 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2 focus:ring-offset-[#0b1930] sm:hidden`}
             >
               <Logo size="sm" light />
             </button>
@@ -226,29 +227,39 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
               type="button"
               onClick={handleReset}
               aria-label="Go to main registration page"
-              className="hidden shrink-0 rounded-sm transition-opacity hover:opacity-85 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2 focus:ring-offset-[#0b1930] sm:block"
+              className={`${isLandingStep ? 'hidden' : 'hidden sm:block'} shrink-0 rounded-sm transition-opacity hover:opacity-85 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2 focus:ring-offset-[#0b1930]`}
             >
               <Logo size="md" light />
             </button>
-            <div className="hidden sm:flex items-center gap-4 pl-5 border-l border-slate-600/70 h-6">
-              <span className="text-white text-sm sm:text-base font-semibold">Customer Registration</span>
+            {isLandingStep && (
+              <button
+                type="button"
+                onClick={handleReset}
+                aria-label="Go to main registration page"
+                className="shrink-0 rounded-sm transition-opacity hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2 focus:ring-offset-[#08294b]"
+              >
+                <Logo size="md" />
+              </button>
+            )}
+            <div className={`${isLandingStep ? 'hidden h-6 border-l pl-5 sm:flex' : 'hidden h-6 border-l pl-5 sm:flex'} items-center gap-4 border-slate-500/70`}>
+              <span className={`${isLandingStep ? 'text-sm sm:text-base' : 'text-sm sm:text-base'} text-white font-semibold whitespace-nowrap`}>Customer Registration</span>
             </div>
           </div>
 
-          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+          <div className={`${isLandingStep ? 'gap-1.5 sm:gap-2' : 'gap-1.5 sm:gap-2'} flex shrink-0 items-center`}>
             <button
               type="button"
               onClick={() => setShowTrackerModal(true)}
-              className="inline-flex h-[30px] items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-sky-500/80 bg-transparent px-2 text-[11px] font-semibold text-slate-100 transition-colors hover:bg-white/10 sm:gap-2 sm:px-3 sm:text-xs"
+              className={`${isLandingStep ? 'h-[30px] rounded-md border-sky-500/80 px-2 text-[11px] sm:px-3 sm:text-xs' : 'h-[30px] rounded-md border-sky-500/80 px-2 text-[11px] sm:px-3 sm:text-xs'} inline-flex items-center justify-center gap-1.5 whitespace-nowrap border bg-transparent font-semibold text-slate-100 transition-colors hover:bg-white/10 sm:gap-2`}
             >
-              <Search className="w-3.5 h-3.5 text-[#0095e8]" />
+              <Search className="h-3.5 w-3.5 text-[#0095e8]" />
               <span className="sm:hidden">Track</span>
               <span className="hidden sm:inline">Track registration</span>
             </button>
             <button
               type="button"
               onClick={onSwitchToAdmin}
-              className="inline-flex h-[30px] items-center justify-center whitespace-nowrap rounded-md border border-[#0095e8] bg-[#0095e8] px-3 text-[11px] font-semibold text-white transition-colors hover:bg-[#0078c8] sm:px-4 sm:text-xs"
+              className={`${isLandingStep ? 'h-[30px] rounded-md px-3 text-[11px] sm:px-4 sm:text-xs' : 'h-[30px] rounded-md px-3 text-[11px] sm:px-4 sm:text-xs'} inline-flex items-center justify-center whitespace-nowrap border border-[#0095e8] bg-[#0095e8] font-semibold text-white transition-colors hover:bg-[#0078c8]`}
             >
               Login
             </button>
@@ -256,10 +267,11 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
         </div>
       </header>
 
+      <div className={`${isLandingStep ? 'bg-[#f8fafc]' : ''} flex flex-1 flex-col`}>
       {/* Progress Bar (visible through the Review screen) */}
       {currentStep <= reviewStep && (
-        <div className="min-h-[68px] flex items-center bg-white border-b border-[#e8eef5] px-2 py-2 sm:px-4">
-          <div className="mx-auto flex w-full max-w-[960px] items-start text-xs font-semibold sm:items-center">
+        <div className="min-h-[68px] border-0 bg-transparent flex items-center px-2 py-2 sm:px-4">
+          <div className="mx-auto flex w-full max-w-[880px] items-start text-xs font-semibold sm:items-center">
             {progressSteps.map((step, idx) => {
               const isPast = activeProgressStep > step.num;
               const isCurrent = activeProgressStep === step.num;
@@ -268,12 +280,11 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
                 <React.Fragment key={step.num}>
                   <div className="flex min-w-0 shrink-0 flex-col items-center gap-1 text-center sm:flex-row sm:gap-2 sm:text-left">
                     <div className={`h-7 w-7 shrink-0 rounded-full flex items-center justify-center font-bold text-[11px] transition-colors ${
-                      isPast ? 'bg-emerald-600 text-white' : isCurrent ? 'bg-[#0095e8] text-white ring-4 ring-sky-100' : 'bg-[#eef3f8] text-[#5b6b84]'
+                      isPast ? 'bg-emerald-600 text-white' : isCurrent ? 'bg-[#0095e8] text-white ring-4 ring-sky-100' : 'bg-[#eef3f8] text-[#395274]'
                     }`}>
                       {isPast ? <Check className="w-3.5 h-3.5" /> : step.num}
                     </div>
                     <span className={`max-w-[76px] text-[9px] leading-3 sm:max-w-none sm:whitespace-nowrap sm:text-xs ${isCurrent ? 'text-[#102a56] font-bold' : 'text-[#5b6b84]'}`}>
-                      <span className="mr-1 hidden text-slate-400 lg:inline">{step.num}</span>
                       {step.label}
                     </span>
                   </div>
@@ -288,8 +299,10 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
       )}
 
       {/* Main Content Area */}
-      <main className={`flex-1 max-w-[1080px] mx-auto w-full px-4 sm:px-6 lg:px-8 ${isReviewScreen ? 'py-3 sm:py-4' : 'py-6 sm:py-7'}`}>
-        <div key={currentStep} className="wizard-step-enter">
+      <main
+        className={`${isLandingStep ? 'max-w-none flex items-center py-6 sm:py-7' : `max-w-[1080px] px-4 sm:px-6 lg:px-8 ${isReviewScreen ? 'py-3 sm:py-4' : 'py-6 sm:py-7'}`} flex-1 mx-auto w-full`}
+      >
+        <div key={currentStep} className={`${isLandingStep ? 'mx-auto w-full max-w-[1080px] -translate-y-5 px-4 sm:-translate-y-7 sm:px-6 lg:px-8 ' : ''}wizard-step-enter`}>
         {/* Step 1: Port Selection */}
         {currentStep === 1 && (
           <PortSelection
@@ -419,6 +432,7 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
         )}
         </div>
       </main>
+      </div>
 
       {/* Footer */}
       <footer className="h-12 shrink-0 border-t border-slate-200 bg-white">

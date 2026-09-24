@@ -98,7 +98,7 @@ export function TrailerForm({ company, onSubmit, onBack }: TrailerFormProps) {
   return (
     <form onSubmit={handleSubmit} className="customer-form max-w-4xl mx-auto space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+      <div className="flex items-center justify-between pb-3">
         <div>
           <div className="flex items-center gap-2">
             <h2 className="text-base font-bold text-slate-900 tracking-tight">Trailer Registration</h2>
@@ -137,7 +137,7 @@ export function TrailerForm({ company, onSubmit, onBack }: TrailerFormProps) {
 
       {/* Multi-Row Trailer Entries */}
       <div className="bg-white rounded-lg border border-slate-200 shadow-xs overflow-hidden">
-        <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+        <div className="px-4 py-2.5 bg-slate-50 flex items-center justify-between">
           <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
             Trailer List ({trailers.length})
           </span>

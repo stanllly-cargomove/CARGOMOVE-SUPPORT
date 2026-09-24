@@ -1,6 +1,6 @@
 import React from 'react';
 import { PortLocation, RegistrationType } from '../../types';
-import { Building2, User, Container, Truck, CheckCircle2, ArrowLeft, ArrowRight, AlertCircle } from 'lucide-react';
+import { Building2, User, Caravan, Truck, CheckCircle2, ArrowLeft, ArrowRight, AlertCircle } from 'lucide-react';
 
 interface TypeSelectionProps {
   location: PortLocation;
@@ -43,8 +43,8 @@ export function TypeSelection({
     {
       type: 'TRAILER',
       title: 'Trailer Registration',
-      description: 'Register container chassis, flatbeds, skeletal frames, and gross BDM weights.',
-      icon: Container,
+      description: 'Register non-powered flatbed and skeletal trailers with permitted BDM weights.',
+      icon: Caravan,
       allowed: !isPortKlang,
     },
     {
@@ -59,13 +59,13 @@ export function TypeSelection({
   const availableTypes = isPortKlang ? typesConfig.filter((t) => t.type === 'COMPANY') : typesConfig;
 
   return (
-    <div className="max-w-3xl mx-auto space-y-4">
-      <div className="text-center mb-4">
-        <div className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-700 mb-2">
+    <div className="mx-auto w-full max-w-3xl space-y-5">
+      <div className="mb-4 text-center">
+        <div className="mb-2 inline-flex items-center rounded bg-slate-100 px-3 py-1 text-[11px] font-semibold text-slate-700">
           Port: <span className="ml-1 font-bold text-indigo-700">{location === 'PORT_KLANG' ? 'Port Klang' : 'Johor (Pasir Gudang)'}</span>
         </div>
-        <h2 className="text-base font-bold text-slate-900 tracking-tight">Select Registration Category</h2>
-        <p className="text-slate-500 text-xs mt-0.5">
+        <h2 className="text-xl font-bold leading-tight text-slate-900 sm:text-2xl">Select Registration Category</h2>
+        <p className="mt-1 text-xs leading-5 text-slate-500">
           {isPortKlang
             ? 'For Port Klang, company registration is required to establish EDI gate credentials.'
             : 'Select the operational asset or company entity you need to register for Johor port clearance.'}
@@ -73,15 +73,15 @@ export function TypeSelection({
       </div>
 
       {isPortKlang && (
-        <div className="p-3 rounded-lg bg-sky-50 border border-sky-200 flex items-start gap-2.5">
-          <AlertCircle className="w-4 h-4 text-[#0090e7] mt-0.5 shrink-0" />
-          <div className="text-xs text-sky-900">
+        <div className="flex items-start gap-3 rounded-lg border border-sky-200 bg-sky-50 p-4">
+          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-[#0090e7]" />
+          <div className="text-xs leading-5 text-sky-900">
             <strong className="font-semibold">Port Klang Protocol:</strong> Under Port Klang terminal gate rules, Driver, Trailer, and Vehicle credentials are managed via direct port haulier passes. Only <strong>Company Registration</strong> is required through this portal.
           </div>
         </div>
       )}
 
-      <div className={`grid gap-3 ${isPortKlang ? 'grid-cols-1 max-w-md mx-auto' : 'grid-cols-1 sm:grid-cols-2'}`}>
+      <div className={`grid gap-3 ${isPortKlang ? 'mx-auto max-w-2xl grid-cols-1' : 'grid-cols-1 sm:grid-cols-2'}`}>
         {availableTypes.map((item) => {
           const Icon = item.icon;
           const isSelected = selectedType === item.type;
@@ -90,25 +90,25 @@ export function TypeSelection({
             <div
               key={item.type}
               onClick={() => onSelectType(item.type)}
-              className={`relative rounded-lg p-3.5 border transition-all cursor-pointer bg-white ${
+              className={`relative min-h-[112px] cursor-pointer rounded-lg border bg-white p-4 transition-all sm:p-5 ${
                 isSelected
                   ? 'border-[#0090e7] shadow-xs ring-2 ring-sky-100'
                   : 'border-slate-200 hover:border-slate-300 hover:shadow-xs'
               }`}
             >
               {isSelected && (
-                <div className="absolute top-3 right-3 text-[#0090e7]">
-                  <CheckCircle2 className="w-4 h-4 fill-[#0090e7] text-white" />
+                <div className="absolute right-4 top-4 text-[#0090e7]">
+                  <CheckCircle2 className="h-4 w-4 fill-[#0090e7] text-white" />
                 </div>
               )}
 
               <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded bg-sky-50 text-[#0090e7] flex items-center justify-center shrink-0">
-                  <Icon className="w-4 h-4" />
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-[#0090e7]">
+                  <Icon className="h-6 w-6" />
                 </div>
-                <div>
-                  <h3 className="text-xs font-bold text-slate-900 mb-0.5">{item.title}</h3>
-                  <p className="text-[11px] text-slate-500 leading-normal">{item.description}</p>
+                <div className="min-w-0 pr-3">
+                  <h3 className="mb-1 text-sm font-bold leading-5 text-slate-900">{item.title}</h3>
+                  <p className="text-[11px] leading-4 text-slate-500">{item.description}</p>
                 </div>
               </div>
             </div>
@@ -116,13 +116,13 @@ export function TypeSelection({
         })}
       </div>
 
-      <div className="pt-3 flex items-center justify-between">
+      <div className="flex items-center justify-between pt-1">
         <button
           type="button"
           onClick={onBack}
-          className="inline-flex items-center px-3 py-1.5 rounded text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
+          className="inline-flex h-10 items-center rounded px-4 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100"
         >
-          <ArrowLeft className="mr-1.5 w-3.5 h-3.5" />
+          <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Port
         </button>
 
@@ -130,10 +130,10 @@ export function TypeSelection({
           type="button"
           disabled={!selectedType}
           onClick={onNext}
-          className="inline-flex items-center px-4 py-2 rounded text-xs font-bold text-white bg-[#ea7a24] hover:bg-[#d96c1a] disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-xs"
+          className="inline-flex h-10 items-center rounded bg-[#ea7a24] px-5 text-xs font-bold text-white shadow-xs transition-colors hover:bg-[#d96c1a] disabled:cursor-not-allowed disabled:opacity-50"
         >
           Continue to Form
-          <ArrowRight className="ml-1.5 w-3.5 h-3.5" />
+          <ArrowRight className="ml-2 h-4 w-4" />
         </button>
       </div>
     </div>
