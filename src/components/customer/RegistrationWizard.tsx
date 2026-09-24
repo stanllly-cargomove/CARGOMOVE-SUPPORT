@@ -212,14 +212,14 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
       ) : (
         <>
       {/* Top Navbar */}
-      <header className={`${isLandingStep ? 'bg-[#08294b] shadow-[0_6px_24px_rgba(8,41,75,0.24)]' : 'bg-[#0b1930] border-b border-slate-800'} text-white sticky top-0 z-40`}>
-        <div className={`${isLandingStep ? 'h-[54px] max-w-[1320px] px-3 sm:px-8 lg:px-[44px]' : 'h-[54px] max-w-[1320px] px-3 sm:px-8 lg:px-[44px]'} mx-auto flex items-center justify-between gap-2`}>
+      <header className="sticky top-0 z-40 border-b border-slate-800 bg-[#0b1930] text-white">
+        <div className="mx-auto flex h-[54px] max-w-[1320px] items-center justify-between gap-2 px-3 sm:px-8 lg:px-[44px]">
           <div className="flex min-w-0 items-center gap-3">
             <button
               type="button"
               onClick={handleReset}
               aria-label="Go to main registration page"
-              className={`${isLandingStep ? 'hidden' : 'shrink-0'} rounded-sm transition-opacity hover:opacity-85 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2 focus:ring-offset-[#0b1930] sm:hidden`}
+              className="shrink-0 rounded-sm transition-opacity hover:opacity-85 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2 focus:ring-offset-[#0b1930] sm:hidden"
             >
               <Logo size="sm" light />
             </button>
@@ -227,30 +227,20 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
               type="button"
               onClick={handleReset}
               aria-label="Go to main registration page"
-              className={`${isLandingStep ? 'hidden' : 'hidden sm:block'} shrink-0 rounded-sm transition-opacity hover:opacity-85 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2 focus:ring-offset-[#0b1930]`}
+              className="hidden shrink-0 rounded-sm transition-opacity hover:opacity-85 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2 focus:ring-offset-[#0b1930] sm:block"
             >
               <Logo size="md" light />
             </button>
-            {isLandingStep && (
-              <button
-                type="button"
-                onClick={handleReset}
-                aria-label="Go to main registration page"
-                className="shrink-0 rounded-sm transition-opacity hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2 focus:ring-offset-[#08294b]"
-              >
-                <Logo size="md" />
-              </button>
-            )}
-            <div className={`${isLandingStep ? 'hidden h-6 border-l pl-5 sm:flex' : 'hidden h-6 border-l pl-5 sm:flex'} items-center gap-4 border-slate-500/70`}>
-              <span className={`${isLandingStep ? 'text-sm sm:text-base' : 'text-sm sm:text-base'} text-white font-semibold whitespace-nowrap`}>Customer Registration</span>
+            <div className="hidden h-6 items-center gap-4 border-l border-slate-500/70 pl-5 sm:flex">
+              <span className="whitespace-nowrap text-sm font-semibold text-white sm:text-base">Customer Registration</span>
             </div>
           </div>
 
-          <div className={`${isLandingStep ? 'gap-1.5 sm:gap-2' : 'gap-1.5 sm:gap-2'} flex shrink-0 items-center`}>
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             <button
               type="button"
               onClick={() => setShowTrackerModal(true)}
-              className={`${isLandingStep ? 'h-[30px] rounded-md border-sky-500/80 px-2 text-[11px] sm:px-3 sm:text-xs' : 'h-[30px] rounded-md border-sky-500/80 px-2 text-[11px] sm:px-3 sm:text-xs'} inline-flex items-center justify-center gap-1.5 whitespace-nowrap border bg-transparent font-semibold text-slate-100 transition-colors hover:bg-white/10 sm:gap-2`}
+              className="inline-flex h-[30px] items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-sky-500/80 bg-transparent px-2 text-[11px] font-semibold text-slate-100 transition-colors hover:bg-white/10 sm:gap-2 sm:px-3 sm:text-xs"
             >
               <Search className="h-3.5 w-3.5 text-[#0095e8]" />
               <span className="sm:hidden">Track</span>
@@ -259,7 +249,7 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
             <button
               type="button"
               onClick={onSwitchToAdmin}
-              className={`${isLandingStep ? 'h-[30px] rounded-md px-3 text-[11px] sm:px-4 sm:text-xs' : 'h-[30px] rounded-md px-3 text-[11px] sm:px-4 sm:text-xs'} inline-flex items-center justify-center whitespace-nowrap border border-[#0095e8] bg-[#0095e8] font-semibold text-white transition-colors hover:bg-[#0078c8]`}
+              className="inline-flex h-[30px] items-center justify-center whitespace-nowrap rounded-md border border-[#0095e8] bg-[#0095e8] px-3 text-[11px] font-semibold text-white transition-colors hover:bg-[#0078c8] sm:px-4 sm:text-xs"
             >
               Login
             </button>
