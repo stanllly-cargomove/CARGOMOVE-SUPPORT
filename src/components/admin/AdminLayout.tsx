@@ -266,9 +266,10 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
                             <QueueIcon className="h-3.5 w-3.5 shrink-0" />
                             <span className="flex-1 text-left">{queueItem.label}</span>
                             {queueItem.status === 'PENDING' && pendingSubmissionCount > 0 && (
-                              <span className="absolute right-0 top-0 inline-flex h-5 min-w-5 translate-x-1/4 -translate-y-1/4 items-center justify-center rounded-full bg-orange-500 px-1 text-[10px] font-bold leading-none text-white shadow-sm">
-                                {pendingSubmissionCount > 99 ? '99+' : pendingSubmissionCount}
-                              </span>
+                              <span
+                                aria-label={`${pendingSubmissionCount} pending`}
+                                className="absolute right-2 top-1/2 inline-flex h-2 w-2 -translate-y-1/2 items-center justify-center rounded-full bg-orange-500 shadow-sm"
+                              />
                             )}
                           </button>
                         );
