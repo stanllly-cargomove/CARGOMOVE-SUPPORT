@@ -1,5 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import * as XLSX from 'xlsx';
 import { Company } from '../../types';
 import {
   getCompanies,
@@ -19,6 +20,8 @@ import {
   Edit2,
   X,
   MoreVertical,
+  ClipboardPaste,
+  FileSpreadsheet,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
@@ -39,6 +42,7 @@ export function CompanyMaster() {
   const [sortBy, setSortBy] = useState<CompanySort>('CREATED_DESC');
   const [pageSize, setPageSize] = useState(20);
   const [currentPage, setCurrentPage] = useState(1);
+  const [isNarrowToolbar, setIsNarrowToolbar] = useState(false);
 
   // Modals
   const [selectedCompanyForId, setSelectedCompanyForId] = useState<Company | null>(null);
@@ -127,8 +131,8 @@ export function CompanyMaster() {
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-center gap-3">
-        <div className="relative flex-1 w-full">
+      <div className="flex min-w-0 flex-nowrap items-center gap-2 overflow-hidden rounded-xl border border-slate-200 bg-white p-3 shadow-sm md:gap-3 md:p-4">
+        <div className="relative w-36 min-w-0 shrink md:w-64">
           <input
             type="text"
             value={searchTerm}
@@ -139,8 +143,8 @@ export function CompanyMaster() {
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-          <label className="flex items-center gap-2 text-xs font-semibold text-slate-600" htmlFor="company-sort">
+        <div className="ml-auto flex shrink-0 flex-nowrap items-center gap-2">
+          <label className="hidden items-center gap-2 text-xs font-semibold text-slate-600 md:flex" htmlFor="company-sort">
             <span className="whitespace-nowrap">Sort by</span>
             <select
               id="company-sort"
@@ -160,7 +164,7 @@ export function CompanyMaster() {
           <select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
-            className="px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white focus:border-slate-400 focus:outline-none"
+            className="w-24 min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-2 text-xs focus:border-slate-400 focus:outline-none md:w-auto md:px-3"
           >
             <option value="ALL">All Types</option>
             <option value="FORWARDER">FORWARDER</option>
@@ -172,7 +176,7 @@ export function CompanyMaster() {
           <select
             value={portFilter}
             onChange={(e) => setPortFilter(e.target.value)}
-            className="px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white focus:border-slate-400 focus:outline-none"
+            className="w-28 min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-2 text-xs focus:border-slate-400 focus:outline-none md:w-auto md:px-3"
           >
             <option value="ALL">All Ports</option>
             {ports.map((p) => (
@@ -185,13 +189,21 @@ export function CompanyMaster() {
           {/* Missing ID Toggle */}
           <button
             type="button"
-            onClick={() => setMissingIdOnly(!missingIdOnly)}
-            className={`px-3 py-2 rounded-lg text-xs font-bold border transition-colors whitespace-nowrap focus:outline-none ${
+            onClick={() => {
+              const nextValue = !missingIdOnly;
+              setMissingIdOnly(nextValue);
+              if (isNarrowToolbar) notifySuccess(`Missing IDs filter ${nextValue ? 'enabled' : 'disabled'}.`);
+            }}
+            aria-label={missingIdOnly ? 'Disable Missing IDs Only filter' : 'Enable Missing IDs Only filter'}
+            title={missingIdOnly ? 'Disable Missing IDs Only' : 'Enable Missing IDs Only'}
+            className={`inline-flex h-9 shrink-0 items-center justify-center rounded-lg border text-[0px] font-bold transition-colors focus:outline-none md:h-auto md:px-3 md:py-2 md:text-xs ${
               missingIdOnly
                 ? 'bg-amber-100 text-amber-800 border-amber-300'
                 : 'bg-slate-50 text-slate-600 border-slate-300 hover:bg-slate-100'
             }`}
           >
+            <Filter className="h-4 w-4 md:hidden" />
+            <span className="hidden">Missing IDs Only</span>
             ⚠ Missing IDs Only
           </button>
         </div>
@@ -521,10 +533,25 @@ function CompanyEditModal({
   onSuccess: () => void;
 }) {
   const ports = getPorts();
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(max-width: 767px)');
+    const updateToolbarMode = () => setIsNarrowToolbar(mediaQuery.matches);
+    updateToolbarMode();
+    mediaQuery.addEventListener('change', updateToolbarMode);
+    return () => mediaQuery.removeEventListener('change', updateToolbarMode);
+  }, []);
   const depots = getDepots();
+  const sortedPorts = [...ports].sort((left, right) => String(left.display_name || '').localeCompare(String(right.display_name || '')));
 
   const [activeSection, setActiveSection] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
+  const [isImportMenuOpen, setIsImportMenuOpen] = useState(false);
+  const [isJsonImportOpen, setIsJsonImportOpen] = useState(false);
+  const [jsonImport, setJsonImport] = useState('');
+  const [importError, setImportError] = useState('');
+  const importFileRef = useRef<HTMLInputElement | null>(null);
+  const importMenuRef = useRef<HTMLDivElement | null>(null);
   const [form, setForm] = useState<CompanyFormState>({
     id: company?.id || '',
     name: company?.name || '',
@@ -543,9 +570,9 @@ function CompanyEditModal({
     address1: company?.address1 || '',
     address2: company?.address2 || '',
     city: company?.city || '',
-    state: company?.state || COMPANY_STATES_BY_COUNTRY[company?.country || 'Malaysia'][0],
+    state: company?.state || COMPANY_STATES_BY_COUNTRY[normalizeCompanyCountry(company?.country || 'Malaysia')][0],
     postcode: company?.postcode || '',
-    country: company?.country || 'Malaysia',
+    country: normalizeCompanyCountry(company?.country || 'Malaysia'),
     contact_name: company?.contact_name || '',
     contact_email: company?.contact_email || '',
     contact_designation: company?.contact_designation || '',
@@ -555,10 +582,21 @@ function CompanyEditModal({
     status: company?.status || 'ACTIVE',
   });
 
+  const selectedPortIds = Array.isArray(form.assigned_port_ids) ? form.assigned_port_ids : [];
+  const sortedDepotOptions = selectedPortIds
+    .map((portId) => ports.find((port) => port.id === portId))
+    .filter((port): port is typeof ports[number] => !!port)
+    .sort((left, right) => String(left.display_name || '').localeCompare(String(right.display_name || '')))
+    .flatMap((port) => depots
+      .filter((depot) => depot.port_id === port.id)
+      .sort((left, right) => String(left.display_name || '').localeCompare(String(right.display_name || '')))
+      .map((depot) => ({ value: depot.id, label: depot.display_name, group: port.display_name })));
+
   const sections = [
     { title: 'Identity & Registration', description: 'Company identity and statutory registration details.' },
     { title: 'Operations & IDs', description: 'Port and depot assignments with external account identifiers.' },
-    { title: 'Address & Contact', description: 'Registered address and primary contact details.' },
+    { title: 'Registered Address', description: 'Registered company address and location details.' },
+    { title: 'Contact Details', description: 'Primary operational contact and communication details.' },
   ];
 
   const setField = <K extends keyof CompanyFormState>(field: K, value: CompanyFormState[K]) => {
@@ -566,6 +604,132 @@ function CompanyEditModal({
   };
 
   const isEditing = !!company;
+
+  useEffect(() => {
+    if (!isImportMenuOpen) return;
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      if (!importMenuRef.current?.contains(event.target as Node)) setIsImportMenuOpen(false);
+    };
+    document.addEventListener('mousedown', closeOnOutsideClick);
+    return () => document.removeEventListener('mousedown', closeOnOutsideClick);
+  }, [isImportMenuOpen]);
+
+  const applyImportedRecord = (record: Record<string, unknown>) => {
+    const normalized = Object.entries(record).reduce<Record<string, unknown>>((result, [key, value]) => {
+      result[normalizeImportKey(key)] = value;
+      return result;
+    }, {});
+    const readPath = (path: string): unknown => {
+      return path.split('.').reduce<unknown>((current, segment) => {
+        if (!current || typeof current !== 'object' || Array.isArray(current)) return undefined;
+        const entry = Object.entries(current as Record<string, unknown>).find(([key]) => normalizeImportKey(key) === normalizeImportKey(segment));
+        return entry?.[1];
+      }, record);
+    };
+    const scalarValue = (value: unknown): string | undefined => {
+      if (value === undefined || value === null || typeof value === 'object') return undefined;
+      return String(value).trim();
+    };
+    const valueFor = (...keys: string[]) => {
+      for (const key of keys) {
+        const value = scalarValue(readPath(key));
+        if (value !== undefined) return value;
+        const topLevelValue = scalarValue(normalized[normalizeImportKey(key)]);
+        if (topLevelValue !== undefined) return topLevelValue;
+      }
+      return undefined;
+    };
+    const resolveList = (raw: string | undefined, kind: 'port' | 'depot') => {
+      if (!raw) return undefined;
+      const values = raw.split(/[,;|]/).map((item) => item.trim()).filter(Boolean);
+      const options = kind === 'port' ? ports : depots;
+      return values.map((item) => options.find((option) => option.id.toLowerCase() === item.toLowerCase() || option.display_name.toLowerCase() === item.toLowerCase() || ('code' in option && option.code.toLowerCase() === item.toLowerCase()))?.id || item);
+    };
+
+    const imported: Partial<CompanyFormState> = {};
+    const setImported = (field: keyof CompanyFormState, ...keys: string[]) => {
+      const value = valueFor(...keys);
+      if (value !== undefined) imported[field] = value as never;
+    };
+    setImported('name', 'name', 'company name', 'company legal name', 'company full legal name');
+    setImported('short_name', 'short name', 'shortname', 'company short name', 'trade name');
+    const importedType = valueFor('type', 'company type', 'company category');
+    if (importedType) imported.company_type = normalizeCompanyType(importedType);
+    setImported('registration_number_old', 'registration', 'ids.registration', 'registration old', 'old registration number', 'company registration number');
+    setImported('registration_number_new', 'registration new', 'new registration number', 'ssm number');
+    setImported('haulier_id', 'haulierid', 'haulier id', 'haulier', 'ids.haulier');
+    setImported('forwarding_agent_id', 'forwarding agent id', 'forwarding agent_id', 'ids.forwarding_agent_id', 'ids.forwardingagentid');
+    setImported('block', 'block', 'address.block', 'building block floor lot');
+    setImported('address1', 'address1', 'address.address1', 'address line 1');
+    setImported('address2', 'address2', 'address.address2', 'address line 2');
+    setImported('city', 'city', 'address.city', 'city town');
+    setImported('state', 'state', 'address.state', 'state region');
+    setImported('postcode', 'postcode', 'address.postcode', 'postal code');
+    const importedCountry = valueFor('country', 'address.country');
+    if (importedCountry) {
+      imported.country = normalizeCompanyCountry(importedCountry);
+    }
+    if (imported.state) {
+      const stateOptions = COMPANY_STATES_BY_COUNTRY[normalizeCompanyCountry(String(imported.country || form.country || 'Malaysia'))] || [];
+      imported.state = stateOptions.find((state) => state.toLowerCase() === String(imported.state).toLowerCase()) || imported.state;
+    }
+    setImported('contact_name', 'contact name', 'contact.name', 'contact person', 'contact person name');
+    setImported('contact_email', 'contact email', 'contact.email', 'email', 'email address');
+    setImported('contact_designation', 'contact designation', 'contact.designation', 'designation', 'job designation');
+    setImported('contact_mobile', 'contact mobile', 'contact.mobile', 'mobile', 'mobile number');
+    setImported('office_phone', 'office', 'phone.office', 'office phone');
+    setImported('fax', 'fax', 'phone.fax', 'fax number');
+
+    const listValue = (...paths: string[]) => paths.map((path) => readPath(path)).find((value) => value !== undefined);
+    const portCodes = listValue('portcodes', 'ids.portcodes');
+    const portCodeValue = Array.isArray(portCodes) ? portCodes.flat(Infinity).map((value) => String(value)).join(',') : scalarValue(portCodes);
+    const depotObject = readPath('depots');
+    const depotKeys = depotObject && typeof depotObject === 'object' && !Array.isArray(depotObject) ? Object.keys(depotObject).join(',') : undefined;
+    const portsValue = resolveList(valueFor('ports', 'port', 'port id', 'assigned ports') || portCodeValue || valueFor('ids.portcodes'), 'port');
+    const depotsValue = resolveList(valueFor('depot', 'depot id', 'assigned depots') || depotKeys, 'depot');
+    setForm((current) => ({
+      ...current,
+      ...imported,
+      registration_number: (imported.registration_number_old as string) || current.registration_number,
+      assigned_port_ids: portsValue || current.assigned_port_ids,
+      assigned_depot_ids: depotsValue || current.assigned_depot_ids,
+      port_id: portsValue?.[0] || current.port_id,
+      depot_id: depotsValue?.[0] || current.depot_id,
+      state: imported.state || current.state,
+    }));
+    setImportError('');
+    setIsJsonImportOpen(false);
+    setIsImportMenuOpen(false);
+    notifySuccess('Company details imported into the form.');
+  };
+
+  const handleJsonImport = () => {
+    try {
+      const parsed = JSON.parse(jsonImport);
+      const record = Array.isArray(parsed) ? parsed[0] : parsed;
+      if (!record || typeof record !== 'object' || Array.isArray(record)) throw new Error('JSON must contain one company object.');
+      applyImportedRecord(record as Record<string, unknown>);
+    } catch (error) {
+      const legacyRecord = parseLegacyCompanyPayload(jsonImport);
+      if (legacyRecord) {
+        applyImportedRecord(legacyRecord);
+      } else {
+        setImportError(error instanceof Error ? `${error.message} Paste JSON or PHP Object output containing company details.` : 'Unable to read this company payload.');
+      }
+    }
+  };
+
+  const handleExcelImport = async (file: File) => {
+    try {
+      const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' });
+      if (!rows.length) throw new Error('The Excel file does not contain a data row.');
+      applyImportedRecord(rows[0]);
+    } catch (error) {
+      setImportError(error instanceof Error ? error.message : 'Unable to read this Excel file.');
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -626,39 +790,65 @@ function CompanyEditModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
-      <div className="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-          <h3 className="text-base font-bold text-slate-900">
-            {isEditing ? 'Edit Master Company' : 'Add New Master Company'}
-          </h3>
-          <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-600 rounded-lg">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        <div className="mt-4 flex items-center gap-2" role="tablist" aria-label="Company details sections">
-          {sections.map((section, index) => (
-            <button
-              key={section.title}
-              type="button"
-              role="tab"
-              aria-selected={activeSection === index}
-              onClick={() => setActiveSection(index)}
-              className={`flex-1 border-b-2 px-2 pb-2 text-left transition-colors ${
-                activeSection === index ? 'border-blue-600 text-blue-700' : 'border-slate-200 text-slate-400 hover:text-slate-600'
-              }`}
-            >
-              <span className="block text-[10px] font-bold uppercase tracking-wider">Section {index + 1}</span>
-              <span className="block text-xs font-semibold truncate">{section.title}</span>
+      <div className="flex h-[min(760px,calc(100vh-2rem))] min-w-0 w-[min(900px,calc(100vw-2rem))] max-w-full flex-col overflow-hidden rounded-2xl border border-slate-100 bg-white p-6 shadow-2xl">
+        <div className="flex min-w-0 items-center justify-between pb-4 border-b border-slate-100">
+          <div>
+            <h3 className="text-base font-bold text-slate-900">{isEditing ? 'Edit Master Company' : 'Add New Master Company'}</h3>
+            <p className="mt-1 text-[11px] text-slate-500">Complete the four sections or import a company record.</p>
+          </div>
+          <div ref={importMenuRef} className="relative flex items-center gap-1">
+            <button type="button" onClick={() => setIsImportMenuOpen((open) => !open)} aria-label="Import company data" title="Import company data" className={`rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-900 ${isImportMenuOpen ? 'bg-slate-100 text-slate-900' : ''}`}>
+              <MoreVertical className="h-5 w-5" />
             </button>
-          ))}
+            {isImportMenuOpen && (
+              <div className="absolute right-8 top-0 z-10 w-52 rounded-lg border border-slate-200 bg-white py-1 text-left shadow-xl">
+                <button type="button" onClick={() => { setIsJsonImportOpen(true); setIsImportMenuOpen(false); setImportError(''); }} className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-700"><ClipboardPaste className="h-4 w-4" /> Paste JSON</button>
+                <button type="button" onClick={() => importFileRef.current?.click()} className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-700"><FileSpreadsheet className="h-4 w-4" /> Upload Excel file</button>
+              </div>
+            )}
+            <input ref={importFileRef} type="file" accept=".xlsx,.xls,.xlsm" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) void handleExcelImport(file); event.target.value = ''; }} />
+            <button type="button" onClick={onClose} className="rounded-lg p-1 text-slate-400 hover:text-slate-600"><X className="h-5 w-5" /></button>
+          </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="mt-5 space-y-4 text-xs">
-          <p className="text-[11px] text-slate-500">{sections[activeSection].description}</p>
-          <div className="min-h-[280px]">
+        {isJsonImportOpen ? (
+          <div className="mt-5 flex min-h-0 flex-1 flex-col rounded-xl border border-blue-100 bg-blue-50/60 p-4">
+            <div className="mb-3">
+              <h4 className="text-sm font-bold text-blue-900">Paste company data from Cargomove</h4>
+              <p className="mt-1 text-[11px] text-blue-700">Paste JSON or PHP Object output, then confirm to fill the form. Only the {COMPANY_IMPORT_COLUMNS.length} supported Company Master columns are imported; all other details are ignored.</p>
+            </div>
+            <textarea autoFocus value={jsonImport} onChange={(event) => setJsonImport(event.target.value)} placeholder={'{"name":"Example Sdn Bhd","registration_number_old":"AAAAAA-2","contact_email":"ops@example.com"}'} className="min-h-0 flex-1 w-full resize-none rounded-lg border border-blue-200 bg-white p-3 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            {importError && <p className="mt-2 text-[11px] text-rose-600" role="alert">{importError}</p>}
+            <div className="mt-3 flex justify-end gap-2">
+              <button type="button" onClick={() => { setIsJsonImportOpen(false); setImportError(''); }} className="rounded-lg px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-white">Cancel</button>
+              <button type="button" onClick={handleJsonImport} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700"><ClipboardPaste className="h-3.5 w-3.5" /> Confirm data</button>
+            </div>
+          </div>
+        ) : <>
+          <div className="mt-4 flex min-w-0 items-center gap-2" role="tablist" aria-label="Company details sections">
+            {sections.map((section, index) => (
+              <button
+                key={section.title}
+                type="button"
+                role="tab"
+                aria-selected={activeSection === index}
+                onClick={() => setActiveSection(index)}
+                className={`min-w-0 flex-1 border-b-2 px-2 pb-2 text-left transition-colors ${
+                  activeSection === index ? 'border-blue-600 text-blue-700' : 'border-slate-200 text-slate-400 hover:text-slate-600'
+                }`}
+              >
+                <span className="block text-[10px] font-bold uppercase tracking-wider">Section {index + 1}</span>
+                <span className="block truncate text-xs font-normal">{section.title}</span>
+              </button>
+            ))}
+          </div>
+
+          <form onSubmit={handleSubmit} className="mt-5 flex min-h-0 min-w-0 w-full flex-1 flex-col space-y-4 text-xs">
+            <p className="min-w-0 break-words text-[10px] font-normal text-slate-500">{sections[activeSection].description}</p>
+            {importError && <p className="rounded-lg border border-rose-100 bg-rose-50 px-3 py-2 text-[11px] text-rose-700" role="alert">{importError}</p>}
+            <div className="min-h-0 flex-1 overflow-y-auto overflow-x-visible px-1">
             {activeSection === 0 && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
                 <Field label="Company Legal Name *" value={form.name} onChange={(value) => setField('name', value.toUpperCase())} className="uppercase sm:col-span-2" placeholder="LUMORA TECH SDN BHD" />
                 <Field label="Short Name" value={form.short_name} onChange={(value) => setField('short_name', value.toUpperCase())} className="uppercase" placeholder="LUMORA" />
                 <SelectField label="Company Category *" value={form.company_type} onChange={(value) => setField('company_type', value)} options={['FORWARDER', 'HAULAGE', 'TRANSPORT']} />
@@ -668,12 +858,12 @@ function CompanyEditModal({
             )}
 
             {activeSection === 1 && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
                 <Field label="HAULIERID" value={form.haulier_id || ''} onChange={(value) => setField('haulier_id', value)} className="font-mono" placeholder="xyz456" />
                 <Field label="FORWARDING_AGENT_ID" value={form.forwarding_agent_id || ''} onChange={(value) => setField('forwarding_agent_id', value)} className="font-mono" placeholder="64abc123xyz" />
                 <AssignmentField
                   label="Assign to Ports"
-                  options={ports.map((port) => ({ value: port.id, label: `${port.display_name} (${port.location})` }))}
+                  options={sortedPorts.map((port) => ({ value: port.id, label: `${port.display_name} (${port.location})` }))}
                   values={form.assigned_port_ids || []}
                   onChange={(values) => {
                     const validDepotIds = (form.assigned_depot_ids || []).filter((depotId) => {
@@ -685,26 +875,28 @@ function CompanyEditModal({
                 />
                 <AssignmentField
                   label="Assign to Depots"
-                  options={depots.filter((depot) => (form.assigned_port_ids || []).includes(depot.port_id)).map((depot) => ({ value: depot.id, label: depot.display_name }))}
+                  options={sortedDepotOptions}
                   values={form.assigned_depot_ids || []}
                   onChange={(values) => setForm((current) => ({ ...current, assigned_depot_ids: values, depot_id: values[0] || '' }))}
                   emptyMessage={(form.assigned_port_ids || []).length ? 'No depots configured for the selected ports.' : 'Select at least one port first.'}
                 />
-                <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-[11px] text-blue-800 sm:col-span-2">
-                  The active external ID is determined by company category. Keep the other ID populated only when this company needs both mappings.
-                </div>
               </div>
             )}
 
             {activeSection === 2 && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
                 <Field label="Block / Building" value={form.block || ''} onChange={(value) => setField('block', value)} />
-                <SelectField label="Country" value={form.country || 'Malaysia'} onChange={(value) => setForm((current) => ({ ...current, country: value, state: COMPANY_STATES_BY_COUNTRY[value][0] }))} options={Object.keys(COMPANY_STATES_BY_COUNTRY)} />
+                <SelectField label="Country" value={normalizeCompanyCountry(form.country)} onChange={(value) => setForm((current) => ({ ...current, country: value, state: COMPANY_STATES_BY_COUNTRY[value]?.[0] || '' }))} options={Object.keys(COMPANY_STATES_BY_COUNTRY)} />
                 <Field label="Address Line 1" value={form.address1 || ''} onChange={(value) => setField('address1', value)} className="sm:col-span-2" />
                 <Field label="Address Line 2" value={form.address2 || ''} onChange={(value) => setField('address2', value)} className="sm:col-span-2" />
                 <Field label="City" value={form.city || ''} onChange={(value) => setField('city', value)} />
-                <SelectField label="State / Region" value={form.state || ''} onChange={(value) => setField('state', value)} options={COMPANY_STATES_BY_COUNTRY[form.country || 'Malaysia']} />
+                <SelectField label="State / Region" value={form.state || ''} onChange={(value) => setField('state', value)} options={COMPANY_STATES_BY_COUNTRY[normalizeCompanyCountry(form.country)] || []} />
                 <Field label="Postcode" value={form.postcode || ''} onChange={(value) => setField('postcode', value)} />
+              </div>
+            )}
+
+            {activeSection === 3 && (
+              <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
                 <Field label="Contact Person" value={form.contact_name || ''} onChange={(value) => setField('contact_name', value)} />
                 <Field label="Contact Designation" value={form.contact_designation || ''} onChange={(value) => setField('contact_designation', value)} />
                 <Field label="Contact Email" type="email" value={form.contact_email || ''} onChange={(value) => setField('contact_email', value)} />
@@ -713,9 +905,9 @@ function CompanyEditModal({
                 <Field label="Fax" value={form.fax || ''} onChange={(value) => setField('fax', value)} />
               </div>
             )}
-          </div>
+            </div>
 
-          <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100">
+            <div className="flex items-center justify-end gap-2 border-t border-slate-100 pt-4">
             <button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg">Cancel</button>
             {activeSection > 0 && (
               <button type="button" onClick={() => setActiveSection((section) => section - 1)} className="inline-flex items-center gap-1 px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg">
@@ -731,8 +923,9 @@ function CompanyEditModal({
                 {isSaving ? 'Saving...' : isEditing ? 'Save Changes' : 'Create Master Company'}
               </button>
             )}
-          </div>
-        </form>
+            </div>
+          </form>
+        </>}
 
       </div>
     </div>
@@ -740,6 +933,84 @@ function CompanyEditModal({
 }
 
 type CompanyFormState = Omit<Company, 'created_at' | 'updated_at'>;
+
+const COMPANY_IMPORT_COLUMNS = [
+  'HAULIERID', 'FORWARDING_AGENT_ID', 'NAME', 'SHORTNAME', 'TYPE', 'REGISTRATION', 'REGISTRATION_NEW',
+  'PORTS', 'DEPOTS', 'BLOCK', 'ADDRESS1', 'ADDRESS2', 'CITY', 'STATE', 'POSTCODE', 'COUNTRY',
+  'CONTACTNAME', 'CONTACTEMAIL', 'CONTACTDESGN', 'CONTACTMOBILE', 'OFFICE', 'FAX',
+] as const;
+
+function normalizeImportKey(value: string): string {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function normalizeCompanyCountry(value?: string): string {
+  const normalized = String(value || 'Malaysia').trim().toLowerCase();
+  if (normalized === 'my' || normalized === 'malaysia') return 'Malaysia';
+  if (normalized === 'sg' || normalized === 'singapore') return 'Singapore';
+  return Object.keys(COMPANY_STATES_BY_COUNTRY).find((country) => country.toLowerCase() === normalized) || 'Malaysia';
+}
+
+/** Reads the PHP print_r/var_dump style payload often copied from the source system. */
+function parseLegacyCompanyPayload(payload: string): Record<string, unknown> | null {
+  if (!/(stdClass\s+Object|\[[^\]]+\]\s*=>)/i.test(payload)) return null;
+
+  const valuesFor = (field: string): string[] => {
+    const expression = new RegExp(`^\\s*\\[${field.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}\\]\\s*=>\\s*(.+?)\\s*$`, 'gim');
+    return Array.from(payload.matchAll(expression))
+      .map((match) => match[1].trim())
+      .filter((value) => value && !/^(stdClass Object|Array|NULL)$/i.test(value));
+  };
+  const first = (...fields: string[]) => fields.flatMap(valuesFor)[0];
+  const values = (field: string) => valuesFor(field);
+  const record: Record<string, unknown> = {};
+
+  const name = first('name');
+  const shortName = first('shortname', 'short_name');
+  const type = first('type');
+  const registration = first('registration');
+  const haulier = first('haulier');
+  if (name) record.name = name;
+  if (shortName) record.shortname = shortName;
+  if (type) record.type = type;
+  if (registration) record.registration = registration;
+  if (haulier) record.haulier = haulier;
+
+  const addressFields = ['block', 'address1', 'address2', 'city', 'state', 'postcode', 'country'];
+  addressFields.forEach((field) => {
+    const value = first(field);
+    if (value) record[`address.${field}`] = value;
+  });
+
+  const contactName = values('name')[1];
+  const contactEmail = first('email');
+  const contactDesignation = first('designation');
+  const contactMobile = first('mobile');
+  const office = first('office');
+  const fax = first('fax');
+  if (contactName) record['contact.name'] = contactName;
+  if (contactEmail) record['contact.email'] = contactEmail;
+  if (contactDesignation) record['contact.designation'] = contactDesignation;
+  if (contactMobile) record['contact.mobile'] = contactMobile;
+  if (office) record['phone.office'] = office;
+  if (fax) record['phone.fax'] = fax;
+
+  const portcodesStart = payload.search(/^\s*\[portcodes\]\s*=>/im);
+  if (portcodesStart >= 0) {
+    const portcodesPayload = payload.slice(portcodesStart).split(/^\s*\[(?:depots|name|address|contact|phone|type|t)\]\s*=>/im)[0];
+    const portcodes = Array.from(portcodesPayload.matchAll(/^\s*\[\d+\]\s*=>\s*([^\r\n]+)$/gim)).map((match) => match[1].trim()).filter((value) => value && !/^(Array|stdClass Object)$/i.test(value));
+    if (portcodes.length) record.portcodes = portcodes;
+  }
+
+  const depotsStart = payload.search(/^\s*\[depots\]\s*=>/im);
+  if (depotsStart >= 0) {
+    const depotPayload = payload.slice(depotsStart);
+    const depotKeys = Array.from(depotPayload.matchAll(/^\s*\[([a-f0-9]{12,})\]\s*=>\s*stdClass Object/gim)).map((match) => match[1]);
+    if (depotKeys.length) record.depots = Object.fromEntries(depotKeys.map((key) => [key, {}]));
+  }
+
+  return Object.keys(record).length ? record : null;
+}
 
 function Field({
   label,
@@ -757,9 +1028,9 @@ function Field({
   type?: string;
 }) {
   return (
-    <label className={`block ${className}`}>
+    <label className={`block min-w-0 w-full overflow-visible ${className}`}>
       <span className="block font-semibold text-slate-700 mb-1">{label}</span>
-      <input type={type} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+      <input type={type} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="box-border block w-full max-w-full min-w-0 px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:outline-none" />
     </label>
   );
 }
@@ -776,9 +1047,9 @@ function SelectField({
   options: Array<string | { value: string; label: string }>;
 }) {
   return (
-    <label className="block">
+    <label className="block min-w-0 w-full overflow-visible">
       <span className="block font-semibold text-slate-700 mb-1">{label}</span>
-      <select value={value} onChange={(event) => onChange(event.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
+      <select value={value} onChange={(event) => onChange(event.target.value)} className="box-border block w-full max-w-full min-w-0 px-3 py-2 rounded-lg border border-slate-300 bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
         {options.map((option) => {
           const normalized = typeof option === 'string' ? { value: option, label: option } : option;
           return <option key={normalized.value} value={normalized.value}>{normalized.label}</option>;
@@ -796,7 +1067,7 @@ function AssignmentField({
   emptyMessage = 'No options available.',
 }: {
   label: string;
-  options: Array<{ value: string; label: string }>;
+  options: Array<{ value: string; label: string; group?: string }>;
   values: string[];
   onChange: (values: string[]) => void;
   emptyMessage?: string;
@@ -810,17 +1081,22 @@ function AssignmentField({
   return (
     <fieldset className="rounded-lg border border-slate-200 p-3">
       <legend className="px-1 font-semibold text-slate-700">{label}</legend>
-      <div className="max-h-28 space-y-1 overflow-y-auto pr-1">
-        {options.length ? options.map((option) => (
-          <label key={option.value} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-slate-700 hover:bg-slate-50">
-            <input
-              type="checkbox"
-              checked={values.includes(option.value)}
-              onChange={() => toggleValue(option.value)}
-              className="h-3.5 w-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-            />
-            <span>{option.label}</span>
-          </label>
+      <div className="grid min-h-[116px] grid-cols-1 content-start gap-1">
+        {options.length ? options.map((option, index) => (
+          <React.Fragment key={option.value}>
+            {option.group && option.group !== options[index - 1]?.group && (
+              <p className="col-span-1 border-b border-slate-100 px-2 pb-1 pt-2 text-[10px] font-bold uppercase tracking-wide text-slate-500 first:pt-0">{option.group}</p>
+            )}
+            <label className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-slate-700 hover:bg-slate-50">
+              <input
+                type="checkbox"
+                checked={values.includes(option.value)}
+                onChange={() => toggleValue(option.value)}
+                className="h-3.5 w-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span>{option.label}</span>
+            </label>
+          </React.Fragment>
         )) : <p className="px-2 py-1.5 text-[11px] text-slate-400">{emptyMessage}</p>}
       </div>
     </fieldset>

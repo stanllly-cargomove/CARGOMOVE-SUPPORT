@@ -27,6 +27,8 @@ import {
   LogOut,
   ChevronLeft,
   ChevronRight,
+  Menu,
+  X,
 } from 'lucide-react';
 import { AdminDashboard } from './AdminDashboard';
 import { CompanyMaster } from './CompanyMaster';
@@ -78,6 +80,7 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
   const [isRegistrationQueueExpanded, setIsRegistrationQueueExpanded] = useState(false);
   const [queueRegistrationType, setQueueRegistrationType] = useState<RegistrationType>('COMPANY');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [emailTemplateView, setEmailTemplateView] = useState<'list' | 'design'>('list');
@@ -156,13 +159,16 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
     setPortalMode(nextPortal);
     setActiveTab(nextPortal === 'developer' ? 'companies' : 'dashboard');
     setIsRegistrationQueueExpanded(false);
+    setIsMobileSidebarOpen(false);
   };
 
   return (
     <div className={`admin-theme min-h-screen bg-slate-100 flex flex-col md:flex-row ${isDarkMode ? 'admin-theme-dark' : ''}`}>
       {/* Sidebar */}
       <aside
-        className={`relative w-full bg-[#0b1220] text-slate-300 flex flex-col shrink-0 border-r border-slate-800 transition-[width] duration-200 md:sticky md:top-0 md:h-screen md:self-start ${
+        className={`fixed inset-y-0 left-0 z-50 flex w-72 -translate-x-full flex-col shrink-0 border-r border-slate-800 bg-[#0b1220] text-slate-300 shadow-2xl transition-[width,transform] duration-300 ease-out md:relative md:inset-auto md:z-auto md:h-screen md:translate-x-0 md:shadow-none md:sticky md:top-0 md:self-start ${
+          isMobileSidebarOpen ? 'translate-x-0' : ''
+        } ${
           isSidebarCollapsed ? 'md:w-16' : 'md:w-60'
         }`}
       >
@@ -206,10 +212,12 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
                     if (isRegistrationQueue) {
                       setIsRegistrationQueueExpanded((expanded) => isSidebarCollapsed || !expanded);
                       if (isSidebarCollapsed) setIsSidebarCollapsed(false);
+                      setIsMobileSidebarOpen(false);
                       if (!activeQueueItem) setActiveTab('submissions-pending');
                     } else {
                       setActiveTab(item.id);
                       setIsRegistrationQueueExpanded(false);
+                      setIsMobileSidebarOpen(false);
                     }
                   }}
                   aria-expanded={isRegistrationQueue ? isRegistrationQueueExpanded : undefined}
@@ -256,6 +264,7 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
                             tabIndex={isRegistrationQueueExpanded ? 0 : -1}
                             onClick={() => {
                               setActiveTab(queueItem.id);
+                              setIsMobileSidebarOpen(false);
                             }}
                             className={`relative flex w-full items-center gap-3 rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
                               isQueueItemActive
@@ -283,7 +292,7 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
 
           {portalMode === 'admin' && <div className="mt-5 space-y-1 border-t border-slate-800 pt-4">
             <p className={`px-3 pb-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 ${isSidebarCollapsed ? 'md:hidden' : ''}`}>Auto Email</p>
-            {supportItems.map(item=>{const Icon=item.icon;return <button key={item.id} type="button" onClick={()=>navigateSupport(item.path)} title={item.label} aria-label={item.label} className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-xs font-semibold ${isSidebarCollapsed ? 'md:justify-center md:px-2' : ''} ${activeTab===item.id ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}><Icon className="h-4 w-4 shrink-0"/><span className={isSidebarCollapsed ? 'md:hidden' : ''}>{item.label}</span></button>;})}
+            {supportItems.map(item=>{const Icon=item.icon;return <button key={item.id} type="button" onClick={()=>{ navigateSupport(item.path); setIsMobileSidebarOpen(false); }} title={item.label} aria-label={item.label} className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-xs font-semibold ${isSidebarCollapsed ? 'md:justify-center md:px-2' : ''} ${activeTab===item.id ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}><Icon className="h-4 w-4 shrink-0"/><span className={isSidebarCollapsed ? 'md:hidden' : ''}>{item.label}</span></button>;})}
           </div>}
 
           {portalMode === 'developer' && devToolItems.map((item, index) => {
@@ -301,6 +310,7 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
                   if (item.path) navigateSupport(item.path);
                   else setActiveTab(item.id);
                   if (item.id === 'email-template') setEmailTemplateView('list');
+                  setIsMobileSidebarOpen(false);
                 }}
                 aria-label={isSidebarCollapsed ? item.label : undefined}
                 title={isSidebarCollapsed ? item.label : undefined}
@@ -356,11 +366,27 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
         </div>
       </aside>
 
+      <button
+        type="button"
+        aria-label="Close navigation menu"
+        onClick={() => setIsMobileSidebarOpen(false)}
+        className={`fixed inset-0 z-40 bg-slate-950/50 transition-opacity duration-300 md:hidden ${isMobileSidebarOpen ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
+      />
+
       {/* Main Administrative Pane */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Header */}
-        <header className="bg-white border-b border-slate-200 h-16 px-6 flex items-center justify-between sticky top-0 z-30">
-          <div className="flex items-center gap-3">
+        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-slate-200 bg-white px-4 sm:px-6">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+            <button
+              type="button"
+              onClick={() => setIsMobileSidebarOpen((open) => !open)}
+              aria-label={isMobileSidebarOpen ? 'Close navigation menu' : 'Open navigation menu'}
+              aria-expanded={isMobileSidebarOpen}
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 md:hidden"
+            >
+              {isMobileSidebarOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+            </button>
             <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
               {portalMode === 'admin' ? 'Admin Portal' : 'Dev Tools'}
             </span>

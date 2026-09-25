@@ -367,9 +367,9 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
       </div>
 
       {/* Search and queue filters */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-        <div className="flex flex-col md:flex-row items-center gap-3">
-        <div className="relative flex-1 w-full">
+      <div className="bg-white p-3 sm:p-4 rounded-xl border border-slate-200 shadow-sm">
+        <div className="flex flex-col gap-2 sm:gap-3">
+        <div className="relative w-full">
           <input
             type="text"
             value={searchTerm}
@@ -380,14 +380,13 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
         </div>
 
-        <div className="flex w-full flex-wrap items-center gap-2 md:ml-auto md:w-auto">
+        <div className="flex w-full flex-nowrap items-center gap-2 overflow-hidden sm:gap-3">
 
-          <label className="flex items-center gap-2 text-xs font-semibold text-slate-600">
-            <span className="whitespace-nowrap uppercase">Sort by</span>
+          <label className="flex min-w-0 flex-[1.35] items-center gap-1.5 text-xs font-semibold text-slate-600">
             <select
               value={sortBy}
               onChange={(event) => setSortBy(event.target.value as SubmissionSort)}
-              className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold uppercase text-slate-700 focus:border-slate-400 focus:outline-none focus:ring-0"
+              className="h-9 min-w-0 w-full rounded-lg border border-slate-300 bg-white px-2 text-[10px] font-semibold uppercase text-slate-700 focus:border-slate-400 focus:outline-none focus:ring-0 sm:px-3 sm:text-xs"
               aria-label="Sort registration submissions"
             >
               <option value="SUBMITTED_ASC">{status === 'REJECTED' ? 'OLDEST REJECTED' : status === 'DONE' ? 'OLDEST COMPLETED' : 'OLDEST SUBMITTED'}</option>
@@ -401,7 +400,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
           <select
             value={portFilter}
             onChange={(e) => setPortFilter(e.target.value)}
-            className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold uppercase focus:border-slate-400 focus:outline-none focus:ring-0"
+            className="h-9 min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-2 text-[10px] font-semibold uppercase focus:border-slate-400 focus:outline-none focus:ring-0 sm:px-3 sm:text-xs"
           >
             <option value="ALL">ALL FACILITIES</option>
             <option value="PORT_KLANG">PORT KLANG</option>
@@ -414,7 +413,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
               value={idFilter}
               onChange={(event) => setIdFilter(event.target.value as IdFilter)}
               aria-label="Filter submissions by CargoMove ID status"
-              className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold uppercase focus:border-slate-400 focus:outline-none focus:ring-0"
+              className="h-9 min-w-0 flex-[0.75] rounded-lg border border-slate-300 bg-white px-2 text-[10px] font-semibold uppercase focus:border-slate-400 focus:outline-none focus:ring-0 sm:px-3 sm:text-xs"
             >
               <option value="ALL">ALL IDS</option>
               <option value="MISSING">MISSING ID</option>
@@ -426,7 +425,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
             type="button"
             onClick={handleBulkExport}
             disabled={selectedIds.length === 0}
-            className="inline-flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-emerald-600 px-3 text-[10px] font-bold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex h-9 min-w-0 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-emerald-600 px-2 text-[10px] font-bold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40 sm:px-3"
           >
             <FileSpreadsheet className="h-3.5 w-3.5" />
             GENERATE EXCEL
@@ -435,8 +434,12 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
         </div>
       </div>
 
-      {/* Registration type chrome tabs and table */}
+      {/* Copy hint, registration type tabs, and table */}
       <div className="rounded-xl">
+        <div className="mb-2 flex items-center gap-1.5 px-2 text-[11px] font-medium text-slate-500" title="Double-click a table value to copy it to your clipboard.">
+          <Info className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <span>Double-click any table value to copy</span>
+        </div>
         <div className="flex flex-wrap items-end justify-between gap-x-4">
         <div className="flex w-fit items-end gap-0">
         {[
@@ -460,10 +463,6 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
             {label}
           </button>
         ))}
-        </div>
-        <div className="flex items-center gap-1.5 px-2 pb-2 text-[11px] font-medium text-slate-500" title="Double-click a table value to copy it to your clipboard.">
-          <Info className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          <span>Double-click any table value to copy</span>
         </div>
         </div>
 

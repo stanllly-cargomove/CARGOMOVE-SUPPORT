@@ -252,8 +252,8 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
       <section className="space-y-3">
         <h3 className="text-sm font-bold text-slate-900">Pending Registrations Queue</h3>
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="relative w-full lg:max-w-sm">
+        <div className="flex flex-nowrap items-center gap-2 border-b border-slate-100 px-3 py-3 sm:gap-3 sm:px-5 sm:py-4">
+          <div className="relative min-w-0 flex-1 lg:max-w-sm">
             <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" aria-hidden="true" />
             <input
               type="search"
@@ -264,13 +264,13 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
               className="h-8 w-full rounded-lg border border-slate-300 bg-white pl-9 pr-3 text-[11px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <label className="flex items-center gap-2 text-[9px] font-bold uppercase tracking-[0.16em] text-slate-500">
-              Reg. Type
+          <div className="ml-auto flex shrink-0 flex-nowrap items-center gap-2 sm:gap-3">
+            <label className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.16em] text-slate-500">
+              <span className="hidden sm:inline">Reg. Type</span>
               <select
                 value={queueType}
                 onChange={(event) => setQueueType(event.target.value as RegistrationType | 'USER' | 'ALL')}
-                className="h-8 rounded-lg border border-slate-300 bg-slate-100 px-2.5 text-[10px] font-bold tracking-normal text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="h-8 w-[4.5rem] rounded-lg border border-slate-300 bg-slate-100 px-1.5 text-[10px] font-bold tracking-normal text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:w-auto sm:px-2.5"
                 aria-label="Filter by registration type"
               >
                 <option value="ALL">ALL</option>
@@ -281,12 +281,12 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                 <option value="USER">USER</option>
               </select>
             </label>
-            <label className="flex items-center gap-2 text-[9px] font-bold uppercase tracking-[0.16em] text-slate-500">
-              Show
+            <label className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.16em] text-slate-500">
+              <span className="hidden sm:inline">Show</span>
               <select
                 value={queuePageSize}
                 onChange={(event) => setQueuePageSize(Number(event.target.value) as 20 | 30 | 50)}
-                className="h-8 rounded-lg border border-slate-300 bg-slate-100 px-2.5 text-[10px] font-bold tracking-normal text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="h-8 w-14 rounded-lg border border-slate-300 bg-slate-100 px-1.5 text-[10px] font-bold tracking-normal text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:w-auto sm:px-2.5"
                 aria-label="Records per page"
               >
                 <option value={20}>20</option>
@@ -296,7 +296,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             </label>
             <button
               onClick={() => onNavigate('submissions')}
-              className="flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-800"
+              className="hidden items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-800 sm:flex"
             >
               View All Pending <ArrowUpRight className="w-3.5 h-3.5" />
             </button>

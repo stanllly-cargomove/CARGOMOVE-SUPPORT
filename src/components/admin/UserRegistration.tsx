@@ -22,8 +22,6 @@ const statusSelectClasses: Record<ExternalUserAccess['status'], string> = {
   REJECTED: 'border-rose-300 bg-rose-50 text-rose-700',
 };
 
-const PAGE_SIZE_OPTIONS = [20, 30, 50];
-
 function getVisiblePageNumbers(currentPage: number, totalPages: number): number[] {
   const visibleCount = Math.min(5, totalPages);
   const start = Math.min(
@@ -97,7 +95,7 @@ export function UserRegistration() {
   const [sending, setSending] = useState(false);
   const [editingUser, setEditingUser] = useState<ExternalUserAccess | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize] = useState(20);
   const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
@@ -376,24 +374,6 @@ export function UserRegistration() {
                 {label}
               </button>
             ))}
-          </div>
-          <div className="flex items-center gap-3 px-2 pb-2 text-xs text-slate-500">
-            <span>
-              {filteredUsers.length
-                ? `Showing ${pageStart + 1}-${Math.min(pageStart + pageSize, filteredUsers.length)} of ${filteredUsers.length}`
-                : 'Showing 0 users'}
-            </span>
-            <label className="flex items-center gap-2">
-              <span>Show</span>
-              <select
-                value={pageSize}
-                onChange={(event) => setPageSize(Number(event.target.value))}
-                className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 focus:border-slate-400 focus:outline-none focus:ring-0"
-                aria-label="Users per page"
-              >
-                {PAGE_SIZE_OPTIONS.map((size) => <option key={size} value={size}>{size}</option>)}
-              </select>
-            </label>
           </div>
         </div>
         <div className="overflow-hidden rounded-b-xl rounded-tr-lg border border-slate-200 bg-white shadow-sm">
