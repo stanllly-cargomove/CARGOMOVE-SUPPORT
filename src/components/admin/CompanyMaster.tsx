@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Company } from '../../types';
 import {
   getCompanies,
@@ -24,12 +25,19 @@ import {
 import { notifyError, notifySuccess, notifyWarning } from '../common/notifications';
 import { COMPANY_STATES_BY_COUNTRY } from '../../constants/companyLocations';
 
+type CompanySort = 'CREATED_DESC' | 'CREATED_ASC' | 'UPDATED_DESC' | 'NAME_ASC' | 'NAME_DESC';
+
+const PAGE_SIZE_OPTIONS = [20, 30, 50];
+
 export function CompanyMaster() {
   const [companies, setCompanies] = useState<Company[]>(getCompanies());
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState('ALL');
   const [portFilter, setPortFilter] = useState('ALL');
   const [missingIdOnly, setMissingIdOnly] = useState(false);
+  const [sortBy, setSortBy] = useState<CompanySort>('CREATED_DESC');
+  const [pageSize, setPageSize] = useState(20);
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Modals
   const [selectedCompanyForId, setSelectedCompanyForId] = useState<Company | null>(null);
@@ -44,6 +52,11 @@ export function CompanyMaster() {
   };
 
   useEffect(() => subscribeToStorage(refreshList), []);
+
+  useEffect(() => {
+    setCurrentPage(1);
+    setActiveActionMenuId(null);
+  }, [searchTerm, typeFilter, portFilter, missingIdOnly, sortBy, pageSize]);
 
   const filteredCompanies = companies.filter((comp) => {
     // Search query
@@ -71,6 +84,23 @@ export function CompanyMaster() {
 
     return matchesSearch && matchesType && matchesPort && matchesMissingId;
   });
+
+  const sortedCompanies = [...filteredCompanies].sort((left, right) => {
+    if (sortBy === 'NAME_ASC') return left.name.localeCompare(right.name);
+    if (sortBy === 'NAME_DESC') return right.name.localeCompare(left.name);
+    if (sortBy === 'CREATED_ASC') return Date.parse(left.created_at) - Date.parse(right.created_at);
+    if (sortBy === 'UPDATED_DESC') return Date.parse(right.updated_at) - Date.parse(left.updated_at);
+    return Date.parse(right.created_at) - Date.parse(left.created_at);
+  });
+  const totalPages = Math.max(1, Math.ceil(sortedCompanies.length / pageSize));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const pageStart = (safeCurrentPage - 1) * pageSize;
+  const paginatedCompanies = sortedCompanies.slice(pageStart, pageStart + pageSize);
+  const pageNumbers = getVisiblePageNumbers(safeCurrentPage, totalPages);
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
 
   return (
     <div className="space-y-6">
@@ -108,7 +138,23 @@ export function CompanyMaster() {
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
         </div>
 
-        <div className="flex items-center gap-2 w-full md:w-auto">
+        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+          <label className="flex items-center gap-2 text-xs font-semibold text-slate-600" htmlFor="company-sort">
+            <span className="whitespace-nowrap">Sort by</span>
+            <select
+              id="company-sort"
+              value={sortBy}
+              onChange={(event) => setSortBy(event.target.value as CompanySort)}
+              className="px-3 py-2 rounded-lg border border-slate-300 text-xs font-normal text-slate-700 bg-white focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="CREATED_DESC">Latest added</option>
+              <option value="CREATED_ASC">Oldest added</option>
+              <option value="UPDATED_DESC">Recently updated</option>
+              <option value="NAME_ASC">Company name A-Z</option>
+              <option value="NAME_DESC">Company name Z-A</option>
+            </select>
+          </label>
+
           {/* Company Type Filter */}
           <select
             value={typeFilter}
@@ -167,14 +213,14 @@ export function CompanyMaster() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredCompanies.length === 0 ? (
+              {paginatedCompanies.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="py-8 text-center text-slate-500">
                     No company master records matching current filters.
                   </td>
                 </tr>
               ) : (
-                filteredCompanies.map((comp) => {
+                paginatedCompanies.map((comp) => {
                   const idInfo = getCompanyExternalId(comp);
                   const isMissing = !idInfo.has_required_id;
                   const isHaulier = idInfo.category === 'HAULIER';
@@ -256,62 +302,22 @@ export function CompanyMaster() {
                         {new Date(comp.updated_at).toLocaleDateString()}
                       </td>
 
-                      {/* 3-Dot Action Button & Dropdown Menu */}
                       <td className="py-3 px-4 text-right">
-                        <div className="relative inline-block text-left">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setActiveActionMenuId(activeActionMenuId === comp.id ? null : comp.id);
-                            }}
-                            className={`p-1.5 rounded-lg transition-colors focus:outline-none ${
-                              activeActionMenuId === comp.id
-                                ? 'bg-slate-200 text-slate-900'
-                                : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
-                            }`}
-                            title="Actions"
-                          >
-                            <MoreVertical className="w-4 h-4" />
-                          </button>
-
-                          {activeActionMenuId === comp.id && (
-                            <>
-                              <div
-                                className="fixed inset-0 z-40"
-                                onClick={() => setActiveActionMenuId(null)}
-                              />
-
-                              <div className="absolute right-0 mt-1 w-48 rounded-lg bg-white border border-slate-200 shadow-xl py-1 z-50 text-left">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setActiveActionMenuId(null);
-                                    setSelectedCompanyForId(comp);
-                                  }}
-                                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition-colors"
-                                >
-                                  <Key className="w-3.5 h-3.5 text-blue-600" />
-                                  Assign / Edit ID
-                                </button>
-
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setActiveActionMenuId(null);
-                                    setEditingCompany(comp);
-                                    setIsNewCompanyModalOpen(true);
-                                  }}
-                                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors"
-                                >
-                                  <Edit2 className="w-3.5 h-3.5 text-slate-500" />
-                                  Edit Company Details
-                                </button>
-
-                              </div>
-                            </>
-                          )}
-                        </div>
+                        <CompanyActionMenu
+                          companyName={comp.name}
+                          isOpen={activeActionMenuId === comp.id}
+                          onToggle={() => setActiveActionMenuId(activeActionMenuId === comp.id ? null : comp.id)}
+                          onClose={() => setActiveActionMenuId(null)}
+                          onAssignId={() => {
+                            setActiveActionMenuId(null);
+                            setSelectedCompanyForId(comp);
+                          }}
+                          onEdit={() => {
+                            setActiveActionMenuId(null);
+                            setEditingCompany(comp);
+                            setIsNewCompanyModalOpen(true);
+                          }}
+                        />
                       </td>
                     </tr>
                   );
@@ -319,6 +325,60 @@ export function CompanyMaster() {
               )}
             </tbody>
           </table>
+        </div>
+        <div className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3 text-xs text-slate-500">
+            <span>
+              {sortedCompanies.length
+                ? `Showing ${pageStart + 1}-${Math.min(pageStart + pageSize, sortedCompanies.length)} of ${sortedCompanies.length}`
+                : 'Showing 0 companies'}
+            </span>
+            <label className="flex items-center gap-2">
+              <span>Show</span>
+              <select
+                value={pageSize}
+                onChange={(event) => setPageSize(Number(event.target.value))}
+                className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 focus:ring-2 focus:ring-blue-500"
+                aria-label="Companies per page"
+              >
+                {PAGE_SIZE_OPTIONS.map((size) => <option key={size} value={size}>{size}</option>)}
+              </select>
+            </label>
+          </div>
+
+          <nav className="flex items-center gap-1" aria-label="Company table pagination">
+            <button
+              type="button"
+              onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+              disabled={safeCurrentPage === 1}
+              aria-label="Previous page"
+              title="Previous page"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            {pageNumbers.map((page) => (
+              <button
+                key={page}
+                type="button"
+                onClick={() => setCurrentPage(page)}
+                aria-current={safeCurrentPage === page ? 'page' : undefined}
+                className={`h-8 min-w-8 rounded-md px-2 text-xs font-semibold ${safeCurrentPage === page ? 'bg-blue-600 text-white' : 'border border-slate-300 bg-white text-slate-600 hover:bg-slate-100'}`}
+              >
+                {page}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+              disabled={safeCurrentPage === totalPages}
+              aria-label="Next page"
+              title="Next page"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </nav>
         </div>
       </div>
 
@@ -341,6 +401,111 @@ export function CompanyMaster() {
           }}
         />
       )}
+    </div>
+  );
+}
+
+function getVisiblePageNumbers(currentPage: number, totalPages: number): number[] {
+  const visibleCount = Math.min(5, totalPages);
+  const start = Math.min(
+    Math.max(1, currentPage - Math.floor(visibleCount / 2)),
+    totalPages - visibleCount + 1,
+  );
+  return Array.from({ length: visibleCount }, (_, index) => start + index);
+}
+
+function CompanyActionMenu({
+  companyName,
+  isOpen,
+  onToggle,
+  onClose,
+  onAssignId,
+  onEdit,
+}: {
+  companyName: string;
+  isOpen: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+  onAssignId: () => void;
+  onEdit: () => void;
+}) {
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const [position, setPosition] = useState({ top: -9999, left: -9999 });
+
+  useLayoutEffect(() => {
+    if (!isOpen || !triggerRef.current || !menuRef.current) return;
+
+    const triggerRect = triggerRef.current.getBoundingClientRect();
+    const menuRect = menuRef.current.getBoundingClientRect();
+    const viewportPadding = 8;
+    const gap = 4;
+    const belowTop = triggerRect.bottom + gap;
+    const top = belowTop + menuRect.height <= window.innerHeight - viewportPadding
+      ? belowTop
+      : Math.max(viewportPadding, triggerRect.top - menuRect.height - gap);
+    const left = Math.min(
+      Math.max(viewportPadding, triggerRect.right - menuRect.width),
+      window.innerWidth - menuRect.width - viewportPadding,
+    );
+
+    setPosition({ top, left });
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const closeMenu = () => onClose();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    window.addEventListener('resize', closeMenu);
+    window.addEventListener('scroll', closeMenu, true);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('resize', closeMenu);
+      window.removeEventListener('scroll', closeMenu, true);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, onClose]);
+
+  const popup = isOpen && typeof document !== 'undefined'
+    ? createPortal(
+      <>
+        <button type="button" tabIndex={-1} aria-label="Close actions" className="fixed inset-0 z-[70] h-full w-full cursor-default bg-transparent" onClick={onClose} />
+        <div
+          ref={menuRef}
+          role="menu"
+          style={{ top: position.top, left: position.left }}
+          className="fixed z-[80] w-48 rounded-lg border border-slate-200 bg-white py-1 text-left shadow-xl"
+        >
+          <button type="button" role="menuitem" onClick={onAssignId} className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-blue-50 hover:text-blue-700">
+            <Key className="h-3.5 w-3.5 text-blue-600" /> Assign / Edit ID
+          </button>
+          <button type="button" role="menuitem" onClick={onEdit} className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-900">
+            <Edit2 className="h-3.5 w-3.5 text-slate-500" /> Edit Company Details
+          </button>
+        </div>
+      </>,
+      document.body,
+    )
+    : null;
+
+  return (
+    <div className="relative inline-block text-left">
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={onToggle}
+        aria-label={`Actions for ${companyName}`}
+        aria-haspopup="menu"
+        aria-expanded={isOpen}
+        title="Actions"
+        className={`rounded-lg p-1.5 transition-colors focus:outline-none ${isOpen ? 'bg-slate-200 text-slate-900' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}
+      >
+        <MoreVertical className="h-4 w-4" />
+      </button>
+      {popup}
     </div>
   );
 }
