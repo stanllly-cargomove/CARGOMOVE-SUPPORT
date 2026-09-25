@@ -407,9 +407,10 @@ export function ReviewScreen({
         </div>
       </div>
       {submitError && (
-        <p role="alert" className="rounded border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
-          {submitError}
-        </p>
+        <div role="alert" className="rounded border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+          <p className="font-bold">Registration could not be submitted</p>
+          <p className="mt-1 whitespace-pre-line leading-5">{submitError}</p>
+        </div>
       )}
     </div>
   );

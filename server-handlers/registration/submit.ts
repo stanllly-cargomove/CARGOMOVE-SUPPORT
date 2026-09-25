@@ -50,6 +50,53 @@ function optionalText(value: unknown) {
   return valueText || null;
 }
 
+function databaseFailureDetails(writeError: RegistrationWriteError) {
+  const databaseError = writeError.databaseError || {};
+  const code = text(databaseError.code) || 'REGISTRATION_WRITE_FAILED';
+  const constraint = text(databaseError.constraint);
+  const rawDetails = text(databaseError.details || databaseError.message);
+
+  if (code === '23505') {
+    return {
+      status: 409,
+      error: 'This registration conflicts with an existing record.',
+      details: constraint.includes('username')
+        ? 'The requested username is already registered.'
+        : constraint.includes('email')
+          ? 'The requested email address is already registered.'
+          : 'The company registration number, username, or email already exists.',
+      hint: 'Return to the relevant form page and use a unique value.',
+      code,
+    };
+  }
+  if (code === '23503') {
+    return {
+      status: 400,
+      error: `Unable to save ${writeError.step} because a configured port or depot could not be matched.`,
+      details: rawDetails || 'A referenced port or depot does not exist in the current configuration.',
+      hint: 'Download a fresh form template or leave system-managed port and depot IDs blank.',
+      code,
+    };
+  }
+  if (code === '23502') {
+    return {
+      status: 422,
+      error: `Unable to save ${writeError.step} because a required value is missing.`,
+      details: rawDetails,
+      hint: 'Return to the form and complete the highlighted required field.',
+      code,
+    };
+  }
+
+  return {
+    status: 400,
+    error: `Unable to save ${writeError.step}.`,
+    details: rawDetails || 'The database rejected the submitted record.',
+    hint: text(databaseError.hint) || 'Review the submitted values and try again. If the issue continues, contact support with this error code.',
+    code,
+  };
+}
+
 async function removeCreatedRow(client: NonNullable<ReturnType<typeof adminClient>>, table: string, id: string) {
   const { error } = await client.from(table).delete().eq('id', id);
   if (error) console.error('Company registration rollback failed:', { table, id, error });
@@ -148,6 +195,67 @@ export default async function companyRegistration(request: any, response: any) {
         return;
       }
 
+      const requiredCompanyValues = [
+        ['Company short name', companyInput.short_name],
+        ['Address line 1', companyInput.address1],
+        ['City', companyInput.city],
+        ['State or region', companyInput.state],
+        ['Postcode', companyInput.postcode],
+        ['Country', companyInput.country],
+        ['Contact person name', companyInput.contact_name],
+        ['Contact email', companyInput.contact_email],
+        ['Contact mobile number', companyInput.contact_mobile],
+      ] as const;
+      const missingCompanyFields = requiredCompanyValues.filter(([, value]) => !text(value)).map(([label]) => label);
+      if (missingCompanyFields.length > 0) {
+        response.status(422).json({
+          error: 'Required company details are missing.',
+          details: `Missing fields: ${missingCompanyFields.join(', ')}.`,
+          hint: 'Return to the company form and complete these fields before submitting.',
+          code: 'COMPANY_VALIDATION_FAILED',
+        });
+        return;
+      }
+      if (!/^\S+@\S+\.\S+$/.test(text(companyInput.contact_email))) {
+        response.status(422).json({
+          error: 'The company contact email is invalid.',
+          details: `Received: ${text(companyInput.contact_email) || '(blank)'}.`,
+          hint: 'Enter a complete email address such as name@company.com.',
+          code: 'COMPANY_EMAIL_INVALID',
+        });
+        return;
+      }
+
+      let resolvedDepotId: string | null = null;
+      const requestedDepotId = optionalText(companyInput.depot_id || body.depot_id);
+      if (requestedDepotId) {
+        let depotResult = await client.from('depot_configs').select('*').eq('id', requestedDepotId).maybeSingle();
+        if (depotResult.error) throw new RegistrationWriteError('depot validation', depotResult.error);
+        if (!depotResult.data) {
+          depotResult = await client.from('depot_configs').select('*').eq('backend_depot_id', requestedDepotId).maybeSingle();
+          if (depotResult.error) throw new RegistrationWriteError('depot validation', depotResult.error);
+        }
+        if (!depotResult.data) {
+          response.status(422).json({
+            error: 'The imported depot ID is not recognized.',
+            details: `No configured depot matches "${requestedDepotId}".`,
+            hint: 'Download a fresh template or leave Depot ID blank; CargoMove will use the configured facility.',
+            code: 'DEPOT_NOT_FOUND',
+          });
+          return;
+        }
+        if (text(depotResult.data.port_id) !== portId) {
+          response.status(422).json({
+            error: 'The imported depot does not belong to the selected port.',
+            details: `Depot "${requestedDepotId}" is linked to a different port configuration.`,
+            hint: 'Choose the matching port or leave Depot ID blank.',
+            code: 'DEPOT_PORT_MISMATCH',
+          });
+          return;
+        }
+        resolvedDepotId = text(depotResult.data.id);
+      }
+
       const byUsername = await client.from('external_user_access').select('*').eq('username', username).maybeSingle();
       if (byUsername.error) throw new RegistrationWriteError('existing user check', byUsername.error);
       const byEmail = byUsername.data
@@ -172,6 +280,7 @@ export default async function companyRegistration(request: any, response: any) {
 
       const companyRow: Record<string, unknown> = {
         id: companyId,
+        details: {},
         status: 'ACTIVE',
         created_at: now.toISOString(),
         updated_at: now.toISOString(),
@@ -186,6 +295,7 @@ export default async function companyRegistration(request: any, response: any) {
       companyRow.registration_number = registrationNumber;
       companyRow.name = companyName;
       companyRow.short_name = text(companyInput.short_name).toUpperCase();
+      companyRow.depot_id = resolvedDepotId;
 
       const companyResult = await client.from('companies').insert(companyRow).select().single();
       if (companyResult.error) throw new RegistrationWriteError('company details', companyResult.error);
@@ -202,7 +312,7 @@ export default async function companyRegistration(request: any, response: any) {
         company_type: companyType,
         port_location: portLocation,
         port_id: portId,
-        depot_id: optionalText(companyInput.depot_id),
+        depot_id: resolvedDepotId,
         status: 'PENDING',
         submitted_at: now.toISOString(),
         submitted_by_name: text(companyInput.contact_name),
@@ -259,10 +369,13 @@ export default async function companyRegistration(request: any, response: any) {
     if (companyCreated) await removeCreatedRow(client, 'companies', companyId);
     const writeError = error instanceof RegistrationWriteError ? error : new RegistrationWriteError('registration', error);
     console.error('Company registration failed:', { step: writeError.step, error: writeError.databaseError });
-    response.status(writeError.databaseError?.code === '23505' ? 409 : 400).json({
-      error: writeError.databaseError?.code === '23505'
-        ? 'That company registration, username, or email already exists.'
-        : `Unable to save ${writeError.step}. Please verify the form and try again.`,
+    const failure = databaseFailureDetails(writeError);
+    response.status(failure.status).json({
+      error: failure.error,
+      details: failure.details,
+      hint: failure.hint,
+      code: failure.code,
+      step: writeError.step,
     });
   }
 }

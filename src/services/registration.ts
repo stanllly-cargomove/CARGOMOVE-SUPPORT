@@ -51,7 +51,11 @@ export async function submitRegistration(input: RegistrationRequest): Promise<{
     body: JSON.stringify(input),
   });
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(body.error || 'Unable to save the registration.');
+  if (!response.ok) {
+    const message = body.error || 'Unable to save the registration.';
+    const details = [body.details, body.hint, body.code ? `Error code: ${body.code}` : ''].filter(Boolean);
+    throw new Error([message, ...details].join('\n'));
+  }
   return { company: body.company || null, submission: body.submission };
 }
 
