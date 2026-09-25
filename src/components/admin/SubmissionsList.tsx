@@ -368,8 +368,8 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
 
       {/* Search and queue filters */}
       <div className="bg-white p-3 sm:p-4 rounded-xl border border-slate-200 shadow-sm">
-        <div className="flex flex-col gap-2 sm:gap-3">
-        <div className="relative w-full">
+        <div className="flex flex-col gap-2 sm:gap-3 lg:flex-row lg:items-center lg:gap-3">
+        <div className="relative w-full lg:min-w-0 lg:flex-1">
           <input
             type="text"
             value={searchTerm}
@@ -380,7 +380,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
         </div>
 
-        <div className="flex w-full flex-nowrap items-center gap-2 overflow-hidden sm:gap-3">
+        <div className="flex w-full flex-nowrap items-center gap-2 overflow-hidden sm:gap-3 lg:w-auto lg:flex-[1.8]">
 
           <label className="flex min-w-0 flex-[1.35] items-center gap-1.5 text-xs font-semibold text-slate-600">
             <select
