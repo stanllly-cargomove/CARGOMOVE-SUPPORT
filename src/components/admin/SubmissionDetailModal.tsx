@@ -14,6 +14,7 @@ import {
   Calendar,
 } from 'lucide-react';
 import { notifyError, notifySuccess, summarizeError } from '../common/notifications';
+import { formatAdminDateTime } from '../../utils/date';
 
 interface SubmissionDetailModalProps {
   submission: RegistrationSubmission | null;
@@ -106,7 +107,7 @@ export function SubmissionDetailModal({
               </div>
               <div className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-500">
                 <Calendar className="h-3.5 w-3.5" />
-                Submitted {new Date(submission.submitted_at).toLocaleString()}
+                Submitted {formatAdminDateTime(submission.submitted_at)}
               </div>
             </div>
           </div>
@@ -382,7 +383,7 @@ export function SubmissionDetailModal({
               </div>
               <div className="mt-1 break-all font-mono text-slate-700">{submission.export_filename || 'Filename unavailable'}</div>
               <div className="text-[11px] text-emerald-700 mt-0.5">
-                Exported on {new Date(submission.exported_at || '').toLocaleString()}
+                Exported on {formatAdminDateTime(submission.exported_at)}
               </div>
             </div>
           )}

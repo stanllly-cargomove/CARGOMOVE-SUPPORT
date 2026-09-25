@@ -1,4 +1,5 @@
 import type { SupportStatus } from '../../types/support';
+import { formatAdminDateTime } from '../date';
 export const SUPPORT_STATUS_LABELS: Record<SupportStatus, string> = {
   NEW: 'New',
   ANALYZING: 'Analyzing',
@@ -15,5 +16,5 @@ export function supportLabel(value: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 export function supportTime(value: string | null): string {
-  return value ? new Date(value).toLocaleString() : '—';
+  return value ? formatAdminDateTime(value) : '-';
 }

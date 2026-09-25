@@ -78,6 +78,11 @@ code, kbd, samp, pre {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
 }
 
+.admin-theme select option,
+.admin-theme select optgroup {
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
 @keyframes page-slide-forward {
   from {
     opacity: 0;

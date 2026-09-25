@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { notifyError, notifySuccess, notifyWarning } from '../common/notifications';
 import { COMPANY_STATES_BY_COUNTRY } from '../../constants/companyLocations';
+import { formatAdminDate } from '../../utils/date';
 
 type CompanySort = 'CREATED_DESC' | 'CREATED_ASC' | 'UPDATED_DESC' | 'NAME_ASC' | 'NAME_DESC';
 
@@ -133,7 +134,7 @@ export function CompanyMaster() {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Search by Registration No (AAAAAA-2) or Company Name..."
-            className="w-full px-3.5 py-2 pl-9 rounded-lg border border-slate-300 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            className="w-full px-3.5 py-2 pl-9 rounded-lg border border-slate-300 text-xs focus:border-slate-400 focus:outline-none"
           />
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
         </div>
@@ -145,7 +146,7 @@ export function CompanyMaster() {
               id="company-sort"
               value={sortBy}
               onChange={(event) => setSortBy(event.target.value as CompanySort)}
-              className="px-3 py-2 rounded-lg border border-slate-300 text-xs font-normal text-slate-700 bg-white focus:ring-2 focus:ring-blue-500"
+              className="px-3 py-2 rounded-lg border border-slate-300 text-xs font-normal text-slate-700 bg-white focus:border-slate-400 focus:outline-none"
             >
               <option value="CREATED_DESC">Latest added</option>
               <option value="CREATED_ASC">Oldest added</option>
@@ -159,7 +160,7 @@ export function CompanyMaster() {
           <select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
-            className="px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white focus:ring-2 focus:ring-blue-500"
+            className="px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white focus:border-slate-400 focus:outline-none"
           >
             <option value="ALL">All Types</option>
             <option value="FORWARDER">FORWARDER</option>
@@ -171,7 +172,7 @@ export function CompanyMaster() {
           <select
             value={portFilter}
             onChange={(e) => setPortFilter(e.target.value)}
-            className="px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white focus:ring-2 focus:ring-blue-500"
+            className="px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white focus:border-slate-400 focus:outline-none"
           >
             <option value="ALL">All Ports</option>
             {ports.map((p) => (
@@ -185,7 +186,7 @@ export function CompanyMaster() {
           <button
             type="button"
             onClick={() => setMissingIdOnly(!missingIdOnly)}
-            className={`px-3 py-2 rounded-lg text-xs font-bold border transition-colors whitespace-nowrap ${
+            className={`px-3 py-2 rounded-lg text-xs font-bold border transition-colors whitespace-nowrap focus:outline-none ${
               missingIdOnly
                 ? 'bg-amber-100 text-amber-800 border-amber-300'
                 : 'bg-slate-50 text-slate-600 border-slate-300 hover:bg-slate-100'
@@ -299,7 +300,7 @@ export function CompanyMaster() {
                       </td>
 
                       <td className="py-3 px-3 text-center text-[11px] text-slate-400">
-                        {new Date(comp.updated_at).toLocaleDateString()}
+                        {formatAdminDate(comp.updated_at)}
                       </td>
 
                       <td className="py-3 px-4 text-right">
@@ -338,7 +339,7 @@ export function CompanyMaster() {
               <select
                 value={pageSize}
                 onChange={(event) => setPageSize(Number(event.target.value))}
-                className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 focus:ring-2 focus:ring-blue-500"
+                className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 focus:border-slate-400 focus:outline-none"
                 aria-label="Companies per page"
               >
                 {PAGE_SIZE_OPTIONS.map((size) => <option key={size} value={size}>{size}</option>)}

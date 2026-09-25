@@ -33,6 +33,7 @@ import {
   Info,
 } from 'lucide-react';
 import { notifyError, notifySuccess, notifyWarning, summarizeError } from '../common/notifications';
+import { formatAdminDate } from '../../utils/date';
 
 interface SubmissionsListProps {
   status: SubmissionStatus;
@@ -453,7 +454,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
                   const companyName = sub.company_name.toUpperCase();
                   const companyType = (company?.company_type || sub.company_type || '—').toUpperCase();
                   const facility = sub.port_location === 'PORT_KLANG' ? 'PORT KLANG' : sub.port_location === 'JOHOR' ? 'JOHOR' : 'OTHER PORT';
-                  const submittedDate = new Date(sub.submitted_at).toLocaleDateString();
+                  const submittedDate = formatAdminDate(sub.submitted_at);
 
                   return (
                     <tr
