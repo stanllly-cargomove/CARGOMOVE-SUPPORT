@@ -37,6 +37,8 @@ export interface Company {
   forwarding_agent_id?: string;
   port_id?: string;
   depot_id?: string;
+  assigned_port_ids?: string[];
+  assigned_depot_ids?: string[];
   block?: string;
   address1?: string;
   address2?: string;

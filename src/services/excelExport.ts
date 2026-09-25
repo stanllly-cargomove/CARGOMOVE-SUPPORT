@@ -197,6 +197,20 @@ function resolveBackendDepotId(depotIdOrCode?: string): string {
   return found?.backend_depot_id || depotIdOrCode || '';
 }
 
+function resolveAssignedPortIds(portIds: string[], ports: PortConfig[]): string {
+  return portIds
+    .map((portId) => {
+      const port = ports.find((item) => item.id === portId || item.code === portId || item.display_name === portId);
+      return port?.backend_port_id || portId;
+    })
+    .filter(Boolean)
+    .join(',');
+}
+
+function resolveAssignedDepotIds(depotIds: string[]): string {
+  return depotIds.map((depotId) => resolveBackendDepotId(depotId)).filter(Boolean).join(',');
+}
+
 /**
  * Generates rows for Excel matching EXACT columns
  */
@@ -224,8 +238,18 @@ export function buildExcelRowData(
           forwarding_agent_id: comp?.forwarding_agent_id || compData.forwarding_agent_id,
         });
 
-        const portVal = resolveSubmissionPorts(sub, ports);
-        const depotVal = resolveBackendDepotId(comp?.depot_id || sub.depot_id || compData.depot_id);
+        const assignedPortIds = comp?.assigned_port_ids?.length
+          ? comp.assigned_port_ids
+          : compData.assigned_port_ids?.length ? compData.assigned_port_ids : [];
+        const assignedDepotIds = comp?.assigned_depot_ids?.length
+          ? comp.assigned_depot_ids
+          : compData.assigned_depot_ids?.length ? compData.assigned_depot_ids : [];
+        const portVal = assignedPortIds.length
+          ? resolveAssignedPortIds(assignedPortIds, ports)
+          : resolveSubmissionPorts(sub, ports);
+        const depotVal = assignedDepotIds.length
+          ? resolveAssignedDepotIds(assignedDepotIds)
+          : resolveBackendDepotId(comp?.depot_id || sub.depot_id || compData.depot_id);
 
         return {
           HAULIERID: idRes.haulier_id || '',

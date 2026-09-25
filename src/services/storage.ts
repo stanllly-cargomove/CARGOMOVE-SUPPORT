@@ -446,7 +446,7 @@ let remoteSyncInFlight: Promise<void> | null = null;
 let protectedWriteInFlight = false;
 
 function companyRow(company: Company) {
-  const { block, address1, address2, city, state, postcode, country, contact_name, contact_email, contact_designation, contact_mobile, office_phone, fax, ...master } = company;
+  const { assigned_port_ids, assigned_depot_ids, block, address1, address2, city, state, postcode, country, contact_name, contact_email, contact_designation, contact_mobile, office_phone, fax, ...master } = company;
   return {
     ...master,
     // Empty strings are not valid foreign keys in Postgres. The Company Master
@@ -466,6 +466,10 @@ function companyRow(company: Company) {
     contact_mobile,
     office_phone,
     fax,
+    details: {
+      assigned_port_ids: assigned_port_ids || (company.port_id ? [company.port_id] : []),
+      assigned_depot_ids: assigned_depot_ids || (company.depot_id ? [company.depot_id] : []),
+    },
   };
 }
 
@@ -857,6 +861,8 @@ export function getCompanies(): Company[] {
     const normalized = companies.map((company) => ({
       ...company,
       company_type: normalizeCompanyType(company.company_type),
+      assigned_port_ids: company.assigned_port_ids || (company.port_id ? [company.port_id] : []),
+      assigned_depot_ids: company.assigned_depot_ids || (company.depot_id ? [company.depot_id] : []),
     }));
     if (raw && JSON.stringify(companies) !== JSON.stringify(normalized)) {
       localStorage.setItem(STORAGE_KEYS.COMPANIES, JSON.stringify(normalized));

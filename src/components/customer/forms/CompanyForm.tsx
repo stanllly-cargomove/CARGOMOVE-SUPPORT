@@ -5,6 +5,7 @@ import { getAutoAssignedPorts } from '../../../services/storage';
 import { CompanyType, normalizeCompanyType } from '../../../services/companyHelper';
 import { notifyError, notifySuccess, notifyWarning } from '../../common/notifications';
 import { ArrowLeft, ArrowRight, Building2, Phone, CheckCircle2, Download, EllipsisVertical, LoaderCircle, Upload } from 'lucide-react';
+import { COMPANY_STATES_BY_COUNTRY as statesByCountry } from '../../../constants/companyLocations';
 
 interface CompanyFormProps {
   initialLocation: PortLocation;
@@ -14,28 +15,6 @@ interface CompanyFormProps {
   onSubmit: (data: CompanyFormData) => void;
   onBack: () => void;
 }
-
-const statesByCountry: Record<string, string[]> = {
-  Malaysia: [
-    'Johor',
-    'Kedah',
-    'Kelantan',
-    'Melaka',
-    'Negeri Sembilan',
-    'Pahang',
-    'Penang',
-    'Perak',
-    'Perlis',
-    'Sabah',
-    'Sarawak',
-    'Selangor',
-    'Terengganu',
-    'Kuala Lumpur',
-    'Labuan',
-    'Putrajaya',
-  ],
-  Singapore: ['Central Region', 'East Region', 'North Region', 'North-East Region', 'West Region'],
-};
 
 const companyExcelHeaders: Record<string, keyof CompanyFormData> = {
   NAME: 'name',

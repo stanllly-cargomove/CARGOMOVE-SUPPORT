@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { DepotConfig, PortConfig } from '../../types';
 import { deleteDepotConfig, deletePortConfig, getDepots, getPorts, saveDepot as persistDepot, savePort as persistPort, updateDepotConfig, updatePortConfig } from '../../services/storage';
 import { Anchor, Building2, Check, Edit2, MoreVertical, Plus, X } from 'lucide-react';
@@ -136,7 +137,7 @@ export function PortDepotConfig() {
                 {editing ? <input value={portForm.backend_port_id} onChange={(event) => setPortForm({ ...portForm, backend_port_id: event.target.value })} className="w-full rounded border border-slate-300 px-2 py-1.5" /> : port.backend_port_id}
               </td>
               <td className="px-3 py-2 text-right whitespace-nowrap">
-                {editing ? <RowActions onSave={() => savePort(port.id)} onCancel={() => setEditingPortId(null)} /> : <ActionMenu isOpen={openActionId === port.id} onToggle={() => setOpenActionId(openActionId === port.id ? null : port.id)} onEdit={() => { setOpenActionId(null); startPortEdit(port); }} onRemove={() => { setOpenActionId(null); setPendingRemoval({ type: 'port', id: port.id, name: port.display_name }); }} />}
+                {editing ? <RowActions onSave={() => savePort(port.id)} onCancel={() => setEditingPortId(null)} /> : <ActionMenu isOpen={openActionId === port.id} onToggle={() => setOpenActionId(openActionId === port.id ? null : port.id)} onClose={() => setOpenActionId(null)} onEdit={() => { setOpenActionId(null); startPortEdit(port); }} onRemove={() => { setOpenActionId(null); setPendingRemoval({ type: 'port', id: port.id, name: port.display_name }); }} />}
               </td>
             </tr>
           );
@@ -165,7 +166,7 @@ export function PortDepotConfig() {
                 {editing ? <input value={depotForm.backend_depot_id} onChange={(event) => setDepotForm({ ...depotForm, backend_depot_id: event.target.value })} className="w-full rounded border border-slate-300 px-2 py-1.5" /> : depot.backend_depot_id}
               </td>
               <td className="px-3 py-2 text-right whitespace-nowrap">
-                {editing ? <RowActions onSave={() => saveDepot(depot.id)} onCancel={() => setEditingDepotId(null)} /> : <ActionMenu isOpen={openActionId === depot.id} onToggle={() => setOpenActionId(openActionId === depot.id ? null : depot.id)} onEdit={() => { setOpenActionId(null); startDepotEdit(depot); }} onRemove={() => { setOpenActionId(null); setPendingRemoval({ type: 'depot', id: depot.id, name: depot.display_name }); }} />}
+                {editing ? <RowActions onSave={() => saveDepot(depot.id)} onCancel={() => setEditingDepotId(null)} /> : <ActionMenu isOpen={openActionId === depot.id} onToggle={() => setOpenActionId(openActionId === depot.id ? null : depot.id)} onClose={() => setOpenActionId(null)} onEdit={() => { setOpenActionId(null); startDepotEdit(depot); }} onRemove={() => { setOpenActionId(null); setPendingRemoval({ type: 'depot', id: depot.id, name: depot.display_name }); }} />}
               </td>
             </tr>
           );
@@ -225,23 +226,78 @@ function formatLocation(location: PortConfig['location']) {
 function ActionMenu({
   isOpen,
   onToggle,
+  onClose,
   onEdit,
   onRemove,
 }: {
   isOpen: boolean;
   onToggle: () => void;
+  onClose: () => void;
   onEdit: () => void;
   onRemove: () => void;
 }) {
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const [position, setPosition] = useState({ top: -9999, left: -9999 });
+
+  useLayoutEffect(() => {
+    if (!isOpen || !triggerRef.current || !menuRef.current) return;
+
+    const triggerRect = triggerRef.current.getBoundingClientRect();
+    const menuRect = menuRef.current.getBoundingClientRect();
+    const viewportPadding = 8;
+    const gap = 4;
+    const belowTop = triggerRect.bottom + gap;
+    const top = belowTop + menuRect.height <= window.innerHeight - viewportPadding
+      ? belowTop
+      : Math.max(viewportPadding, triggerRect.top - menuRect.height - gap);
+    const left = Math.min(
+      Math.max(viewportPadding, triggerRect.right - menuRect.width),
+      window.innerWidth - menuRect.width - viewportPadding,
+    );
+
+    setPosition({ top, left });
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleViewportChange = () => onClose();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+
+    window.addEventListener('resize', handleViewportChange);
+    window.addEventListener('scroll', handleViewportChange, true);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('resize', handleViewportChange);
+      window.removeEventListener('scroll', handleViewportChange, true);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, onClose]);
+
+  const popup = isOpen && typeof document !== 'undefined'
+    ? createPortal(
+      <>
+        <button type="button" tabIndex={-1} aria-label="Close actions" className="fixed inset-0 z-[70] h-full w-full cursor-default bg-transparent" onClick={onClose} />
+        <div
+          ref={menuRef}
+          role="menu"
+          style={{ top: position.top, left: position.left }}
+          className="fixed z-[80] w-32 rounded-lg border border-slate-200 bg-white py-1 text-left shadow-xl"
+        >
+          <button type="button" role="menuitem" onClick={onEdit} className="w-full px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">Edit</button>
+          <button type="button" role="menuitem" onClick={onRemove} className="w-full px-3 py-2 text-left text-xs font-semibold text-rose-600 hover:bg-rose-50">Remove</button>
+        </div>
+      </>,
+      document.body,
+    )
+    : null;
+
   return <div className="relative inline-block text-left">
-    <button type="button" onClick={onToggle} aria-label="Open actions" aria-haspopup="menu" aria-expanded={isOpen} title="Actions" className={`rounded-md p-1.5 ${isOpen ? 'bg-slate-200 text-slate-900' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}><MoreVertical className="w-4 h-4" /></button>
-    {isOpen && <>
-      <button type="button" aria-label="Close actions" className="fixed inset-0 z-20 h-full w-full cursor-default" onClick={onToggle} />
-      <div role="menu" className="absolute right-0 top-8 z-30 w-32 rounded-lg border border-slate-200 bg-white py-1 text-left shadow-xl">
-        <button type="button" role="menuitem" onClick={onEdit} className="w-full px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">Edit</button>
-        <button type="button" role="menuitem" onClick={onRemove} className="w-full px-3 py-2 text-left text-xs font-semibold text-rose-600 hover:bg-rose-50">Remove</button>
-      </div>
-    </>}
+    <button ref={triggerRef} type="button" onClick={onToggle} aria-label="Open actions" aria-haspopup="menu" aria-expanded={isOpen} title="Actions" className={`rounded-md p-1.5 ${isOpen ? 'bg-slate-200 text-slate-900' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}><MoreVertical className="w-4 h-4" /></button>
+    {popup}
   </div>;
 }
 

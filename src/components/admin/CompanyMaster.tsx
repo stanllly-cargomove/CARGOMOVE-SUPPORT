@@ -22,6 +22,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { notifyError, notifySuccess, notifyWarning } from '../common/notifications';
+import { COMPANY_STATES_BY_COUNTRY } from '../../constants/companyLocations';
 
 export function CompanyMaster() {
   const [companies, setCompanies] = useState<Company[]>(getCompanies());
@@ -59,7 +60,10 @@ export function CompanyMaster() {
     const matchesType = typeFilter === 'ALL' || normalizeCompanyType(comp.company_type) === typeFilter;
 
     // Port filter
-    const matchesPort = portFilter === 'ALL' || comp.port_id === portFilter;
+    const assignedPortIds = comp.assigned_port_ids?.length
+      ? comp.assigned_port_ids
+      : comp.port_id ? [comp.port_id] : [];
+    const matchesPort = portFilter === 'ALL' || assignedPortIds.includes(portFilter);
 
     // Missing ID filter
     const idInfo = getCompanyExternalId(comp);
@@ -242,9 +246,10 @@ export function CompanyMaster() {
                       </td>
 
                       <td className="py-3 px-3 text-center text-[11px] text-slate-600">
-                        {ports.find((p) => p.id === comp.port_id)?.location === 'JOHOR'
-                          ? 'JOHOR DEPOT'
-                          : 'PORT KLANG'}
+                        {(comp.assigned_port_ids?.length ? comp.assigned_port_ids : comp.port_id ? [comp.port_id] : [])
+                          .map((portId) => ports.find((port) => port.id === portId)?.display_name)
+                          .filter(Boolean)
+                          .join(', ') || 'Unassigned'}
                       </td>
 
                       <td className="py-3 px-3 text-center text-[11px] text-slate-400">
@@ -359,18 +364,20 @@ function CompanyEditModal({
     name: company?.name || '',
     short_name: company?.short_name || '',
     company_type: normalizeCompanyType(company?.company_type),
-    registration_number: company?.registration_number || '',
-    registration_number_old: company?.registration_number_old || '',
+    registration_number: company?.registration_number_old || company?.registration_number || '',
+    registration_number_old: company?.registration_number_old || company?.registration_number || '',
     registration_number_new: company?.registration_number_new || '',
     haulier_id: company?.haulier_id || '',
     forwarding_agent_id: company?.forwarding_agent_id || '',
     port_id: company?.port_id || ports[0]?.id || '',
     depot_id: company?.depot_id || '',
+    assigned_port_ids: company?.assigned_port_ids || (company?.port_id ? [company.port_id] : []),
+    assigned_depot_ids: company?.assigned_depot_ids || (company?.depot_id ? [company.depot_id] : []),
     block: company?.block || '',
     address1: company?.address1 || '',
     address2: company?.address2 || '',
     city: company?.city || '',
-    state: company?.state || '',
+    state: company?.state || COMPANY_STATES_BY_COUNTRY[company?.country || 'Malaysia'][0],
     postcode: company?.postcode || '',
     country: company?.country || 'Malaysia',
     contact_name: company?.contact_name || '',
@@ -384,7 +391,7 @@ function CompanyEditModal({
 
   const sections = [
     { title: 'Identity & Registration', description: 'Company identity and statutory registration details.' },
-    { title: 'Operations & IDs', description: 'Port routing, account identifiers, and master status.' },
+    { title: 'Operations & IDs', description: 'Port and depot assignments with external account identifiers.' },
     { title: 'Address & Contact', description: 'Registered address and primary contact details.' },
   ];
 
@@ -396,15 +403,16 @@ function CompanyEditModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name.trim() || !form.registration_number.trim()) {
-      const message = 'Company Name and Registration Number are required.';
+    const oldRegistrationNumber = form.registration_number_old?.trim() || '';
+    if (!form.name.trim() || !oldRegistrationNumber) {
+      const message = 'Company Name and Old Registration Number are required.';
       notifyWarning(message);
       return;
     }
 
     // Duplicate check if new or changed
-    if (checkDuplicateRegNo(form.registration_number, company?.id)) {
-      const message = `A company with registration number "${form.registration_number}" already exists in Master!`;
+    if (checkDuplicateRegNo(oldRegistrationNumber, company?.id)) {
+      const message = `A company with registration number "${oldRegistrationNumber}" already exists in Master!`;
       notifyWarning(message);
       return;
     }
@@ -416,13 +424,15 @@ function CompanyEditModal({
         name: form.name.trim().toUpperCase(),
         short_name: form.short_name.trim().toUpperCase(),
         company_type: form.company_type,
-        registration_number: form.registration_number.trim().toUpperCase(),
-        registration_number_old: form.registration_number_old.trim().toUpperCase(),
+        registration_number: oldRegistrationNumber.toUpperCase(),
+        registration_number_old: oldRegistrationNumber.toUpperCase(),
         registration_number_new: form.registration_number_new.trim().toUpperCase(),
         haulier_id: form.haulier_id.trim().toUpperCase(),
         forwarding_agent_id: form.forwarding_agent_id.trim().toUpperCase(),
-        port_id: form.port_id,
-        depot_id: form.depot_id,
+        port_id: form.assigned_port_ids?.[0] || '',
+        depot_id: form.assigned_depot_ids?.[0] || '',
+        assigned_port_ids: form.assigned_port_ids || [],
+        assigned_depot_ids: form.assigned_depot_ids || [],
         block: form.block.trim(),
         address1: form.address1.trim(),
         address2: form.address2.trim(),
@@ -486,8 +496,7 @@ function CompanyEditModal({
                 <Field label="Company Legal Name *" value={form.name} onChange={(value) => setField('name', value.toUpperCase())} className="uppercase sm:col-span-2" placeholder="LUMORA TECH SDN BHD" />
                 <Field label="Short Name" value={form.short_name} onChange={(value) => setField('short_name', value.toUpperCase())} className="uppercase" placeholder="LUMORA" />
                 <SelectField label="Company Category *" value={form.company_type} onChange={(value) => setField('company_type', value)} options={['FORWARDER', 'HAULAGE', 'TRANSPORT']} />
-                <Field label="Registration No (Primary) *" value={form.registration_number} onChange={(value) => setField('registration_number', value)} className="font-mono" placeholder="AAAAAA-2" />
-                <Field label="Old Registration No" value={form.registration_number_old || ''} onChange={(value) => setField('registration_number_old', value)} className="font-mono" placeholder="AAAAAA-2" />
+                <Field label="Old Registration No *" value={form.registration_number_old || ''} onChange={(value) => { setField('registration_number_old', value); setField('registration_number', value); }} className="font-mono" placeholder="AAAAAA-2" />
                 <Field label="SSM New 12-Digit Reg No" value={form.registration_number_new || ''} onChange={(value) => setField('registration_number_new', value)} className="font-mono" placeholder="201901004521" />
               </div>
             )}
@@ -496,9 +505,25 @@ function CompanyEditModal({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Field label="HAULIERID" value={form.haulier_id || ''} onChange={(value) => setField('haulier_id', value)} className="font-mono" placeholder="xyz456" />
                 <Field label="FORWARDING_AGENT_ID" value={form.forwarding_agent_id || ''} onChange={(value) => setField('forwarding_agent_id', value)} className="font-mono" placeholder="64abc123xyz" />
-                <SelectField label="Primary Port" value={form.port_id || ''} onChange={(value) => { setField('port_id', value); setField('depot_id', ''); }} options={ports.map((port) => ({ value: port.id, label: `${port.display_name} (${port.location})` }))} />
-                <SelectField label="Primary Depot" value={form.depot_id || ''} onChange={(value) => setField('depot_id', value)} options={[{ value: '', label: 'No depot assigned' }, ...depots.filter((depot) => !form.port_id || depot.port_id === form.port_id).map((depot) => ({ value: depot.id, label: depot.display_name }))]} />
-                <SelectField label="Master Status" value={form.status} onChange={(value) => setField('status', value as Company['status'])} options={['ACTIVE', 'INACTIVE']} />
+                <AssignmentField
+                  label="Assign to Ports"
+                  options={ports.map((port) => ({ value: port.id, label: `${port.display_name} (${port.location})` }))}
+                  values={form.assigned_port_ids || []}
+                  onChange={(values) => {
+                    const validDepotIds = (form.assigned_depot_ids || []).filter((depotId) => {
+                      const depot = depots.find((item) => item.id === depotId);
+                      return depot && values.includes(depot.port_id);
+                    });
+                    setForm((current) => ({ ...current, assigned_port_ids: values, assigned_depot_ids: validDepotIds, port_id: values[0] || '', depot_id: validDepotIds[0] || '' }));
+                  }}
+                />
+                <AssignmentField
+                  label="Assign to Depots"
+                  options={depots.filter((depot) => (form.assigned_port_ids || []).includes(depot.port_id)).map((depot) => ({ value: depot.id, label: depot.display_name }))}
+                  values={form.assigned_depot_ids || []}
+                  onChange={(values) => setForm((current) => ({ ...current, assigned_depot_ids: values, depot_id: values[0] || '' }))}
+                  emptyMessage={(form.assigned_port_ids || []).length ? 'No depots configured for the selected ports.' : 'Select at least one port first.'}
+                />
                 <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-[11px] text-blue-800 sm:col-span-2">
                   The active external ID is determined by company category. Keep the other ID populated only when this company needs both mappings.
                 </div>
@@ -508,11 +533,11 @@ function CompanyEditModal({
             {activeSection === 2 && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Field label="Block / Building" value={form.block || ''} onChange={(value) => setField('block', value)} />
-                <Field label="Country" value={form.country || ''} onChange={(value) => setField('country', value)} />
+                <SelectField label="Country" value={form.country || 'Malaysia'} onChange={(value) => setForm((current) => ({ ...current, country: value, state: COMPANY_STATES_BY_COUNTRY[value][0] }))} options={Object.keys(COMPANY_STATES_BY_COUNTRY)} />
                 <Field label="Address Line 1" value={form.address1 || ''} onChange={(value) => setField('address1', value)} className="sm:col-span-2" />
                 <Field label="Address Line 2" value={form.address2 || ''} onChange={(value) => setField('address2', value)} className="sm:col-span-2" />
                 <Field label="City" value={form.city || ''} onChange={(value) => setField('city', value)} />
-                <Field label="State" value={form.state || ''} onChange={(value) => setField('state', value)} />
+                <SelectField label="State / Region" value={form.state || ''} onChange={(value) => setField('state', value)} options={COMPANY_STATES_BY_COUNTRY[form.country || 'Malaysia']} />
                 <Field label="Postcode" value={form.postcode || ''} onChange={(value) => setField('postcode', value)} />
                 <Field label="Contact Person" value={form.contact_name || ''} onChange={(value) => setField('contact_name', value)} />
                 <Field label="Contact Designation" value={form.contact_designation || ''} onChange={(value) => setField('contact_designation', value)} />
@@ -543,155 +568,6 @@ function CompanyEditModal({
           </div>
         </form>
 
-        {false && <form onSubmit={handleSubmit} className="mt-4 space-y-4 text-xs">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2">
-              <label className="block font-semibold text-slate-700 mb-1">Company Legal Name *</label>
-              <input
-                type="text"
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 uppercase"
-                placeholder="LUMORA TECH SDN BHD"
-              />
-            </div>
-
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">Short Name *</label>
-              <input
-                type="text"
-                value={form.short_name}
-                onChange={(e) => setForm({ ...form, short_name: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 uppercase"
-                placeholder="LUMORA"
-              />
-            </div>
-
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">Company Category *</label>
-              <select
-                value={form.company_type}
-                onChange={(e) => setForm({ ...form, company_type: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 bg-white"
-              >
-                <option value="FORWARDER">FORWARDER (Uses FORWARDING_AGENT_ID)</option>
-                <option value="HAULAGE">HAULAGE (Uses HAULIERID)</option>
-                <option value="TRANSPORT">TRANSPORT (Uses FORWARDING_AGENT_ID)</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">
-                Old Registration No (Unique Primary Key) *
-              </label>
-              <input
-                type="text"
-                value={form.registration_number}
-                onChange={(e) => setForm({ ...form, registration_number: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 font-mono uppercase"
-                placeholder="AAAAAA-2"
-              />
-            </div>
-
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">SSM New 12-Digit Reg No</label>
-              <input
-                type="text"
-                value={form.registration_number_new}
-                onChange={(e) => setForm({ ...form, registration_number_new: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 font-mono"
-                placeholder="201901004521"
-              />
-            </div>
-
-            <div>
-              <label className="block font-semibold text-emerald-800 mb-1">
-                HAULIERID (for Haulage entities)
-              </label>
-              <input
-                type="text"
-                value={form.haulier_id}
-                onChange={(e) => setForm({ ...form, haulier_id: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-500 font-mono"
-                placeholder="xyz456"
-              />
-            </div>
-
-            <div>
-              <label className="block font-semibold text-blue-800 mb-1">
-                FORWARDING_AGENT_ID (for Forwarders)
-              </label>
-              <input
-                type="text"
-                value={form.forwarding_agent_id}
-                onChange={(e) => setForm({ ...form, forwarding_agent_id: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 font-mono"
-                placeholder="64abc123xyz"
-              />
-            </div>
-
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">Primary Port</label>
-              <select
-                value={form.port_id}
-                onChange={(e) => setForm({ ...form, port_id: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white"
-              >
-                {ports.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.display_name} ({p.location})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">City</label>
-              <input
-                type="text"
-                value={form.city}
-                onChange={(e) => setForm({ ...form, city: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg border border-slate-300"
-              />
-            </div>
-
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">Contact Person</label>
-              <input
-                type="text"
-                value={form.contact_name}
-                onChange={(e) => setForm({ ...form, contact_name: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg border border-slate-300"
-              />
-            </div>
-
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">Contact Mobile</label>
-              <input
-                type="text"
-                value={form.contact_mobile}
-                onChange={(e) => setForm({ ...form, contact_mobile: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg border border-slate-300"
-              />
-            </div>
-          </div>
-
-          <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-sm"
-            >
-              {isEditing ? 'Save Changes' : 'Create Master Company'}
-            </button>
-          </div>
-        </form>}
       </div>
     </div>
   );
@@ -743,5 +619,44 @@ function SelectField({
         })}
       </select>
     </label>
+  );
+}
+
+function AssignmentField({
+  label,
+  options,
+  values,
+  onChange,
+  emptyMessage = 'No options available.',
+}: {
+  label: string;
+  options: Array<{ value: string; label: string }>;
+  values: string[];
+  onChange: (values: string[]) => void;
+  emptyMessage?: string;
+}) {
+  const toggleValue = (value: string) => {
+    onChange(values.includes(value)
+      ? values.filter((current) => current !== value)
+      : [...values, value]);
+  };
+
+  return (
+    <fieldset className="rounded-lg border border-slate-200 p-3">
+      <legend className="px-1 font-semibold text-slate-700">{label}</legend>
+      <div className="max-h-28 space-y-1 overflow-y-auto pr-1">
+        {options.length ? options.map((option) => (
+          <label key={option.value} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-slate-700 hover:bg-slate-50">
+            <input
+              type="checkbox"
+              checked={values.includes(option.value)}
+              onChange={() => toggleValue(option.value)}
+              className="h-3.5 w-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+            />
+            <span>{option.label}</span>
+          </label>
+        )) : <p className="px-2 py-1.5 text-[11px] text-slate-400">{emptyMessage}</p>}
+      </div>
+    </fieldset>
   );
 }
