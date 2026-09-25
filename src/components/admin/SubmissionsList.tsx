@@ -41,6 +41,7 @@ interface SubmissionsListProps {
 }
 
 type IdFilter = 'ALL' | 'MISSING' | 'WITH_ID';
+type SubmissionSort = 'SUBMITTED_ASC' | 'SUBMITTED_DESC' | 'COMPANY_ASC' | 'COMPANY_DESC';
 
 interface ActionMenuPosition {
   id: string;
@@ -53,6 +54,20 @@ interface ActionMenuPosition {
 
 const ACTION_MENU_GAP = 4;
 const VIEWPORT_EDGE_PADDING = 8;
+const PAGE_SIZE_OPTIONS = [20, 30, 50];
+
+function defaultSortForStatus(status: SubmissionStatus): SubmissionSort {
+  return status === 'PENDING' ? 'SUBMITTED_ASC' : 'SUBMITTED_DESC';
+}
+
+function getVisiblePageNumbers(currentPage: number, totalPages: number): number[] {
+  const visibleCount = Math.min(5, totalPages);
+  const start = Math.min(
+    Math.max(1, currentPage - Math.floor(visibleCount / 2)),
+    totalPages - visibleCount + 1,
+  );
+  return Array.from({ length: visibleCount }, (_, index) => start + index);
+}
 
 const statusTitles: Record<SubmissionStatus, string> = {
   PENDING: 'Pending Registration Submissions',
@@ -73,6 +88,9 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
   const [typeFilter, setTypeFilter] = useState<RegistrationType | 'ALL'>(initialType);
   const [portFilter, setPortFilter] = useState<string>('ALL');
   const [idFilter, setIdFilter] = useState<IdFilter>('ALL');
+  const [sortBy, setSortBy] = useState<SubmissionSort>(() => defaultSortForStatus(status));
+  const [pageSize, setPageSize] = useState(20);
+  const [currentPage, setCurrentPage] = useState(1);
   const [openActionMenu, setOpenActionMenu] = useState<ActionMenuPosition | null>(null);
   const actionMenuRef = React.useRef<HTMLDivElement | null>(null);
 
@@ -100,11 +118,18 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
     setIdFilter('ALL');
     setRejectingSubmission(null);
     setPreview(null);
+    setSortBy(defaultSortForStatus(status));
+    setCurrentPage(1);
   }, [status]);
 
   React.useEffect(() => {
     setTypeFilter(initialType);
   }, [initialType]);
+
+  React.useEffect(() => {
+    setCurrentPage(1);
+    setOpenActionMenu(null);
+  }, [searchTerm, typeFilter, portFilter, idFilter, sortBy, pageSize]);
 
   // Keep the action list inside the viewport. In particular, rows near the
   // bottom edge need the list to open above the action button.
@@ -203,6 +228,21 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
 
     return matchesSearch && matchesType && matchesStatus && matchesPort && matchesId;
   });
+  const sortedSubmissions = [...filteredSubmissions].sort((left, right) => {
+    if (sortBy === 'COMPANY_ASC') return left.company_name.localeCompare(right.company_name);
+    if (sortBy === 'COMPANY_DESC') return right.company_name.localeCompare(left.company_name);
+    const dateDifference = Date.parse(left.submitted_at) - Date.parse(right.submitted_at);
+    return sortBy === 'SUBMITTED_ASC' ? dateDifference : -dateDifference;
+  });
+  const totalPages = Math.max(1, Math.ceil(sortedSubmissions.length / pageSize));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const pageStart = (safeCurrentPage - 1) * pageSize;
+  const paginatedSubmissions = sortedSubmissions.slice(pageStart, pageStart + pageSize);
+  const pageNumbers = getVisiblePageNumbers(safeCurrentPage, totalPages);
+
+  React.useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
 
   const handleBulkExport = () => {
     const selectedSubs = submissions.filter((s) => selectedIds.includes(s.id));
@@ -332,6 +372,21 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
 
         <div className="flex w-full flex-wrap items-center gap-2 md:ml-auto md:w-auto">
 
+          <label className="flex items-center gap-2 text-xs font-semibold text-slate-600">
+            <span className="whitespace-nowrap">Sort by</span>
+            <select
+              value={sortBy}
+              onChange={(event) => setSortBy(event.target.value as SubmissionSort)}
+              className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-xs font-normal text-slate-700 focus:border-slate-400 focus:outline-none"
+              aria-label="Sort registration submissions"
+            >
+              <option value="SUBMITTED_ASC">Oldest submitted</option>
+              <option value="SUBMITTED_DESC">Latest submitted</option>
+              <option value="COMPANY_ASC">Company name A-Z</option>
+              <option value="COMPANY_DESC">Company name Z-A</option>
+            </select>
+          </label>
+
           {/* Port Filter */}
           <select
             value={portFilter}
@@ -403,7 +458,8 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
         </div>
 
       {/* Submissions Table */}
-        <div className="overflow-x-auto rounded-b-xl rounded-tr-lg border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-hidden rounded-b-xl rounded-tr-lg border border-slate-200 bg-white shadow-sm">
+          <div className="overflow-x-auto">
           <table className="w-full min-w-[1120px] table-fixed text-left text-xs border-collapse">
             <colgroup>
               <col style={{ width: '4%' }} />
@@ -440,14 +496,14 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredSubmissions.length === 0 ? (
+              {paginatedSubmissions.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="py-8 text-center text-slate-500">
                     No submissions found matching criteria.
                   </td>
                 </tr>
               ) : (
-                filteredSubmissions.map((sub) => {
+                paginatedSubmissions.map((sub) => {
                   const company = sub.company_id ? getCompanyById(sub.company_id) : undefined;
                   const idInfo = getCompanyExternalId(company || { company_type: sub.company_type });
                   const isSelected = selectedIds.includes(sub.id);
@@ -610,6 +666,61 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
               )}
             </tbody>
           </table>
+          </div>
+          <div className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3 text-xs text-slate-500">
+              <span>
+                {sortedSubmissions.length
+                  ? `Showing ${pageStart + 1}-${Math.min(pageStart + pageSize, sortedSubmissions.length)} of ${sortedSubmissions.length}`
+                  : 'Showing 0 submissions'}
+              </span>
+              <label className="flex items-center gap-2">
+                <span>Show</span>
+                <select
+                  value={pageSize}
+                  onChange={(event) => setPageSize(Number(event.target.value))}
+                  className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 focus:border-slate-400 focus:outline-none"
+                  aria-label="Submissions per page"
+                >
+                  {PAGE_SIZE_OPTIONS.map((size) => <option key={size} value={size}>{size}</option>)}
+                </select>
+              </label>
+            </div>
+
+            <nav className="flex items-center gap-1" aria-label="Registration queue pagination">
+              <button
+                type="button"
+                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                disabled={safeCurrentPage === 1}
+                aria-label="Previous page"
+                title="Previous page"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <span aria-hidden="true">&lsaquo;</span>
+              </button>
+              {pageNumbers.map((page) => (
+                <button
+                  key={page}
+                  type="button"
+                  onClick={() => setCurrentPage(page)}
+                  aria-current={safeCurrentPage === page ? 'page' : undefined}
+                  className={`h-8 min-w-8 rounded-md px-2 text-xs font-semibold ${safeCurrentPage === page ? 'bg-blue-600 text-white' : 'border border-slate-300 bg-white text-slate-600 hover:bg-slate-100'}`}
+                >
+                  {page}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                disabled={safeCurrentPage === totalPages}
+                aria-label="Next page"
+                title="Next page"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <span aria-hidden="true">&rsaquo;</span>
+              </button>
+            </nav>
+          </div>
         </div>
       </div>
 

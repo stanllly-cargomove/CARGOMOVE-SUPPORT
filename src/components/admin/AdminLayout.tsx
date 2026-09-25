@@ -40,6 +40,8 @@ import { EmailTemplateManager } from './EmailTemplateManager';
 import { Logo } from '../common/Logo';
 import { notifyError, notifySuccess } from '../common/notifications';
 import { RegistrationType } from '../../types';
+import { getSubmissions, subscribeToStorage } from '../../services/storage';
+import { getExternalUserAccess, subscribeToExternalUserAccess } from '../../services/auth';
 import collapsedSidebarLogo from '../../../media/LOGO2.png';
 
 import { SupportInbox } from './support/SupportInbox';
@@ -79,6 +81,31 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [emailTemplateView, setEmailTemplateView] = useState<'list' | 'design'>('list');
+  const [pendingSubmissionCount, setPendingSubmissionCount] = useState(0);
+  const [pendingUserCount, setPendingUserCount] = useState(0);
+
+  useEffect(() => {
+    let disposed = false;
+    const refreshPendingCounts = () => {
+      setPendingSubmissionCount(getSubmissions().filter((submission) => submission.status === 'PENDING').length);
+      void getExternalUserAccess()
+        .then((users) => {
+          if (!disposed) setPendingUserCount(users.filter((user) => user.status === 'PENDING').length);
+        })
+        .catch(() => {
+          if (!disposed) setPendingUserCount(0);
+        });
+    };
+
+    const unsubscribeStorage = subscribeToStorage(refreshPendingCounts);
+    const unsubscribeUsers = subscribeToExternalUserAccess(refreshPendingCounts);
+    refreshPendingCounts();
+    return () => {
+      disposed = true;
+      unsubscribeStorage();
+      unsubscribeUsers();
+    };
+  }, []);
 
   const handleRefresh = async () => {
     if (isRefreshing) return;
@@ -167,6 +194,9 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
             const Icon = item.icon;
             const isRegistrationQueue = item.id === 'submissions';
             const isActive = isRegistrationQueue ? Boolean(activeQueueItem) : activeTab === item.id;
+            const notificationCount = isRegistrationQueue
+              ? pendingSubmissionCount
+              : item.id === 'user-registration' ? pendingUserCount : 0;
 
             return (
               <React.Fragment key={item.id}>
@@ -185,7 +215,7 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
                   aria-expanded={isRegistrationQueue ? isRegistrationQueueExpanded : undefined}
                   aria-label={isSidebarCollapsed ? item.label : undefined}
                   title={isSidebarCollapsed ? item.label : undefined}
-                  className={`w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs font-semibold transition-all ${isSidebarCollapsed ? 'md:justify-center md:px-2' : ''} ${
+                  className={`relative w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs font-semibold transition-all ${isSidebarCollapsed ? 'md:justify-center md:px-2' : ''} ${
                     isActive
                       ? 'bg-blue-600 text-white shadow-xs font-bold'
                       : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/80'
@@ -193,6 +223,14 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
                 >
                   <Icon className="w-4 h-4 shrink-0" />
                   <span className={`flex-1 text-left ${isSidebarCollapsed ? 'md:hidden' : ''}`}>{item.label}</span>
+                  {notificationCount > 0 && (
+                    <span
+                      aria-label={`${notificationCount} pending`}
+                      className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold leading-none text-white ${isSidebarCollapsed ? 'md:absolute md:right-1 md:top-1 md:h-4 md:min-w-4 md:px-0.5 md:text-[9px]' : ''}`}
+                    >
+                      {notificationCount > 99 ? '99+' : notificationCount}
+                    </span>
+                  )}
                   {isRegistrationQueue && (
                     <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ease-out ${isSidebarCollapsed ? 'md:hidden' : ''} ${isRegistrationQueueExpanded ? 'rotate-180' : ''}`} />
                   )}
@@ -226,7 +264,12 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
                             }`}
                           >
                             <QueueIcon className="h-3.5 w-3.5 shrink-0" />
-                            <span>{queueItem.label}</span>
+                            <span className="flex-1 text-left">{queueItem.label}</span>
+                            {queueItem.status === 'PENDING' && pendingSubmissionCount > 0 && (
+                              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold leading-none text-white">
+                                {pendingSubmissionCount > 99 ? '99+' : pendingSubmissionCount}
+                              </span>
+                            )}
                           </button>
                         );
                       })}

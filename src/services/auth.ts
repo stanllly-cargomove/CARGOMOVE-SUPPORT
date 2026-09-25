@@ -57,6 +57,7 @@ export async function updateExternalUserAccess(
   if (body.user?.id && externalUserCache) {
     externalUserCache.set(body.user.id, body.user);
     externalUserCursor = newestTimestamp(externalUserCursor, body.user.updated_at);
+    notifyExternalUserListeners();
   }
   return body.user;
 }
@@ -65,6 +66,16 @@ let externalUserCache: Map<string, ExternalUserAccess> | null = null;
 let externalUserCursor: string | undefined;
 let externalUserRefresh: Promise<boolean> | null = null;
 let externalUserRefreshedAt = 0;
+const externalUserListeners = new Set<() => void>();
+
+function notifyExternalUserListeners(): void {
+  externalUserListeners.forEach((listener) => listener());
+}
+
+export function subscribeToExternalUserAccess(listener: () => void): () => void {
+  externalUserListeners.add(listener);
+  return () => externalUserListeners.delete(listener);
+}
 
 function newestTimestamp(current: string | undefined, candidate: unknown) {
   if (typeof candidate !== 'string' || Number.isNaN(Date.parse(candidate))) return current;
@@ -100,6 +111,7 @@ export async function refreshExternalUserAccess(options: { fullSync?: boolean } 
       ? body.syncCursor
       : incoming.reduce((cursor, user) => newestTimestamp(cursor, user.updated_at), externalUserCursor);
     externalUserRefreshedAt = Date.now();
+    if (changed) notifyExternalUserListeners();
     return changed;
   })().finally(() => {
     externalUserRefresh = null;
