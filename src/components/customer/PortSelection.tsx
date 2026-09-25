@@ -3,6 +3,7 @@ import { PortLocation, PortConfig } from '../../types';
 import { Anchor, Truck, Check, ArrowRight } from 'lucide-react';
 import portHeroImage from '../../../media/registration-port-hero.png';
 import depotCardImage from '../../../media/registration-depot-card.png';
+import { Logo } from '../common/Logo';
 
 interface PortSelectionProps {
   selectedLocation: PortLocation | null;
@@ -29,8 +30,10 @@ export function PortSelection({
   return (
     <div className="mx-auto max-w-[1080px] space-y-5">
       <div className="text-center space-y-1 pt-0 sm:pt-0">
-        <h2 className="text-[28px] leading-tight sm:text-[32px] sm:leading-10 font-bold text-[#102a56]">
-          What are you <span className="text-[#008cf0]">registering for?</span>
+        <h2 className="flex flex-wrap items-center justify-center gap-x-2 text-[28px] font-bold leading-tight text-[#102a56] sm:text-[32px] sm:leading-10">
+          <span>What are you <span className="text-[#102a56]">registering</span></span>
+          <Logo size="lg" className="shrink-0 self-center translate-y-1" />
+          <span>for?</span>
         </h2>
         <p className="text-base leading-6 text-[#5b6b84]">Choose the option that matches your business.</p>
       </div>
@@ -41,8 +44,8 @@ export function PortSelection({
           onClick={handlePortKlangClick}
           className="group relative min-h-[300px] cursor-pointer overflow-hidden rounded-lg border border-[#d9e3ef] bg-white/92 p-5 shadow-[0_2px_8px_rgba(15,23,42,0.04)] backdrop-blur transition duration-200 hover:-translate-y-0.5 sm:p-6"
         >
-          <div className="pointer-events-none absolute -right-10 -top-6 hidden h-[140px] w-[190px] overflow-hidden rounded-bl-[64px] rounded-tl-[96px] bg-sky-50 opacity-95 sm:block sm:right-2 sm:top-2">
-            <img src={portHeroImage} alt="" className="h-full w-full object-cover object-left opacity-90" />
+          <div className="pointer-events-none absolute right-0 top-0 hidden h-[140px] w-[190px] overflow-hidden rounded-bl-[64px] rounded-tl-[96px] rounded-tr-[7px] bg-sky-50 sm:block">
+            <img src={portHeroImage} alt="" className="h-full w-full object-cover object-left" />
             <div className="absolute inset-0 bg-gradient-to-l from-transparent via-white/0 to-white/35" />
           </div>
 
@@ -91,8 +94,8 @@ export function PortSelection({
           onClick={handleJohorClick}
           className="group relative min-h-[300px] cursor-pointer overflow-hidden rounded-lg border border-[#d9e3ef] bg-white/92 p-5 shadow-[0_2px_8px_rgba(15,23,42,0.04)] backdrop-blur transition duration-200 hover:-translate-y-0.5 sm:p-6"
         >
-          <div className="pointer-events-none absolute -right-10 -top-6 hidden h-[140px] w-[190px] overflow-hidden rounded-bl-[64px] rounded-tl-[96px] bg-violet-50 opacity-95 sm:block sm:right-2 sm:top-2">
-            <img src={depotCardImage} alt="" className="h-full w-full object-cover object-center opacity-90" />
+          <div className="pointer-events-none absolute right-0 top-0 hidden h-[140px] w-[190px] overflow-hidden rounded-bl-[64px] rounded-tl-[96px] rounded-tr-[7px] bg-violet-50 sm:block">
+            <img src={depotCardImage} alt="" className="h-full w-full object-cover object-center" />
             <div className="absolute inset-0 bg-gradient-to-l from-transparent via-white/0 to-white/35" />
           </div>
 

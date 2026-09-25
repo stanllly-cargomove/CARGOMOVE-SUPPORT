@@ -123,7 +123,7 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
   const navItems = [
     { id: 'dashboard', label: 'Registration Dashboard', icon: LayoutDashboard },
     { id: 'submissions', label: 'Registration Queue', icon: Inbox },
-    { id: 'user-registration', label: 'User Access Registration', icon: UserRoundPlus },
+    { id: 'user-registration', label: 'User Access Reg.', icon: UserRoundPlus },
   ];
 
   const supportItems = [
@@ -226,7 +226,7 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
                   {notificationCount > 0 && (
                     <span
                       aria-label={`${notificationCount} pending`}
-                      className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold leading-none text-white ${isSidebarCollapsed ? 'md:absolute md:right-1 md:top-1 md:h-4 md:min-w-4 md:px-0.5 md:text-[9px]' : ''}`}
+                      className="absolute right-0 top-0 inline-flex h-5 min-w-5 translate-x-1/4 -translate-y-1/4 items-center justify-center rounded-full bg-orange-500 px-1 text-[10px] font-bold leading-none text-white shadow-sm"
                     >
                       {notificationCount > 99 ? '99+' : notificationCount}
                     </span>
@@ -257,7 +257,7 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
                             onClick={() => {
                               setActiveTab(queueItem.id);
                             }}
-                            className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
+                            className={`relative flex w-full items-center gap-3 rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
                               isQueueItemActive
                                 ? 'bg-slate-800 font-bold text-white'
                                 : 'text-slate-400 hover:bg-slate-800/80 hover:text-slate-100'
@@ -266,7 +266,7 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
                             <QueueIcon className="h-3.5 w-3.5 shrink-0" />
                             <span className="flex-1 text-left">{queueItem.label}</span>
                             {queueItem.status === 'PENDING' && pendingSubmissionCount > 0 && (
-                              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold leading-none text-white">
+                              <span className="absolute right-0 top-0 inline-flex h-5 min-w-5 translate-x-1/4 -translate-y-1/4 items-center justify-center rounded-full bg-orange-500 px-1 text-[10px] font-bold leading-none text-white shadow-sm">
                                 {pendingSubmissionCount > 99 ? '99+' : pendingSubmissionCount}
                               </span>
                             )}
