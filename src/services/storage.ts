@@ -1194,6 +1194,9 @@ export function updateSubmissionStatus(
   if (status === 'DONE' && !sub.reviewed_at) {
     sub.reviewed_at = new Date().toISOString();
   }
+  if (status === 'REJECTED') {
+    sub.reviewed_at = new Date().toISOString();
+  }
   if (notes !== undefined) {
     sub.admin_notes = notes;
   }
@@ -1222,6 +1225,7 @@ export async function rejectCompanySubmission(
     status: 'REJECTED',
     rejection_reason: reason,
     rejection_detail: rejectionDetail,
+    reviewed_at: new Date().toISOString(),
   };
   await upsertSupabaseRow('registration_submissions', rejected);
   const next = submissions.map((submission) => submission.id === submissionId ? rejected : submission);

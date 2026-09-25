@@ -60,6 +60,16 @@ function defaultSortForStatus(status: SubmissionStatus): SubmissionSort {
   return status === 'PENDING' ? 'SUBMITTED_ASC' : 'SUBMITTED_DESC';
 }
 
+function submissionSortTime(submission: RegistrationSubmission, status: SubmissionStatus): number {
+  if (status === 'REJECTED') {
+    return Date.parse(submission.reviewed_at || submission.submitted_at);
+  }
+  if (status === 'DONE') {
+    return Date.parse(submission.exported_at || submission.reviewed_at || submission.submitted_at);
+  }
+  return Date.parse(submission.submitted_at);
+}
+
 function getVisiblePageNumbers(currentPage: number, totalPages: number): number[] {
   const visibleCount = Math.min(5, totalPages);
   const start = Math.min(
@@ -231,7 +241,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
   const sortedSubmissions = [...filteredSubmissions].sort((left, right) => {
     if (sortBy === 'COMPANY_ASC') return left.company_name.localeCompare(right.company_name);
     if (sortBy === 'COMPANY_DESC') return right.company_name.localeCompare(left.company_name);
-    const dateDifference = Date.parse(left.submitted_at) - Date.parse(right.submitted_at);
+    const dateDifference = submissionSortTime(left, status) - submissionSortTime(right, status);
     return sortBy === 'SUBMITTED_ASC' ? dateDifference : -dateDifference;
   });
   const totalPages = Math.max(1, Math.ceil(sortedSubmissions.length / pageSize));
@@ -365,7 +375,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Search by Reference (REG-...) or Company..."
-            className="w-full px-3.5 py-2 pl-9 rounded-lg border border-slate-300 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            className="w-full px-3.5 py-2 pl-9 rounded-lg border border-slate-300 text-xs focus:border-slate-400 focus:outline-none focus:ring-0"
           />
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
         </div>
@@ -373,17 +383,17 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
         <div className="flex w-full flex-wrap items-center gap-2 md:ml-auto md:w-auto">
 
           <label className="flex items-center gap-2 text-xs font-semibold text-slate-600">
-            <span className="whitespace-nowrap">Sort by</span>
+            <span className="whitespace-nowrap uppercase">Sort by</span>
             <select
               value={sortBy}
               onChange={(event) => setSortBy(event.target.value as SubmissionSort)}
-              className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-xs font-normal text-slate-700 focus:border-slate-400 focus:outline-none"
+              className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold uppercase text-slate-700 focus:border-slate-400 focus:outline-none focus:ring-0"
               aria-label="Sort registration submissions"
             >
-              <option value="SUBMITTED_ASC">Oldest submitted</option>
-              <option value="SUBMITTED_DESC">Latest submitted</option>
-              <option value="COMPANY_ASC">Company name A-Z</option>
-              <option value="COMPANY_DESC">Company name Z-A</option>
+              <option value="SUBMITTED_ASC">{status === 'REJECTED' ? 'OLDEST REJECTED' : status === 'DONE' ? 'OLDEST COMPLETED' : 'OLDEST SUBMITTED'}</option>
+              <option value="SUBMITTED_DESC">{status === 'REJECTED' ? 'LATEST REJECTED' : status === 'DONE' ? 'LATEST COMPLETED' : 'LATEST SUBMITTED'}</option>
+              <option value="COMPANY_ASC">COMPANY NAME A-Z</option>
+              <option value="COMPANY_DESC">COMPANY NAME Z-A</option>
             </select>
           </label>
 
@@ -391,7 +401,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
           <select
             value={portFilter}
             onChange={(e) => setPortFilter(e.target.value)}
-            className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold uppercase focus:ring-2 focus:ring-blue-500"
+            className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold uppercase focus:border-slate-400 focus:outline-none focus:ring-0"
           >
             <option value="ALL">ALL FACILITIES</option>
             <option value="PORT_KLANG">PORT KLANG</option>
@@ -404,7 +414,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
               value={idFilter}
               onChange={(event) => setIdFilter(event.target.value as IdFilter)}
               aria-label="Filter submissions by CargoMove ID status"
-              className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold uppercase focus:ring-2 focus:ring-blue-500"
+              className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold uppercase focus:border-slate-400 focus:outline-none focus:ring-0"
             >
               <option value="ALL">ALL IDS</option>
               <option value="MISSING">MISSING ID</option>
