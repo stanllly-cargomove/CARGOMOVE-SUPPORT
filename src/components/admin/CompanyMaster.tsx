@@ -52,6 +52,14 @@ export function CompanyMaster() {
 
   const ports = getPorts();
 
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(max-width: 767px)');
+    const updateToolbarMode = () => setIsNarrowToolbar(mediaQuery.matches);
+    updateToolbarMode();
+    mediaQuery.addEventListener('change', updateToolbarMode);
+    return () => mediaQuery.removeEventListener('change', updateToolbarMode);
+  }, []);
+
   const refreshList = () => {
     setCompanies(getCompanies());
   };
@@ -126,7 +134,7 @@ export function CompanyMaster() {
           className="inline-flex items-center px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors shadow-sm self-start sm:self-auto"
         >
           <Plus className="w-4 h-4 mr-1.5" />
-          Add Master Company
+          Add Company
         </button>
       </div>
 
@@ -533,14 +541,6 @@ function CompanyEditModal({
   onSuccess: () => void;
 }) {
   const ports = getPorts();
-
-  useEffect(() => {
-    const mediaQuery = window.matchMedia('(max-width: 767px)');
-    const updateToolbarMode = () => setIsNarrowToolbar(mediaQuery.matches);
-    updateToolbarMode();
-    mediaQuery.addEventListener('change', updateToolbarMode);
-    return () => mediaQuery.removeEventListener('change', updateToolbarMode);
-  }, []);
   const depots = getDepots();
   const sortedPorts = [...ports].sort((left, right) => String(left.display_name || '').localeCompare(String(right.display_name || '')));
 
