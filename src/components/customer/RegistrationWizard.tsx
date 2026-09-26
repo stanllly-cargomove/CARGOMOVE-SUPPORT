@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Toaster } from 'react-hot-toast';
 import {
   PortLocation,
   RegistrationType,
@@ -442,6 +443,12 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
         isOpen={showTrackerModal}
         onClose={() => setShowTrackerModal(false)}
         initialRef={submittedRefNo}
+      />
+      <Toaster
+        position="top-center"
+        gutter={10}
+        containerStyle={{ top: 16 }}
+        toastOptions={{ duration: 4000 }}
       />
         </>
       )}

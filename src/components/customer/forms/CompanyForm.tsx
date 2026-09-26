@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { PortLocation, CompanyFormData } from '../../../types';
-import { getAutoAssignedPorts } from '../../../services/storage';
+import { findCompanyByRegNo, getAutoAssignedPorts } from '../../../services/storage';
+import { lookupRegisteredCompany } from '../../../services/registration';
 import { CompanyType, normalizeCompanyType } from '../../../services/companyHelper';
 import { notifyError, notifySuccess, notifyWarning } from '../../common/notifications';
 import { ArrowLeft, ArrowRight, Building2, Phone, CheckCircle2, Download, EllipsisVertical, LoaderCircle, Upload } from 'lucide-react';
@@ -153,6 +154,7 @@ export function CompanyForm({
   const [currentPage, setCurrentPage] = useState(initialPage);
   const [transitionDirection, setTransitionDirection] = useState<'forward' | 'backward'>('forward');
   const [isImportingExcel, setIsImportingExcel] = useState(false);
+  const [isPreflighting, setIsPreflighting] = useState(false);
   const [isExcelMenuOpen, setIsExcelMenuOpen] = useState(false);
   const touchStartX = useRef<number | null>(null);
   const excelInputRef = useRef<HTMLInputElement>(null);
@@ -246,8 +248,17 @@ export function CompanyForm({
       validationErrors.company_type = `Select a company category available for ${facilityLabel}.`;
     }
     if (!data.registration_number_old?.trim()) validationErrors.registration_number_old = 'Old Registration Number is required.';
+    if (!data.registration_number_new?.trim()) validationErrors.registration_number_new = 'New SSM registration number is required.';
     if (data.registration_number_new?.trim() && !/^\d{12}$/.test(data.registration_number_new.trim())) {
       validationErrors.registration_number_new = 'New SSM registration number must contain exactly 12 digits.';
+    }
+    const existingOldCompany = data.registration_number_old?.trim() ? findCompanyByRegNo(data.registration_number_old) : undefined;
+    const existingNewCompany = data.registration_number_new?.trim() ? findCompanyByRegNo(data.registration_number_new) : undefined;
+    if (existingOldCompany) {
+      validationErrors.registration_number_old = `This old registration number is already registered to ${existingOldCompany.name}.`;
+    }
+    if (existingNewCompany) {
+      validationErrors.registration_number_new = `This SSM registration number is already registered to ${existingNewCompany.name}.`;
     }
     if (!data.address1?.trim()) validationErrors.address1 = 'Address Line 1 is required.';
     if (!data.country?.trim() || !statesByCountry[data.country]) validationErrors.country = 'Select a supported country.';
@@ -394,15 +405,43 @@ export function CompanyForm({
     );
 
     setErrors(allErrors);
+    if (page === 1 && (allErrors.registration_number_old || allErrors.registration_number_new)?.includes('already registered')) {
+      notifyWarning('This company is already registered. You cannot continue with this registration.');
+    }
     return Object.keys(allErrors).length === 0;
   };
 
-  const handleNext = (event?: React.MouseEvent<HTMLButtonElement>) => {
-    event?.preventDefault();
-    if (validatePage(currentPage)) {
-      setTransitionDirection('forward');
-      setCurrentPage((page) => Math.min(page + 1, 3));
+  const preflightRegistrationCheck = async (): Promise<boolean> => {
+    if (isPreflighting) return false;
+    setIsPreflighting(true);
+    try {
+      const [oldCompany, newCompany] = await Promise.all([
+        lookupRegisteredCompany(formData.registration_number_old.trim()),
+        lookupRegisteredCompany(formData.registration_number_new.trim()),
+      ]);
+      const duplicateErrors: Record<string, string> = {};
+      if (oldCompany) duplicateErrors.registration_number_old = `This old registration number is already registered to ${oldCompany.name}.`;
+      if (newCompany) duplicateErrors.registration_number_new = `This SSM registration number is already registered to ${newCompany.name}.`;
+      if (Object.keys(duplicateErrors).length) {
+        setErrors((current) => ({ ...current, ...duplicateErrors }));
+        notifyWarning('This company is already registered. You cannot continue with this registration.');
+        return false;
+      }
+      return true;
+    } catch (error) {
+      notifyError(error instanceof Error ? error.message : 'Unable to complete the registration check. Please try again.');
+      return false;
+    } finally {
+      setIsPreflighting(false);
     }
+  };
+
+  const handleNext = async (event?: React.MouseEvent<HTMLButtonElement>) => {
+    event?.preventDefault();
+    if (!validatePage(currentPage)) return;
+    if (currentPage === 1 && !(await preflightRegistrationCheck())) return;
+    setTransitionDirection('forward');
+    setCurrentPage((page) => Math.min(page + 1, 3));
   };
 
   const handleBack = () => {
@@ -591,7 +630,7 @@ export function CompanyForm({
 
           <div>
             <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-              New Company Reg. Number (SSM 12-digit)
+              New Company Reg. Number (SSM 12-digit) <span className="text-rose-500">*</span>
             </label>
             <input
               type="text"
@@ -824,10 +863,11 @@ export function CompanyForm({
         {currentPage < 3 ? (
           <button
             type="button"
-            onClick={(event) => handleNext(event)}
-            className="inline-flex h-9 items-center gap-1.5 px-5 py-0 rounded text-xs font-bold text-white bg-[#0095e8] hover:bg-[#0078c8] transition-colors shadow-xs"
+            onClick={(event) => void handleNext(event)}
+            disabled={isPreflighting}
+            className="inline-flex h-9 items-center gap-1.5 px-5 py-0 rounded text-xs font-bold text-white bg-[#0095e8] hover:bg-[#0078c8] transition-colors shadow-xs disabled:cursor-wait disabled:opacity-60"
           >
-            Next
+            {isPreflighting ? 'Checking...' : 'Next'}
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
         ) : (

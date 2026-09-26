@@ -36,12 +36,16 @@ export function CompanyLookup({
       const found = await lookupRegisteredCompany(term);
       if (found) {
         if (found.status === 'INACTIVE') {
-          setErrorMsg(`Company "${found.name}" is currently inactive in the port master. Please contact port support.`);
+          setErrorMsg(`Company "${found.name}" is currently inactive. Please contact port support.`);
           return;
         }
         onSelectCompany(found);
       } else {
-        setErrorMsg(`No master company record found matching "${term}". Please ensure you entered the exact registration number or register your company first.`);
+        const compact = term.replace(/[\s-]+/g, '').toUpperCase();
+        const oldFormatSuggestion = /[A-Z]/.test(compact) && compact.length > 1
+          ? `${compact.slice(0, -1)}-${compact.slice(-1)}`
+          : '';
+        setErrorMsg(`No company record found matching "${term}".${oldFormatSuggestion && oldFormatSuggestion !== term.toUpperCase() ? ` Do you mean "${oldFormatSuggestion}" instead?` : ''} Please ensure you entered the correct registration number or register your company first.`);
       }
     } catch (error) {
       setErrorMsg(error instanceof Error ? error.message : 'Unable to verify the company right now.');
@@ -55,7 +59,7 @@ export function CompanyLookup({
       <div className="text-center mb-4">
         <h2 className="text-base font-bold text-slate-900 tracking-tight">Company Identification</h2>
         <p className="text-slate-500 text-xs mt-0.5">
-          Driver, Trailer, and Vehicle assets must be linked to a verified registered company in the port master database.
+          Driver, Trailer, and Vehicle assets must be linked to a verified registered company.
         </p>
       </div>
 
@@ -73,10 +77,14 @@ export function CompanyLookup({
               type="text"
               value={query}
               onChange={(e) => {
-                setQuery(e.target.value);
+                setQuery(e.target.value.replace(/\s+/g, ''));
                 setErrorMsg('');
               }}
               onKeyDown={(e) => {
+                if (e.key === ' ') {
+                  e.preventDefault();
+                  return;
+                }
                 if (e.key === 'Enter') void handleSearch();
               }}
               placeholder="Enter the registered company number"
@@ -117,37 +125,36 @@ export function CompanyLookup({
 
       {/* Success Verified Company Card */}
       {selectedCompany && (
-        <div className="bg-white rounded-lg border-2 border-emerald-500/70 p-4 shadow-xs">
-          <div className="flex items-start justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                <CheckCircle2 className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="text-[10px] uppercase font-bold text-emerald-700">Verified Master Record Found</div>
-                <h3 className="text-sm font-bold text-slate-900">{selectedCompany.name}</h3>
-                <div className="text-xs text-slate-500 font-mono mt-0.5">
-                  Reg: {selectedCompany.registration_number} {selectedCompany.registration_number_new ? `(${selectedCompany.registration_number_new})` : ''}
-                </div>
-              </div>
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 shadow-sm">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white shadow-sm">
+              <CheckCircle2 className="h-5 w-5" />
             </div>
-
-            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 uppercase">
-              {selectedCompany.company_type}
-            </span>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">Verified company</div>
+                <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-bold uppercase text-emerald-800 shadow-sm">
+                  {selectedCompany.company_type}
+                </span>
+              </div>
+              <h3 className="mt-1 text-base font-bold leading-tight text-slate-900">{selectedCompany.name}</h3>
+              <p className="mt-1 text-[11px] text-slate-500">This company is registered with CargoMove.</p>
+            </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 mt-3 pt-3 text-xs">
-            <div>
-              <span className="text-[10px] text-slate-400 block font-semibold">Registered Port Corridor</span>
-              <span className="font-medium text-slate-800">Johor Port</span>
-            </div>
-            <div>
-              <span className="text-[10px] text-slate-400 block font-semibold">Pre-Configured Backend ID</span>
-              <span className="font-mono font-bold text-slate-800">
-                {selectedCompany.haulier_id || selectedCompany.forwarding_agent_id || 'Will be auto-assigned on approval'}
+          <div className="mt-4 grid grid-cols-1 gap-2 border-t border-emerald-200/70 pt-3 text-xs sm:grid-cols-2">
+            <div className="rounded-lg bg-white/80 px-3 py-2">
+              <span className="block text-[10px] font-semibold uppercase tracking-wide text-slate-400">Registration number</span>
+              <span className="mt-1 block font-mono font-bold text-slate-800">
+                {selectedCompany.registration_number}
               </span>
             </div>
+            {selectedCompany.registration_number_new && (
+              <div className="rounded-lg bg-white/80 px-3 py-2">
+                <span className="block text-[10px] font-semibold uppercase tracking-wide text-slate-400">SSM registration</span>
+                <span className="mt-1 block font-mono font-bold text-slate-800">{selectedCompany.registration_number_new}</span>
+              </div>
+            )}
           </div>
         </div>
       )}

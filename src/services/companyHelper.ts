@@ -30,7 +30,7 @@ export function normalizeCompanyCategory(typeStr: string = ''): CompanyCategory 
  * Strips whitespace, forces uppercase.
  */
 export function normalizeRegNo(regNo: string = ''): string {
-  return regNo.trim().toUpperCase().replace(/\s+/g, '');
+  return regNo.trim().toUpperCase().replace(/[\s-]+/g, '');
 }
 
 /**
