@@ -1,7 +1,22 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Company, DriverData, PortConfig } from '../../../types';
 import { getAutoAssignedPorts } from '../../../services/storage';
-import { Building2, CheckCircle2, Plus, Trash2, IdCard, User, Phone } from 'lucide-react';
+import { CheckCircle2, Plus, Trash2, IdCard, User, ChevronDown } from 'lucide-react';
+import { CompanyContextCard } from '../CompanyContextCard';
+
+const COUNTRY_OPTIONS = [
+  { code: '+60', country: 'Malaysia' },
+  { code: '+62', country: 'Indonesia' },
+  { code: '+65', country: 'Singapore' },
+] as const;
+type CountryCode = (typeof COUNTRY_OPTIONS)[number]['code'];
+
+// Malaysia is stored locally; Indonesia and Singapore retain their international country code.
+const toStoredMobileNumber = (value: string, countryCode: CountryCode) => {
+  const digits = value.replace(/^0+/, '');
+  if (!digits) return countryCode === '+60' ? '0' : countryCode;
+  return countryCode === '+60' ? `0${digits}` : `${countryCode}${digits}`;
+};
 
 interface DriverFormProps {
   company: Company;
@@ -16,16 +31,34 @@ export function DriverForm({ company, onSubmit, onBack }: DriverFormProps) {
   const [drivers, setDrivers] = useState<DriverData[]>([
     { driving_license: '', name: '', mobile_no: '' },
   ]);
+  const [mobileCountryCodes, setMobileCountryCodes] = useState<CountryCode[]>(['+60']);
+  const [openCountryIndex, setOpenCountryIndex] = useState<number | null>(null);
+  const countryDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (openCountryIndex === null) return;
+
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (!countryDropdownRef.current?.contains(event.target as Node)) {
+        setOpenCountryIndex(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [openCountryIndex]);
 
   const [errors, setErrors] = useState<{ [index: number]: Partial<Record<keyof DriverData, string>> }>({});
 
   const handleAddRow = () => {
     setDrivers((prev) => [...prev, { driving_license: '', name: '', mobile_no: '' }]);
+    setMobileCountryCodes((prev) => [...prev, '+60']);
   };
 
   const handleRemoveRow = (index: number) => {
     if (drivers.length <= 1) return;
     setDrivers((prev) => prev.filter((_, i) => i !== index));
+    setMobileCountryCodes((prev) => prev.filter((_, i) => i !== index));
     setErrors((prev) => {
       const next = { ...prev };
       delete next[index];
@@ -55,7 +88,10 @@ export function DriverForm({ company, onSubmit, onBack }: DriverFormProps) {
     drivers.forEach((driver, idx) => {
       const rowErrs: Partial<Record<keyof DriverData, string>> = {};
       if (!driver.driving_license.trim()) {
-        rowErrs.driving_license = 'Licence/NRIC is required.';
+        rowErrs.driving_license = 'NRIC or passport number is required.';
+        isValid = false;
+      } else if (!/^\d+$/.test(driver.driving_license)) {
+        rowErrs.driving_license = 'Use numbers only, without spaces or dashes.';
         isValid = false;
       }
       if (!driver.name.trim()) {
@@ -64,6 +100,9 @@ export function DriverForm({ company, onSubmit, onBack }: DriverFormProps) {
       }
       if (!driver.mobile_no.trim()) {
         rowErrs.mobile_no = 'Mobile is required.';
+        isValid = false;
+      } else if (!/^\d+$/.test(driver.mobile_no)) {
+        rowErrs.mobile_no = 'Use numbers only, without spaces or dashes.';
         isValid = false;
       }
       if (Object.keys(rowErrs).length > 0) {
@@ -78,7 +117,10 @@ export function DriverForm({ company, onSubmit, onBack }: DriverFormProps) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (validate()) {
-      onSubmit(drivers);
+      onSubmit(drivers.map((driver, index) => ({
+        ...driver,
+        mobile_no: toStoredMobileNumber(driver.mobile_no, mobileCountryCodes[index]),
+      })));
     }
   };
 
@@ -100,30 +142,10 @@ export function DriverForm({ company, onSubmit, onBack }: DriverFormProps) {
 
       </div>
 
-      {/* Verified Company & Auto Port Context Box */}
-      <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded bg-sky-100 text-[#0090e7] flex items-center justify-center font-bold">
-            <Building2 className="w-4 h-4" />
-          </div>
-          <div>
-            <div className="text-[10px] text-slate-400 uppercase font-bold">Registered Company</div>
-            <div className="text-xs font-bold text-slate-900">{company.name}</div>
-            <div className="text-[11px] text-slate-500">
-              Reg: <span className="font-mono">{company.registration_number}</span> &bull; Type: {company.company_type}
-            </div>
-          </div>
-        </div>
-
-        <div className="text-right">
-          <div className="text-[10px] text-slate-400 uppercase font-bold">Assigned Facilities</div>
-          <div className="text-xs font-bold text-sky-700">{autoPorts.portNames.join(', ')}</div>
-          <div className="text-[10px] text-slate-500 font-medium">Johor Operations</div>
-        </div>
-      </div>
+      <CompanyContextCard company={company} assignedFacilities={autoPorts.portNames} />
 
       {/* Multi-Row Driver Entries */}
-      <div className="bg-white rounded-lg border border-slate-200 shadow-xs overflow-hidden">
+      <div className="bg-white rounded-lg border border-slate-200 shadow-xs overflow-visible">
         <div className="px-4 py-2.5 bg-slate-50 flex items-center justify-between">
           <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
             Driver List ({drivers.length})
@@ -164,14 +186,20 @@ export function DriverForm({ company, onSubmit, onBack }: DriverFormProps) {
                 {/* Driving Licence / NRIC */}
                 <div>
                   <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
-                    Driving Licence / NRIC <span className="text-rose-500">*</span>
+                    NRIC / Passport <span className="text-rose-500">*</span>
                   </label>
                   <div className="relative">
                     <input
                       type="text"
                       value={driver.driving_license}
-                      onChange={(e) => handleFieldChange(index, 'driving_license', e.target.value.toUpperCase())}
-                      placeholder="DL-880521019943 or 880521019943"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      onChange={(e) => {
+                        if (/^\d*$/.test(e.target.value)) {
+                          handleFieldChange(index, 'driving_license', e.target.value);
+                        }
+                      }}
+                      placeholder="e.g. 000000000000"
                       className="w-full px-2 py-1.5 pl-7 rounded border border-slate-300 text-xs font-mono uppercase focus:ring-1 focus:ring-sky-500 focus:outline-none bg-white"
                     />
                     <IdCard className="w-3.5 h-3.5 text-slate-400 absolute left-2 top-2" />
@@ -207,14 +235,54 @@ export function DriverForm({ company, onSubmit, onBack }: DriverFormProps) {
                     Mobile Phone Number <span className="text-rose-500">*</span>
                   </label>
                   <div className="relative">
-                    <input
-                      type="text"
-                      value={driver.mobile_no}
-                      onChange={(e) => handleFieldChange(index, 'mobile_no', e.target.value)}
-                      placeholder="+60183399210"
-                      className="w-full px-2 py-1.5 pl-7 rounded border border-slate-300 text-xs focus:ring-1 focus:ring-sky-500 focus:outline-none bg-white"
-                    />
-                    <Phone className="w-3.5 h-3.5 text-slate-400 absolute left-2 top-2" />
+                    <div className="flex">
+                      <div ref={index === openCountryIndex ? countryDropdownRef : undefined} className="relative shrink-0">
+                        <button
+                          type="button"
+                          aria-label="Country code"
+                          aria-expanded={openCountryIndex === index}
+                          onClick={() => setOpenCountryIndex(openCountryIndex === index ? null : index)}
+                          className="flex h-full items-center gap-1 rounded-l border border-slate-300 border-r-0 bg-slate-50 px-1.5 py-1.5 text-xs font-medium text-slate-700 focus:ring-1 focus:ring-sky-500 focus:outline-none"
+                        >
+                          <span>{mobileCountryCodes[index]}</span>
+                          <ChevronDown className="h-3 w-3" />
+                        </button>
+                        {openCountryIndex === index && (
+                          <div className="absolute left-0 top-full z-20 mt-1 min-w-[11rem] overflow-hidden rounded border border-slate-300 bg-white shadow-lg">
+                            {COUNTRY_OPTIONS.map(({ code, country }) => (
+                              <button
+                                key={code}
+                                type="button"
+                                onClick={() => {
+                                  setMobileCountryCodes((prev) => {
+                                    const next = [...prev];
+                                    next[index] = code;
+                                    return next;
+                                  });
+                                  setOpenCountryIndex(null);
+                                }}
+                                className="flex w-full items-center gap-2 px-2 py-1.5 text-left text-xs text-slate-700 hover:bg-sky-50"
+                              >
+                                <span>{code} {country}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        value={driver.mobile_no}
+                        onChange={(e) => {
+                          if (/^\d*$/.test(e.target.value)) {
+                            handleFieldChange(index, 'mobile_no', e.target.value);
+                          }
+                        }}
+                        placeholder="e.g. 0000000000"
+                        className="min-w-0 flex-1 rounded-r border border-slate-300 px-2 py-1.5 text-xs focus:ring-1 focus:ring-sky-500 focus:outline-none bg-white"
+                      />
+                    </div>
                   </div>
                   {errors[index]?.mobile_no && (
                     <p className="text-[10px] text-rose-600 mt-0.5">{errors[index]?.mobile_no}</p>

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Company, TrailerData, PortConfig } from '../../../types';
 import { getAutoAssignedPorts } from '../../../services/storage';
-import { Building2, CheckCircle2, Plus, Trash2, Container, Scale } from 'lucide-react';
+import { CheckCircle2, Plus, Trash2, Container, Scale } from 'lucide-react';
+import { CompanyContextCard } from '../CompanyContextCard';
 
 interface TrailerFormProps {
   company: Company;
@@ -113,27 +114,7 @@ export function TrailerForm({ company, onSubmit, onBack }: TrailerFormProps) {
 
       </div>
 
-      {/* Verified Company & Auto Port Context Box */}
-      <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded bg-sky-100 text-[#0090e7] flex items-center justify-center font-bold">
-            <Building2 className="w-4 h-4" />
-          </div>
-          <div>
-            <div className="text-[10px] text-slate-400 uppercase font-bold">Registered Company</div>
-            <div className="text-xs font-bold text-slate-900">{company.name}</div>
-            <div className="text-[11px] text-slate-500">
-              Reg: <span className="font-mono">{company.registration_number}</span> &bull; Type: {company.company_type}
-            </div>
-          </div>
-        </div>
-
-        <div className="text-right">
-          <div className="text-[10px] text-slate-400 uppercase font-bold">Assigned Facilities</div>
-          <div className="text-xs font-bold text-sky-700">{autoPorts.portNames.join(', ')}</div>
-          <div className="text-[10px] text-slate-500 font-medium">Johor Operations</div>
-        </div>
-      </div>
+      <CompanyContextCard company={company} assignedFacilities={autoPorts.portNames} />
 
       {/* Multi-Row Trailer Entries */}
       <div className="bg-white rounded-lg border border-slate-200 shadow-xs overflow-hidden">

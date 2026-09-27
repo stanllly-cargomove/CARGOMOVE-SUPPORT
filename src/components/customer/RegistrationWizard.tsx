@@ -220,7 +220,7 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
               type="button"
               onClick={handleReset}
               aria-label="Go to main registration page"
-              className="shrink-0 rounded-sm transition-opacity hover:opacity-85 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2 focus:ring-offset-[#0b1930] sm:hidden"
+              className="shrink-0 rounded-sm transition-opacity hover:opacity-85 focus:outline-none focus:ring-0 focus:ring-offset-0 sm:hidden"
             >
               <Logo size="sm" light />
             </button>
@@ -228,7 +228,7 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
               type="button"
               onClick={handleReset}
               aria-label="Go to main registration page"
-              className="hidden shrink-0 rounded-sm transition-opacity hover:opacity-85 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2 focus:ring-offset-[#0b1930] sm:block"
+              className="hidden shrink-0 rounded-sm transition-opacity hover:opacity-85 focus:outline-none focus:ring-0 focus:ring-offset-0 sm:block"
             >
               <Logo size="md" light />
             </button>

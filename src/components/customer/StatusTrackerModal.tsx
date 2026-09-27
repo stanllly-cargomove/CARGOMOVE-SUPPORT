@@ -109,7 +109,7 @@ export function StatusTrackerModal({
 
             <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-slate-200/60">
               <div>
-                <span className="text-slate-500 block">Asset / Category:</span>
+                <span className="text-slate-500 block">Registration type:</span>
                 <span className="font-semibold text-slate-800">{tracking.registration_type}</span>
               </div>
               <div>
@@ -117,7 +117,7 @@ export function StatusTrackerModal({
                 <span className="font-semibold text-slate-800">{tracking.company_name}</span>
               </div>
               <div>
-                <span className="text-slate-500 block">Facility:</span>
+                <span className="text-slate-500 block">Facility/Port:</span>
                 <span className="font-semibold text-slate-800">{tracking.port_location === 'PORT_KLANG' ? 'Port Klang' : tracking.port_location === 'JOHOR' ? 'Johor' : 'Other'}</span>
               </div>
               <div>
@@ -136,7 +136,7 @@ export function StatusTrackerModal({
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   <tr>
-                    <td className="px-3 py-2 text-slate-700">Application review</td>
+                    <td className="px-3 py-2 text-slate-700">Application review and registration</td>
                     <td className="px-3 py-2 text-right font-semibold text-slate-800">
                       {tracking.submission_status === 'DONE' ? 'Done' : tracking.submission_status === 'REJECTED' ? 'Rejected' : 'Pending'}
                     </td>
@@ -144,7 +144,7 @@ export function StatusTrackerModal({
                   {tracking.registration_type === 'COMPANY' && (
                     <tr>
                       <td className="px-3 py-2 text-slate-700">
-                        {tracking.status === 'REJECTED' ? 'Rejection notification email' : 'Welcome email'}
+                        {tracking.status === 'REJECTED' ? 'Rejection notification email' : 'Confirmation Email'}
                       </td>
                       <td className="px-3 py-2 text-right font-semibold text-slate-800">
                         {tracking.user_email_sent ? 'Sent' : 'Pending'}
@@ -158,14 +158,14 @@ export function StatusTrackerModal({
             {tracking.status === 'PENDING' && (
               <div className="mt-2 p-2 rounded bg-amber-100/60 text-[11px] text-amber-800 flex items-center gap-1.5">
                 <Clock className="w-4 h-4 text-amber-700 shrink-0" />
-                <span>Your application is being processed. Company registrations are successful only after approval and the welcome email is sent.</span>
+                <span>Your application is being processed. Company registrations are successful only after approval and the confirmation email is sent.</span>
               </div>
             )}
 
             {tracking.status === 'SUCCESS' && (
               <div className="mt-2 p-2 rounded bg-emerald-100/60 text-[11px] text-emerald-800 flex items-center gap-1.5">
                 <CheckCircle className="w-4 h-4 text-emerald-700 shrink-0" />
-                <span>Your registration is successful{tracking.registration_type === 'COMPANY' ? ' and the welcome email has been sent.' : '.'}</span>
+                <span>Your registration is successful{tracking.registration_type === 'COMPANY' ? ' and the confirmation email has been sent.' : '.'}</span>
               </div>
             )}
 
