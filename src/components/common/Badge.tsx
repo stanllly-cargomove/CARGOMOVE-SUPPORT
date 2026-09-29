@@ -1,5 +1,19 @@
 import React from 'react';
 
+export function CargoMoveIdBadge({ id }: { id: string }) {
+  const displayId = id.length > 8 ? `${id.slice(0, 4)}...${id.slice(-4)}` : id;
+
+  return (
+    <span
+      className="inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 font-mono text-xs font-semibold text-slate-700"
+      title={`CargoMove ID: ${id}`}
+      aria-label={`CargoMove ID: ${id}`}
+    >
+      {displayId}
+    </span>
+  );
+}
+
 export function StatusBadge({ status }: { status: string }) {
   switch (status) {
     case 'ACTIVE':

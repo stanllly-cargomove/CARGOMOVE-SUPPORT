@@ -26,6 +26,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { notifyError, notifySuccess, notifyWarning } from '../common/notifications';
+import { CargoMoveIdBadge } from '../common/Badge';
 import { COMPANY_STATES_BY_COUNTRY } from '../../constants/companyLocations';
 import { formatAdminDate } from '../../utils/date';
 
@@ -272,7 +273,7 @@ export function CompanyMaster() {
                         <div className="flex flex-wrap items-center gap-1.5">
                           {(isHaulier || comp.haulier_id) && (
                             comp.haulier_id ? (
-                              <span title="Haulier ID">{comp.haulier_id}</span>
+                              <CargoMoveIdBadge id={comp.haulier_id} />
                             ) : (
                               <button
                                 type="button"
@@ -287,7 +288,7 @@ export function CompanyMaster() {
 
                           {(isForwarder || comp.forwarding_agent_id) && (
                             comp.forwarding_agent_id ? (
-                              <span title="Forwarding Agent ID">{comp.forwarding_agent_id}</span>
+                              <CargoMoveIdBadge id={comp.forwarding_agent_id} />
                             ) : (
                               <button
                                 type="button"

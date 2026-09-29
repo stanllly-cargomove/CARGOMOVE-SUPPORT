@@ -3,7 +3,7 @@ import { RegistrationSubmission } from '../../types';
 import { getCompanyById, updateSubmissionStatus } from '../../services/storage';
 import { getCompanyExternalId } from '../../services/companyHelper';
 import { exportSubmissionsToExcel } from '../../services/excelExport';
-import { StatusBadge, TypeBadge, PortBadge } from '../common/Badge';
+import { CargoMoveIdBadge, StatusBadge, TypeBadge, PortBadge } from '../common/Badge';
 import {
   X,
   FileSpreadsheet,
@@ -171,8 +171,8 @@ export function SubmissionDetailModal({
               </div>
               <div className="min-w-0">
                 <span className="flex items-center gap-1.5 text-slate-500"><Key className="h-3.5 w-3.5" />Assigned Backend ID</span>
-                <span className="mt-1 block break-all font-mono font-bold leading-5 text-emerald-700">
-                  {idInfo.active_id_value || <span className="text-amber-600 italic">Not Assigned</span>}
+                <span className="mt-1 block">
+                  {idInfo.active_id_value ? <CargoMoveIdBadge id={idInfo.active_id_value} /> : <span className="text-amber-600 italic">Not Assigned</span>}
                 </span>
               </div>
             </div>

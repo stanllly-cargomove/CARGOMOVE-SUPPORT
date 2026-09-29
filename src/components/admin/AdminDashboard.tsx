@@ -9,7 +9,7 @@ import {
 import { getCompanyExternalId } from '../../services/companyHelper';
 import { ExternalUserAccess, getExternalUserAccess } from '../../services/auth';
 import { Company, RegistrationSubmission, RegistrationType } from '../../types';
-import { StatusBadge } from '../common/Badge';
+import { CargoMoveIdBadge, StatusBadge } from '../common/Badge';
 import { AssignIdModal } from './AssignIdModal';
 import { SubmissionDetailModal } from './SubmissionDetailModal';
 import { notifyWarning } from '../common/notifications';
@@ -344,9 +344,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                     </td>
                     <td className="py-2 px-3 font-mono">
                       {idInfo.has_required_id ? (
-                        <span className="font-mono text-slate-700 text-[10px]">
-                          {idInfo.active_id_value}
-                        </span>
+                        <CargoMoveIdBadge id={idInfo.active_id_value || ''} />
                       ) : (
                         <button
                           type="button"

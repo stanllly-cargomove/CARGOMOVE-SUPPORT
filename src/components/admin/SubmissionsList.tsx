@@ -14,7 +14,7 @@ import { getExternalUserAccess } from '../../services/auth';
 import { EmailPreview, generateWelcomeEmailPreview, sendWelcomeEmail } from '../../services/email';
 import { getCompanyExternalId } from '../../services/companyHelper';
 import { exportSubmissionsToExcel } from '../../services/excelExport';
-import { StatusBadge } from '../common/Badge';
+import { CargoMoveIdBadge, StatusBadge } from '../common/Badge';
 import { SubmissionDetailModal } from './SubmissionDetailModal';
 import { AssignIdModal } from './AssignIdModal';
 import { RichTextEmailEditor } from './RichTextEmailEditor';
@@ -610,7 +610,9 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
                         title={idInfo.has_required_id ? 'Double-click to copy Cargomove ID' : undefined}
                       >
                         {idInfo.has_required_id ? (
-                          <span className="admin-registration-copy-text font-mono text-[11px] text-slate-700">{idInfo.active_id_value}</span>
+                          <span className="admin-registration-copy-text">
+                            <CargoMoveIdBadge id={idInfo.active_id_value || ''} />
+                          </span>
                         ) : (
                           <button
                             type="button"
