@@ -9,6 +9,8 @@ import { subscribeToStorage } from '../../services/storage';
 const statuses: ExternalUserAccess['status'][] = ['PENDING', 'DONE', 'REJECTED'];
 const emailStatuses: ExternalUserAccess['email_status'][] = ['NOT_READY', 'READY', 'SENDING', 'SENT', 'FAILED'];
 type EditableUserField = 'username' | 'email' | 'password' | 'company_name' | 'full_name' | 'mobile_number' | 'status';
+const MINIMUM_VISIBLE_ROWS = 4;
+const USER_ROW_HEIGHT = 32;
 
 const statusTabColors: Record<ExternalUserAccess['status'], string> = {
   PENDING: 'text-amber-700',
@@ -254,6 +256,7 @@ export function UserRegistration() {
   const safeCurrentPage = Math.min(currentPage, totalPages);
   const pageStart = (safeCurrentPage - 1) * pageSize;
   const paginatedUsers = filteredUsers.slice(pageStart, pageStart + pageSize);
+  const userSpacerHeight = Math.max(0, MINIMUM_VISIBLE_ROWS - paginatedUsers.length) * USER_ROW_HEIGHT;
   const pageNumbers = getVisiblePageNumbers(safeCurrentPage, totalPages);
 
   useEffect(() => {
@@ -423,13 +426,14 @@ export function UserRegistration() {
             <tbody className="divide-y divide-slate-100">
               {paginatedUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-10 text-center text-slate-500">
+                  <td colSpan={9} className="align-middle text-center text-slate-500" style={{ height: MINIMUM_VISIBLE_ROWS * USER_ROW_HEIGHT }}>
                     <UsersRound className="w-6 h-6 mx-auto mb-2 text-slate-300" />
                     {loadError || (users.length ? 'No users match the selected filters.' : 'No company users found.')}
                   </td>
                 </tr>
-              ) : paginatedUsers.map((user) => (
-                <tr key={user.id} className="hover:bg-slate-50/70 transition-colors">
+              ) : <>
+                {paginatedUsers.map((user, index) => (
+                <tr key={user.id} className={`transition-colors hover:bg-slate-100/70 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-100/70'}`}>
                   <td className="px-2 py-2 font-semibold text-slate-900"><CopyableValue value={user.username} label="Username" /></td>
                   <td className="px-2 py-2 text-slate-700"><CopyableValue value={user.email} label="Email address" /></td>
                   <td className="px-2 py-2 font-mono text-[10px] text-slate-700"><CopyableValue value={user.password || 'Unavailable'} label="Password" /></td>
@@ -483,7 +487,13 @@ export function UserRegistration() {
                     </div>
                   </td>
                 </tr>
-              ))}
+                ))}
+                {userSpacerHeight > 0 && (
+                  <tr aria-hidden="true">
+                    <td colSpan={9} className="p-0" style={{ height: userSpacerHeight }} />
+                  </tr>
+                )}
+              </>}
             </tbody>
           </table>
         </div>

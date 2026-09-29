@@ -55,6 +55,8 @@ interface ActionMenuPosition {
 const ACTION_MENU_GAP = 4;
 const VIEWPORT_EDGE_PADDING = 8;
 const PAGE_SIZE_OPTIONS = [20, 30, 50];
+const MINIMUM_VISIBLE_ROWS = 4;
+const SUBMISSION_ROW_HEIGHT = 56;
 
 function defaultSortForStatus(status: SubmissionStatus): SubmissionSort {
   return status === 'PENDING' ? 'SUBMITTED_ASC' : 'SUBMITTED_DESC';
@@ -257,6 +259,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
   const safeCurrentPage = Math.min(currentPage, totalPages);
   const pageStart = (safeCurrentPage - 1) * pageSize;
   const paginatedSubmissions = sortedSubmissions.slice(pageStart, pageStart + pageSize);
+  const submissionSpacerHeight = Math.max(0, MINIMUM_VISIBLE_ROWS - paginatedSubmissions.length) * SUBMISSION_ROW_HEIGHT;
   const pageNumbers = getVisiblePageNumbers(safeCurrentPage, totalPages);
 
   React.useEffect(() => {
@@ -462,7 +465,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
             aria-selected={typeFilter === value}
             aria-label={`${label}: ${pendingCount} pending registration${pendingCount === 1 ? '' : 's'}`}
             role="tab"
-            className={`admin-registration-tab relative -mr-px flex h-10 w-[132px] min-w-[132px] items-center justify-center rounded-t-lg border px-3 text-xs font-bold uppercase tracking-wider transition-colors ${
+            className={`admin-registration-tab relative -mr-px flex h-10 w-[132px] min-w-[132px] items-center justify-center rounded-t-lg border px-3 text-xs font-bold uppercase tracking-wider transition-none ${
               typeFilter === value
                 ? `z-10 border-slate-400 border-b-transparent bg-[#CBD5E1] ${statusTitleColors[status]}`
                 : 'border-slate-300 bg-[#F1F5F9] text-slate-500 hover:bg-slate-200 hover:text-slate-900'
@@ -488,7 +491,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
       {/* Submissions Table */}
         <div className="overflow-hidden rounded-b-xl rounded-tr-xl border-x border-b border-slate-200 bg-white shadow-sm">
           <div className="overflow-x-auto">
-          <table className="w-full min-w-[1120px] table-fixed text-left text-xs border-collapse">
+          <table className="w-full min-w-[1120px] table-fixed border-collapse text-left text-xs">
             <colgroup>
               <col style={{ width: '4%' }} />
               <col style={{ width: '15%' }} />
@@ -526,12 +529,13 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
             <tbody className="divide-y divide-slate-100">
               {paginatedSubmissions.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-8 text-center text-slate-500">
+                  <td colSpan={9} className="align-middle text-center text-slate-500" style={{ height: MINIMUM_VISIBLE_ROWS * SUBMISSION_ROW_HEIGHT }}>
                     No submissions found matching criteria.
                   </td>
                 </tr>
               ) : (
-                paginatedSubmissions.map((sub) => {
+                <>
+                {paginatedSubmissions.map((sub, index) => {
                   const company = sub.company_id ? getCompanyById(sub.company_id) : undefined;
                   const idInfo = getCompanyExternalId(company || { company_type: sub.company_type });
                   const isSelected = selectedIds.includes(sub.id);
@@ -543,8 +547,8 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
                   return (
                     <tr
                       key={sub.id}
-                      className={`hover:bg-slate-50/70 transition-colors ${
-                        isSelected ? 'bg-blue-50/40' : ''
+                      className={`transition-colors hover:bg-slate-100/70 ${
+                        isSelected ? 'bg-blue-50/40' : index % 2 === 0 ? 'bg-white' : 'bg-slate-100/70'
                       }`}
                     >
                       <td className="py-3 px-3 text-center">
@@ -690,7 +694,13 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
                       </td>
                     </tr>
                   );
-                })
+                })}
+                {submissionSpacerHeight > 0 && (
+                  <tr aria-hidden="true">
+                    <td colSpan={9} className="p-0" style={{ height: submissionSpacerHeight }} />
+                  </tr>
+                )}
+                </>
               )}
             </tbody>
           </table>
