@@ -386,7 +386,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search by Reference (REG-...) or Company..."
+            placeholder="Search by Reference (CMREG...) or Company..."
             className="w-full px-3.5 py-2 pl-9 rounded-lg border border-slate-300 text-xs focus:border-slate-400 focus:outline-none focus:ring-0"
           />
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
@@ -455,7 +455,8 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
         <div>
         <div className="ml-[0.5px] flex w-fit items-end" role="tablist" aria-label="Registration type">
         {registrationTypeTabs.map(({ value, label }) => {
-          const pendingCount = pendingCountByType(value);
+          const showPendingCount = status === 'PENDING';
+          const pendingCount = showPendingCount ? pendingCountByType(value) : 0;
 
           return (
           <button
@@ -473,14 +474,16 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
           >
             <span className="flex items-center justify-center gap-2">
               <span>{label}</span>
-              <span
-                aria-hidden="true"
-                className={`inline-flex h-4 min-w-4 items-center justify-center rounded-full px-0.5 text-[8px] font-bold leading-none ${
-                  pendingCount > 0 ? 'bg-orange-500 text-white shadow-sm' : 'bg-slate-200 text-slate-600'
-                }`}
-              >
-                {pendingCount > 9 ? '9+' : pendingCount}
-              </span>
+              {showPendingCount && (
+                <span
+                  aria-hidden="true"
+                  className={`inline-flex h-4 min-w-4 items-center justify-center rounded-full px-0.5 text-[8px] font-bold leading-none ${
+                    pendingCount > 0 ? 'bg-orange-500 text-white shadow-sm' : 'bg-slate-200 text-slate-600'
+                  }`}
+                >
+                  {pendingCount > 9 ? '9+' : pendingCount}
+                </span>
+              )}
             </span>
           </button>
           );

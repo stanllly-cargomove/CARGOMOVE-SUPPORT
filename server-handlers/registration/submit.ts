@@ -1,4 +1,3 @@
-import crypto from 'node:crypto';
 import { adminClient, missingVariables, requestBody } from '../../api/_runtime.js';
 
 const registrationTypes = new Set(['COMPANY', 'DRIVER', 'TRAILER', 'VEHICLE']);
@@ -48,6 +47,14 @@ function text(value: unknown) {
 function optionalText(value: unknown) {
   const valueText = text(value);
   return valueText || null;
+}
+
+async function nextReferenceNo(client: NonNullable<ReturnType<typeof adminClient>>) {
+  const { data, error } = await client.rpc('next_registration_reference_no', {});
+  if (error || typeof data !== 'string' || !data) {
+    throw new RegistrationWriteError('reference number', error || { message: 'The database did not return a reference number.' });
+  }
+  return data;
 }
 
 function databaseFailureDetails(writeError: RegistrationWriteError) {
@@ -137,10 +144,6 @@ export default async function companyRegistration(request: any, response: any) {
   }
 
   const now = new Date();
-  const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
-  // The reference acts as the customer's lookup key, so keep enough entropy to
-  // prevent other applications from being guessed through the public tracker.
-  const referenceNo = `REG-${datePart}-${crypto.randomBytes(6).toString('hex').toUpperCase()}`;
   const uniquePart = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
   let companyId = registrationType === 'COMPANY' ? `comp-${uniquePart}` : text(body.company_id);
   const submissionId = `sub-${uniquePart}`;
@@ -166,6 +169,9 @@ export default async function companyRegistration(request: any, response: any) {
   let submissionCreated = false;
 
   try {
+    // The database sequence is the single source of truth. This is atomic, so
+    // concurrent submissions cannot receive the same CMREG number.
+    const referenceNo = await nextReferenceNo(client);
     if (registrationType === 'COMPANY') {
       const registrationNumber = text(companyInput.registration_number_old || companyInput.registration_number || companyInput.registration_number_new);
       const companyName = text(companyInput.name).toUpperCase();

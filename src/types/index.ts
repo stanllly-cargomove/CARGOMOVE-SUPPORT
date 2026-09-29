@@ -81,7 +81,7 @@ export type CompanyFormData = Omit<Company, 'id' | 'created_at' | 'updated_at' |
 
 export interface RegistrationSubmission {
   id: string;
-  reference_no: string; // e.g. REG-20260914-A1B2C3D4E5F6
+  reference_no: string; // e.g. CMREG400000
   registration_type: RegistrationType;
   company_id: string; // Links to Company Master
   company_reg_no: string;

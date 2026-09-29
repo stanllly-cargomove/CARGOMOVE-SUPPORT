@@ -66,7 +66,7 @@ export function StatusTrackerModal({
                 setError('');
               }}
               onKeyDown={(e) => e.key === 'Enter' && void handleSearch()}
-              placeholder="REG-20260914-A1B2C3D4E5F6"
+              placeholder="CMREG400000"
               className="flex-1 px-3.5 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-blue-500 font-mono uppercase"
             />
             <button

@@ -1,8 +1,9 @@
 import { adminClient, missingVariables } from '../../api/_runtime.js';
 
-// Accept existing four-digit references as well as the stronger references
-// generated for new registrations.
-const REFERENCE_PATTERN = /^REG-\d{8}-[A-Z0-9]{4,16}$/;
+// CMREG is the current sequential format. Keep the legacy format accepted so
+// links or emails issued before the one-time migration fail gracefully if they
+// are queried against an installation that has not been migrated yet.
+const REFERENCE_PATTERN = /^(?:CMREG\d{6,}|REG-\d{8}-[A-Z0-9]{4,16})$/;
 
 async function deriveTrackingFromWorkflow(client: NonNullable<ReturnType<typeof adminClient>>, referenceNo: string) {
   const submissionResult = await client
