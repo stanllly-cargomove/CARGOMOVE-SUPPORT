@@ -450,7 +450,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
           <span>Double-click any table value to copy</span>
         </div>
         <div>
-        <div className="flex w-fit items-end" role="tablist" aria-label="Registration type">
+        <div className="ml-[0.5px] flex w-fit items-end" role="tablist" aria-label="Registration type">
         {registrationTypeTabs.map(({ value, label }) => {
           const pendingCount = pendingCountByType(value);
 
@@ -465,7 +465,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
             className={`admin-registration-tab relative -mr-px flex h-10 w-[132px] min-w-[132px] items-center justify-center rounded-t-lg border px-3 text-xs font-bold uppercase tracking-wider transition-colors ${
               typeFilter === value
                 ? `z-10 border-slate-400 border-b-transparent bg-[#CBD5E1] ${statusTitleColors[status]}`
-                : 'border-slate-200 bg-[#F1F5F9] text-slate-500 hover:bg-slate-200 hover:text-slate-900'
+                : 'border-slate-300 bg-[#F1F5F9] text-slate-500 hover:bg-slate-200 hover:text-slate-900'
             }`}
           >
             <span className="flex items-center justify-center gap-2">

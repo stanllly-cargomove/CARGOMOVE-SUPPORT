@@ -248,6 +248,8 @@ export function UserRegistration() {
       const dateDifference = Date.parse(right.created_at) - Date.parse(left.created_at);
       return rejectionDifference || dateDifference || right.id.localeCompare(left.id);
     });
+  const userCountByStatus = (status: ExternalUserAccess['status']) =>
+    users.filter((user) => user.status === status).length;
   const totalPages = Math.max(1, Math.ceil(filteredUsers.length / pageSize));
   const safeCurrentPage = Math.min(currentPage, totalPages);
   const pageStart = (safeCurrentPage - 1) * pageSize;
@@ -352,31 +354,46 @@ export function UserRegistration() {
       </div>
 
       <div className="rounded-xl">
-        <div className="flex flex-wrap items-end justify-between gap-x-4">
-          <div className="flex w-fit items-end gap-0" role="tablist" aria-label="User registration status">
+        <div>
+          <div className="ml-[0.5px] flex w-fit items-end" role="tablist" aria-label="User registration status">
             {([
               ['PENDING', 'Pending'],
               ['DONE', 'Closed / Done'],
               ['REJECTED', 'Rejected'],
-            ] as const).map(([value, label]) => (
+            ] as const).map(([value, label]) => {
+              const statusCount = userCountByStatus(value);
+              const isPendingTab = value === 'PENDING';
+
+              return (
               <button
                 key={value}
                 type="button"
                 role="tab"
                 aria-selected={registrationStatusFilter === value}
+                aria-label={`${label}: ${statusCount} registration${statusCount === 1 ? '' : 's'}`}
                 onClick={() => setRegistrationStatusFilter(value)}
-                className={`min-w-[132px] rounded-t-lg border px-5 py-3 text-xs font-bold uppercase tracking-wider transition-colors ${
+                className={`relative -mr-px flex h-10 w-[132px] min-w-[132px] items-center justify-center rounded-t-lg border px-3 text-xs font-bold uppercase tracking-wider transition-colors ${
                   registrationStatusFilter === value
-                    ? `relative z-10 -mb-px border-slate-400 border-b-[#CBD5E1] bg-[#CBD5E1] ${statusTabColors[value]}`
+                    ? `z-10 border-slate-400 border-b-transparent bg-[#CBD5E1] ${statusTabColors[value]}`
                     : 'border-slate-300 bg-[#F1F5F9] text-slate-500 hover:bg-slate-200 hover:text-slate-900'
                 }`}
               >
-                {label}
+                <span className="flex items-center justify-center gap-2">
+                  <span>{label}</span>
+                  {isPendingTab && (
+                    <span aria-hidden="true" className={`inline-flex h-4 min-w-4 items-center justify-center rounded-full px-0.5 text-[8px] font-bold leading-none ${
+                      statusCount > 0 ? 'bg-orange-500 text-white shadow-sm' : 'bg-slate-200 text-slate-600'
+                    }`}>
+                      {statusCount > 9 ? '9+' : statusCount}
+                    </span>
+                  )}
+                </span>
               </button>
-            ))}
+              );
+            })}
           </div>
         </div>
-        <div className="overflow-hidden rounded-b-xl rounded-tr-lg border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-hidden rounded-b-xl rounded-tr-xl border-x border-b border-slate-200 bg-white shadow-sm">
         <div className="w-full overflow-x-auto">
           <table className="w-full min-w-[960px] table-fixed border-collapse text-left text-[11px] 2xl:min-w-[1120px]">
             <colgroup>
@@ -391,7 +408,7 @@ export function UserRegistration() {
               <col className="w-[13%]" />
             </colgroup>
             <thead>
-              <tr className="whitespace-nowrap border-b border-slate-400 bg-[#CBD5E1] text-[9px] font-bold uppercase tracking-wide text-slate-700 xl:text-[10px]">
+              <tr className="whitespace-nowrap border border-slate-400 bg-[#CBD5E1] text-[9px] font-bold uppercase tracking-wide text-slate-700 xl:text-[10px]">
                 <th className="px-2 py-2.5">Username</th>
                 <th className="px-2 py-2.5">Email address</th>
                 <th className="px-2 py-2.5">Password</th>
