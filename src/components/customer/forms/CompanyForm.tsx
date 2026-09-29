@@ -209,10 +209,15 @@ export function CompanyForm({
   };
 
   const handleChange = (field: keyof CompanyFormData, val: string) => {
+    // Malaysian legacy registration numbers can contain letters. Store them
+    // consistently so duplicate checks and exports do not vary by letter case.
+    const normalizedValue = field === 'registration_number_old'
+      ? val.toUpperCase().replace(/[^A-Z0-9-]/g, '')
+      : val;
     setFormData((prev) => {
-      const next = { ...prev, [field]: val };
+      const next = { ...prev, [field]: normalizedValue };
       if (field === 'registration_number_old') {
-        next.registration_number = val.toUpperCase().trim();
+        next.registration_number = normalizedValue.trim();
       }
       return next;
     });
@@ -248,6 +253,9 @@ export function CompanyForm({
       validationErrors.company_type = `Select a company category available for ${facilityLabel}.`;
     }
     if (!data.registration_number_old?.trim()) validationErrors.registration_number_old = 'Old Registration Number is required.';
+    if (data.registration_number_old?.trim() && !/^[A-Z0-9-]+$/.test(data.registration_number_old.trim())) {
+      validationErrors.registration_number_old = 'Use only letters, numbers, and hyphens (-). Spaces and other symbols are not allowed.';
+    }
     if (!data.registration_number_new?.trim()) validationErrors.registration_number_new = 'New SSM registration number is required.';
     if (data.registration_number_new?.trim() && !/^\d{12}$/.test(data.registration_number_new.trim())) {
       validationErrors.registration_number_new = 'New SSM registration number must contain exactly 12 digits.';
@@ -622,7 +630,7 @@ export function CompanyForm({
               type="text"
               value={formData.registration_number_old}
               onChange={(e) => handleChange('registration_number_old', e.target.value)}
-              placeholder="AAAAAA-2"
+              placeholder="IP0123456-X"
               className="w-full px-2.5 py-1.5 rounded border border-slate-300 text-xs focus:ring-1 focus:ring-sky-500 focus:outline-none uppercase font-mono"
             />
             <FieldError message={errors.registration_number_old} />

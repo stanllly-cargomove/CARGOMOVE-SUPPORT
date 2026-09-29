@@ -739,6 +739,10 @@ function CompanyEditModal({
       notifyWarning(message);
       return;
     }
+    if (!/^[A-Z0-9-]+$/i.test(oldRegistrationNumber)) {
+      notifyWarning('Old Registration Number may contain only letters, numbers, and hyphens (-). Spaces and other symbols are not allowed.');
+      return;
+    }
 
     // Duplicate check if new or changed
     if (checkDuplicateRegNo(oldRegistrationNumber, company?.id)) {
@@ -852,7 +856,7 @@ function CompanyEditModal({
                 <Field label="Company Legal Name *" value={form.name} onChange={(value) => setField('name', value.toUpperCase())} className="uppercase sm:col-span-2" placeholder="LUMORA TECH SDN BHD" />
                 <Field label="Short Name" value={form.short_name} onChange={(value) => setField('short_name', value.toUpperCase())} className="uppercase" placeholder="LUMORA" />
                 <SelectField label="Company Category *" value={form.company_type} onChange={(value) => setField('company_type', value)} options={['FORWARDER', 'HAULAGE', 'TRANSPORT']} />
-                <Field label="Old Registration No *" value={form.registration_number_old || ''} onChange={(value) => { setField('registration_number_old', value); setField('registration_number', value); }} className="font-mono" placeholder="AAAAAA-2" />
+                <Field label="Old Registration No *" value={form.registration_number_old || ''} onChange={(value) => { const upperValue = value.toUpperCase().replace(/[^A-Z0-9-]/g, ''); setField('registration_number_old', upperValue); setField('registration_number', upperValue); }} className="font-mono uppercase" placeholder="IP0123456-X" />
                 <Field label="SSM New 12-Digit Reg No" value={form.registration_number_new || ''} onChange={(value) => setField('registration_number_new', value)} className="font-mono" placeholder="201901004521" />
               </div>
             )}

@@ -8,6 +8,7 @@ const companyTypesByLocation: Record<string, Set<string>> = {
   OTHER: new Set(['TRANSPORT', 'FORWARDER', 'HAULAGE']),
 };
 const CONSENT_NOTICE_VERSION = '2026-09-15';
+const OLD_COMPANY_REGISTRATION_NUMBER_PATTERN = /^[A-Z0-9-]+$/;
 const companyFields = [
   'registration_number',
   'registration_number_old',
@@ -173,7 +174,7 @@ export default async function companyRegistration(request: any, response: any) {
     // concurrent submissions cannot receive the same CMREG number.
     const referenceNo = await nextReferenceNo(client);
     if (registrationType === 'COMPANY') {
-      const registrationNumber = text(companyInput.registration_number_old || companyInput.registration_number || companyInput.registration_number_new);
+      const registrationNumber = text(companyInput.registration_number_old || companyInput.registration_number || companyInput.registration_number_new).toUpperCase();
       const companyName = text(companyInput.name).toUpperCase();
       const companyType = text(companyInput.company_type).toUpperCase();
       const username = text(userInput.username).toLowerCase();
@@ -198,6 +199,14 @@ export default async function companyRegistration(request: any, response: any) {
       }
       if (!username || !email || !email.includes('@') || password.length < 6 || !fullName || !mobileNumber) {
         response.status(400).json({ error: 'Complete and valid user access details are required.' });
+        return;
+      }
+      if (!OLD_COMPANY_REGISTRATION_NUMBER_PATTERN.test(registrationNumber)) {
+        response.status(422).json({
+          error: 'The old company registration number is invalid.',
+          details: 'Use only letters, numbers, and hyphens (-). Spaces and other symbols are not allowed.',
+          code: 'COMPANY_REGISTRATION_NUMBER_INVALID',
+        });
         return;
       }
 
@@ -294,6 +303,8 @@ export default async function companyRegistration(request: any, response: any) {
       companyFields.forEach((field) => {
         companyRow[field] = field === 'port_id'
           ? portId
+        : field === 'registration_number_old'
+          ? text(companyInput[field]).toUpperCase()
           : field === 'depot_id'
             ? optionalText(companyInput[field])
             : text(companyInput[field]);
