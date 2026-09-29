@@ -91,6 +91,13 @@ const statusTitleColors: Record<SubmissionStatus, string> = {
   REJECTED: 'text-red-600',
 };
 
+const registrationTypeTabs: Array<{ value: RegistrationType; label: string }> = [
+  { value: 'COMPANY', label: 'Company' },
+  { value: 'DRIVER', label: 'Driver' },
+  { value: 'TRAILER', label: 'Trailer' },
+  { value: 'VEHICLE', label: 'Vehicle' },
+];
+
 export function SubmissionsList({ status, initialType = 'COMPANY' }: SubmissionsListProps) {
   const [submissions, setSubmissions] = useState<RegistrationSubmission[]>(getSubmissions());
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -238,6 +245,8 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
 
     return matchesSearch && matchesType && matchesStatus && matchesPort && matchesId;
   });
+  const pendingCountByType = (type: RegistrationType) =>
+    submissions.filter((submission) => submission.registration_type === type && submission.status === 'PENDING').length;
   const sortedSubmissions = [...filteredSubmissions].sort((left, right) => {
     if (sortBy === 'COMPANY_ASC') return left.company_name.localeCompare(right.company_name);
     if (sortBy === 'COMPANY_DESC') return right.company_name.localeCompare(left.company_name);
@@ -440,34 +449,44 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
           <Info className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           <span>Double-click any table value to copy</span>
         </div>
-        <div className="flex flex-wrap items-end justify-between gap-x-4">
-        <div className="flex w-fit items-end gap-0">
-        {[
-          ['COMPANY', 'Company'],
-          ['DRIVER', 'Driver'],
-          ['TRAILER', 'Trailer'],
-          ['VEHICLE', 'Vehicle'],
-          ].map(([value, label]) => (
+        <div>
+        <div className="flex w-fit items-end" role="tablist" aria-label="Registration type">
+        {registrationTypeTabs.map(({ value, label }) => {
+          const pendingCount = pendingCountByType(value);
+
+          return (
           <button
             key={value}
             type="button"
-            onClick={() => setTypeFilter(value as RegistrationType)}
+            onClick={() => setTypeFilter(value)}
             aria-selected={typeFilter === value}
+            aria-label={`${label}: ${pendingCount} pending registration${pendingCount === 1 ? '' : 's'}`}
             role="tab"
-            className={`admin-registration-tab min-w-[132px] rounded-t-lg border px-5 py-3 text-xs font-bold uppercase tracking-wider transition-colors ${
+            className={`admin-registration-tab relative -mr-px flex h-10 w-[132px] min-w-[132px] items-center justify-center rounded-t-lg border px-3 text-xs font-bold uppercase tracking-wider transition-colors ${
               typeFilter === value
-                ? `relative z-10 -mb-px border-slate-400 border-b-[#CBD5E1] bg-[#CBD5E1] ${statusTitleColors[status]}`
-                : 'border-slate-300 bg-[#F1F5F9] text-slate-500 hover:bg-slate-200 hover:text-slate-900'
+                ? `z-10 border-slate-400 border-b-transparent bg-[#CBD5E1] ${statusTitleColors[status]}`
+                : 'border-slate-200 bg-[#F1F5F9] text-slate-500 hover:bg-slate-200 hover:text-slate-900'
             }`}
           >
-            {label}
+            <span className="flex items-center justify-center gap-2">
+              <span>{label}</span>
+              <span
+                aria-hidden="true"
+                className={`inline-flex h-4 min-w-4 items-center justify-center rounded-full px-0.5 text-[8px] font-bold leading-none ${
+                  pendingCount > 0 ? 'bg-orange-500 text-white shadow-sm' : 'bg-slate-200 text-slate-600'
+                }`}
+              >
+                {pendingCount > 9 ? '9+' : pendingCount}
+              </span>
+            </span>
           </button>
-        ))}
+          );
+        })}
         </div>
         </div>
 
       {/* Submissions Table */}
-        <div className="overflow-hidden rounded-b-xl rounded-tr-lg border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-hidden rounded-b-xl rounded-tr-xl border-x border-b border-slate-200 bg-white shadow-sm">
           <div className="overflow-x-auto">
           <table className="w-full min-w-[1120px] table-fixed text-left text-xs border-collapse">
             <colgroup>
@@ -482,7 +501,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
               <col style={{ width: '7%' }} />
             </colgroup>
             <thead>
-              <tr className="admin-registration-table-header whitespace-nowrap border-b border-slate-400 bg-[#CBD5E1] font-bold uppercase tracking-wider text-slate-700">
+              <tr className="admin-registration-table-header whitespace-nowrap border border-slate-400 bg-[#CBD5E1] font-bold uppercase tracking-wider text-slate-700">
                 <th className="py-3 px-3 w-8 text-center">
                   <input
                     type="checkbox"
