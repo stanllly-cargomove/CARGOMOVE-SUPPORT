@@ -22,7 +22,7 @@ const COMPANY_MAPPINGS: MappingItem[] = [
   { excelCol: 'REGISTRATION', order: 6, dbField: 'company.registration_number_old', formLabel: 'Old Company Registration Number', dataType: 'String', source: 'Customer Input', notes: 'e.g. IP0123456-X. Primary lookup key.' },
   { excelCol: 'REGISTRATION_NEW', order: 7, dbField: 'company.registration_number_new', formLabel: 'New Company Registration Number', dataType: 'String', source: 'Customer Input', notes: 'SSM 12-digit format.' },
   { excelCol: 'PORTS', order: 8, dbField: 'company.assigned_port_ids (resolved)', formLabel: 'Assigned Ports', dataType: 'String', source: 'Port Configuration', notes: 'All assigned ports are mapped to backend IDs and exported comma-separated.' },
-  { excelCol: 'LEDGERCODES', order: 9, dbField: 'company.ledger_codes', formLabel: 'Ledger Codes', dataType: 'String', source: 'Customer Input', notes: 'Comma-separated ledger codes matching the PORTS order.' },
+  { excelCol: 'LEDGER_CODES', order: 9, dbField: 'company.ledger_codes', formLabel: 'Ledger Codes', dataType: 'String', source: 'Customer Input', notes: 'Comma-separated ledger codes matching the PORTS order.' },
   { excelCol: 'DEPOTS', order: 10, dbField: 'company.assigned_depot_ids (resolved)', formLabel: 'Assigned Depots', dataType: 'String', source: 'Port Configuration', notes: 'All assigned depots are mapped to backend IDs and exported comma-separated.' },
   { excelCol: 'BLOCK', order: 11, dbField: 'company.block', formLabel: 'Building / Block', dataType: 'String', source: 'Customer Input', notes: 'Unit / block / floor.' },
   { excelCol: 'ADDRESS1', order: 12, dbField: 'company.address1', formLabel: 'Address Line 1', dataType: 'String', source: 'Customer Input', notes: 'Street address.' },

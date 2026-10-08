@@ -6,7 +6,7 @@ import { lookupRegisteredCompany } from '../../../services/registration';
 import { CompanyType, normalizeCompanyType } from '../../../services/companyHelper';
 import { notifyError, notifySuccess, notifyWarning } from '../../common/notifications';
 import { areRegistrationTestToolsEnabled } from '../../../services/developerSettings';
-import { ArrowLeft, ArrowRight, Building2, Phone, CheckCircle2, Download, EllipsisVertical, LoaderCircle, Upload } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Building2, Phone, CheckCircle2, Download, EllipsisVertical, Info, LoaderCircle, Upload } from 'lucide-react';
 import { COMPANY_STATES_BY_COUNTRY as statesByCountry } from '../../../constants/companyLocations';
 
 interface CompanyFormProps {
@@ -726,7 +726,16 @@ export function CompanyForm({
 
           {initialLocation === 'PORT_KLANG' && (
             <fieldset className="sm:col-span-2 min-w-0">
-              <legend className="mb-1 block text-[11px] font-semibold text-slate-700">Choose port(s) and enter your company ledger code <span className="text-rose-500">*</span></legend>
+              <legend className="mb-1 flex items-center gap-1 text-[11px] font-semibold text-slate-700">
+                Choose port(s) and enter your company ledger code <span className="text-rose-500">*</span>
+                <span
+                  className="inline-flex cursor-help text-sky-600"
+                  title="Enter the ledger code registered for your company with the selected port."
+                  aria-label="Enter the ledger code registered for your company with the selected port."
+                >
+                  <Info className="h-3.5 w-3.5" aria-hidden="true" />
+                </span>
+              </legend>
               <div className="grid gap-2 md:grid-cols-2">
                 {autoPorts.ports.map((port) => {
                   const selected = selectedPortIds.includes(port.id);
