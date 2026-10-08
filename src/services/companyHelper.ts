@@ -11,9 +11,12 @@ export function normalizeCompanyType(typeStr: string = ''): CompanyType {
   return 'FORWARDER';
 }
 
-/** Backend Excel TYPE/COMPANYTYPE value: only HAULAGE is exported distinctly. */
-export function getExportCompanyType(typeStr: string = ''): 'HAULAGE' | 'FORWARDER' {
-  return normalizeCompanyType(typeStr) === 'HAULAGE' ? 'HAULAGE' : 'FORWARDER';
+/** Backend Excel TYPE/COMPANYTYPE value. */
+export function getExportCompanyType(typeStr: string = ''): 'HAULAGE' | 'FORWARDER' | 'TRANSPORTER' {
+  const type = normalizeCompanyType(typeStr);
+  if (type === 'HAULAGE') return 'HAULAGE';
+  if (type === 'TRANSPORT') return 'TRANSPORTER';
+  return 'FORWARDER';
 }
 
 /**

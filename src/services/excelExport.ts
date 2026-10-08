@@ -28,6 +28,7 @@ export const EXCEL_TEMPLATES = {
     'REGISTRATION',
     'REGISTRATION_NEW',
     'PORTS',
+    'LEDGERCODES',
     'DEPOTS',
     'BLOCK',
     'ADDRESS1',
@@ -211,6 +212,14 @@ function resolveAssignedDepotIds(depotIds: string[]): string {
   return depotIds.map((depotId) => resolveBackendDepotId(depotId)).filter(Boolean).join(',');
 }
 
+function resolveLedgerCodes(ledgerCodes?: string): string {
+  return String(ledgerCodes || '')
+    .split(',')
+    .map((code) => code.trim())
+    .filter(Boolean)
+    .join(',');
+}
+
 /**
  * Generates rows for Excel matching EXACT columns
  */
@@ -260,6 +269,7 @@ export function buildExcelRowData(
           REGISTRATION: comp?.registration_number_old || comp?.registration_number || compData.registration_number_old || sub.company_reg_no || '',
           REGISTRATION_NEW: comp?.registration_number_new || compData.registration_number_new || '',
           PORTS: portVal,
+          LEDGERCODES: resolveLedgerCodes(comp?.ledger_codes || compData.ledger_codes),
           DEPOTS: depotVal,
           BLOCK: comp?.block || compData.block || '',
           ADDRESS1: comp?.address1 || compData.address1 || '',
@@ -427,4 +437,20 @@ export function exportSubmissionsToExcel(
   );
 
   return { success: true, filename, count: rows.length };
+}
+
+/** Downloads a draft export without changing any registration/export status. */
+export function exportSubmissionPreview(submission: RegistrationSubmission): string {
+  const { headers, rows, type } = buildExcelRowData([submission]);
+  const worksheet = XLSX.utils.aoa_to_sheet([
+    [...headers],
+    ...rows.map((row) => headers.map((header) => row[header] ?? '')),
+  ]);
+  worksheet['!cols'] = headers.map(() => ({ wch: 22 }));
+
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet1');
+  const filename = `DRAFT_${generateExcelFilename(submission.company_name || 'COMPANY', type)}`;
+  XLSX.writeFile(workbook, filename, { bookType: 'xlsx', type: 'binary' });
+  return filename;
 }

@@ -111,7 +111,7 @@ export default async function externalUserAccess(request: any, response: any) {
         changes.status = body.status;
       }
       if (body.rejection_reason !== undefined) {
-        if (body.rejection_reason !== null && !['ALREADY_REGISTERED_BOTH', 'NORTHPORT_ADDED', 'OTHER'].includes(body.rejection_reason)) {
+        if (body.rejection_reason !== null && !['ALREADY_REGISTERED_BOTH', 'NORTHPORT_ADDED', 'NO_LEDGER_CODE', 'OTHER'].includes(body.rejection_reason)) {
           response.status(400).json({ error: 'Invalid rejection reason.' });
           return;
         }
@@ -127,7 +127,7 @@ export default async function externalUserAccess(request: any, response: any) {
       }
       if (body.status === 'REJECTED') {
         const reason = body.rejection_reason;
-        if (!['ALREADY_REGISTERED_BOTH', 'NORTHPORT_ADDED', 'OTHER'].includes(reason)) {
+        if (!['ALREADY_REGISTERED_BOTH', 'NORTHPORT_ADDED', 'NO_LEDGER_CODE', 'OTHER'].includes(reason)) {
           response.status(400).json({ error: 'Select a rejection reason.' });
           return;
         }

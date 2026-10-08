@@ -5,7 +5,7 @@ export type RegistrationType = 'COMPANY' | 'DRIVER' | 'TRAILER' | 'VEHICLE';
 export type CompanyCategory = 'HAULIER' | 'FORWARDING';
 
 export type SubmissionStatus = 'PENDING' | 'DONE' | 'REJECTED';
-export type RejectionReason = 'ALREADY_REGISTERED_BOTH' | 'NORTHPORT_ADDED' | 'OTHER';
+export type RejectionReason = 'ALREADY_REGISTERED_BOTH' | 'NORTHPORT_ADDED' | 'NO_LEDGER_CODE' | 'OTHER';
 
 export interface PortConfig {
   id: string;
@@ -38,6 +38,8 @@ export interface Company {
   port_id?: string;
   depot_id?: string;
   assigned_port_ids?: string[];
+  /** Comma-separated ledger codes, in the same order as assigned_port_ids. */
+  ledger_codes?: string;
   assigned_depot_ids?: string[];
   block?: string;
   address1?: string;

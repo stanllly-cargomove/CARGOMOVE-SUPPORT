@@ -1,4 +1,5 @@
 import { adminClient, missingVariables, requestBody } from '../../api/_runtime.js';
+import { createRawMessage, decryptRefreshToken, exchangeRefreshToken } from '../_email.js';
 
 const registrationTypes = new Set(['COMPANY', 'DRIVER', 'TRAILER', 'VEHICLE']);
 const portLocations = new Set(['PORT_KLANG', 'JOHOR', 'OTHER']);
@@ -9,6 +10,7 @@ const companyTypesByLocation: Record<string, Set<string>> = {
 };
 const CONSENT_NOTICE_VERSION = '2026-09-15';
 const OLD_COMPANY_REGISTRATION_NUMBER_PATTERN = /^[A-Z0-9-]+$/;
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const companyFields = [
   'registration_number',
   'registration_number_old',
@@ -18,6 +20,7 @@ const companyFields = [
   'company_type',
   'haulier_id',
   'forwarding_agent_id',
+  'ledger_codes',
   'port_id',
   'depot_id',
   'block',
@@ -48,6 +51,32 @@ function text(value: unknown) {
 function optionalText(value: unknown) {
   const valueText = text(value);
   return valueText || null;
+}
+
+async function sendSubmissionConfirmation(client: NonNullable<ReturnType<typeof adminClient>>, recipients: string[], registrationType: string, referenceNo: string, companyName: string) {
+  const connectionResult = await client.from('gmail_connections').select('*').eq('id', 'system').eq('status', 'ACTIVE').maybeSingle();
+  if (connectionResult.error || !connectionResult.data) return { status: 'NOT_SENT', error: connectionResult.error?.message || 'No active CargoMove email account is connected.' };
+
+  try {
+    const accessToken = await exchangeRefreshToken(decryptRefreshToken(connectionResult.data));
+    const assetLabel = registrationType.charAt(0) + registrationType.slice(1).toLowerCase();
+    const subject = `CargoMove registration received — ${referenceNo}`;
+    const body = `<p>Dear Customer,</p><p>We have received your ${assetLabel} registration for <strong>${companyName}</strong>.</p><p>Reference number: <strong>${referenceNo}</strong></p><p>Your submission is pending review by the CargoMove team. We will contact you if any further information is needed.</p><p>Regards,<br>CargoMove</p>`;
+    for (const recipient of recipients) {
+      const gmailResponse = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ raw: createRawMessage(connectionResult.data.email, recipient, subject, body) }),
+      });
+      const gmailMessage = await gmailResponse.json().catch(() => ({}));
+      if (!gmailResponse.ok || !gmailMessage.id) throw new Error(String(gmailMessage.error?.status || gmailMessage.error?.message || 'gmail_send_failed'));
+    }
+    return { status: 'SENT' };
+  } catch (error) {
+    const message = error instanceof Error ? error.message.slice(0, 300) : 'Unable to send the confirmation email.';
+    console.error('Registration confirmation email failed:', message);
+    return { status: 'FAILED', error: message };
+  }
 }
 
 async function nextReferenceNo(client: NonNullable<ReturnType<typeof adminClient>>) {
@@ -130,6 +159,7 @@ export default async function companyRegistration(request: any, response: any) {
   const userInput = body?.user_access && typeof body.user_access === 'object' ? body.user_access : null;
   const declarationAccepted = body?.declaration_accepted === true;
   const dataProcessingAccepted = body?.data_processing_consent === true;
+  const additionalConfirmationEmail = text(body?.additional_confirmation_email).toLowerCase();
 
   if (!body || !registrationTypes.has(registrationType) || !portLocations.has(portLocation) || !portId) {
     response.status(400).json({ error: 'Registration type, port location, and a valid database port are required.' });
@@ -137,6 +167,10 @@ export default async function companyRegistration(request: any, response: any) {
   }
   if (!declarationAccepted || !dataProcessingAccepted) {
     response.status(400).json({ error: 'Both the accuracy declaration and data-processing consent are required.' });
+    return;
+  }
+  if (additionalConfirmationEmail && !EMAIL_PATTERN.test(additionalConfirmationEmail)) {
+    response.status(422).json({ error: 'The additional confirmation email is invalid.' });
     return;
   }
   if (registrationType === 'COMPANY' && (!companyInput || !userInput)) {
@@ -241,6 +275,33 @@ export default async function companyRegistration(request: any, response: any) {
         return;
       }
 
+      if (portLocation === 'PORT_KLANG') {
+        const selectedPortIds = Array.isArray(companyInput.assigned_port_ids)
+          ? companyInput.assigned_port_ids.map(text).filter(Boolean)
+          : [];
+        const ledgerCodes = text(companyInput.ledger_codes).split(',').map((code) => code.trim()).filter(Boolean);
+        if (!selectedPortIds.length || ledgerCodes.length !== selectedPortIds.length) {
+          response.status(422).json({
+            error: 'Choose at least one Port Klang terminal and enter a ledger code for each selected terminal.',
+            code: 'PORT_KLANG_LEDGER_CODES_INVALID',
+          });
+          return;
+        }
+        if (portId !== selectedPortIds[0]) {
+          response.status(422).json({ error: 'The primary port must match the first selected terminal.', code: 'PORT_KLANG_PRIMARY_PORT_INVALID' });
+          return;
+        }
+        const selectedPorts = await client.from('port_configs').select('id,location,code');
+        if (selectedPorts.error) throw new RegistrationWriteError('port validation', selectedPorts.error);
+        const selectedIds = new Set((selectedPorts.data || [])
+          .filter((port: any) => selectedPortIds.includes(text(port.id)) && text(port.location) === 'PORT_KLANG' && ['WESTPORT', 'NORTHPORT'].includes(text(port.code)))
+          .map((port: any) => text(port.id)));
+        if (selectedIds.size !== selectedPortIds.length || selectedPortIds.some((id) => !selectedIds.has(id))) {
+          response.status(422).json({ error: 'Only configured Westport and Northport terminals can be selected.', code: 'PORT_KLANG_PORT_INVALID' });
+          return;
+        }
+      }
+
       let resolvedDepotId: string | null = null;
       const requestedDepotId = optionalText(companyInput.depot_id || body.depot_id);
       if (requestedDepotId) {
@@ -295,7 +356,10 @@ export default async function companyRegistration(request: any, response: any) {
 
       const companyRow: Record<string, unknown> = {
         id: companyId,
-        details: {},
+        details: {
+          assigned_port_ids: Array.isArray(companyInput.assigned_port_ids) ? companyInput.assigned_port_ids : [],
+          assigned_depot_ids: Array.isArray(companyInput.assigned_depot_ids) ? companyInput.assigned_depot_ids : [],
+        },
         status: 'ACTIVE',
         created_at: now.toISOString(),
         updated_at: now.toISOString(),
@@ -360,6 +424,32 @@ export default async function companyRegistration(request: any, response: any) {
       return;
     }
 
+    const accountResult = await client.from('external_user_access')
+      .select('email')
+      .eq('company_id', companyId)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (accountResult.error) throw new RegistrationWriteError('registered account email', accountResult.error);
+    const companyEmailResult = await client.from('companies').select('contact_email,details').eq('id', companyId).maybeSingle();
+    if (companyEmailResult.error) throw new RegistrationWriteError('company notification email', companyEmailResult.error);
+    const accountEmail = text(accountResult.data?.email).toLowerCase();
+    const savedCompanyEmail = text(
+      companyEmailResult.data?.contact_email
+      || (companyEmailResult.data?.details as Record<string, unknown> | null)?.contact_email,
+    ).toLowerCase();
+    const registeredEmail = accountEmail || savedCompanyEmail || additionalConfirmationEmail;
+    if (!EMAIL_PATTERN.test(registeredEmail)) {
+      response.status(422).json({ error: 'Add a valid email address before submitting so registration updates can be sent.' });
+      return;
+    }
+    const confirmationRecipients = Array.from(new Set([registeredEmail, (accountEmail || savedCompanyEmail) ? additionalConfirmationEmail : ''].filter(Boolean)));
+    submittedData.email_confirmation = {
+      recipients: confirmationRecipients,
+      requested_at: now.toISOString(),
+      delivery_status: 'PENDING',
+    };
+
     const submissionRow = {
       id: submissionId,
       reference_no: referenceNo,
@@ -380,7 +470,20 @@ export default async function companyRegistration(request: any, response: any) {
     };
     const submissionResult = await client.from('registration_submissions').insert(submissionRow).select().single();
     if (submissionResult.error) throw new RegistrationWriteError('registration submission', submissionResult.error);
-    response.status(201).json({ company: null, submission: submissionResult.data, user: null });
+    submissionCreated = true;
+    if (!accountEmail && !savedCompanyEmail) {
+      const companyEmailUpdate = await client.from('companies').update({ contact_email: registeredEmail }).eq('id', companyId);
+      if (companyEmailUpdate.error) throw new RegistrationWriteError('company notification email', companyEmailUpdate.error);
+    }
+    const emailDelivery = await sendSubmissionConfirmation(client, confirmationRecipients, registrationType, referenceNo, text(body.company_name).toUpperCase());
+    submittedData.email_confirmation = {
+      ...submittedData.email_confirmation,
+      delivery_status: emailDelivery.status,
+      ...(emailDelivery.error ? { delivery_error: emailDelivery.error } : {}),
+    };
+    const deliveryUpdate = await client.from('registration_submissions').update({ data: submittedData }).eq('id', submissionId).select().single();
+    if (deliveryUpdate.error) console.error('Registration email delivery status update failed:', deliveryUpdate.error);
+    response.status(201).json({ company: null, submission: deliveryUpdate.data || submissionResult.data, user: null, emailDelivery });
   } catch (error) {
     if (submissionCreated) await removeCreatedRow(client, 'registration_submissions', submissionId);
     if (companyCreated) await removeCreatedRow(client, 'companies', companyId);

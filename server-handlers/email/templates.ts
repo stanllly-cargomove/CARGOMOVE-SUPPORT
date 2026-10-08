@@ -7,6 +7,7 @@ const TEMPLATE_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,99}$/;
 const REQUIRED_REJECTION_TEMPLATE_IDS = new Set([
   'rejection-already-registered-both',
   'rejection-northport-added',
+  'rejection-no-ledger-code',
   'rejection-other',
 ]);
 
@@ -63,7 +64,7 @@ export default async function templates(request: any, response: any) {
     if (!name || !subjectTemplate || !emailHtmlToText(bodyTemplate) || recipientTemplate !== '{{user.email}}') {
       return response.status(400).json({ error: 'Name, subject, body, and the {{user.email}} recipient are required.' });
     }
-    if (triggerStatus === 'REJECTED' && !['ALREADY_REGISTERED_BOTH', 'NORTHPORT_ADDED', 'OTHER'].includes(rejectionReason || '')) {
+    if (triggerStatus === 'REJECTED' && !['ALREADY_REGISTERED_BOTH', 'NORTHPORT_ADDED', 'NO_LEDGER_CODE', 'OTHER'].includes(rejectionReason || '')) {
       return response.status(400).json({ error: 'A valid rejection reason is required for a rejection template.' });
     }
     if (name.length > 120 || subjectTemplate.length > 998 || bodyTemplate.length > 100_000) return response.status(400).json({ error: 'The email template is too large.' });

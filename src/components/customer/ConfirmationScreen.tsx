@@ -8,7 +8,10 @@ import {
   TrailerData,
   VehicleData,
   PortConfig,
+  RegistrationSubmission,
 } from '../../types';
+import { exportSubmissionPreview } from '../../services/excelExport';
+import { areRegistrationTestToolsEnabled } from '../../services/developerSettings';
 import {
   CheckCircle2,
   Building2,
@@ -18,6 +21,8 @@ import {
   RefreshCw,
   MapPin,
   Send,
+  FileSpreadsheet,
+  X,
 } from 'lucide-react';
 
 interface ReviewAndSubmitProps {
@@ -41,7 +46,10 @@ interface ReviewAndSubmitProps {
     vehicles?: VehicleData[];
   };
   onBack: () => void;
-  onSubmitSuccess: (consent: { declarationAccepted: boolean; dataProcessingAccepted: boolean }) => Promise<string>;
+  onSubmitSuccess: (
+    consent: { declarationAccepted: boolean; dataProcessingAccepted: boolean },
+    emailConfirmation?: { additionalEmail?: string },
+  ) => Promise<string>;
 }
 
 export function ReviewScreen({
@@ -57,6 +65,10 @@ export function ReviewScreen({
   const [dataProcessingAccepted, setDataProcessingAccepted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
+  const [showEmailConfirmation, setShowEmailConfirmation] = useState(false);
+  const [additionalEmail, setAdditionalEmail] = useState('');
+  const [emailError, setEmailError] = useState('');
+  const testToolsEnabled = areRegistrationTestToolsEnabled();
   const touchStartX = useRef<number | null>(null);
   const categoryTitle = type === 'COMPANY'
     ? 'Company Master Onboarding'
@@ -67,17 +79,73 @@ export function ReviewScreen({
     : 'Prime Mover / Vehicle Registration';
   const locationLabel = location === 'PORT_KLANG' ? 'Port Klang' : location === 'JOHOR' ? 'Johor' : port.display_name;
 
-  const handleSubmit = async () => {
-    if (!declarationAccepted || !dataProcessingAccepted) return;
+  const isAssetRegistration = type === 'DRIVER' || type === 'TRAILER' || type === 'VEHICLE';
+
+  const completeSubmission = async () => {
     setSubmitting(true);
     setSubmitError('');
     try {
-      await onSubmitSuccess({ declarationAccepted, dataProcessingAccepted });
+      await onSubmitSuccess(
+        { declarationAccepted, dataProcessingAccepted },
+        isAssetRegistration ? { additionalEmail: additionalEmail.trim() } : undefined,
+      );
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : 'Unable to submit the registration.');
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleSubmit = () => {
+    if (!declarationAccepted || !dataProcessingAccepted) return;
+    if (isAssetRegistration) {
+      setEmailError('');
+      setShowEmailConfirmation(true);
+      return;
+    }
+    void completeSubmission();
+  };
+
+  const generateExcelPreview = () => {
+    const companyData = formData.company;
+    const now = new Date().toISOString();
+    const preview: RegistrationSubmission = {
+      id: `preview-${Date.now()}`,
+      reference_no: 'DRAFT',
+      registration_type: type,
+      company_id: company?.id || '',
+      company_reg_no: companyData?.registration_number_old || companyData?.registration_number || company?.registration_number || '',
+      company_name: companyData?.name || company?.name || 'COMPANY',
+      company_type: companyData?.company_type || company?.company_type || '',
+      port_location: location,
+      port_id: companyData?.assigned_port_ids?.[0] || companyData?.port_id || port.id,
+      depot_id: companyData?.depot_id || company?.depot_id,
+      status: 'PENDING',
+      submitted_at: now,
+      submitted_by_name: companyData?.contact_name || '',
+      submitted_by_email: companyData?.contact_email || '',
+      submitted_by_mobile: companyData?.contact_mobile || '',
+      data: {
+        company: companyData,
+        driver: formData.driver,
+        drivers: formData.drivers,
+        trailer: formData.trailer,
+        trailers: formData.trailers,
+        vehicle: formData.vehicle,
+        vehicles: formData.vehicles,
+      },
+    };
+    exportSubmissionPreview(preview);
+  };
+
+  const confirmEmailAndSubmit = () => {
+    const recipient = additionalEmail.trim();
+    if (recipient && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) {
+      setEmailError('Enter a valid additional email address.');
+      return;
+    }
+    setShowEmailConfirmation(false);
+    void completeSubmission();
   };
 
   const handleTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
@@ -385,27 +453,60 @@ export function ReviewScreen({
         </button>
 
         <div className="sm:text-right">
-          <button
-            type="button"
-            disabled={!declarationAccepted || !dataProcessingAccepted || submitting}
-            onClick={handleSubmit}
-            className="inline-flex h-11 w-full items-center justify-center rounded-lg bg-gradient-to-r from-orange-500 to-orange-600 px-6 text-xs font-bold text-white shadow-sm transition-colors hover:from-orange-600 hover:to-orange-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
-          >
-            {submitting ? (
-              <>
-                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                Submitting...
-              </>
-            ) : (
-              <>
-                <Send className="mr-2 h-4 w-4" aria-hidden="true" />
-                Confirm & Submit Registration
-              </>
-            )}
-          </button>
+          <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+            {testToolsEnabled && <button
+              type="button"
+              onClick={generateExcelPreview}
+              className="inline-flex h-8 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 text-[10px] font-bold text-slate-700 hover:bg-slate-50"
+            >
+              <FileSpreadsheet className="mr-1.5 h-3.5 w-3.5 text-emerald-600" />
+              Generate Excel
+            </button>}
+            <button
+              type="button"
+              disabled={!declarationAccepted || !dataProcessingAccepted || submitting}
+              onClick={handleSubmit}
+              className="inline-flex h-11 w-full items-center justify-center rounded-lg bg-gradient-to-r from-orange-500 to-orange-600 px-6 text-xs font-bold text-white shadow-sm transition-colors hover:from-orange-600 hover:to-orange-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+            >
+              {submitting ? (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                <>
+                  <Send className="mr-2 h-4 w-4" aria-hidden="true" />
+                  Confirm & Submit Registration
+                </>
+              )}
+            </button>
+          </div>
           <p className="mt-1 text-[10px] text-slate-400">Your registration will be sent to our team for processing.</p>
         </div>
       </div>
+      {showEmailConfirmation && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4" role="dialog" aria-modal="true" aria-labelledby="confirmation-email-title">
+          <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 id="confirmation-email-title" className="text-sm font-bold text-slate-900">Send registration confirmation?</h3>
+                <p className="mt-1 text-xs leading-5 text-slate-600">After your registration is saved, its confirmation and future registration-status updates will be sent to the registered email.</p>
+              </div>
+              <button type="button" onClick={() => setShowEmailConfirmation(false)} className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label="Close email confirmation"><X className="h-4 w-4" /></button>
+            </div>
+            <label className="mt-4 block text-xs font-semibold text-slate-700">
+              Add another email <span className="font-normal text-slate-400">(optional)</span>
+              <input value={additionalEmail} onChange={(event) => { setAdditionalEmail(event.target.value); setEmailError(''); }} type="email" placeholder="additional@example.com" className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100" />
+            </label>
+            <p className="mt-1.5 text-[11px] leading-4 text-slate-500">If provided, this address will also receive the confirmation and registration-status updates.</p>
+            {emailError && <p className="mt-2 text-xs text-rose-600">{emailError}</p>}
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" onClick={() => setShowEmailConfirmation(false)} className="rounded-lg px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100">Cancel</button>
+              <button type="button" onClick={confirmEmailAndSubmit} className="inline-flex items-center rounded-lg bg-orange-600 px-4 py-2 text-xs font-bold text-white hover:bg-orange-700"><Send className="mr-1.5 h-3.5 w-3.5" />Submit & send confirmation</button>
+            </div>
+          </div>
+        </div>
+      )}
       {submitError && (
         <div role="alert" className="rounded border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
           <p className="font-bold">Registration could not be submitted</p>

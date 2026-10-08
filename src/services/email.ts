@@ -9,7 +9,7 @@ export interface EmailTemplate {
   id: string;
   name: string;
   trigger_status: 'DONE' | 'REJECTED';
-  rejection_reason?: 'ALREADY_REGISTERED_BOTH' | 'NORTHPORT_ADDED' | 'OTHER' | null;
+  rejection_reason?: 'ALREADY_REGISTERED_BOTH' | 'NORTHPORT_ADDED' | 'NO_LEDGER_CODE' | 'OTHER' | null;
   recipient_template: '{{user.email}}';
   subject_template: string;
   body_template: string;

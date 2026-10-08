@@ -808,6 +808,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
               {([
                 ['ALREADY_REGISTERED_BOTH', 'Already registered (Westport & Northport)'],
                 ['NORTHPORT_ADDED', 'Only need to add Northport'],
+                ['NO_LEDGER_CODE', 'No ledger code'],
                 ['OTHER', 'Other'],
               ] as const).map(([value, label]) => (
                 <label key={value} className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm transition ${rejectionReason === value ? 'border-rose-400 bg-rose-50' : 'border-slate-200 hover:bg-slate-50'}`}>

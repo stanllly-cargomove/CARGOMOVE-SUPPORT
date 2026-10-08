@@ -566,6 +566,7 @@ function CompanyEditModal({
     port_id: company?.port_id || ports[0]?.id || '',
     depot_id: company?.depot_id || '',
     assigned_port_ids: company?.assigned_port_ids || (company?.port_id ? [company.port_id] : []),
+    ledger_codes: company?.ledger_codes || '',
     assigned_depot_ids: company?.assigned_depot_ids || (company?.depot_id ? [company.depot_id] : []),
     block: company?.block || '',
     address1: company?.address1 || '',
@@ -584,6 +585,15 @@ function CompanyEditModal({
   });
 
   const selectedPortIds = Array.isArray(form.assigned_port_ids) ? form.assigned_port_ids : [];
+  const selectedPortLedgerCodes = (form.ledger_codes || '').split(',').map((code) => code.trim());
+  const ledgerCodeForPort = (portId: string) => selectedPortLedgerCodes[selectedPortIds.indexOf(portId)] || '';
+  const setLedgerCodeForPort = (portId: string, value: string) => {
+    const nextCodes = selectedPortIds.map((id, index) => id === portId ? value : selectedPortLedgerCodes[index] || '');
+    setForm((current) => ({ ...current, ledger_codes: nextCodes.join(',') }));
+  };
+  const selectedPortKlangPorts = ['WESTPORT', 'NORTHPORT']
+    .map((code) => ports.find((port) => port.code === code))
+    .filter((port): port is typeof ports[number] => !!port && selectedPortIds.includes(port.id));
   const sortedDepotOptions = selectedPortIds
     .map((portId) => ports.find((port) => port.id === portId))
     .filter((port): port is typeof ports[number] => !!port)
@@ -660,6 +670,7 @@ function CompanyEditModal({
     setImported('registration_number_new', 'registration new', 'new registration number', 'ssm number');
     setImported('haulier_id', 'haulierid', 'haulier id', 'haulier', 'ids.haulier');
     setImported('forwarding_agent_id', 'forwarding agent id', 'forwarding agent_id', 'ids.forwarding_agent_id', 'ids.forwardingagentid');
+    setImported('ledger_codes', 'ledgercodes', 'ledger codes', 'ledger_code', 'ledger code');
     setImported('block', 'block', 'address.block', 'building block floor lot');
     setImported('address1', 'address1', 'address.address1', 'address line 1');
     setImported('address2', 'address2', 'address.address2', 'address line 2');
@@ -764,6 +775,7 @@ function CompanyEditModal({
         registration_number_new: form.registration_number_new.trim().toUpperCase(),
         haulier_id: form.haulier_id.trim().toUpperCase(),
         forwarding_agent_id: form.forwarding_agent_id.trim().toUpperCase(),
+        ledger_codes: (form.ledger_codes || '').split(',').map((code) => code.trim()).filter(Boolean).join(','),
         port_id: form.assigned_port_ids?.[0] || '',
         depot_id: form.assigned_depot_ids?.[0] || '',
         assigned_port_ids: form.assigned_port_ids || [],
@@ -871,13 +883,29 @@ function CompanyEditModal({
                   options={sortedPorts.map((port) => ({ value: port.id, label: `${port.display_name} (${port.location})` }))}
                   values={form.assigned_port_ids || []}
                   onChange={(values) => {
+                    const ledgerCodesByPort = Object.fromEntries(selectedPortIds.map((portId, index) => [portId, selectedPortLedgerCodes[index] || '']));
                     const validDepotIds = (form.assigned_depot_ids || []).filter((depotId) => {
                       const depot = depots.find((item) => item.id === depotId);
                       return depot && values.includes(depot.port_id);
                     });
-                    setForm((current) => ({ ...current, assigned_port_ids: values, assigned_depot_ids: validDepotIds, port_id: values[0] || '', depot_id: validDepotIds[0] || '' }));
+                    setForm((current) => ({ ...current, assigned_port_ids: values, ledger_codes: values.map((portId) => ledgerCodesByPort[portId] || '').join(','), assigned_depot_ids: validDepotIds, port_id: values[0] || '', depot_id: validDepotIds[0] || '' }));
                   }}
                 />
+                {selectedPortKlangPorts.length > 0 && (
+                  <div className="space-y-3 rounded-lg border border-slate-200 p-3">
+                    <p className="text-[11px] font-semibold text-slate-700">Port Klang Ledger Codes</p>
+                    {selectedPortKlangPorts.map((port) => (
+                      <Field
+                        key={port.id}
+                        label={`${port.display_name} Ledger Code`}
+                        value={ledgerCodeForPort(port.id)}
+                        onChange={(value) => setLedgerCodeForPort(port.id, value)}
+                        className="font-mono"
+                        placeholder={`${port.display_name} ledger code`}
+                      />
+                    ))}
+                  </div>
+                )}
                 <AssignmentField
                   label="Assign to Depots"
                   options={sortedDepotOptions}
@@ -941,7 +969,7 @@ type CompanyFormState = Omit<Company, 'created_at' | 'updated_at'>;
 
 const COMPANY_IMPORT_COLUMNS = [
   'HAULIERID', 'FORWARDING_AGENT_ID', 'NAME', 'SHORTNAME', 'TYPE', 'REGISTRATION', 'REGISTRATION_NEW',
-  'PORTS', 'DEPOTS', 'BLOCK', 'ADDRESS1', 'ADDRESS2', 'CITY', 'STATE', 'POSTCODE', 'COUNTRY',
+  'PORTS', 'LEDGERCODES', 'DEPOTS', 'BLOCK', 'ADDRESS1', 'ADDRESS2', 'CITY', 'STATE', 'POSTCODE', 'COUNTRY',
   'CONTACTNAME', 'CONTACTEMAIL', 'CONTACTDESGN', 'CONTACTMOBILE', 'OFFICE', 'FAX',
 ] as const;
 

@@ -5,6 +5,7 @@ import { findCompanyByRegNo, getAutoAssignedPorts } from '../../../services/stor
 import { lookupRegisteredCompany } from '../../../services/registration';
 import { CompanyType, normalizeCompanyType } from '../../../services/companyHelper';
 import { notifyError, notifySuccess, notifyWarning } from '../../common/notifications';
+import { areRegistrationTestToolsEnabled } from '../../../services/developerSettings';
 import { ArrowLeft, ArrowRight, Building2, Phone, CheckCircle2, Download, EllipsisVertical, LoaderCircle, Upload } from 'lucide-react';
 import { COMPANY_STATES_BY_COUNTRY as statesByCountry } from '../../../constants/companyLocations';
 
@@ -41,6 +42,8 @@ const companyExcelHeaders: Record<string, keyof CompanyFormData> = {
   SSMNUMBER: 'registration_number_new',
   HAULIERID: 'haulier_id',
   FORWARDINGAGENTID: 'forwarding_agent_id',
+  LEDGERCODES: 'ledger_codes',
+  LEDGERCODE: 'ledger_codes',
   PORT: 'port_id',
   PORTS: 'port_id',
   PORTID: 'port_id',
@@ -88,9 +91,10 @@ function excelCellValue(value: unknown): string {
 }
 
 function FieldError({ message }: { message?: string }) {
+  if (!message) return null;
   return (
-    <p aria-live="polite" className="min-h-[12px] text-[10px] text-rose-600 mt-0.5">
-      {message || ''}
+    <p aria-live="polite" className="text-[10px] text-rose-600 mt-0.5">
+      {message}
     </p>
   );
 }
@@ -133,7 +137,9 @@ export function CompanyForm({
     registration_number: '',
     registration_number_old: '',
     registration_number_new: '',
-    port_id: autoPorts.backendIdsString,
+    port_id: '',
+    assigned_port_ids: [],
+    ledger_codes: '',
     depot_id: '',
     block: '',
     address1: '',
@@ -156,9 +162,28 @@ export function CompanyForm({
   const [isImportingExcel, setIsImportingExcel] = useState(false);
   const [isPreflighting, setIsPreflighting] = useState(false);
   const [isExcelMenuOpen, setIsExcelMenuOpen] = useState(false);
+  const testToolsEnabled = areRegistrationTestToolsEnabled();
   const touchStartX = useRef<number | null>(null);
   const excelInputRef = useRef<HTMLInputElement>(null);
   const excelMenuRef = useRef<HTMLDivElement>(null);
+
+  const selectedPortIds = formData.assigned_port_ids || [];
+  const selectedPortLedgerCodes = (formData.ledger_codes || '').split(',').map((code) => code.trim());
+  const setSelectedPortIds = (nextSelectedIds: string[]) => {
+    // Keep the export order deterministic: Westport first, then Northport.
+    const orderedIds = autoPorts.ports.filter((port) => nextSelectedIds.includes(port.id)).map((port) => port.id);
+    const existingCodes = Object.fromEntries(selectedPortIds.map((id, index) => [id, selectedPortLedgerCodes[index] || '']));
+    setFormData((current) => ({
+      ...current,
+      assigned_port_ids: orderedIds,
+      port_id: orderedIds[0] || '',
+      ledger_codes: orderedIds.map((id) => existingCodes[id] || '').join(','),
+    }));
+  };
+  const setLedgerCode = (portId: string, value: string) => {
+    const codes = selectedPortIds.map((id, index) => id === portId ? value : selectedPortLedgerCodes[index] || '');
+    setFormData((current) => ({ ...current, ledger_codes: codes.join(',') }));
+  };
 
   useEffect(() => {
     if (!isExcelMenuOpen) return;
@@ -206,6 +231,38 @@ export function CompanyForm({
     XLSX.writeFile(workbook, 'CargoMove_Company_Registration_Template.xlsx');
     setIsExcelMenuOpen(false);
     notifySuccess('Company registration template downloaded.');
+  };
+
+  const fillTestCompanyData = () => {
+    const suffix = String(Date.now()).slice(-8);
+    const selectedPorts = initialLocation === 'PORT_KLANG' ? autoPorts.ports.slice(0, 1) : autoPorts.ports.slice(0, 1);
+    setFormData((current) => ({
+      ...current,
+      name: `TEST COMPANY ${suffix} SDN BHD`,
+      short_name: `TEST ${suffix}`,
+      company_type: companyTypeOptions[0].value,
+      registration_number: `TEST-${suffix}`,
+      registration_number_old: `TEST-${suffix}`,
+      registration_number_new: `20${String(Date.now()).slice(-10)}`,
+      port_id: selectedPorts[0]?.id || '',
+      assigned_port_ids: selectedPorts.map((port) => port.id),
+      ledger_codes: initialLocation === 'PORT_KLANG' ? `TEST-LEDGER-${suffix}` : '',
+      block: 'Test Building',
+      address1: '1 Jalan Test',
+      address2: 'Test Industrial Park',
+      city: initialLocation === 'PORT_KLANG' ? 'Pelabuhan Klang' : 'Pasir Gudang',
+      state: initialLocation === 'PORT_KLANG' ? 'Selangor' : 'Johor',
+      postcode: initialLocation === 'PORT_KLANG' ? '42000' : '81700',
+      country: 'Malaysia',
+      contact_name: 'Test User',
+      contact_email: `test.${suffix}@example.com`,
+      contact_designation: 'Operations Manager',
+      contact_mobile: '0123456789',
+      office_phone: '0327712765',
+      fax: '',
+    }));
+    setErrors({});
+    notifySuccess('Temporary test company details added.');
   };
 
   const handleChange = (field: keyof CompanyFormData, val: string) => {
@@ -259,6 +316,14 @@ export function CompanyForm({
     if (!data.registration_number_new?.trim()) validationErrors.registration_number_new = 'New SSM registration number is required.';
     if (data.registration_number_new?.trim() && !/^\d{12}$/.test(data.registration_number_new.trim())) {
       validationErrors.registration_number_new = 'New SSM registration number must contain exactly 12 digits.';
+    }
+    if (initialLocation === 'PORT_KLANG') {
+      const selectedPortIds = data.assigned_port_ids || [];
+      const ledgerCodes = (data.ledger_codes || '').split(',').map((code) => code.trim());
+      if (!selectedPortIds.length) validationErrors.assigned_port_ids = 'Choose Westport, Northport, or both.';
+      if (selectedPortIds.length && (ledgerCodes.length !== selectedPortIds.length || ledgerCodes.some((code) => !code))) {
+        validationErrors.ledger_codes = 'Enter one ledger code for every selected port.';
+      }
     }
     const existingOldCompany = data.registration_number_old?.trim() ? findCompanyByRegNo(data.registration_number_old) : undefined;
     const existingNewCompany = data.registration_number_new?.trim() ? findCompanyByRegNo(data.registration_number_new) : undefined;
@@ -379,7 +444,7 @@ export function CompanyForm({
       if (invalidFields.length === 0) {
         notifySuccess(`${importedFieldCount} fields filled from ${file.name}. All required details passed validation.`);
       } else {
-        const pageOneFields = ['name', 'short_name', 'company_type', 'registration_number_old', 'registration_number_new'];
+        const pageOneFields = ['name', 'short_name', 'company_type', 'registration_number_old', 'registration_number_new', 'assigned_port_ids', 'ledger_codes'];
         const pageTwoFields = ['address1', 'country', 'state', 'city', 'postcode'];
         setCurrentPage(invalidFields.some((field) => pageOneFields.includes(field)) ? 1 : invalidFields.some((field) => pageTwoFields.includes(field)) ? 2 : 3);
         importWarnings.push(`${invalidFields.length} required or invalid field${invalidFields.length === 1 ? '' : 's'} must be corrected before continuing.`);
@@ -403,7 +468,7 @@ export function CompanyForm({
 
   const validatePage = (page: number) => {
     const pageFields: Record<number, (keyof CompanyFormData)[]> = {
-      1: ['name', 'short_name', 'company_type', 'registration_number_old', 'registration_number_new'],
+      1: ['name', 'short_name', 'company_type', 'registration_number_old', 'registration_number_new', 'assigned_port_ids', 'ledger_codes'],
       2: ['address1', 'country', 'city', 'state', 'postcode'],
       3: ['contact_name', 'contact_email', 'contact_mobile'],
     };
@@ -510,7 +575,15 @@ export function CompanyForm({
           className="hidden"
           aria-label="Upload company details Excel file"
         />
-        <div ref={excelMenuRef} className="relative shrink-0">
+        <div className="flex shrink-0 items-center gap-2">
+          {testToolsEnabled && <button
+              type="button"
+              onClick={fillTestCompanyData}
+              className="rounded-md border border-amber-300 bg-amber-50 px-2 py-1.5 text-[10px] font-bold text-amber-800 hover:bg-amber-100"
+            >
+              Auto Fill
+            </button>}
+        <div ref={excelMenuRef} className="relative">
           <button
             type="button"
             onClick={() => setIsExcelMenuOpen((open) => !open)}
@@ -553,6 +626,7 @@ export function CompanyForm({
               </button>
             </div>
           )}
+        </div>
         </div>
 
       </div>
@@ -649,6 +723,40 @@ export function CompanyForm({
             />
             <FieldError message={errors.registration_number_new} />
           </div>
+
+          {initialLocation === 'PORT_KLANG' && (
+            <fieldset className="sm:col-span-2 min-w-0">
+              <legend className="mb-1 block text-[11px] font-semibold text-slate-700">Choose port(s) and enter your company ledger code <span className="text-rose-500">*</span></legend>
+              <div className="grid gap-2 md:grid-cols-2">
+                {autoPorts.ports.map((port) => {
+                  const selected = selectedPortIds.includes(port.id);
+                  const selectedIndex = selectedPortIds.indexOf(port.id);
+                  return (
+                    <div key={port.id} className="flex min-w-0 items-center gap-3 rounded border border-sky-100 bg-white px-2.5 py-2">
+                      <label className="flex min-w-0 shrink-0 cursor-pointer items-center gap-2 text-xs font-semibold text-slate-800">
+                        <input
+                          type="checkbox"
+                          checked={selected}
+                          onChange={() => setSelectedPortIds(selected ? selectedPortIds.filter((id) => id !== port.id) : [...selectedPortIds, port.id])}
+                          className="h-3.5 w-3.5 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+                        />
+                        {port.display_name}
+                      </label>
+                      <input
+                        type="text"
+                        disabled={!selected}
+                        value={selectedPortLedgerCodes[selectedIndex] || ''}
+                        onChange={(event) => setLedgerCode(port.id, event.target.value)}
+                        placeholder={`${port.display_name} ledger code`}
+                        className="min-w-0 flex-1 rounded border border-slate-300 px-2 py-1.5 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-sky-500 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+              <FieldError message={errors.assigned_port_ids || errors.ledger_codes} />
+            </fieldset>
+          )}
         </div>
       </div>}
 

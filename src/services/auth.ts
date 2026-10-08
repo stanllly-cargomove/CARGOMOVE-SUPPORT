@@ -32,7 +32,7 @@ export interface ExternalUserAccess {
   updated_at: string;
 }
 
-export type RejectionReason = 'ALREADY_REGISTERED_BOTH' | 'NORTHPORT_ADDED' | 'OTHER';
+export type RejectionReason = 'ALREADY_REGISTERED_BOTH' | 'NORTHPORT_ADDED' | 'NO_LEDGER_CODE' | 'OTHER';
 
 export async function saveExternalUserAccess(input: Omit<ExternalUserAccess, 'id' | 'created_at' | 'updated_at' | 'status' | 'email_status' | 'email_sent'> & Partial<Pick<ExternalUserAccess, 'status' | 'email_sent'>> & { id?: string }): Promise<void> {
   await fetch('/api/external-user-access', {

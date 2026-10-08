@@ -39,6 +39,7 @@ import { GuidelineManager } from './GuidelineManager';
 import { UserRegistration } from './UserRegistration';
 import { AdminUser } from './AdminUser';
 import { EmailTemplateManager } from './EmailTemplateManager';
+import { DeveloperSettings } from './DeveloperSettings';
 import { Logo } from '../common/Logo';
 import { notifyError, notifySuccess } from '../common/notifications';
 import { RegistrationType } from '../../types';
@@ -147,6 +148,7 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
     { id: 'guidelines', label: 'Haulier Guidelines', icon: BookOpen, section: 'Registration Setup', path: undefined },
     { id: 'ports', label: 'Ports & Depots', icon: Settings, section: 'Registration Setup', path: undefined },
     { id: 'schema', label: 'Excel Mapping', icon: TableProperties, section: 'Registration Setup', path: undefined },
+    { id: 'developer-settings', label: 'Test Tools', icon: Wrench, section: 'Registration Setup', path: undefined },
     { id: 'email-template', label: 'Registration Templates', icon: Mail, section: 'Email Setup', path: undefined },
     { id: 'support-automation', label: 'Automation Rules', icon: Bot, section: 'Email Setup', path: '/admin/support/automation' },
     { id: 'support-knowledge', label: 'Knowledge Base', icon: BookOpen, section: 'Email Setup', path: '/admin/support/knowledge' },
@@ -486,6 +488,7 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
           )}
           {activeTab === 'ports' && <PortDepotConfig />}
           {activeTab === 'schema' && <SchemaMappingInspector />}
+          {activeTab === 'developer-settings' && <DeveloperSettings />}
         </main>
       </div>
 

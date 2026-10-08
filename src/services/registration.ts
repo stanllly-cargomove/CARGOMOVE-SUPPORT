@@ -13,6 +13,7 @@ export interface RegistrationRequest {
   submitted_by_name?: string;
   submitted_by_email?: string;
   submitted_by_mobile?: string;
+  additional_confirmation_email?: string;
   declaration_accepted: boolean;
   data_processing_consent: boolean;
   company?: CompanyFormData;

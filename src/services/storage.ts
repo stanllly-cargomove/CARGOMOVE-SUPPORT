@@ -446,13 +446,14 @@ let remoteSyncInFlight: Promise<void> | null = null;
 let protectedWriteInFlight = false;
 
 function companyRow(company: Company) {
-  const { assigned_port_ids, assigned_depot_ids, block, address1, address2, city, state, postcode, country, contact_name, contact_email, contact_designation, contact_mobile, office_phone, fax, ...master } = company;
+  const { assigned_port_ids, assigned_depot_ids, ledger_codes, block, address1, address2, city, state, postcode, country, contact_name, contact_email, contact_designation, contact_mobile, office_phone, fax, ...master } = company;
   return {
     ...master,
     // Empty strings are not valid foreign keys in Postgres. The Company Master
     // form represents "not assigned" as '', so persist those values as NULL.
     port_id: company.port_id || null,
     depot_id: company.depot_id || null,
+    ledger_codes: ledger_codes || null,
     block,
     address1,
     address2,
@@ -862,6 +863,7 @@ export function getCompanies(): Company[] {
       ...company,
       company_type: normalizeCompanyType(company.company_type),
       assigned_port_ids: company.assigned_port_ids || (company.port_id ? [company.port_id] : []),
+      ledger_codes: company.ledger_codes || '',
       assigned_depot_ids: company.assigned_depot_ids || (company.depot_id ? [company.depot_id] : []),
     }));
     if (raw && JSON.stringify(companies) !== JSON.stringify(normalized)) {

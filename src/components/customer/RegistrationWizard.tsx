@@ -126,7 +126,10 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
     setCurrentStep(5); // Review
   };
 
-  const handleFinalConfirm = async (consent: { declarationAccepted: boolean; dataProcessingAccepted: boolean }): Promise<string> => {
+  const handleFinalConfirm = async (
+    consent: { declarationAccepted: boolean; dataProcessingAccepted: boolean },
+    emailConfirmation?: { additionalEmail?: string },
+  ): Promise<string> => {
     if (!selectedLocation || !selectedType) throw new Error('Registration details are incomplete.');
 
     // Build submission record
@@ -155,7 +158,12 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
     // Auto-assigned ports resolution
     const autoPorts = getAutoAssignedPorts(selectedLocation);
 
-    const primaryPortId = autoPorts.ports[0]?.id || currentPort?.id;
+    const selectedPortIds = selectedType === 'COMPANY'
+      ? companyFormData?.assigned_port_ids || []
+      : [];
+    const primaryPortId = selectedType === 'COMPANY' && selectedLocation === 'PORT_KLANG'
+      ? selectedPortIds[0]
+      : autoPorts.ports[0]?.id || currentPort?.id;
     if (!primaryPortId) throw new Error('No database port is configured for this location.');
 
     const result = await submitRegistration({
@@ -170,6 +178,7 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
       submitted_by_name: subByName,
       submitted_by_email: subByEmail,
       submitted_by_mobile: subByMobile,
+      additional_confirmation_email: emailConfirmation?.additionalEmail,
       declaration_accepted: consent.declarationAccepted,
       data_processing_consent: consent.dataProcessingAccepted,
       company: selectedType === 'COMPANY' && companyFormData
