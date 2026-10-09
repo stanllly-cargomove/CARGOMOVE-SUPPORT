@@ -14,6 +14,8 @@ import emailLogs from '../server-handlers/email/logs.js';
 import emailAttachments from '../server-handlers/email/attachments.js';
 import emailPreview from '../server-handlers/email/preview.js';
 import emailSend from '../server-handlers/email/send.js';
+import submissionPreview from '../server-handlers/email/submission-preview.js';
+import submissionSend from '../server-handlers/email/submission-send.js';
 import emailTemplates from '../server-handlers/email/templates.js';
 import gmailCallback from '../server-handlers/gmail/callback.js';
 import gmailConnect from '../server-handlers/gmail/connect.js';
@@ -55,6 +57,8 @@ const handlers: Record<string, Handler> = {
   'POST email/attachments': emailAttachments,
   'POST email/preview': emailPreview,
   'POST email/send': emailSend,
+  'POST email/submission-preview': submissionPreview,
+  'POST email/submission-send': submissionSend,
   'GET email/templates': emailTemplates,
   'POST email/templates': emailTemplates,
   'PUT email/templates': emailTemplates,

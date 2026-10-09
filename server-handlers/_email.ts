@@ -152,6 +152,37 @@ export function verifyPreviewToken(token: string, session: AdminSession) {
   }
 }
 
+export function createSubmissionPreviewToken(session: AdminSession, submissionId: string, status: 'DONE' | 'REJECTED', recipient: string) {
+  const payload = Buffer.from(JSON.stringify({
+    adminId: session.id,
+    submissionId,
+    status,
+    recipient,
+    exp: Date.now() + 15 * 60 * 1000,
+  })).toString('base64url');
+  const signature = crypto.createHmac('sha256', signingKey()).update(payload).digest('base64url');
+  return `${payload}.${signature}`;
+}
+
+export function verifySubmissionPreviewToken(token: string, session: AdminSession) {
+  const [payload, signature] = token.split('.');
+  if (!payload || !signature) return null;
+  const expected = crypto.createHmac('sha256', signingKey()).update(payload).digest('base64url');
+  if (signature.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(payload, 'base64url').toString()) as {
+      adminId: string; submissionId: string; status: 'DONE' | 'REJECTED'; recipient: string; exp: number;
+    };
+    return parsed.adminId === session.id
+      && ['DONE', 'REJECTED'].includes(parsed.status)
+      && parsed.exp > Date.now()
+      ? parsed
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 function encryptionKey() {
   const configured = process.env.GOOGLE_TOKEN_ENCRYPTION_KEY;
   if (!configured) throw new Error('GOOGLE_TOKEN_ENCRYPTION_KEY is missing.');

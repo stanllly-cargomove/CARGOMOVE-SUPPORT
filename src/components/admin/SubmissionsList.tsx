@@ -11,7 +11,7 @@ import {
   subscribeToStorage,
 } from '../../services/storage';
 import { getExternalUserAccess } from '../../services/auth';
-import { EmailPreview, generateWelcomeEmailPreview, sendWelcomeEmail } from '../../services/email';
+import { EmailPreview, generateSubmissionEmailPreview, generateWelcomeEmailPreview, sendSubmissionEmail, sendWelcomeEmail } from '../../services/email';
 import { getCompanyExternalId } from '../../services/companyHelper';
 import { exportSubmissionsToExcel } from '../../services/excelExport';
 import { CargoMoveIdBadge, StatusBadge } from '../common/Badge';
@@ -122,6 +122,8 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
   const [savingRejection, setSavingRejection] = useState(false);
   const [preview, setPreview] = useState<EmailPreview | null>(null);
   const [sendingEmail, setSendingEmail] = useState(false);
+  const [submissionEmailPreview, setSubmissionEmailPreview] = useState<EmailPreview | null>(null);
+  const [sendingSubmissionEmail, setSendingSubmissionEmail] = useState(false);
 
   const refreshList = () => {
     setSubmissions(getSubmissions());
@@ -281,6 +283,12 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
       notifySuccess(`Export complete: ${res.count} record(s) generated.`);
       refreshList();
       setSelectedIds([]);
+      const assetSubmission = selectedSubs.find((submission) => submission.registration_type !== 'COMPANY');
+      if (assetSubmission) {
+        void openSubmissionEmailPreview(assetSubmission.id, 'DONE');
+        const additionalAssetCount = selectedSubs.filter((submission) => submission.registration_type !== 'COMPANY').length - 1;
+        if (additionalAssetCount > 0) notifyWarning(`${additionalAssetCount} additional asset registration email(s) can be sent from their closed submissions.`);
+      }
     }
   };
 
@@ -309,6 +317,29 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
     updateSubmissionStatus(submission.id, 'REJECTED');
     refreshList();
     setOpenActionMenu(null);
+    void openSubmissionEmailPreview(submission.id, 'REJECTED');
+  };
+
+  const openSubmissionEmailPreview = async (submissionId: string, status: 'DONE' | 'REJECTED') => {
+    try {
+      setSubmissionEmailPreview(await generateSubmissionEmailPreview(submissionId, status));
+    } catch (error) {
+      notifyError(error instanceof Error ? error.message : 'Unable to prepare the registration email.');
+    }
+  };
+
+  const sendAssetRegistrationEmail = async () => {
+    if (!submissionEmailPreview) return;
+    setSendingSubmissionEmail(true);
+    try {
+      await sendSubmissionEmail(submissionEmailPreview);
+      setSubmissionEmailPreview(null);
+      notifySuccess('Registration email sent through Gmail.');
+    } catch (error) {
+      notifyError(error instanceof Error ? error.message : 'Unable to send the registration email.');
+    } finally {
+      setSendingSubmissionEmail(false);
+    }
   };
 
   const handleRevertToPending = async (submission: RegistrationSubmission) => {
@@ -685,14 +716,17 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
                             </button>
                             {sub.status === 'PENDING' && (
                               <>
-                                <button type="button" onClick={() => { updateSubmissionStatus(sub.id, 'DONE'); refreshList(); setOpenActionMenu(null); }} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50">Register</button>
+                                <button type="button" onClick={() => { updateSubmissionStatus(sub.id, 'DONE'); refreshList(); setOpenActionMenu(null); if (sub.registration_type !== 'COMPANY') void openSubmissionEmailPreview(sub.id, 'DONE'); }} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50">Register</button>
                                 <button type="button" onClick={() => rejectSubmission(sub)} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50">Reject</button>
                               </>
                             )}
                             {sub.status !== 'PENDING' && (
-                              <button type="button" onClick={() => void handleRevertToPending(sub)} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-50">
-                                <RotateCcw className="h-3.5 w-3.5" /> Revert to Pending
-                              </button>
+                              <>
+                                {sub.registration_type !== 'COMPANY' && <button type="button" onClick={() => { setOpenActionMenu(null); void openSubmissionEmailPreview(sub.id, sub.status as 'DONE' | 'REJECTED'); }} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-50"><Mail className="h-3.5 w-3.5" /> Preview Email</button>}
+                                <button type="button" onClick={() => void handleRevertToPending(sub)} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-50">
+                                  <RotateCcw className="h-3.5 w-3.5" /> Revert to Pending
+                                </button>
+                              </>
                             )}
                           </div>
                         )}
@@ -783,6 +817,12 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
             setActiveSubmission(updated || null);
           }
         }}
+        onStatusUpdate={(submission, nextStatus) => {
+          if (submission.registration_type !== 'COMPANY') void openSubmissionEmailPreview(submission.id, nextStatus);
+        }}
+        onExportSuccess={(submission) => {
+          if (submission.registration_type !== 'COMPANY') void openSubmissionEmailPreview(submission.id, 'DONE');
+        }}
         onReject={rejectSubmission}
       />
 
@@ -845,6 +885,26 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
             <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4">
               <button type="button" onClick={() => setPreview(null)} disabled={sendingEmail} className="rounded-lg px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200">Cancel</button>
               <button type="button" onClick={() => void sendRejectionEmail()} disabled={sendingEmail} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-60"><Mail className="h-4 w-4" />{sendingEmail ? 'Sending...' : 'Send Email'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {submissionEmailPreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 p-4 backdrop-blur-xs">
+          <div role="dialog" aria-modal="true" aria-labelledby="submission-email-preview-title" className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-4">
+              <div><h3 id="submission-email-preview-title" className="font-bold text-slate-900">Registration Email Preview</h3><p className="mt-0.5 text-xs text-slate-500">{submissionEmailPreview.templateName}</p></div>
+              <button type="button" onClick={() => setSubmissionEmailPreview(null)} disabled={sendingSubmissionEmail} aria-label="Close email preview" className="rounded-lg p-1 text-slate-400 hover:text-slate-700"><X className="h-5 w-5" /></button>
+            </div>
+            <div className="space-y-4 overflow-y-auto p-5">
+              <label className="block text-xs font-semibold text-slate-700">To<input value={submissionEmailPreview.recipient} readOnly className="mt-1.5 w-full rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 font-normal text-slate-700" /></label>
+              <label className="block text-xs font-semibold text-slate-700">Subject<input value={submissionEmailPreview.subject} onChange={(event) => setSubmissionEmailPreview({ ...submissionEmailPreview, subject: event.target.value })} className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" /></label>
+              <div className="text-xs font-semibold text-slate-700">Message<RichTextEmailEditor value={submissionEmailPreview.body} onChange={(body) => setSubmissionEmailPreview((current) => current ? { ...current, body } : current)} minHeightClassName="min-h-64" /></div>
+            </div>
+            <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4">
+              <button type="button" onClick={() => setSubmissionEmailPreview(null)} disabled={sendingSubmissionEmail} className="rounded-lg px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200">Cancel</button>
+              <button type="button" onClick={() => void sendAssetRegistrationEmail()} disabled={sendingSubmissionEmail} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-60"><Mail className="h-4 w-4" />{sendingSubmissionEmail ? 'Sending...' : 'Send Email'}</button>
             </div>
           </div>
         </div>

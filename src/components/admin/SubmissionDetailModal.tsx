@@ -22,6 +22,8 @@ interface SubmissionDetailModalProps {
   onClose: () => void;
   onOpenAssignId: (companyId: string) => void;
   onStatusChange?: () => void;
+  onStatusUpdate?: (submission: RegistrationSubmission, status: 'DONE' | 'REJECTED') => void;
+  onExportSuccess?: (submission: RegistrationSubmission) => void;
   onReject?: (submission: RegistrationSubmission) => void;
 }
 
@@ -31,6 +33,8 @@ export function SubmissionDetailModal({
   onClose,
   onOpenAssignId,
   onStatusChange,
+  onStatusUpdate,
+  onExportSuccess,
   onReject,
 }: SubmissionDetailModalProps) {
   const [adminNotes, setAdminNotes] = useState('');
@@ -65,6 +69,7 @@ export function SubmissionDetailModal({
     }
     updateSubmissionStatus(submission.id, newStatus, adminNotes);
     onStatusChange?.();
+    if (newStatus === 'DONE' || newStatus === 'REJECTED') onStatusUpdate?.(submission, newStatus);
   };
 
   const handleExportSingle = () => {
@@ -74,6 +79,7 @@ export function SubmissionDetailModal({
     } else {
       notifySuccess('Submission exported successfully.');
       onStatusChange?.();
+      onExportSuccess?.(submission);
     }
   };
 
