@@ -183,6 +183,22 @@ export function verifySubmissionPreviewToken(token: string, session: AdminSessio
   }
 }
 
+export function createSubmissionBatchPreviewToken(session: AdminSession, submissionIds: string[], recipient: string) {
+  const payload = Buffer.from(JSON.stringify({ adminId: session.id, submissionIds, recipient, exp: Date.now() + 15 * 60 * 1000 })).toString('base64url');
+  return `${payload}.${crypto.createHmac('sha256', signingKey()).update(payload).digest('base64url')}`;
+}
+
+export function verifySubmissionBatchPreviewToken(token: string, session: AdminSession) {
+  const [payload, signature] = token.split('.');
+  if (!payload || !signature) return null;
+  const expected = crypto.createHmac('sha256', signingKey()).update(payload).digest('base64url');
+  if (signature.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(payload, 'base64url').toString()) as { adminId: string; submissionIds: string[]; recipient: string; exp: number };
+    return parsed.adminId === session.id && Array.isArray(parsed.submissionIds) && parsed.submissionIds.length > 0 && parsed.exp > Date.now() ? parsed : null;
+  } catch { return null; }
+}
+
 function encryptionKey() {
   const configured = process.env.GOOGLE_TOKEN_ENCRYPTION_KEY;
   if (!configured) throw new Error('GOOGLE_TOKEN_ENCRYPTION_KEY is missing.');

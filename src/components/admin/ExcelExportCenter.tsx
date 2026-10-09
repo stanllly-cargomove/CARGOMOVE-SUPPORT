@@ -3,6 +3,7 @@ import { RegistrationType, RegistrationSubmission, Company } from '../../types';
 import { getSubmissions, getCompanies, getCompanyById } from '../../services/storage';
 import { getCompanyExternalId, generateExcelFilename } from '../../services/companyHelper';
 import { exportSubmissionsToExcel, EXCEL_TEMPLATES } from '../../services/excelExport';
+import { EmailPreview, generateSubmissionBatchEmailPreviews, sendSubmissionBatchEmail } from '../../services/email';
 import { TypeBadge } from '../common/Badge';
 import {
   FileSpreadsheet,
@@ -12,12 +13,16 @@ import {
   Filter,
   Layers,
   ArrowRight,
+  Mail,
+  X,
 } from 'lucide-react';
 import { notifyError, notifySuccess, notifyWarning, summarizeError } from '../common/notifications';
 
 export function ExcelExportCenter() {
   const [selectedType, setSelectedType] = useState<RegistrationType>('COMPANY');
   const [filterCompanyId, setFilterCompanyId] = useState<string>('ALL');
+  const [emailPreviews, setEmailPreviews] = useState<EmailPreview[]>([]);
+  const [sendingPreview, setSendingPreview] = useState<string | null>(null);
 
   const submissions = getSubmissions();
   const companies = getCompanies();
@@ -40,7 +45,7 @@ export function ExcelExportCenter() {
 
   const currentTemplate = EXCEL_TEMPLATES[selectedType];
 
-  const handleExport = () => {
+  const handleExport = async () => {
     if (filteredSubmissions.length === 0) {
       const message = 'No submissions available to export in this category.';
       notifyWarning(message);
@@ -52,6 +57,26 @@ export function ExcelExportCenter() {
       notifyError(summarizeError(res.error || 'Export failed.'));
     } else {
       notifySuccess(`Export complete: ${res.count} record(s) generated.`);
+      if (selectedType !== 'COMPANY') {
+        try {
+          setEmailPreviews(await generateSubmissionBatchEmailPreviews(filteredSubmissions.map((submission) => submission.id)));
+        } catch (error) {
+          notifyError(error instanceof Error ? error.message : 'Excel exported, but the email previews could not be prepared.');
+        }
+      }
+    }
+  };
+
+  const sendPreview = async (preview: EmailPreview) => {
+    setSendingPreview(preview.previewToken);
+    try {
+      await sendSubmissionBatchEmail(preview);
+      setEmailPreviews((current) => current.filter((item) => item.previewToken !== preview.previewToken));
+      notifySuccess(`Registration email sent to ${preview.recipient}.`);
+    } catch (error) {
+      notifyError(error instanceof Error ? error.message : 'Unable to send the registration email.');
+    } finally {
+      setSendingPreview(null);
     }
   };
 
@@ -67,6 +92,24 @@ export function ExcelExportCenter() {
           Generate strict backend-compliant Excel spreadsheets for Port Operating Systems (TOS).
         </p>
       </div>
+
+      {emailPreviews.length > 0 && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 p-4 backdrop-blur-xs">
+          <div role="dialog" aria-modal="true" aria-labelledby="batch-email-preview-title" className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-4">
+              <div><h3 id="batch-email-preview-title" className="font-bold text-slate-900">Registration Email Previews</h3><p className="mt-0.5 text-xs text-slate-500">One separate email per company; review each company’s registration list before sending.</p></div>
+              <button type="button" onClick={() => setEmailPreviews([])} disabled={Boolean(sendingPreview)} aria-label="Close email previews" className="rounded-lg p-1 text-slate-400 hover:text-slate-700"><X className="h-5 w-5" /></button>
+            </div>
+            <div className="space-y-4 overflow-y-auto p-5">
+              {emailPreviews.map((preview) => <article key={preview.previewToken} className="rounded-xl border border-slate-200 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><h4 className="text-sm font-bold text-slate-900">{preview.templateName}</h4><p className="mt-1 text-xs text-slate-600"><strong>To:</strong> {preview.recipient}</p><p className="mt-1 text-xs text-slate-600"><strong>Subject:</strong> {preview.subject}</p></div><button type="button" onClick={() => void sendPreview(preview)} disabled={Boolean(sendingPreview)} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-60"><Mail className="h-3.5 w-3.5" />{sendingPreview === preview.previewToken ? 'Sending...' : 'Send Email'}</button></div>
+                <div className="mt-3 rounded-lg bg-slate-50 p-3 text-xs leading-5 text-slate-700 [&_ul]:list-disc [&_ul]:pl-5" dangerouslySetInnerHTML={{ __html: preview.body }} />
+              </article>)}
+            </div>
+            <div className="border-t border-slate-200 bg-slate-50 px-5 py-3 text-right"><button type="button" onClick={() => setEmailPreviews([])} disabled={Boolean(sendingPreview)} className="rounded-lg px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200">Close</button></div>
+          </div>
+        </div>
+      )}
 
       {/* Select Category Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
