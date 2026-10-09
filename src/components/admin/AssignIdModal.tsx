@@ -3,7 +3,7 @@ import { Company } from '../../types';
 import { getCompanyExternalId, normalizeCompanyCategory } from '../../services/companyHelper';
 import { updateCompanyId } from '../../services/storage';
 import { X, Key } from 'lucide-react';
-import { notifySuccess, notifyWarning } from '../common/notifications';
+import { notifyError, notifySuccess, notifyWarning } from '../common/notifications';
 
 interface AssignIdModalProps {
   company: Company | null;
@@ -20,6 +20,7 @@ export function AssignIdModal({
 }: AssignIdModalProps) {
   const [idValue, setIdValue] = useState('');
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (company) {
@@ -35,7 +36,7 @@ export function AssignIdModal({
   const category = idInfo.category;
   const targetIdType = idInfo.required_id_type; // 'HAULIERID' or 'FORWARDING_AGENT_ID'
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!idValue.trim()) {
       const message = `Please enter a valid ${targetIdType}.`;
@@ -48,14 +49,19 @@ export function AssignIdModal({
     );
     if (!confirmed) return;
 
-    updateCompanyId(company.id, targetIdType, idValue.trim());
-    setSavedSuccess(true);
-    notifySuccess('Master ID assigned successfully.');
-
-    setTimeout(() => {
+    setSaving(true);
+    try {
+      const saved = await updateCompanyId(company.id, targetIdType, idValue.trim());
+      if (!saved) throw new Error('Company record was not found.');
+      setSavedSuccess(true);
+      notifySuccess('Master ID assigned successfully.');
       onSuccess?.();
       onClose();
-    }, 600);
+    } catch (error) {
+      notifyError(error instanceof Error ? error.message : 'Unable to save the Company Master ID.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -68,6 +74,7 @@ export function AssignIdModal({
           </div>
           <button
             onClick={onClose}
+            disabled={saving}
             className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
           >
             <X className="w-5 h-5" />
@@ -125,16 +132,17 @@ export function AssignIdModal({
             <button
               type="button"
               onClick={onClose}
+              disabled={saving}
               className="px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
-              disabled={savedSuccess}
+              disabled={savedSuccess || saving}
               className="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition-colors"
             >
-              Save to Master
+              {saving ? 'Saving...' : 'Save to Master'}
             </button>
           </div>
         </form>

@@ -996,27 +996,21 @@ export async function saveCompanyPersisted(
 /**
  * Requirement 12: Admin updates HAULIERID or FORWARDING_AGENT_ID directly
  */
-export function updateCompanyId(
+export async function updateCompanyId(
   companyId: string,
   idType: 'HAULIERID' | 'FORWARDING_AGENT_ID',
   idValue: string
-): Company | null {
-  const companies = getCompanies();
-  const company = companies.find((c) => c.id === companyId);
+): Promise<Company | null> {
+  if (remoteSyncInFlight) await remoteSyncInFlight;
+  const company = getCompanies().find((c) => c.id === companyId);
   if (!company) return null;
 
-  if (idType === 'HAULIERID') {
-    company.haulier_id = idValue.trim();
-  } else {
-    company.forwarding_agent_id = idValue.trim();
-  }
-  company.updated_at = new Date().toISOString();
-
-  localStorage.setItem(STORAGE_KEYS.COMPANIES, JSON.stringify(companies));
-  syncCompany(company);
-
-  notifyListeners();
-  return company;
+  return saveCompanyPersisted({
+    ...company,
+    ...(idType === 'HAULIERID'
+      ? { haulier_id: idValue.trim() }
+      : { forwarding_agent_id: idValue.trim() }),
+  });
 }
 
 // ==================== SUBMISSIONS ====================
