@@ -1,4 +1,5 @@
 import { bodyOf, configuredClient, createSubmissionBatchPreviewToken, noStore, requireAdmin, sanitizeEmailHtml } from '../_email.js';
+import { assetRegistrationPdfName } from './submission-asset-pdf.js';
 
 const validEmail = (value: unknown) => {
   const email = String(value || '').trim().toLowerCase();
@@ -44,7 +45,7 @@ export default async function submissionBatchPreview(request: any, response: any
     const recipient = Array.from(new Set(group.flatMap((submission) => recipientsFor(submission, companies.get(submission.company_id))))).join(', ');
     if (!recipient) throw new Error(`No valid notification email is available for ${group[0].company_name}.`);
     const bodyHtml = `<p>Dear Customer,</p><p>The following CargoMove registrations for <strong>${escapeHtml(group[0].company_name)}</strong> have been approved and exported:</p><ul>${group.map(itemSummary).join('')}</ul><p>Regards,<br>CargoMove</p>`;
-    return { recipient, subject: `CargoMove registration approval — ${group[0].company_name}`, body: sanitizeEmailHtml(bodyHtml), templateName: `${group[0].company_name} — ${group.length} approved registration${group.length === 1 ? '' : 's'}`, attachments: [{ path: 'generated/asset-registration-list.pdf', name: 'CargoMove_Registration_Asset_List.pdf', content_type: 'application/pdf', size: 0 }], previewToken: createSubmissionBatchPreviewToken(session, group.map((submission) => submission.id), recipient) };
+    return { recipient, subject: `CargoMove registration approval — ${group[0].company_name}`, body: sanitizeEmailHtml(bodyHtml), templateName: `${group[0].company_name} — ${group.length} approved registration${group.length === 1 ? '' : 's'}`, attachments: [{ path: `/api/email/submission-attachment?submissionIds=${group.map((submission) => encodeURIComponent(submission.id)).join(',')}`, name: assetRegistrationPdfName(group), content_type: 'application/pdf', size: 0 }], previewToken: createSubmissionBatchPreviewToken(session, group.map((submission) => submission.id), recipient) };
   });
   response.json({ previews });
 }

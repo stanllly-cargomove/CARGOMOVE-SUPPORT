@@ -1,4 +1,5 @@
 import { bodyOf, configuredClient, createSubmissionPreviewToken, noStore, requireAdmin, sanitizeEmailHtml } from '../_email.js';
+import { assetRegistrationPdfName } from './submission-asset-pdf.js';
 
 function validEmail(value: unknown) {
   const email = String(value || '').trim().toLowerCase();
@@ -56,7 +57,7 @@ export default async function submissionPreview(request: any, response: any) {
     subject,
     body: sanitizeEmailHtml(bodyHtml),
     templateName: `${assetLabel} Registration — ${isApproved ? 'Approved' : 'Rejected'}`,
-    attachments: [],
+    attachments: [{ path: `/api/email/submission-attachment?submissionIds=${encodeURIComponent(submission.id)}`, name: assetRegistrationPdfName([submission]), content_type: 'application/pdf', size: 0 }],
     previewToken: createSubmissionPreviewToken(session, submission.id, status as 'DONE' | 'REJECTED', recipient),
   });
 }

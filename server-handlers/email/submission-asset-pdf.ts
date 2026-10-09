@@ -23,8 +23,10 @@ export function buildAssetRegistrationPdf(companyName: string, submissions: any[
   const objects: string[] = ['<< /Type /Catalog /Pages 2 0 R >>', `<< /Type /Pages /Kids [${pages.map((_, index) => `${3 + index * 2} 0 R`).join(' ')}] /Count ${pages.length} >>`];
   pages.forEach((page, index) => {
     const pageId = 3 + index * 2; const contentId = pageId + 1;
-    const content = `BT /F1 11 Tf 50 760 Td 15 TL ${page.map((line, lineIndex) => `${lineIndex ? 'T* ' : ''}(${pdfText(line)}) Tj`).join('\n')} ET`;
-    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 ${3 + pages.length * 2} 0 R >> >> /Contents ${contentId} 0 R >>`);
+    const content = `BT /F1 11 Tf 50 800 Td 15 TL ${page.map((line, lineIndex) => `${lineIndex ? 'T* ' : ''}(${pdfText(line)}) Tj`).join('\n')} ET\nBT /F1 9 Tf 50 32 Td (Page ${index + 1} of ${pages.length}) Tj ET`;
+    // Fixed A4 portrait layout keeps attachment sizing consistent in previews,
+    // downloads, and recipient mail clients.
+    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 ${3 + pages.length * 2} 0 R >> >> /Contents ${contentId} 0 R >>`);
     objects.push(`<< /Length ${Buffer.byteLength(content)} >>\nstream\n${content}\nendstream`);
   });
   objects.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
@@ -32,4 +34,9 @@ export function buildAssetRegistrationPdf(companyName: string, submissions: any[
   objects.forEach((object, index) => { offsets.push(Buffer.byteLength(pdf)); pdf += `${index + 1} 0 obj\n${object}\nendobj\n`; });
   const xref = Buffer.byteLength(pdf); pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${offsets.slice(1).map((offset) => `${String(offset).padStart(10, '0')} 00000 n \n`).join('')}trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
   return Buffer.from(pdf, 'utf8');
+}
+
+export function assetRegistrationPdfName(submissions: any[]) {
+  const references = submissions.map((submission) => String(submission.reference_no || '').trim()).filter(Boolean);
+  return `${references.slice(0, 3).join('_') || 'REGISTRATION'}${references.length > 3 ? '_MORE' : ''}.pdf`;
 }

@@ -1,4 +1,5 @@
 import { bodyOf, configuredClient, createRawMessage, decryptRefreshToken, emailHtmlToText, exchangeRefreshToken, noStore, publicError, requireAdmin, sanitizeEmailHtml, verifySubmissionPreviewToken } from '../_email.js';
+import { assetRegistrationPdfName, buildAssetRegistrationPdf } from './submission-asset-pdf.js';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -25,7 +26,7 @@ export default async function submissionSend(request: any, response: any) {
   if (!emailHtmlToText(messageBody) || messageBody.length > 100_000) return response.status(400).json({ error: 'A valid email body is required.' });
 
   const [submissionResult, connectionResult] = await Promise.all([
-    client.from('registration_submissions').select('status,registration_type').eq('id', token.submissionId).maybeSingle(),
+    client.from('registration_submissions').select('status,registration_type,reference_no,company_name,data').eq('id', token.submissionId).maybeSingle(),
     client.from('gmail_connections').select('*').eq('id', 'system').eq('status', 'ACTIVE').maybeSingle(),
   ]);
   const readError = submissionResult.error || connectionResult.error;
@@ -38,7 +39,7 @@ export default async function submissionSend(request: any, response: any) {
     const gmailResponse = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
       method: 'POST',
       headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ raw: createRawMessage(connectionResult.data.email, recipient, subject, messageBody) }),
+      body: JSON.stringify({ raw: createRawMessage(connectionResult.data.email, recipient, subject, messageBody, (() => { const data = buildAssetRegistrationPdf(submissionResult.data.company_name, [submissionResult.data]); return [{ path: 'generated/asset-registration-list.pdf', name: assetRegistrationPdfName([submissionResult.data]), content_type: 'application/pdf', size: data.length, data }]; })()) }),
     });
     const gmailMessage = await gmailResponse.json().catch(() => ({}));
     if (!gmailResponse.ok || !gmailMessage.id) throw new Error(String(gmailMessage.error?.status || gmailMessage.error?.message || 'gmail_send_failed'));

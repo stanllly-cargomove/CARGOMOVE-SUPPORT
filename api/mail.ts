@@ -18,6 +18,7 @@ import submissionPreview from '../server-handlers/email/submission-preview.js';
 import submissionSend from '../server-handlers/email/submission-send.js';
 import submissionBatchPreview from '../server-handlers/email/submission-batch-preview.js';
 import submissionBatchSend from '../server-handlers/email/submission-batch-send.js';
+import submissionAttachment from '../server-handlers/email/submission-attachment.js';
 import emailTemplates from '../server-handlers/email/templates.js';
 import gmailCallback from '../server-handlers/gmail/callback.js';
 import gmailConnect from '../server-handlers/gmail/connect.js';
@@ -63,6 +64,7 @@ const handlers: Record<string, Handler> = {
   'POST email/submission-send': submissionSend,
   'POST email/submission-batch-preview': submissionBatchPreview,
   'POST email/submission-batch-send': submissionBatchSend,
+  'GET email/submission-attachment': submissionAttachment,
   'GET email/templates': emailTemplates,
   'POST email/templates': emailTemplates,
   'PUT email/templates': emailTemplates,
