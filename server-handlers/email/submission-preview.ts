@@ -50,7 +50,7 @@ export default async function submissionPreview(request: any, response: any) {
   const isApproved = status === 'DONE';
   const subject = `CargoMove ${assetLabel.toLowerCase()} registration ${isApproved ? 'approved' : 'rejected'} — ${submission.reference_no}`;
   const bodyHtml = isApproved
-    ? `<p>Dear Customer,</p><p>Your ${assetLabel.toLowerCase()} registration for <strong>${submission.company_name}</strong> has been approved.</p><p>Reference number: <strong>${submission.reference_no}</strong></p><p>Your registration is now complete.</p><p>If you notice an issue, error, or incorrect registration data, please contact CargoMove Support through our official channels:</p><p><strong>Official WhatsApp:</strong> 018-266 0085<br><strong>Email:</strong> support@cargomove.com.my<br><strong>General Line:</strong> 03-2771 2765</p><p>Regards,<br>CargoMove</p>`
+    ? `<p>Dear Customer,</p><p>Your ${assetLabel.toLowerCase()} registration for <strong>${submission.company_name}</strong> has been approved. Your registration is now complete.</p><p>Reference number: <strong>${submission.reference_no}</strong></p><p>If you notice an issue, error, or incorrect registration data, please contact CargoMove Support through our <strong>Official WhatsApp:</strong> 018-266 0085</p><p>Regards,<br>CargoMove Support Team</p>`
     : `<p>Dear Customer,</p><p>We are unable to proceed with your ${assetLabel.toLowerCase()} registration for <strong>${submission.company_name}</strong>.</p><p>Reference number: <strong>${submission.reference_no}</strong></p><p>Please contact CargoMove Support if you need more information.</p><p>Regards,<br>CargoMove</p>`;
   response.json({
     recipient,
