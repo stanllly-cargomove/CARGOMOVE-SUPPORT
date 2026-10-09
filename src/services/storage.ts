@@ -447,13 +447,18 @@ let protectedWriteInFlight = false;
 
 function companyRow(company: Company) {
   const { assigned_port_ids, assigned_depot_ids, ledger_codes, block, address1, address2, city, state, postcode, country, contact_name, contact_email, contact_designation, contact_mobile, office_phone, fax, ...master } = company;
+  const isHaulier = normalizeCompanyType(company.company_type) === 'HAULAGE';
+  const companyPortIds = new Set([company.port_id, ...(assigned_port_ids || [])].filter(Boolean));
+  const isJohor = getPorts().some((port) => port.location === 'JOHOR' && companyPortIds.has(port.id));
   return {
     ...master,
     // Empty strings are not valid foreign keys in Postgres. The Company Master
     // form represents "not assigned" as '', so persist those values as NULL.
     port_id: company.port_id || null,
     depot_id: company.depot_id || null,
-    ledger_codes: ledger_codes || null,
+    // Ledger codes apply only to the Port Klang workflow. Haulier and Johor
+    // Company Master saves must not require the optional migrated column.
+    ...(!isHaulier && !isJohor ? { ledger_codes: ledger_codes || null } : {}),
     block,
     address1,
     address2,
