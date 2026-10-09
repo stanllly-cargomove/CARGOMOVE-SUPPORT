@@ -1,8 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { deflateSync, inflateSync } from 'node:zlib';
+import { interPdfFonts } from './pdf-inter-font.js';
 
 type AssetType = 'DRIVER' | 'TRAILER' | 'VEHICLE';
-type AssetRow = { reference: string; item: Record<string, unknown> };
+type AssetRow = { item: Record<string, unknown> };
 type Column = { title: string; width: number; value: (row: AssetRow) => unknown };
 
 const PAGE_WIDTH = 595;
@@ -18,10 +19,14 @@ function safeText(value: unknown) {
   return String(value ?? '').trim().replace(/[^\x20-\x7e]/g, '?').replace(/[\\()]/g, '\\$&');
 }
 
-function fitText(value: unknown, width: number, size: number) {
+function fitText(value: unknown, width: number, size: number, bold = false) {
   const raw = String(value ?? '').trim().replace(/[^\x20-\x7e]/g, '?');
-  const max = Math.max(1, Math.floor(width / (size * 0.53)));
-  return raw.length > max ? `${raw.slice(0, Math.max(0, max - 3))}...` : raw;
+  const metrics = bold ? interPdfFonts().bold.widths : interPdfFonts().regular.widths;
+  const measure = (text: string) => [...text].reduce((total, character) => total + (metrics[character.charCodeAt(0) - 32] || metrics[31]) * size / 1000, 0);
+  if (measure(raw) <= width) return raw;
+  let clipped = raw;
+  while (clipped && measure(`${clipped}...`) > width) clipped = clipped.slice(0, -1);
+  return `${clipped}...`;
 }
 
 function line(font: 'F1' | 'F2', size: number, x: number, y: number, value: unknown, color = INK) {
@@ -35,31 +40,27 @@ function assetRows(submissions: any[]): AssetRow[] {
     const plural = type === 'DRIVER' ? data.drivers : type === 'TRAILER' ? data.trailers : data.vehicles;
     const singular = type === 'DRIVER' ? data.driver : type === 'TRAILER' ? data.trailer : data.vehicle;
     const items = Array.isArray(plural) && plural.length ? plural : singular ? [singular] : [{}];
-    return items.map((item: Record<string, unknown>) => ({ reference: String(submission.reference_no || '-'), item }));
+    return items.map((item: Record<string, unknown>) => ({ item }));
   });
 }
 
 function columnsFor(type: AssetType): Column[] {
-  const reference: Column = { title: 'QUEUE NO.', width: type === 'DRIVER' ? 87 : type === 'TRAILER' ? 80 : 89, value: (row) => row.reference };
   if (type === 'DRIVER') return [
-    { title: 'DRIVER NAME', width: 148, value: ({ item }) => item.name || '-' },
-    { title: 'LICENCE / NRIC', width: 151, value: ({ item }) => item.driving_license || '-' },
-    { title: 'MOBILE NO.', width: 125, value: ({ item }) => item.mobile_no || '-' },
-    reference,
+    { title: 'DRIVER NAME', width: 185, value: ({ item }) => item.name || '-' },
+    { title: 'LICENCE / NRIC', width: 180, value: ({ item }) => item.driving_license || '-' },
+    { title: 'MOBILE NO.', width: 146, value: ({ item }) => item.mobile_no || '-' },
   ];
   if (type === 'TRAILER') return [
-    { title: 'PLATE / REG NO.', width: 128, value: ({ item }) => item.registration_number || '-' },
-    { title: 'TRAILER TYPE', width: 139, value: ({ item }) => item.trailer_type || '-' },
-    { title: 'UNLADEN WT.', width: 82, value: ({ item }) => item.weight ? `${item.weight} KG` : '-' },
-    { title: 'BDM WT.', width: 82, value: ({ item }) => item.bdm_weight ? `${item.bdm_weight} KG` : '-' },
-    reference,
+    { title: 'PLATE / REG NO.', width: 145, value: ({ item }) => item.registration_number || '-' },
+    { title: 'TRAILER TYPE', width: 158, value: ({ item }) => item.trailer_type || '-' },
+    { title: 'UNLADEN WT.', width: 104, value: ({ item }) => item.weight ? `${item.weight} KG` : '-' },
+    { title: 'BDM WT.', width: 104, value: ({ item }) => item.bdm_weight ? `${item.bdm_weight} KG` : '-' },
   ];
   return [
-    { title: 'PLATE / REG NO.', width: 128, value: ({ item }) => item.registration_number || '-' },
-    { title: 'HEAD NO.', width: 110, value: ({ item }) => item.head || '-' },
-    { title: 'UNLADEN WT.', width: 92, value: ({ item }) => item.weight ? `${item.weight} KG` : '-' },
-    { title: 'BGK WT.', width: 92, value: ({ item }) => item.bgk_weight ? `${item.bgk_weight} KG` : '-' },
-    reference,
+    { title: 'PLATE / REG NO.', width: 151, value: ({ item }) => item.registration_number || '-' },
+    { title: 'HEAD NO.', width: 132, value: ({ item }) => item.head || '-' },
+    { title: 'UNLADEN WT.', width: 114, value: ({ item }) => item.weight ? `${item.weight} KG` : '-' },
+    { title: 'BGK WT.', width: 114, value: ({ item }) => item.bgk_weight ? `${item.bgk_weight} KG` : '-' },
   ];
 }
 
@@ -126,10 +127,15 @@ export function buildAssetRegistrationPdf(companyName: string, submissions: any[
   const references = [...new Set(submissions.map((submission) => String(submission.reference_no || '')).filter(Boolean))];
   const stamp = `${new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kuala_Lumpur', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date())} MYT`;
   const logo = logoPixels();
+  const fonts = interPdfFonts();
   const regularId = 3 + pageCount * 2;
   const boldId = regularId + 1;
   const logoId = regularId + 2;
   const maskId = regularId + 3;
+  const regularDescriptorId = regularId + 4;
+  const boldDescriptorId = regularId + 5;
+  const regularFileId = regularId + 6;
+  const boldFileId = regularId + 7;
   const objects: Buffer[] = [
     Buffer.from('<< /Type /Catalog /Pages 2 0 R >>'),
     Buffer.from(`<< /Type /Pages /Kids [${Array.from({ length: pageCount }, (_, index) => `${3 + index * 2} 0 R`).join(' ')}] /Count ${pageCount} >>`),
@@ -140,55 +146,59 @@ export function buildAssetRegistrationPdf(companyName: string, submissions: any[
     const commands = [
       '1 1 1 rg 0 0 595 842 re f',
       // Real CargoMove artwork; its transparent background remains transparent.
-      'q 190 0 0 32 42 777 cm /Logo Do Q',
-      line('F1', 8, 42, 766, 'REGISTRATION OPERATIONS', MUTED),
+      'q 175 0 0 30 42 779 cm /Logo Do Q',
+      line('F1', 7.3, 42, 766, 'REGISTRATION OPERATIONS', MUTED),
       `${BLUE} rg 42 750 511 2 re f`,
-      line('F2', 19, 42, 718, title),
-      line('F1', 9, 42, 699, 'Approved registration details for your records', MUTED),
+      line('F2', 17, 42, 718, title),
+      line('F1', 8.2, 42, 699, 'Approved registration details for your records', MUTED),
       '0.90 0.96 1 rg 457 706 96 24 re f',
-      line('F2', 8, 474, 715, 'APPROVED', BLUE),
+      line('F2', 7.4, 474, 715, 'APPROVED', BLUE),
       '0.96 0.98 1 rg 42 622 511 62 re f',
-      line('F2', 8, 55, 663, 'COMPANY', MUTED),
-      line('F1', 9.5, 55, 646, fitText(companyName, 222, 9.5)),
-      line('F2', 8, 286, 663, 'QUEUE NUMBER', MUTED),
-      line('F1', 8.5, 286, 646, fitText(references.join(', '), 136, 8.5)),
-      line('F2', 8, 432, 663, 'GENERATED', MUTED),
-      line('F1', 7.5, 432, 646, fitText(stamp, 110, 7.5)),
-      line('F2', 10, 42, 601, `Registered ${type.toLowerCase()}${rows.length === 1 ? '' : 's'}`),
-      line('F1', 8, 486, 601, `${rows.length} ${rows.length === 1 ? 'item' : 'items'}`, MUTED),
-      `${BLUE} rg 42 560 511 28 re f`,
+      line('F2', 7.2, 55, 663, 'COMPANY', MUTED),
+      line('F1', 8.8, 55, 646, fitText(companyName, 222, 8.8)),
+      line('F2', 7.2, 286, 663, 'QUEUE NUMBER', MUTED),
+      line('F1', 7.8, 286, 646, fitText(references.join(', '), 136, 7.8)),
+      line('F2', 7.2, 432, 663, 'GENERATED', MUTED),
+      line('F1', 7.1, 432, 646, fitText(stamp, 110, 7.1)),
+      line('F2', 9.2, 42, 601, `Registered ${type.toLowerCase()}${rows.length === 1 ? '' : 's'}`),
+      line('F1', 7.4, 486, 601, `${rows.length} ${rows.length === 1 ? 'item' : 'items'}`, MUTED),
+      `${BLUE} rg 42 563 ${TABLE_WIDTH} 25 re f`,
     ];
     let x = LEFT;
     for (const column of columns) {
-      commands.push(line('F2', 7.4, x + 9, 570, column.title, '1 1 1'));
+      commands.push(line('F2', 7, x + 9, 572, column.title, '1 1 1'));
       x += column.width;
     }
     pageRows.forEach((row, index) => {
-      const bottom = 560 - (index + 1) * 28;
-      if (index % 2 === 0) commands.push(`0.97 0.98 0.99 rg 42 ${bottom} 511 28 re f`);
+      const bottom = 563 - (index + 1) * 25;
+      if (index % 2 === 0) commands.push(`0.97 0.98 0.99 rg 42 ${bottom} ${TABLE_WIDTH} 25 re f`);
       commands.push(`0.86 0.90 0.94 RG 0.35 w 42 ${bottom} m 553 ${bottom} l S`);
       let cellX = LEFT;
       for (const column of columns) {
         const font = cellX === LEFT ? 'F2' : 'F1';
-        commands.push(line(font, 8.5, cellX + 9, bottom + 10, fitText(column.value(row), column.width - 18, 8.5)));
+        commands.push(line(font, 7.9, cellX + 9, bottom + 9, fitText(column.value(row), column.width - 18, 7.9, font === 'F2')));
         cellX += column.width;
       }
     });
     if (pageRows.length === 0) commands.push(line('F1', 9, 52, 538, 'No asset details were recorded for this registration.', MUTED));
     commands.push(
       '0.84 0.89 0.94 RG 0.6 w 42 77 m 553 77 l S',
-      line('F1', 8, 42, 57, `CargoMove - ${title}`, MUTED),
-      line('F1', 8, 496, 57, `Page ${page + 1} of ${pageCount}`, MUTED),
+      line('F1', 7.4, 42, 57, `CargoMove - ${title}`, MUTED),
+      line('F1', 7.4, 496, 57, `Page ${page + 1} of ${pageCount}`, MUTED),
     );
     const contents = Buffer.from(commands.join('\n'), 'ascii');
     const contentId = 4 + page * 2;
     objects.push(Buffer.from(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}] /Resources << /Font << /F1 ${regularId} 0 R /F2 ${boldId} 0 R >> /XObject << /Logo ${logoId} 0 R >> >> /Contents ${contentId} 0 R >>`));
     objects.push(streamObject('', contents));
   }
-  objects.push(Buffer.from('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'));
-  objects.push(Buffer.from('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>'));
+  objects.push(Buffer.from(`<< /Type /Font /Subtype /TrueType /BaseFont /Inter-Regular /FirstChar 32 /LastChar 126 /Widths [${fonts.regular.widths.join(' ')}] /Encoding /WinAnsiEncoding /FontDescriptor ${regularDescriptorId} 0 R >>`));
+  objects.push(Buffer.from(`<< /Type /Font /Subtype /TrueType /BaseFont /Inter-Bold /FirstChar 32 /LastChar 126 /Widths [${fonts.bold.widths.join(' ')}] /Encoding /WinAnsiEncoding /FontDescriptor ${boldDescriptorId} 0 R >>`));
   objects.push(streamObject(`/Type /XObject /Subtype /Image /Width ${logo.width} /Height ${logo.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /SMask ${maskId} 0 R`, logo.rgb));
   objects.push(streamObject(`/Type /XObject /Subtype /Image /Width ${logo.width} /Height ${logo.height} /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode`, logo.alpha));
+  objects.push(Buffer.from(`<< /Type /FontDescriptor /FontName /Inter-Regular /Flags 32 /FontBBox [${fonts.regular.bbox.join(' ')}] /ItalicAngle 0 /Ascent ${fonts.regular.ascent} /Descent ${fonts.regular.descent} /CapHeight ${fonts.regular.capHeight} /StemV 80 /FontFile2 ${regularFileId} 0 R >>`));
+  objects.push(Buffer.from(`<< /Type /FontDescriptor /FontName /Inter-Bold /Flags 32 /FontBBox [${fonts.bold.bbox.join(' ')}] /ItalicAngle 0 /Ascent ${fonts.bold.ascent} /Descent ${fonts.bold.descent} /CapHeight ${fonts.bold.capHeight} /StemV 120 /FontFile2 ${boldFileId} 0 R >>`));
+  objects.push(streamObject(`/Length1 ${fonts.regular.data.length}`, fonts.regular.data));
+  objects.push(streamObject(`/Length1 ${fonts.bold.data.length}`, fonts.bold.data));
 
   const output: Buffer[] = [Buffer.from('%PDF-1.4\n%\xe2\xe3\xcf\xd3\n', 'latin1')];
   const offsets = [0];
