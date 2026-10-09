@@ -2,6 +2,11 @@ import { bodyOf, configuredClient, createRawMessage, decryptRefreshToken, emailH
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+function validRecipients(value: string) {
+  const recipients = value.split(',').map((recipient) => recipient.trim().toLowerCase()).filter(Boolean);
+  return recipients.length > 0 && recipients.every((recipient) => EMAIL_PATTERN.test(recipient) && !/[\r\n]/.test(recipient));
+}
+
 export default async function submissionSend(request: any, response: any) {
   noStore(response);
   if (request.method !== 'POST') return response.status(405).json({ error: 'Method not allowed.' });
@@ -15,7 +20,7 @@ export default async function submissionSend(request: any, response: any) {
   const recipient = String(body.recipient || '').trim().toLowerCase();
   const subject = String(body.subject || '').trim();
   const messageBody = sanitizeEmailHtml(String(body.body || ''));
-  if (recipient !== token.recipient || !EMAIL_PATTERN.test(recipient) || /[\r\n]/.test(recipient)) return response.status(400).json({ error: 'The recipient must match the preview.' });
+  if (recipient !== token.recipient || !validRecipients(recipient)) return response.status(400).json({ error: 'The recipient must match the preview.' });
   if (!subject || /[\r\n]/.test(subject) || subject.length > 998) return response.status(400).json({ error: 'A valid subject is required.' });
   if (!emailHtmlToText(messageBody) || messageBody.length > 100_000) return response.status(400).json({ error: 'A valid email body is required.' });
 

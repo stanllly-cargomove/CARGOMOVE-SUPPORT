@@ -466,6 +466,7 @@ export default async function companyRegistration(request: any, response: any) {
       submitted_by_name: text(body.submitted_by_name),
       submitted_by_email: text(body.submitted_by_email),
       submitted_by_mobile: text(body.submitted_by_mobile),
+      notification_email: additionalConfirmationEmail || null,
       data: submittedData,
     };
     const submissionResult = await client.from('registration_submissions').insert(submissionRow).select().single();

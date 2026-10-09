@@ -99,6 +99,7 @@ export interface RegistrationSubmission {
   submitted_by_name: string;
   submitted_by_email: string;
   submitted_by_mobile: string;
+  notification_email?: string | null;
   reviewed_at?: string;
   exported_at?: string;
   export_filename?: string;

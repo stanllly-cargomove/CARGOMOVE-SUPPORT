@@ -1,13 +1,25 @@
 import { bodyOf, configuredClient, createSubmissionPreviewToken, noStore, requireAdmin, sanitizeEmailHtml } from '../_email.js';
 
-function recipientFor(submission: any) {
-  const recipients = submission?.data?.email_confirmation?.recipients;
-  if (Array.isArray(recipients)) {
-    const recipient = recipients.find((value: unknown) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim()));
-    if (recipient) return String(recipient).trim().toLowerCase();
-  }
-  const submittedBy = String(submission?.submitted_by_email || '').trim().toLowerCase();
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(submittedBy) ? submittedBy : '';
+function validEmail(value: unknown) {
+  const email = String(value || '').trim().toLowerCase();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : '';
+}
+
+function recipientsFor(submission: any, company: any) {
+  const recipientSet = new Set<string>();
+  const add = (value: unknown) => {
+    const email = validEmail(value);
+    if (email) recipientSet.add(email);
+  };
+  // The Company Master contact and the optional queue address are both
+  // deliberate notification recipients for asset registration outcomes.
+  add(company?.contact_email);
+  add(company?.details?.contact_email);
+  add(submission?.notification_email);
+  const savedRecipients = submission?.data?.email_confirmation?.recipients;
+  if (Array.isArray(savedRecipients)) savedRecipients.forEach(add);
+  add(submission?.submitted_by_email);
+  return Array.from(recipientSet);
 }
 
 export default async function submissionPreview(request: any, response: any) {
@@ -22,12 +34,17 @@ export default async function submissionPreview(request: any, response: any) {
   const status = String(body.status || '').trim().toUpperCase();
   if (!submissionId || !['DONE', 'REJECTED'].includes(status)) return response.status(400).json({ error: 'A completed or rejected submission is required.' });
 
-  const result = await client.from('registration_submissions').select('id,reference_no,registration_type,company_name,submitted_by_email,data').eq('id', submissionId).maybeSingle();
+  const result = await client.from('registration_submissions').select('id,reference_no,registration_type,company_id,company_name,submitted_by_email,notification_email,data').eq('id', submissionId).maybeSingle();
   if (result.error) return response.status(502).json({ error: result.error.message });
   const submission = result.data;
   if (!submission || !['DRIVER', 'TRAILER', 'VEHICLE'].includes(submission.registration_type)) return response.status(404).json({ error: 'Asset registration submission not found.' });
-  const recipient = recipientFor(submission);
-  if (!recipient) return response.status(409).json({ error: 'This submission has no valid notification email address.' });
+  const companyResult = submission.company_id
+    ? await client.from('companies').select('contact_email,details').eq('id', submission.company_id).maybeSingle()
+    : { data: null, error: null };
+  if (companyResult.error) return response.status(502).json({ error: companyResult.error.message });
+  const recipients = recipientsFor(submission, companyResult.data);
+  if (!recipients.length) return response.status(409).json({ error: 'This submission has no valid notification email address.' });
+  const recipient = recipients.join(', ');
   const assetLabel = submission.registration_type.charAt(0) + submission.registration_type.slice(1).toLowerCase();
   const isApproved = status === 'DONE';
   const subject = `CargoMove ${assetLabel.toLowerCase()} registration ${isApproved ? 'approved' : 'rejected'} — ${submission.reference_no}`;
