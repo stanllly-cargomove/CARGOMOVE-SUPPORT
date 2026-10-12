@@ -650,11 +650,21 @@ function CompanyEditModal({
       }
       return undefined;
     };
-    const resolveList = (raw: string | undefined, kind: 'port' | 'depot') => {
-      if (!raw) return undefined;
-      const values = raw.split(/[,;|]/).map((item) => item.trim()).filter(Boolean);
+    const resolveList = (raw: unknown, kind: 'port' | 'depot') => {
+      if (raw === undefined || raw === null || raw === '') return undefined;
+      const values = (Array.isArray(raw) ? raw.flat(Infinity) : String(raw).split(/[,;|]/))
+        .map((item) => {
+          if (item && typeof item === 'object') {
+            const object = item as Record<string, unknown>;
+            return object.id || object.code || object.name || object.display_name || object.port_id || object.depot_id || '';
+          }
+          return item;
+        })
+        .map((item) => String(item).trim())
+        .filter(Boolean);
       const options = kind === 'port' ? ports : depots;
-      return values.map((item) => options.find((option) => option.id.toLowerCase() === item.toLowerCase() || option.display_name.toLowerCase() === item.toLowerCase() || ('code' in option && option.code.toLowerCase() === item.toLowerCase()))?.id || item);
+      const resolved = values.map((item) => options.find((option) => option.id.toLowerCase() === item.toLowerCase() || option.display_name.toLowerCase() === item.toLowerCase() || ('code' in option && option.code.toLowerCase() === item.toLowerCase()) || ('backend_port_id' in option && option.backend_port_id.toLowerCase() === item.toLowerCase()) || ('backend_depot_id' in option && option.backend_depot_id.toLowerCase() === item.toLowerCase()))?.id).filter((id): id is string => !!id);
+      return resolved.length ? Array.from(new Set(resolved)) : undefined;
     };
 
     const imported: Partial<CompanyFormState> = {};
@@ -697,8 +707,8 @@ function CompanyEditModal({
     const portCodeValue = Array.isArray(portCodes) ? portCodes.flat(Infinity).map((value) => String(value)).join(',') : scalarValue(portCodes);
     const depotObject = readPath('depots');
     const depotKeys = depotObject && typeof depotObject === 'object' && !Array.isArray(depotObject) ? Object.keys(depotObject).join(',') : undefined;
-    const portsValue = resolveList(valueFor('ports', 'port', 'port id', 'assigned ports') || portCodeValue || valueFor('ids.portcodes'), 'port');
-    const depotsValue = resolveList(valueFor('depot', 'depot id', 'assigned depots') || depotKeys, 'depot');
+    const portsValue = resolveList(listValue('ports', 'port', 'port_id', 'port id', 'assigned_ports', 'assigned port ids', 'assigned ports') || portCodeValue || valueFor('ids.portcodes'), 'port');
+    const depotsValue = resolveList(listValue('depots', 'depot', 'depot_id', 'depot id', 'assigned_depots', 'assigned depot ids', 'assigned depots') || depotKeys, 'depot');
     setForm((current) => ({
       ...current,
       ...imported,

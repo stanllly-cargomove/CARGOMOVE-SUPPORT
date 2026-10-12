@@ -987,6 +987,20 @@ export async function saveCompanyPersisted(
   const target = prepareCompany(companyData);
   protectedWriteInFlight = true;
   try {
+    // Company foreign keys point to the configurable master tables. A browser
+    // can have the current local master data even when a fresh/partially
+    // seeded Supabase project does not yet contain those rows. Upsert the
+    // selected masters first so JSON imports cannot fail with a port FK error.
+    const ports = getPorts();
+    const portIds = new Set([target.port_id, ...(target.assigned_port_ids || [])].filter(Boolean));
+    for (const port of ports.filter((item) => portIds.has(item.id))) {
+      await upsertSupabaseRow('port_configs', port);
+    }
+    const depots = getDepots();
+    const depotIds = new Set([target.depot_id, ...(target.assigned_depot_ids || [])].filter(Boolean));
+    for (const depot of depots.filter((item) => depotIds.has(item.id))) {
+      await upsertSupabaseRow('depot_configs', depot);
+    }
     const saved = await upsertSupabaseRow<Company & { details?: Partial<Company> }>('companies', companyRow(target));
     if (!saved) throw new Error('The database did not return the saved company.');
     const { details, ...master } = saved;

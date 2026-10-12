@@ -947,7 +947,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
                     onClick={() => setSubmissionEmailPreviewIndex((index) => Math.max(0, index - 1))}
                     disabled={sendingSubmissionEmail || submissionEmailPreviewIndex === 0}
                     aria-label="Previous email preview"
-                    className="inline-flex h-12 w-12 items-center justify-center rounded-lg border border-slate-300 bg-white text-2xl font-light text-slate-500 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-300 bg-white text-2xl font-light text-slate-500 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     ‹
                   </button>
@@ -958,7 +958,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
                       onClick={() => setSubmissionEmailPreviewIndex(page - 1)}
                       aria-current={submissionEmailPreviewIndex + 1 === page ? 'page' : undefined}
                       aria-label={`Email preview page ${page}`}
-                      className={`inline-flex h-12 min-w-12 items-center justify-center rounded-lg border px-3 text-base font-bold ${submissionEmailPreviewIndex + 1 === page ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'}`}
+                      className={`inline-flex h-10 min-w-10 items-center justify-center rounded-lg border px-3 text-base font-bold ${submissionEmailPreviewIndex + 1 === page ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'}`}
                     >
                       {page}
                     </button>
@@ -968,15 +968,15 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
                     onClick={() => setSubmissionEmailPreviewIndex((index) => Math.min(submissionEmailPreviews.length - 1, index + 1))}
                     disabled={sendingSubmissionEmail || submissionEmailPreviewIndex === submissionEmailPreviews.length - 1}
                     aria-label="Next email preview"
-                    className="inline-flex h-12 w-12 items-center justify-center rounded-lg border border-slate-300 bg-white text-2xl font-light text-slate-500 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-300 bg-white text-2xl font-light text-slate-500 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     ›
                   </button>
                 </nav>
               )}
               <div className="flex gap-2 sm:ml-auto">
-                <button type="button" onClick={() => setSubmissionEmailPreviews([])} disabled={sendingSubmissionEmail} className="inline-flex h-12 items-center rounded-lg px-4 text-xs font-semibold text-slate-600 hover:bg-slate-200">Cancel</button>
-                <button type="button" onClick={() => void sendAssetRegistrationEmail()} disabled={sendingSubmissionEmail} className="inline-flex h-12 items-center gap-2 rounded-lg bg-blue-600 px-4 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-60"><Mail className="h-4 w-4" />{sendingSubmissionEmail ? 'Sending...' : 'Send Email'}</button>
+                <button type="button" onClick={() => setSubmissionEmailPreviews([])} disabled={sendingSubmissionEmail} className="rounded-lg px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200">Cancel</button>
+                <button type="button" onClick={() => void sendAssetRegistrationEmail()} disabled={sendingSubmissionEmail} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-60"><Mail className="h-4 w-4" />{sendingSubmissionEmail ? 'Sending...' : 'Send Email'}</button>
               </div>
             </div>
           </div>
