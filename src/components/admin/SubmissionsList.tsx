@@ -11,7 +11,7 @@ import {
   subscribeToStorage,
 } from '../../services/storage';
 import { getExternalUserAccess } from '../../services/auth';
-import { EmailPreview, generateSubmissionEmailPreview, generateWelcomeEmailPreview, sendSubmissionEmail, sendWelcomeEmail } from '../../services/email';
+import { EmailPreview, generateSubmissionBatchEmailPreviews, generateSubmissionEmailPreview, generateWelcomeEmailPreview, sendSubmissionBatchEmail, sendSubmissionEmail, sendWelcomeEmail } from '../../services/email';
 import { getCompanyExternalId } from '../../services/companyHelper';
 import { exportSubmissionsToExcel } from '../../services/excelExport';
 import { CargoMoveIdBadge, StatusBadge } from '../common/Badge';
@@ -123,7 +123,9 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
   const [savingRejection, setSavingRejection] = useState(false);
   const [preview, setPreview] = useState<EmailPreview | null>(null);
   const [sendingEmail, setSendingEmail] = useState(false);
-  const [submissionEmailPreview, setSubmissionEmailPreview] = useState<EmailPreview | null>(null);
+  const [submissionEmailPreviews, setSubmissionEmailPreviews] = useState<EmailPreview[]>([]);
+  const [submissionEmailPreviewIndex, setSubmissionEmailPreviewIndex] = useState(0);
+  const [submissionEmailPreviewIsBatch, setSubmissionEmailPreviewIsBatch] = useState(false);
   const [sendingSubmissionEmail, setSendingSubmissionEmail] = useState(false);
 
   const refreshList = () => {
@@ -140,6 +142,9 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
     setIdFilter('ALL');
     setRejectingSubmission(null);
     setPreview(null);
+    setSubmissionEmailPreviews([]);
+    setSubmissionEmailPreviewIndex(0);
+    setSubmissionEmailPreviewIsBatch(false);
     setSortBy(defaultSortForStatus(status));
     setCurrentPage(1);
   }, [status]);
@@ -284,12 +289,10 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
       notifySuccess(`Export complete: ${res.count} record(s) generated.`);
       refreshList();
       setSelectedIds([]);
-      const assetSubmission = selectedSubs.find((submission) => submission.registration_type !== 'COMPANY');
-      if (assetSubmission) {
-        void openSubmissionEmailPreview(assetSubmission.id, 'DONE');
-        const additionalAssetCount = selectedSubs.filter((submission) => submission.registration_type !== 'COMPANY').length - 1;
-        if (additionalAssetCount > 0) notifyWarning(`${additionalAssetCount} additional asset registration email(s) can be sent from their closed submissions.`);
-      }
+      const assetIds = selectedSubs
+        .filter((submission) => submission.registration_type !== 'COMPANY')
+        .map((submission) => submission.id);
+      if (assetIds.length) void openSubmissionBatchEmailPreview(assetIds);
     }
   };
 
@@ -323,18 +326,50 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
 
   const openSubmissionEmailPreview = async (submissionId: string, status: 'DONE' | 'REJECTED') => {
     try {
-      setSubmissionEmailPreview(await generateSubmissionEmailPreview(submissionId, status));
+      setSubmissionEmailPreviews([await generateSubmissionEmailPreview(submissionId, status)]);
+      setSubmissionEmailPreviewIndex(0);
+      setSubmissionEmailPreviewIsBatch(false);
     } catch (error) {
       notifyError(error instanceof Error ? error.message : 'Unable to prepare the registration email.');
     }
+  };
+
+  const openSubmissionBatchEmailPreview = async (submissionIds: string[]) => {
+    try {
+      const previews = await generateSubmissionBatchEmailPreviews(submissionIds);
+      if (!previews.length) throw new Error('Unable to prepare the registration email.');
+      setSubmissionEmailPreviews(previews);
+      setSubmissionEmailPreviewIndex(0);
+      setSubmissionEmailPreviewIsBatch(true);
+    } catch (error) {
+      notifyError(error instanceof Error ? error.message : 'Unable to prepare the registration email.');
+    }
+  };
+
+  const submissionEmailPreview = submissionEmailPreviews[submissionEmailPreviewIndex] || null;
+
+  const updateSubmissionEmailPreview = (update: (current: EmailPreview) => EmailPreview) => {
+    setSubmissionEmailPreviews((current) => current.map((preview, index) => index === submissionEmailPreviewIndex ? update(preview) : preview));
   };
 
   const sendAssetRegistrationEmail = async () => {
     if (!submissionEmailPreview) return;
     setSendingSubmissionEmail(true);
     try {
-      await sendSubmissionEmail(submissionEmailPreview);
-      setSubmissionEmailPreview(null);
+      if (submissionEmailPreviewIsBatch) {
+        await sendSubmissionBatchEmail(submissionEmailPreview);
+      } else {
+        await sendSubmissionEmail(submissionEmailPreview);
+      }
+      const remaining = submissionEmailPreviews.filter((_, index) => index !== submissionEmailPreviewIndex);
+      if (remaining.length) {
+        setSubmissionEmailPreviews(remaining);
+        setSubmissionEmailPreviewIndex((index) => Math.min(index, remaining.length - 1));
+      } else {
+        setSubmissionEmailPreviews([]);
+        setSubmissionEmailPreviewIndex(0);
+        setSubmissionEmailPreviewIsBatch(false);
+      }
       notifySuccess('Registration email sent through Gmail.');
     } catch (error) {
       notifyError(error instanceof Error ? error.message : 'Unable to send the registration email.');
@@ -896,16 +931,21 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
           <div role="dialog" aria-modal="true" aria-labelledby="submission-email-preview-title" className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-4">
               <div><h3 id="submission-email-preview-title" className="font-bold text-slate-900">Registration Email Preview</h3><p className="mt-0.5 text-xs text-slate-500">{submissionEmailPreview.templateName}</p></div>
-              <button type="button" onClick={() => setSubmissionEmailPreview(null)} disabled={sendingSubmissionEmail} aria-label="Close email preview" className="rounded-lg p-1 text-slate-400 hover:text-slate-700"><X className="h-5 w-5" /></button>
+              <button type="button" onClick={() => setSubmissionEmailPreviews([])} disabled={sendingSubmissionEmail} aria-label="Close email preview" className="rounded-lg p-1 text-slate-400 hover:text-slate-700"><X className="h-5 w-5" /></button>
             </div>
             <div className="space-y-4 overflow-y-auto p-5">
+              <div className="flex items-center justify-between rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-800">
+                <span>Email preview {submissionEmailPreviewIndex + 1} of {submissionEmailPreviews.length}</span>
+                {submissionEmailPreviews.length > 1 && <span>{submissionEmailPreviews.length} email groups selected</span>}
+              </div>
               <label className="block text-xs font-semibold text-slate-700">To<input value={submissionEmailPreview.recipient} readOnly className="mt-1.5 w-full rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 font-normal text-slate-700" /></label>
-              <label className="block text-xs font-semibold text-slate-700">Subject<input value={submissionEmailPreview.subject} onChange={(event) => setSubmissionEmailPreview({ ...submissionEmailPreview, subject: event.target.value })} className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" /></label>
+              <label className="block text-xs font-semibold text-slate-700">Subject<input value={submissionEmailPreview.subject} onChange={(event) => updateSubmissionEmailPreview((current) => ({ ...current, subject: event.target.value }))} className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" /></label>
               {submissionEmailPreview.attachments.map((attachment) => <div key={attachment.path} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs"><span className="flex min-w-0 items-center gap-3"><PdfAttachmentIcon /><span className="min-w-0"><span className="block text-slate-500">Attachment</span><strong className="block truncate text-slate-800" title={attachment.name}>{attachment.name}</strong></span></span><span className="flex shrink-0 gap-3"><a href={attachment.path} target="_blank" rel="noreferrer" className="font-semibold text-blue-600 hover:text-blue-800">View</a><a href={`${attachment.path}&download=1`} className="font-semibold text-blue-600 hover:text-blue-800">Download</a></span></div>)}
-              <div className="text-xs font-semibold text-slate-700">Message<RichTextEmailEditor value={submissionEmailPreview.body} onChange={(body) => setSubmissionEmailPreview((current) => current ? { ...current, body } : current)} minHeightClassName="min-h-64" /></div>
+              <div className="text-xs font-semibold text-slate-700">Message<RichTextEmailEditor value={submissionEmailPreview.body} onChange={(body) => updateSubmissionEmailPreview((current) => ({ ...current, body }))} minHeightClassName="min-h-64" /></div>
             </div>
             <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4">
-              <button type="button" onClick={() => setSubmissionEmailPreview(null)} disabled={sendingSubmissionEmail} className="rounded-lg px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200">Cancel</button>
+              {submissionEmailPreviews.length > 1 && <><button type="button" onClick={() => setSubmissionEmailPreviewIndex((index) => Math.max(0, index - 1))} disabled={sendingSubmissionEmail || submissionEmailPreviewIndex === 0} className="rounded-lg px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200 disabled:opacity-40">Previous</button><button type="button" onClick={() => setSubmissionEmailPreviewIndex((index) => Math.min(submissionEmailPreviews.length - 1, index + 1))} disabled={sendingSubmissionEmail || submissionEmailPreviewIndex === submissionEmailPreviews.length - 1} className="rounded-lg px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200 disabled:opacity-40">Next</button></>}
+              <button type="button" onClick={() => setSubmissionEmailPreviews([])} disabled={sendingSubmissionEmail} className="rounded-lg px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200">Cancel</button>
               <button type="button" onClick={() => void sendAssetRegistrationEmail()} disabled={sendingSubmissionEmail} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-60"><Mail className="h-4 w-4" />{sendingSubmissionEmail ? 'Sending...' : 'Send Email'}</button>
             </div>
           </div>
