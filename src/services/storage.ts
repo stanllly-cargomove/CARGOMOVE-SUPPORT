@@ -456,9 +456,9 @@ function companyRow(company: Company) {
     // form represents "not assigned" as '', so persist those values as NULL.
     port_id: company.port_id || null,
     depot_id: company.depot_id || null,
-    // Ledger codes apply only to the Port Klang workflow. Haulier and Johor
-    // Company Master saves must not require the optional migrated column.
-    ...(!isHaulier && !isJohor ? { ledger_codes: ledger_codes || null } : {}),
+    // Ledger codes apply only to Port Klang forwarders. Transporters and
+    // Johor/haulage saves must not require the optional migrated column.
+    ...(normalizeCompanyType(company.company_type) === 'FORWARDER' && !isJohor ? { ledger_codes: ledger_codes || null } : {}),
     block,
     address1,
     address2,

@@ -368,6 +368,10 @@ export default async function companyRegistration(request: any, response: any) {
         updated_at: now.toISOString(),
       };
       companyFields.forEach((field) => {
+        // TRANSPORTER registrations do not use ledger codes. Do not include
+        // the optional migrated column for them, so they remain compatible
+        // with databases that have not applied the ledger-code migration.
+        if (field === 'ledger_codes' && companyType !== 'FORWARDER') return;
         companyRow[field] = field === 'port_id'
           ? portId
         : field === 'registration_number_old'

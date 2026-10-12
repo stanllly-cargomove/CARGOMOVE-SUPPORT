@@ -689,7 +689,7 @@ export function CompanyForm({
               <select
                 value={formData.company_type}
                 onChange={(e) => handleChange('company_type', e.target.value)}
-                className="w-full px-2.5 py-1.5 rounded border border-slate-300 text-xs focus:ring-1 focus:ring-sky-500 focus:outline-none bg-white font-medium text-slate-800"
+                className="w-full px-2.5 py-1.5 rounded border border-slate-300 text-xs focus:ring-0 focus:border-sky-500 focus:outline-none bg-white font-medium text-slate-800"
               >
                 <option value="" disabled>Select company category</option>
                 {companyTypeOptions.map(({ value, label }) => (
@@ -763,7 +763,7 @@ export function CompanyForm({
                         value={selectedPortLedgerCodes[selectedIndex] || ''}
                         onChange={(event) => setLedgerCode(port.id, event.target.value)}
                         placeholder={`${port.display_name} ledger code`}
-                        className={`min-w-0 flex-1 rounded border border-slate-300 px-2 py-1.5 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-sky-500 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 ${requiresLedgerCodes ? '' : 'invisible'}`}
+                        className={`min-w-0 flex-1 rounded border border-slate-300 px-2 py-1.5 font-mono text-xs focus:outline-none focus:ring-0 focus:border-sky-500 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 ${requiresLedgerCodes ? '' : 'invisible'}`}
                       />
                     </div>
                   );
