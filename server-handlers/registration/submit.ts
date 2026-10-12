@@ -280,9 +280,12 @@ export default async function companyRegistration(request: any, response: any) {
           ? companyInput.assigned_port_ids.map(text).filter(Boolean)
           : [];
         const ledgerCodes = text(companyInput.ledger_codes).split(',').map((code) => code.trim()).filter(Boolean);
-        if (!selectedPortIds.length || ledgerCodes.length !== selectedPortIds.length) {
+        const requiresLedgerCodes = text(companyInput.company_type).toUpperCase() === 'FORWARDER';
+        if (!selectedPortIds.length || (requiresLedgerCodes && ledgerCodes.length !== selectedPortIds.length)) {
           response.status(422).json({
-            error: 'Choose at least one Port Klang terminal and enter a ledger code for each selected terminal.',
+            error: requiresLedgerCodes
+              ? 'Choose at least one Port Klang terminal and enter a ledger code for each selected terminal.'
+              : 'Choose at least one Port Klang terminal.',
             code: 'PORT_KLANG_LEDGER_CODES_INVALID',
           });
           return;

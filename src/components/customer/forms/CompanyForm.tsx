@@ -169,6 +169,7 @@ export function CompanyForm({
 
   const selectedPortIds = formData.assigned_port_ids || [];
   const selectedPortLedgerCodes = (formData.ledger_codes || '').split(',').map((code) => code.trim());
+  const requiresLedgerCodes = formData.company_type === 'FORWARDER';
   const setSelectedPortIds = (nextSelectedIds: string[]) => {
     // Keep the export order deterministic: Westport first, then Northport.
     const orderedIds = autoPorts.ports.filter((port) => nextSelectedIds.includes(port.id)).map((port) => port.id);
@@ -276,6 +277,9 @@ export function CompanyForm({
       if (field === 'registration_number_old') {
         next.registration_number = normalizedValue.trim();
       }
+      if (field === 'company_type' && normalizedValue === 'TRANSPORT') {
+        next.ledger_codes = '';
+      }
       return next;
     });
 
@@ -321,7 +325,7 @@ export function CompanyForm({
       const selectedPortIds = data.assigned_port_ids || [];
       const ledgerCodes = (data.ledger_codes || '').split(',').map((code) => code.trim());
       if (!selectedPortIds.length) validationErrors.assigned_port_ids = 'Choose Westport, Northport, or both.';
-      if (selectedPortIds.length && (ledgerCodes.length !== selectedPortIds.length || ledgerCodes.some((code) => !code))) {
+      if (data.company_type === 'FORWARDER' && selectedPortIds.length && (ledgerCodes.length !== selectedPortIds.length || ledgerCodes.some((code) => !code))) {
         validationErrors.ledger_codes = 'Enter one ledger code for every selected port.';
       }
     }
@@ -727,14 +731,15 @@ export function CompanyForm({
           {initialLocation === 'PORT_KLANG' && (
             <fieldset className="sm:col-span-2 min-w-0">
               <legend className="mb-1 flex items-center gap-1 text-[11px] font-semibold text-slate-700">
-                Choose port(s) and enter your company ledger code <span className="text-rose-500">*</span>
-                <span
+                {requiresLedgerCodes ? 'Choose port(s) and enter your company ledger code' : 'Choose port(s)'}
+                {requiresLedgerCodes && <span className="text-rose-500">*</span>}
+                {requiresLedgerCodes && <span
                   className="inline-flex cursor-help text-sky-600"
                   title="Enter the ledger code registered for your company with the selected port."
                   aria-label="Enter the ledger code registered for your company with the selected port."
                 >
                   <Info className="h-3.5 w-3.5" aria-hidden="true" />
-                </span>
+                </span>}
               </legend>
               <div className="grid gap-2 md:grid-cols-2">
                 {autoPorts.ports.map((port) => {
@@ -754,10 +759,11 @@ export function CompanyForm({
                       <input
                         type="text"
                         disabled={!selected}
+                        tabIndex={requiresLedgerCodes ? undefined : -1}
                         value={selectedPortLedgerCodes[selectedIndex] || ''}
                         onChange={(event) => setLedgerCode(port.id, event.target.value)}
                         placeholder={`${port.display_name} ledger code`}
-                        className="min-w-0 flex-1 rounded border border-slate-300 px-2 py-1.5 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-sky-500 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                        className={`min-w-0 flex-1 rounded border border-slate-300 px-2 py-1.5 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-sky-500 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 ${requiresLedgerCodes ? '' : 'invisible'}`}
                       />
                     </div>
                   );
