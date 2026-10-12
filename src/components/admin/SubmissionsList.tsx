@@ -934,19 +934,50 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
               <button type="button" onClick={() => setSubmissionEmailPreviews([])} disabled={sendingSubmissionEmail} aria-label="Close email preview" className="rounded-lg p-1 text-slate-400 hover:text-slate-700"><X className="h-5 w-5" /></button>
             </div>
             <div className="space-y-4 overflow-y-auto p-5">
-              <div className="flex items-center justify-between rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-800">
-                <span>Email preview {submissionEmailPreviewIndex + 1} of {submissionEmailPreviews.length}</span>
-                {submissionEmailPreviews.length > 1 && <span>{submissionEmailPreviews.length} email groups selected</span>}
-              </div>
               <label className="block text-xs font-semibold text-slate-700">To<input value={submissionEmailPreview.recipient} readOnly className="mt-1.5 w-full rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 font-normal text-slate-700" /></label>
               <label className="block text-xs font-semibold text-slate-700">Subject<input value={submissionEmailPreview.subject} onChange={(event) => updateSubmissionEmailPreview((current) => ({ ...current, subject: event.target.value }))} className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" /></label>
               {submissionEmailPreview.attachments.map((attachment) => <div key={attachment.path} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs"><span className="flex min-w-0 items-center gap-3"><PdfAttachmentIcon /><span className="min-w-0"><span className="block text-slate-500">Attachment</span><strong className="block truncate text-slate-800" title={attachment.name}>{attachment.name}</strong></span></span><span className="flex shrink-0 gap-3"><a href={attachment.path} target="_blank" rel="noreferrer" className="font-semibold text-blue-600 hover:text-blue-800">View</a><a href={`${attachment.path}&download=1`} className="font-semibold text-blue-600 hover:text-blue-800">Download</a></span></div>)}
               <div className="text-xs font-semibold text-slate-700">Message<RichTextEmailEditor value={submissionEmailPreview.body} onChange={(body) => updateSubmissionEmailPreview((current) => ({ ...current, body }))} minHeightClassName="min-h-64" /></div>
             </div>
-            <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4">
-              {submissionEmailPreviews.length > 1 && <><button type="button" onClick={() => setSubmissionEmailPreviewIndex((index) => Math.max(0, index - 1))} disabled={sendingSubmissionEmail || submissionEmailPreviewIndex === 0} className="rounded-lg px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200 disabled:opacity-40">Previous</button><button type="button" onClick={() => setSubmissionEmailPreviewIndex((index) => Math.min(submissionEmailPreviews.length - 1, index + 1))} disabled={sendingSubmissionEmail || submissionEmailPreviewIndex === submissionEmailPreviews.length - 1} className="rounded-lg px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200 disabled:opacity-40">Next</button></>}
-              <button type="button" onClick={() => setSubmissionEmailPreviews([])} disabled={sendingSubmissionEmail} className="rounded-lg px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200">Cancel</button>
-              <button type="button" onClick={() => void sendAssetRegistrationEmail()} disabled={sendingSubmissionEmail} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-60"><Mail className="h-4 w-4" />{sendingSubmissionEmail ? 'Sending...' : 'Send Email'}</button>
+            <div className="relative flex flex-col items-center gap-3 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:justify-end">
+              {submissionEmailPreviews.length > 1 && (
+                <nav className="flex items-center gap-1 sm:absolute sm:left-1/2 sm:-translate-x-1/2" aria-label="Email preview pagination">
+                  <button
+                    type="button"
+                    onClick={() => setSubmissionEmailPreviewIndex((index) => Math.max(0, index - 1))}
+                    disabled={sendingSubmissionEmail || submissionEmailPreviewIndex === 0}
+                    aria-label="Previous email preview"
+                    className="inline-flex h-12 w-12 items-center justify-center rounded-lg border border-slate-300 bg-white text-2xl font-light text-slate-500 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    ‹
+                  </button>
+                  {getVisiblePageNumbers(submissionEmailPreviewIndex + 1, submissionEmailPreviews.length).map((page) => (
+                    <button
+                      key={page}
+                      type="button"
+                      onClick={() => setSubmissionEmailPreviewIndex(page - 1)}
+                      aria-current={submissionEmailPreviewIndex + 1 === page ? 'page' : undefined}
+                      aria-label={`Email preview page ${page}`}
+                      className={`inline-flex h-12 min-w-12 items-center justify-center rounded-lg border px-3 text-base font-bold ${submissionEmailPreviewIndex + 1 === page ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'}`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setSubmissionEmailPreviewIndex((index) => Math.min(submissionEmailPreviews.length - 1, index + 1))}
+                    disabled={sendingSubmissionEmail || submissionEmailPreviewIndex === submissionEmailPreviews.length - 1}
+                    aria-label="Next email preview"
+                    className="inline-flex h-12 w-12 items-center justify-center rounded-lg border border-slate-300 bg-white text-2xl font-light text-slate-500 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    ›
+                  </button>
+                </nav>
+              )}
+              <div className="flex gap-2 sm:ml-auto">
+                <button type="button" onClick={() => setSubmissionEmailPreviews([])} disabled={sendingSubmissionEmail} className="rounded-lg px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200">Cancel</button>
+                <button type="button" onClick={() => void sendAssetRegistrationEmail()} disabled={sendingSubmissionEmail} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-60"><Mail className="h-4 w-4" />{sendingSubmissionEmail ? 'Sending...' : 'Send Email'}</button>
+              </div>
             </div>
           </div>
         </div>
