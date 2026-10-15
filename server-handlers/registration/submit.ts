@@ -53,6 +53,11 @@ function optionalText(value: unknown) {
   return valueText || null;
 }
 
+function isMissingLedgerCodesColumn(error: any) {
+  return text(error?.code) === 'PGRST204'
+    && /ledger_codes.*companies|companies.*ledger_codes/i.test(text(error?.message));
+}
+
 async function sendSubmissionConfirmation(client: NonNullable<ReturnType<typeof adminClient>>, recipients: string[], registrationType: string, referenceNo: string, companyName: string) {
   const connectionResult = await client.from('gmail_connections').select('*').eq('id', 'system').eq('status', 'ACTIVE').maybeSingle();
   if (connectionResult.error || !connectionResult.data) return { status: 'NOT_SENT', error: connectionResult.error?.message || 'No active CargoMove email account is connected.' };
@@ -362,6 +367,9 @@ export default async function companyRegistration(request: any, response: any) {
         details: {
           assigned_port_ids: Array.isArray(companyInput.assigned_port_ids) ? companyInput.assigned_port_ids : [],
           assigned_depot_ids: Array.isArray(companyInput.assigned_depot_ids) ? companyInput.assigned_depot_ids : [],
+          // Keep this in details as a compatibility fallback for projects that
+          // have not applied the dedicated ledger_codes column migration yet.
+          ...(companyType === 'FORWARDER' ? { ledger_codes: text(companyInput.ledger_codes) } : {}),
         },
         status: 'ACTIVE',
         created_at: now.toISOString(),
@@ -385,7 +393,17 @@ export default async function companyRegistration(request: any, response: any) {
       companyRow.short_name = text(companyInput.short_name).toUpperCase();
       companyRow.depot_id = resolvedDepotId;
 
-      const companyResult = await client.from('companies').insert(companyRow).select().single();
+      let companyResult = await client.from('companies').insert(companyRow).select().single();
+      // Older deployments do not know the additive ledger_codes column and
+      // PostgREST rejects the whole request before it reaches PostgreSQL. The
+      // JSON details field is part of the baseline schema, so retry without
+      // the optional column and retain the submitted codes there. Once the
+      // migration is applied, the normal dedicated-column write is used.
+      if (companyResult.error && isMissingLedgerCodesColumn(companyResult.error)) {
+        const compatibleCompanyRow = { ...companyRow };
+        delete compatibleCompanyRow.ledger_codes;
+        companyResult = await client.from('companies').insert(compatibleCompanyRow).select().single();
+      }
       if (companyResult.error) throw new RegistrationWriteError('company details', companyResult.error);
       company = companyResult.data;
       companyCreated = true;
