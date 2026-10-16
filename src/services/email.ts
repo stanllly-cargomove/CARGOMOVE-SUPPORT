@@ -11,7 +11,9 @@ export interface EmailTemplate {
   trigger_status: 'DONE' | 'REJECTED';
   rejection_reason?: 'ALREADY_REGISTERED_BOTH' | 'NORTHPORT_ADDED' | 'NO_LEDGER_CODE' | 'OTHER' | null;
   port_id?: string | null;
+  port_ids?: string[];
   template_code?: string | null;
+  legacy_fallback?: boolean;
   recipient_template: '{{user.email}}';
   subject_template: string;
   body_template: string;
@@ -31,6 +33,7 @@ export interface EmailPreview {
   body: string;
   templateName: string;
   templateCode?: string | null;
+  portId?: string | null;
   previewToken: string;
   attachments: EmailAttachment[];
 }
@@ -41,14 +44,9 @@ export interface EmailLog {
   subject: string;
   template_name: string;
   template_code?: string | null;
-  external_user_id: string;
-  sent_by_email: string;
   requested_at: string;
   sent_at?: string;
   status: 'SENDING' | 'SENT' | 'FAILED';
-  gmail_message_id?: string;
-  error_code?: string;
-  attachments?: EmailAttachment[];
 }
 
 async function parse<T>(response: Response): Promise<T> {
@@ -63,7 +61,7 @@ export async function getEmailTemplates(): Promise<EmailTemplate[]> {
 
 export async function getEmailTemplateCatalog(): Promise<{ templates: EmailTemplate[]; ports: EmailTemplatePort[]; apiSupportsPortCodes: boolean }> {
   const response = await fetch('/api/email/templates', { credentials: 'include', cache: 'no-store' });
-  const result = await parse<{ templates?: EmailTemplate[]; template?: EmailTemplate | null; ports?: EmailTemplatePort[] }>(response);
+  const result = await parse<{ templates?: EmailTemplate[]; template?: EmailTemplate | null; ports?: EmailTemplatePort[]; portAssignmentMode?: string }>(response);
   // During a rolling/local update the API may still be serving the previous
   // single-template response shape. Supporting it prevents the page crashing
   // while the API process restarts or frontend/backend deployments overlap.
@@ -75,18 +73,25 @@ export async function getEmailTemplateCatalog(): Promise<{ templates: EmailTempl
   return {
     templates: templates.map((template) => ({ ...template, attachments: Array.isArray(template.attachments) ? template.attachments : [] })),
     ports: Array.isArray(result.ports) ? result.ports : [],
-    apiSupportsPortCodes: Array.isArray(result.ports),
+    apiSupportsPortCodes: result.portAssignmentMode === 'shared',
   };
 }
 
-export async function saveEmailTemplate(template: Pick<EmailTemplate, 'id' | 'name' | 'trigger_status' | 'rejection_reason' | 'port_id' | 'template_code' | 'recipient_template' | 'subject_template' | 'body_template' | 'attachments' | 'active'>, create = false) {
+export async function saveEmailTemplate(template: Pick<EmailTemplate, 'id' | 'name' | 'trigger_status' | 'rejection_reason' | 'port_id' | 'port_ids' | 'template_code' | 'recipient_template' | 'subject_template' | 'body_template' | 'attachments' | 'active'>, create = false) {
   const response = await fetch('/api/email/templates', {
     method: create ? 'POST' : 'PUT',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(template),
   });
-  return (await parse<{ template: EmailTemplate }>(response)).template;
+  try {
+    return (await parse<{ template: EmailTemplate }>(response)).template;
+  } catch (error) {
+    if (template.port_ids?.length && error instanceof Error && error.message === 'Select a port for this code.') {
+      throw new Error('The API server is still using the old single-port template format. Restart the API server (or redeploy the backend), then reload this page and save again.');
+    }
+    throw error;
+  }
 }
 
 export async function deleteEmailTemplate(id: string) {
@@ -130,12 +135,12 @@ export async function connectGmail() {
   window.location.assign(result.authorizationUrl);
 }
 
-export async function generateWelcomeEmailPreview(userId: string, templateId?: string) {
+export async function generateWelcomeEmailPreview(userId: string, templateId?: string, portId?: string) {
   const response = await fetch('/api/email/preview', {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ userId, templateId }),
+    body: JSON.stringify({ userId, templateId, portId }),
   });
   const preview = await parse<EmailPreview>(response);
   return { ...preview, attachments: preview.attachments || [] };
@@ -151,9 +156,9 @@ export async function sendWelcomeEmail(preview: EmailPreview) {
   return parse<{ status: 'SENT'; sentAt: string; gmailMessageId: string }>(response);
 }
 
-export async function generateSubmissionEmailPreview(submissionId: string, status: 'DONE' | 'REJECTED') {
+export async function generateSubmissionEmailPreview(submissionId: string, status: 'DONE' | 'REJECTED', templateId: string, portId: string) {
   const response = await fetch('/api/email/submission-preview', {
-    method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ submissionId, status }),
+    method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ submissionId, status, templateId, portId }),
   });
   const preview = await parse<EmailPreview>(response);
   return { ...preview, attachments: preview.attachments || [] };
@@ -181,7 +186,10 @@ export async function sendSubmissionBatchEmail(preview: EmailPreview) {
   return parse<{ status: 'SENT'; sentAt: string; gmailMessageId: string }>(response);
 }
 
-export async function getEmailLogs() {
-  const response = await fetch('/api/email/logs', { credentials: 'include', cache: 'no-store' });
-  return (await parse<{ logs: EmailLog[] }>(response)).logs;
+export async function getEmailLogs(offset = 0, limit = 30, snapshotAt = '') {
+  const query = new URLSearchParams({ offset: String(offset), limit: String(limit) });
+  if (snapshotAt) query.set('snapshot_at', snapshotAt);
+  const response = await fetch(`/api/email/logs?${query}`, { credentials: 'include', cache: 'no-store' });
+  const result = await parse<{ logs: EmailLog[]; total?: number }>(response);
+  return { logs: result.logs, total: result.total ?? (offset === 0 ? result.logs.length : undefined) };
 }

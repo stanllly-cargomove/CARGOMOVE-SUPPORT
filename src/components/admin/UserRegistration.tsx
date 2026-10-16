@@ -4,7 +4,7 @@ import { getExternalUserAccess, ExternalUserAccess, updateExternalUserAccess } f
 import { EmailPreview, EmailTemplate, EmailTemplatePort, generateWelcomeEmailPreview, getEmailTemplateCatalog, sendWelcomeEmail } from '../../services/email';
 import { RichTextEmailEditor } from './RichTextEmailEditor';
 import { notifyError, notifySuccess } from '../common/notifications';
-import { subscribeToStorage } from '../../services/storage';
+import { getSubmissions, subscribeToStorage } from '../../services/storage';
 
 const statuses: ExternalUserAccess['status'][] = ['PENDING', 'DONE', 'REJECTED'];
 const emailStatuses: ExternalUserAccess['email_status'][] = ['NOT_READY', 'READY', 'SENDING', 'SENT', 'FAILED'];
@@ -97,6 +97,7 @@ export function UserRegistration() {
   const [codeUser, setCodeUser] = useState<ExternalUserAccess | null>(null);
   const [codeTemplates, setCodeTemplates] = useState<EmailTemplate[]>([]);
   const [codePorts, setCodePorts] = useState<EmailTemplatePort[]>([]);
+  const [codeAction, setCodeAction] = useState<'PREVIEW' | 'REJECT'>('PREVIEW');
   const [selectedTemplateId, setSelectedTemplateId] = useState('__choose__');
   const [sending, setSending] = useState(false);
   const [editingUser, setEditingUser] = useState<ExternalUserAccess | null>(null);
@@ -129,9 +130,9 @@ export function UserRegistration() {
     setCurrentPage(1);
   }, [searchTerm, registrationStatusFilter, emailStatusFilter, pageSize]);
 
-  const updateUser = async (user: ExternalUserAccess, changes: Partial<Pick<ExternalUserAccess, 'status'>>) => {
+  const updateUser = async (user: ExternalUserAccess, changes: Partial<Pick<ExternalUserAccess, 'status' | 'rejection_reason' | 'rejection_detail'>>) => {
     const key = `${user.id}-${Object.keys(changes)[0]}`;
-    const previous = { ...user };
+    const previous = { ...(users.find((item) => item.id === user.id) || user) };
     setSavingKeys((current) => new Set(current).add(key));
     setUsers((current) => current.map((item) => item.id === user.id ? { ...item, ...changes } : item));
     try {
@@ -152,36 +153,74 @@ export function UserRegistration() {
     }
   };
 
-  const openPreview = async (user: ExternalUserAccess) => {
+  const companyPortIdsFor = (user: ExternalUserAccess, acceptedOnly: boolean) => user.company_id ? [...new Set(getSubmissions()
+    .filter((submission) => submission.registration_type === 'COMPANY' && submission.company_id === user.company_id && (!acceptedOnly || submission.status === 'DONE'))
+    .map((submission) => ['jh-pg-ics', 'jh-pg-depot'].includes(submission.port_id) ? 'johor-port' : submission.port_id)
+    .filter(Boolean))] : [];
+
+  const previewWithCode = async (user: ExternalUserAccess, template: EmailTemplate, portId: string, rejectUser: boolean) => {
+    let target = user;
+    if (rejectUser) {
+      const saved = await updateUser(user, {
+        status: 'REJECTED',
+        rejection_reason: template.rejection_reason || 'OTHER',
+        rejection_detail: template.name,
+      });
+      if (!saved) return;
+      target = saved;
+      if (codeUser?.id === user.id) {
+        setCodeAction('PREVIEW');
+        setCodeUser(saved);
+      }
+    }
+    const generated = await generateWelcomeEmailPreview(target.id, template.id, portId);
+    setPreviewUserId(target.id);
+    setPreview(generated);
+    setCodeUser(null);
+  };
+
+  const startUserCodeFlow = async (user: ExternalUserAccess, outcome: 'DONE' | 'REJECTED', rejectUser = false) => {
     setOpeningPreview(user.id);
     try {
       const catalog = await getEmailTemplateCatalog();
-      const coded = catalog.templates.filter((template) => template.active && template.port_id && template.trigger_status === user.status);
-      if (coded.length) {
-        setCodeUser(user);
-        setCodeTemplates(catalog.templates);
-        setCodePorts(catalog.ports);
-        setSelectedTemplateId('__choose__');
+      const portIds = companyPortIdsFor(user, outcome === 'DONE');
+      if (!portIds.length) throw new Error(outcome === 'DONE'
+        ? 'Register the linked company before previewing or sending its acceptance email.'
+        : 'This user has no linked Company Registration port for a rejection code.');
+      const choices = portIds.flatMap((portId) => catalog.templates
+        .filter((template) => template.active && template.template_code && template.trigger_status === outcome && template.port_ids?.includes(portId)
+          && (rejectUser || outcome !== 'REJECTED' || !template.rejection_reason || template.rejection_reason === user.rejection_reason))
+        .map((template) => ({ template, portId })));
+      if (!choices.length) throw new Error(`No active ${outcome === 'DONE' ? 'acceptance' : 'rejection'} code is assigned to the linked company port. Assign one in Registration Templates.`);
+      if (choices.length === 1) {
+        await previewWithCode(user, choices[0].template, choices[0].portId, rejectUser);
       } else {
-        const generated = await generateWelcomeEmailPreview(user.id);
-        setPreviewUserId(user.id);
-        setPreview(generated);
+        setCodeUser(rejectUser ? { ...user, status: 'REJECTED' } : user);
+        setCodeTemplates(catalog.templates);
+        setCodePorts(catalog.ports.filter((port) => portIds.includes(port.id)));
+        setCodeAction(rejectUser ? 'REJECT' : 'PREVIEW');
+        setSelectedTemplateId('__choose__');
       }
     } catch (error) {
-      notifyError(error instanceof Error ? error.message : 'Unable to generate the email preview.');
+      notifyError(error instanceof Error ? error.message : 'Unable to prepare the registration email.');
     } finally {
       setOpeningPreview('');
     }
+  };
+
+  const openPreview = async (user: ExternalUserAccess) => {
+    if (user.status !== 'DONE' && user.status !== 'REJECTED') return;
+    await startUserCodeFlow(user, user.status);
   };
 
   const openSelectedPreview = async () => {
     if (!codeUser || selectedTemplateId === '__choose__') return;
     setOpeningPreview(codeUser.id);
     try {
-      const generated = await generateWelcomeEmailPreview(codeUser.id, selectedTemplateId || undefined);
-      setPreviewUserId(codeUser.id);
-      setPreview(generated);
-      setCodeUser(null);
+      const [templateId, portId] = selectedTemplateId.split('::');
+      const template = codeTemplates.find((item) => item.id === templateId && item.port_ids?.includes(portId));
+      if (!template || !portId) throw new Error('Select a valid code and company port.');
+      await previewWithCode(codeUser, template, portId, codeAction === 'REJECT');
     } catch (error) {
       notifyError(error instanceof Error ? error.message : 'Unable to generate the email preview.');
     } finally {
@@ -191,7 +230,7 @@ export function UserRegistration() {
 
   const changeStatus = async (user: ExternalUserAccess, status: ExternalUserAccess['status']) => {
     if (status === 'REJECTED') {
-      notifyError('Reject the linked Company Registration to select a reason and prepare the rejection email.');
+      await startUserCodeFlow(user, 'REJECTED', true);
       return;
     }
     const saved = await updateUser(user, { status });
@@ -472,12 +511,12 @@ export function UserRegistration() {
                     <select
                       value={user.status || 'PENDING'}
                       onChange={(event) => void changeStatus(user, event.target.value as ExternalUserAccess['status'])}
-                      disabled={user.status === 'REJECTED' || savingKeys.has(`${user.id}-status`)}
-                      title={user.status === 'REJECTED' ? 'Reopen this registration from Company Registration' : undefined}
+                      disabled={savingKeys.has(`${user.id}-status`)}
+                      title={user.status === 'REJECTED' ? 'Reopen this User Registration independently from the company queue.' : undefined}
                       className={`h-6 w-full max-w-[5rem] rounded-md border px-1 text-[9px] font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-wait disabled:opacity-60 ${statusSelectClasses[user.status || 'PENDING']}`}
                       aria-label={`Status for ${user.username}`}
                     >
-                      {statuses.map((status) => <option key={status} value={status} disabled={status === 'REJECTED' && user.status !== 'REJECTED'}>{status}</option>)}
+                      {statuses.map((status) => <option key={status} value={status}>{status}</option>)}
                     </select>
                   </td>
                   <td className="px-1 py-2 text-center">
@@ -593,7 +632,7 @@ export function UserRegistration() {
                 <input type="tel" required value={editingUser.mobile_number} onChange={(event) => changeEditField('mobile_number', event.target.value)} className="mt-1.5 h-9 w-full rounded-lg border border-slate-300 px-3 font-normal focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </label>
               <label className="text-xs font-semibold text-slate-700 sm:col-span-2">Registration status
-                <select value={editingUser.status} disabled={editingUser.status === 'REJECTED'} title={editingUser.status === 'REJECTED' ? 'Reopen this registration from Company Registration' : undefined} onChange={(event) => changeEditField('status', event.target.value)} className={`mt-1.5 h-9 w-full rounded-lg border px-3 font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-70 ${statusSelectClasses[editingUser.status]}`}>
+                <select value={editingUser.status} title={editingUser.status === 'REJECTED' ? 'Reopen this User Registration independently from the company queue.' : undefined} onChange={(event) => changeEditField('status', event.target.value)} className={`mt-1.5 h-9 w-full rounded-lg border px-3 font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 ${statusSelectClasses[editingUser.status]}`}>
                   {statuses.map((status) => <option key={status} value={status} disabled={status === 'REJECTED' && editingUser.status !== 'REJECTED'}>{status}</option>)}
                 </select>
               </label>
@@ -606,7 +645,20 @@ export function UserRegistration() {
         </div>
       )}
 
-      {codeUser && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 p-4 backdrop-blur-xs"><div role="dialog" aria-modal="true" aria-labelledby="email-code-title" className="w-full max-w-lg rounded-2xl border border-slate-100 bg-white p-5 shadow-2xl"><div className="flex items-start justify-between gap-3"><div><h3 id="email-code-title" className="text-base font-semibold text-slate-900">Choose email template</h3><p className="mt-1 text-xs text-slate-500">Select a {codeUser.status === 'DONE' ? 'port acceptance' : 'port rejection'} code for {codeUser.email}.</p></div><button type="button" onClick={() => setCodeUser(null)} aria-label="Close code selection" className="text-slate-400 hover:text-slate-700"><X className="h-5 w-5" /></button></div><label className="mt-5 block text-xs font-semibold text-slate-700">Port and code<select autoFocus value={selectedTemplateId} onChange={(event) => setSelectedTemplateId(event.target.value)} className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal"><option value="__choose__" disabled>Choose a code...</option>{codeTemplates.some((template) => template.active && !template.port_id && template.trigger_status === codeUser.status && (codeUser.status !== 'REJECTED' || template.rejection_reason === codeUser.rejection_reason)) && <option value="">Default template (no port code)</option>}{codePorts.map((port) => <optgroup key={port.id} label={port.display_name}>{codeTemplates.filter((template) => template.active && template.port_id === port.id && template.trigger_status === codeUser.status).map((template) => <option key={template.id} value={template.id}>{template.template_code} — {template.name}</option>)}</optgroup>)}</select></label><div className="mt-5 flex justify-end gap-2"><button type="button" onClick={() => setCodeUser(null)} className="rounded-lg px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100">Cancel</button><button type="button" onClick={() => void openSelectedPreview()} disabled={selectedTemplateId === '__choose__' || openingPreview === codeUser.id} className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50">{openingPreview === codeUser.id ? 'Loading...' : 'Preview email'}</button></div></div></div>}
+      {codeUser && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 p-4 backdrop-blur-xs">
+        <div role="dialog" aria-modal="true" aria-labelledby="email-code-title" className="w-full max-w-lg rounded-2xl border border-slate-100 bg-white p-5 shadow-2xl">
+          <div className="flex items-start justify-between gap-3"><div><h3 id="email-code-title" className="text-base font-semibold text-slate-900">{codeAction === 'REJECT' ? 'Reject User Registration' : 'Choose email template'}</h3><p className="mt-1 text-xs text-slate-500">Select an {codeUser.status === 'DONE' ? 'acceptance' : 'rejection'} code and port for {codeUser.email}.{codeAction === 'REJECT' ? ' The user will be rejected before the email preview opens.' : ''}</p></div><button type="button" onClick={() => setCodeUser(null)} aria-label="Close code selection" className="text-slate-400 hover:text-slate-700"><X className="h-5 w-5" /></button></div>
+          <label className="mt-5 block text-xs font-semibold text-slate-700">Port and code
+            <select autoFocus value={selectedTemplateId} onChange={(event) => setSelectedTemplateId(event.target.value)} className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal">
+              <option value="__choose__" disabled>Choose a code...</option>
+              {codePorts.map((port) => <optgroup key={port.id} label={port.display_name}>
+                {codeTemplates.filter((template) => template.active && template.template_code && template.port_ids?.includes(port.id) && template.trigger_status === codeUser.status && (codeAction === 'REJECT' || codeUser.status !== 'REJECTED' || !template.rejection_reason || template.rejection_reason === codeUser.rejection_reason)).map((template) => <option key={template.id} value={`${template.id}::${port.id}`}>{template.template_code} — {template.name}</option>)}
+              </optgroup>)}
+            </select>
+          </label>
+          <div className="mt-5 flex justify-end gap-2"><button type="button" onClick={() => setCodeUser(null)} className="rounded-lg px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100">Cancel</button><button type="button" onClick={() => void openSelectedPreview()} disabled={selectedTemplateId === '__choose__' || openingPreview === codeUser.id} className={`rounded-lg px-4 py-2 text-xs font-semibold text-white disabled:opacity-50 ${codeAction === 'REJECT' ? 'bg-rose-600 hover:bg-rose-700' : 'bg-blue-600 hover:bg-blue-700'}`}>{openingPreview === codeUser.id ? 'Loading...' : codeAction === 'REJECT' ? 'Reject & Preview Email' : 'Preview email'}</button></div>
+        </div>
+      </div>}
 
       {preview && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 p-4 backdrop-blur-xs">

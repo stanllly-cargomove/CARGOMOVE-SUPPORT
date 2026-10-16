@@ -5,13 +5,13 @@ import {
   getCompanyById,
   ensureSubmissionCompany,
   deleteSubmission,
-  updateSubmissionStatus,
+  updateSubmissionStatusPersisted,
   rejectCompanySubmission,
   revertSubmissionToPending,
   subscribeToStorage,
 } from '../../services/storage';
 import { getExternalUserAccess } from '../../services/auth';
-import { EmailPreview, generateSubmissionBatchEmailPreviews, generateSubmissionEmailPreview, generateWelcomeEmailPreview, sendSubmissionBatchEmail, sendSubmissionEmail, sendWelcomeEmail } from '../../services/email';
+import { EmailPreview, EmailTemplate, generateSubmissionEmailPreview, generateWelcomeEmailPreview, getEmailTemplateCatalog, sendSubmissionEmail, sendWelcomeEmail } from '../../services/email';
 import { getCompanyExternalId } from '../../services/companyHelper';
 import { exportSubmissionsToExcel } from '../../services/excelExport';
 import { CargoMoveIdBadge, StatusBadge } from '../common/Badge';
@@ -51,6 +51,17 @@ interface ActionMenuPosition {
   anchorTop: number;
   anchorBottom: number;
   anchorRight: number;
+}
+
+interface CodeSelection {
+  submission: RegistrationSubmission;
+  status: 'DONE' | 'REJECTED';
+  portId: string;
+  portName: string;
+  templates: EmailTemplate[];
+  alreadyUpdated: boolean;
+  adminNotes?: string;
+  linkedUserId?: string;
 }
 
 const ACTION_MENU_GAP = 4;
@@ -117,15 +128,14 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
   // Modals
   const [activeSubmission, setActiveSubmission] = useState<RegistrationSubmission | null>(null);
   const [assignIdCompany, setAssignIdCompany] = useState<Company | null>(null);
-  const [rejectingSubmission, setRejectingSubmission] = useState<RegistrationSubmission | null>(null);
-  const [rejectionReason, setRejectionReason] = useState<RejectionReason | ''>('');
-  const [rejectionDetail, setRejectionDetail] = useState('');
-  const [savingRejection, setSavingRejection] = useState(false);
-  const [preview, setPreview] = useState<EmailPreview | null>(null);
-  const [sendingEmail, setSendingEmail] = useState(false);
+  const [revertConfirmation, setRevertConfirmation] = useState<RegistrationSubmission | null>(null);
+  const [reverting, setReverting] = useState(false);
+  const [codeSelection, setCodeSelection] = useState<CodeSelection | null>(null);
+  const [selectedCodeId, setSelectedCodeId] = useState('');
+  const [savingCode, setSavingCode] = useState(false);
   const [submissionEmailPreviews, setSubmissionEmailPreviews] = useState<EmailPreview[]>([]);
   const [submissionEmailPreviewIndex, setSubmissionEmailPreviewIndex] = useState(0);
-  const [submissionEmailPreviewIsBatch, setSubmissionEmailPreviewIsBatch] = useState(false);
+  const [emailSendMode, setEmailSendMode] = useState<'SUBMISSION' | 'USER'>('SUBMISSION');
   const [sendingSubmissionEmail, setSendingSubmissionEmail] = useState(false);
 
   const refreshList = () => {
@@ -140,11 +150,10 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
     setActiveSubmission(null);
     setAssignIdCompany(null);
     setIdFilter('ALL');
-    setRejectingSubmission(null);
-    setPreview(null);
+    setCodeSelection(null);
     setSubmissionEmailPreviews([]);
     setSubmissionEmailPreviewIndex(0);
-    setSubmissionEmailPreviewIsBatch(false);
+    setEmailSendMode('SUBMISSION');
     setSortBy(defaultSortForStatus(status));
     setCurrentPage(1);
   }, [status]);
@@ -289,10 +298,14 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
       notifySuccess(`Export complete: ${res.count} record(s) generated.`);
       refreshList();
       setSelectedIds([]);
-      const assetIds = selectedSubs
-        .filter((submission) => submission.registration_type !== 'COMPANY')
-        .map((submission) => submission.id);
-      if (assetIds.length) void openSubmissionBatchEmailPreview(assetIds);
+      const assets = selectedSubs.filter((submission) => submission.registration_type !== 'COMPANY');
+      if (assets.length) void openSubmissionBatchEmailPreview(assets);
+      const companies = selectedSubs.filter((submission) => submission.registration_type === 'COMPANY');
+      if (companies.length === 1 && !assets.length) {
+        void startCodeFlow(companies[0], 'DONE', { alreadyUpdated: true });
+      } else if (companies.length) {
+        notifyWarning('Company acceptance emails are available from each row after its linked User Registration is done.');
+      }
     }
   };
 
@@ -305,42 +318,118 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
     }
   };
 
-  const openCompanyRejection = (submission: RegistrationSubmission) => {
-    setOpenActionMenu(null);
-    setActiveSubmission(null);
-    setRejectingSubmission(submission);
-    setRejectionReason(submission.rejection_reason || '');
-    setRejectionDetail(submission.rejection_detail || '');
-  };
-
-  const rejectSubmission = (submission: RegistrationSubmission) => {
-    if (submission.registration_type === 'COMPANY') {
-      openCompanyRejection(submission);
-      return;
-    }
-    updateSubmissionStatus(submission.id, 'REJECTED');
-    refreshList();
-    setOpenActionMenu(null);
-    void openSubmissionEmailPreview(submission.id, 'REJECTED');
-  };
-
-  const openSubmissionEmailPreview = async (submissionId: string, status: 'DONE' | 'REJECTED') => {
+  const applyCodeAndPreview = async (selection: CodeSelection, template: EmailTemplate) => {
+    setSavingCode(true);
     try {
-      setSubmissionEmailPreviews([await generateSubmissionEmailPreview(submissionId, status)]);
+      if (!selection.alreadyUpdated) {
+        if (selection.submission.registration_type === 'COMPANY' && selection.status === 'REJECTED') {
+          const reason: RejectionReason = template.rejection_reason || 'OTHER';
+          await rejectCompanySubmission(selection.submission.id, reason, template.name);
+        } else {
+          await updateSubmissionStatusPersisted(selection.submission.id, selection.status, selection.adminNotes);
+        }
+      }
+      refreshList();
+      const userAcceptance = selection.submission.registration_type === 'COMPANY' && selection.status === 'DONE';
+      if (userAcceptance && !selection.linkedUserId) throw new Error('The approved User Registration could not be found.');
+      const generated = userAcceptance
+        ? await generateWelcomeEmailPreview(selection.linkedUserId!, template.id, selection.portId)
+        : await generateSubmissionEmailPreview(selection.submission.id, selection.status, template.id, selection.portId);
+      setSubmissionEmailPreviews([generated]);
       setSubmissionEmailPreviewIndex(0);
-      setSubmissionEmailPreviewIsBatch(false);
+      setEmailSendMode(userAcceptance ? 'USER' : 'SUBMISSION');
+      setCodeSelection(null);
+      setActiveSubmission(null);
     } catch (error) {
+      refreshList();
       notifyError(error instanceof Error ? error.message : 'Unable to prepare the registration email.');
+    } finally {
+      setSavingCode(false);
     }
   };
 
-  const openSubmissionBatchEmailPreview = async (submissionIds: string[]) => {
+  const startCodeFlow = async (
+    submission: RegistrationSubmission,
+    nextStatus: 'DONE' | 'REJECTED',
+    options: { alreadyUpdated?: boolean; adminNotes?: string } = {},
+  ) => {
+    setOpenActionMenu(null);
+    setSavingCode(true);
     try {
-      const previews = await generateSubmissionBatchEmailPreviews(submissionIds);
-      if (!previews.length) throw new Error('Unable to prepare the registration email.');
+      let linkedUserId: string | undefined;
+      if (submission.registration_type === 'COMPANY' && nextStatus === 'DONE') {
+        if (!options.alreadyUpdated) {
+          await updateSubmissionStatusPersisted(submission.id, 'DONE', options.adminNotes);
+          refreshList();
+          setActiveSubmission(null);
+        }
+        let linkedUser;
+        try {
+          linkedUser = (await getExternalUserAccess()).find((user) => user.company_id === submission.company_id);
+        } catch (error) {
+          if (options.alreadyUpdated) throw error;
+          notifyWarning('Company registered. Unable to check User Registration right now; preview the email after confirming it is done.');
+          return;
+        }
+        if (linkedUser?.status !== 'DONE') {
+          if (options.alreadyUpdated) {
+            notifyWarning('Complete the linked User Registration before previewing or sending the company acceptance email.');
+          } else {
+            notifySuccess('Company registered. Complete the User Registration next.');
+          }
+          return;
+        }
+        linkedUserId = linkedUser.id;
+        options = { ...options, alreadyUpdated: true };
+      }
+      const catalog = await getEmailTemplateCatalog();
+      const portId = ['jh-pg-ics', 'jh-pg-depot'].includes(submission.port_id) ? 'johor-port' : submission.port_id;
+      const port = catalog.ports.find((item) => item.id === portId);
+      if (!portId || !port) throw new Error('This registration has no configured port. Assign its port before selecting an email code.');
+      const templates = catalog.templates
+        .filter((template) => template.active && template.template_code && template.trigger_status === nextStatus && template.port_ids?.includes(portId))
+        .sort((left, right) => (left.template_code || '').localeCompare(right.template_code || ''));
+      if (!templates.length) throw new Error(`No active ${nextStatus === 'DONE' ? 'acceptance' : 'rejection'} code is assigned to ${port.display_name}. Assign a code in Registration Templates first.`);
+      const selection: CodeSelection = {
+        submission,
+        status: nextStatus,
+        portId,
+        portName: port.display_name,
+        templates,
+        alreadyUpdated: !!options.alreadyUpdated,
+        adminNotes: options.adminNotes,
+        linkedUserId,
+      };
+      if (templates.length === 1) {
+        await applyCodeAndPreview(selection, templates[0]);
+      } else {
+        setSelectedCodeId('');
+        setCodeSelection(selection);
+      }
+    } catch (error) {
+      notifyError(error instanceof Error ? error.message : 'Unable to load the email codes for this port.');
+    } finally {
+      setSavingCode(false);
+    }
+  };
+
+  const openSubmissionBatchEmailPreview = async (selected: RegistrationSubmission[]) => {
+    try {
+      const catalog = await getEmailTemplateCatalog();
+      const choices = selected.map((submission) => {
+        const portId = ['jh-pg-ics', 'jh-pg-depot'].includes(submission.port_id) ? 'johor-port' : submission.port_id;
+        const templates = catalog.templates.filter((template) => template.active && template.template_code && template.trigger_status === 'DONE' && template.port_ids?.includes(portId));
+        if (templates.length !== 1) throw new Error(`${submission.reference_no} has ${templates.length} acceptance codes for its port. Use Preview Email on that row to select the code.`);
+        return { submission, template: templates[0], portId };
+      });
+      const previews: EmailPreview[] = [];
+      for (let index = 0; index < choices.length; index += 4) {
+        const batch = choices.slice(index, index + 4);
+        previews.push(...await Promise.all(batch.map(({ submission, template, portId }) => generateSubmissionEmailPreview(submission.id, 'DONE', template.id, portId))));
+      }
       setSubmissionEmailPreviews(previews);
       setSubmissionEmailPreviewIndex(0);
-      setSubmissionEmailPreviewIsBatch(true);
+      setEmailSendMode('SUBMISSION');
     } catch (error) {
       notifyError(error instanceof Error ? error.message : 'Unable to prepare the registration email.');
     }
@@ -356,8 +445,8 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
     if (!submissionEmailPreview) return;
     setSendingSubmissionEmail(true);
     try {
-      if (submissionEmailPreviewIsBatch) {
-        await sendSubmissionBatchEmail(submissionEmailPreview);
+      if (emailSendMode === 'USER') {
+        await sendWelcomeEmail(submissionEmailPreview);
       } else {
         await sendSubmissionEmail(submissionEmailPreview);
       }
@@ -368,7 +457,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
       } else {
         setSubmissionEmailPreviews([]);
         setSubmissionEmailPreviewIndex(0);
-        setSubmissionEmailPreviewIsBatch(false);
+        setEmailSendMode('SUBMISSION');
       }
       notifySuccess('Registration email sent through Gmail.');
     } catch (error) {
@@ -378,58 +467,20 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
     }
   };
 
-  const handleRevertToPending = async (submission: RegistrationSubmission) => {
+  const handleRevertToPending = async (submission: RegistrationSubmission, reopenLinkedUser = false) => {
     setOpenActionMenu(null);
+    setReverting(true);
     try {
-      await revertSubmissionToPending(submission.id);
+      await revertSubmissionToPending(submission.id, reopenLinkedUser);
+      setRevertConfirmation(null);
       refreshList();
-      notifySuccess(`${submission.reference_no} reverted to pending.`);
+      notifySuccess(reopenLinkedUser
+        ? `${submission.reference_no} and its linked User Registration reverted to pending.`
+        : `${submission.reference_no} reverted to pending.`);
     } catch (error) {
       notifyError(error instanceof Error ? error.message : 'Unable to revert the submission.');
-    }
-  };
-
-  const confirmCompanyRejection = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!rejectingSubmission || !rejectionReason) {
-      notifyError('Select a rejection reason.');
-      return;
-    }
-    if (rejectionReason === 'OTHER' && !rejectionDetail.trim()) {
-      notifyError('Enter the reason for rejecting this registration.');
-      return;
-    }
-    setSavingRejection(true);
-    try {
-      const rejected = await rejectCompanySubmission(rejectingSubmission.id, rejectionReason, rejectionDetail);
-      const linkedUser = (await getExternalUserAccess()).find((user) => user.company_id === rejected.company_id);
-      if (!linkedUser || linkedUser.status !== 'REJECTED') throw new Error('The linked User Registration could not be synchronized.');
-      const generated = await generateWelcomeEmailPreview(linkedUser.id);
-      setRejectingSubmission(null);
-      setRejectionReason('');
-      setRejectionDetail('');
-      refreshList();
-      setPreview(generated);
-      notifySuccess('Company and User Registration rejected. Review the email before sending.');
-    } catch (error) {
-      refreshList();
-      notifyError(error instanceof Error ? error.message : 'Unable to reject the company registration.');
     } finally {
-      setSavingRejection(false);
-    }
-  };
-
-  const sendRejectionEmail = async () => {
-    if (!preview) return;
-    setSendingEmail(true);
-    try {
-      await sendWelcomeEmail(preview);
-      setPreview(null);
-      notifySuccess('Rejection email sent through Gmail.');
-    } catch (error) {
-      notifyError(error instanceof Error ? error.message : 'Unable to send the rejection email.');
-    } finally {
-      setSendingEmail(false);
+      setReverting(false);
     }
   };
 
@@ -752,14 +803,18 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
                             </button>
                             {sub.status === 'PENDING' && (
                               <>
-                                <button type="button" onClick={() => { updateSubmissionStatus(sub.id, 'DONE'); refreshList(); setOpenActionMenu(null); if (sub.registration_type !== 'COMPANY') void openSubmissionEmailPreview(sub.id, 'DONE'); }} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50">Register</button>
-                                <button type="button" onClick={() => rejectSubmission(sub)} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50">Reject</button>
+                                <button type="button" onClick={() => void startCodeFlow(sub, 'DONE')} disabled={savingCode} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50">Register</button>
+                                <button type="button" onClick={() => void startCodeFlow(sub, 'REJECTED')} disabled={savingCode} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50">Reject</button>
                               </>
                             )}
                             {sub.status !== 'PENDING' && (
                               <>
-                                {sub.registration_type !== 'COMPANY' && <button type="button" onClick={() => { setOpenActionMenu(null); void openSubmissionEmailPreview(sub.id, sub.status as 'DONE' | 'REJECTED'); }} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-50"><Mail className="h-3.5 w-3.5" /> Preview Email</button>}
-                                <button type="button" onClick={() => void handleRevertToPending(sub)} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-50">
+                                <button type="button" onClick={() => void startCodeFlow(sub, sub.status as 'DONE' | 'REJECTED', { alreadyUpdated: true })} disabled={savingCode} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-50 disabled:opacity-50"><Mail className="h-3.5 w-3.5" /> Preview Email</button>
+                                <button type="button" onClick={() => {
+                                  setOpenActionMenu(null);
+                                  if (sub.registration_type === 'COMPANY' && sub.status === 'REJECTED') setRevertConfirmation(sub);
+                                  else void handleRevertToPending(sub);
+                                }} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-50">
                                   <RotateCcw className="h-3.5 w-3.5" /> Revert to Pending
                                 </button>
                               </>
@@ -853,13 +908,10 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
             setActiveSubmission(updated || null);
           }
         }}
-        onStatusUpdate={(submission, nextStatus) => {
-          if (submission.registration_type !== 'COMPANY') void openSubmissionEmailPreview(submission.id, nextStatus);
-        }}
+        onStatusUpdate={(submission, nextStatus, notes) => void startCodeFlow(submission, nextStatus, { adminNotes: notes })}
         onExportSuccess={(submission) => {
-          if (submission.registration_type !== 'COMPANY') void openSubmissionEmailPreview(submission.id, 'DONE');
+          void startCodeFlow(submission, 'DONE', { alreadyUpdated: true });
         }}
-        onReject={rejectSubmission}
       />
 
       {/* Assign ID Modal */}
@@ -872,55 +924,50 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
         }}
       />
 
-      {rejectingSubmission && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 p-4 backdrop-blur-xs">
-          <form onSubmit={confirmCompanyRejection} role="dialog" aria-modal="true" aria-labelledby="reject-company-title" className="w-full max-w-lg overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-200 bg-rose-50 px-5 py-4">
-              <div><h3 id="reject-company-title" className="font-bold text-slate-900">Reject Company Registration</h3><p className="mt-0.5 text-xs text-slate-600">{rejectingSubmission.company_name.toUpperCase()} · {rejectingSubmission.reference_no}</p></div>
-              <button type="button" onClick={() => setRejectingSubmission(null)} disabled={savingRejection} aria-label="Close rejection popup" className="rounded-lg p-1 text-slate-400 hover:text-slate-700 disabled:opacity-50">×</button>
+      {revertConfirmation && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/55 p-4 backdrop-blur-xs">
+          <div role="dialog" aria-modal="true" aria-labelledby="revert-company-title" className="w-full max-w-lg overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-2xl">
+            <div className="flex items-start justify-between border-b border-slate-200 bg-amber-50 px-5 py-4">
+              <div>
+                <h3 id="revert-company-title" className="font-bold text-slate-900">Revert rejected company to pending?</h3>
+                <p className="mt-1 text-xs text-slate-600">{revertConfirmation.reference_no} · {revertConfirmation.company_name}</p>
+              </div>
+              <button type="button" onClick={() => setRevertConfirmation(null)} disabled={reverting} aria-label="Close confirmation" className="rounded-lg p-1 text-slate-400 hover:text-slate-700 disabled:opacity-50"><X className="h-5 w-5" /></button>
             </div>
-            <div className="space-y-3 p-5">
-              <p className="text-xs font-semibold text-slate-700">Select the company rejection reason. The linked User Registration will also be rejected.</p>
-              {([
-                ['ALREADY_REGISTERED_BOTH', 'Already registered (Westport & Northport)'],
-                ['NORTHPORT_ADDED', 'Only need to add Northport'],
-                ['NO_LEDGER_CODE', 'No ledger code'],
-                ['OTHER', 'Other'],
-              ] as const).map(([value, label]) => (
-                <label key={value} className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm transition ${rejectionReason === value ? 'border-rose-400 bg-rose-50' : 'border-slate-200 hover:bg-slate-50'}`}>
-                  <input type="radio" name="company-rejection-reason" value={value} checked={rejectionReason === value} onChange={() => setRejectionReason(value)} className="mt-0.5 text-rose-600 focus:ring-rose-500" />
-                  <span className="font-semibold text-slate-800">{label}</span>
-                </label>
-              ))}
-              {rejectionReason === 'OTHER' && (
-                <label className="block text-xs font-semibold text-slate-700">Rejection details
-                  <textarea autoFocus required maxLength={2000} rows={4} value={rejectionDetail} onChange={(event) => setRejectionDetail(event.target.value)} placeholder="Explain why this company registration cannot proceed..." className="mt-1.5 w-full resize-y rounded-lg border border-slate-300 px-3 py-2 font-normal focus:outline-none focus:ring-2 focus:ring-rose-500" />
-                </label>
-              )}
+            <div className="p-5 text-sm text-slate-700">
+              Choose whether the linked User Registration should also return to Pending or remain Rejected.
             </div>
-            <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4">
-              <button type="button" onClick={() => setRejectingSubmission(null)} disabled={savingRejection} className="rounded-lg px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200 disabled:opacity-50">Cancel</button>
-              <button type="submit" disabled={savingRejection || !rejectionReason || (rejectionReason === 'OTHER' && !rejectionDetail.trim())} className="inline-flex items-center gap-2 rounded-lg bg-rose-600 px-4 py-2 text-xs font-bold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"><Mail className="h-4 w-4" />{savingRejection ? 'Rejecting...' : 'Reject & Preview Email'}</button>
+            <div className="flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:justify-end">
+              <button type="button" onClick={() => setRevertConfirmation(null)} disabled={reverting} className="rounded-lg px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200 disabled:opacity-50">Cancel</button>
+              <button type="button" onClick={() => void handleRevertToPending(revertConfirmation, false)} disabled={reverting} className="rounded-lg border border-rose-300 bg-white px-4 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50">Revert company only</button>
+              <button type="button" onClick={() => void handleRevertToPending(revertConfirmation, true)} disabled={reverting} className="rounded-lg bg-amber-600 px-4 py-2 text-xs font-bold text-white hover:bg-amber-700 disabled:opacity-50">Revert company and user</button>
             </div>
-          </form>
+          </div>
         </div>
       )}
 
-      {preview && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 p-4 backdrop-blur-xs">
-          <div role="dialog" aria-modal="true" aria-labelledby="rejection-email-preview-title" className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-4">
-              <div><h3 id="rejection-email-preview-title" className="font-bold text-slate-900">Rejection Email Preview</h3><p className="mt-0.5 text-xs text-slate-500">{preview.templateName}</p></div>
-              <button type="button" onClick={() => setPreview(null)} disabled={sendingEmail} aria-label="Close email preview" className="rounded-lg p-1 text-slate-400 hover:text-slate-700"><X className="h-5 w-5" /></button>
+      {codeSelection && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/55 p-4 backdrop-blur-xs">
+          <div role="dialog" aria-modal="true" aria-labelledby="select-email-code-title" className="w-full max-w-lg overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-2xl">
+            <div className={`flex items-center justify-between border-b border-slate-200 px-5 py-4 ${codeSelection.status === 'REJECTED' ? 'bg-rose-50' : 'bg-emerald-50'}`}>
+              <div>
+                <h3 id="select-email-code-title" className="font-bold text-slate-900">Select {codeSelection.status === 'DONE' ? 'acceptance' : 'rejection'} code</h3>
+                <p className="mt-0.5 text-xs text-slate-600">{codeSelection.submission.reference_no} · {codeSelection.portName}</p>
+              </div>
+              <button type="button" onClick={() => setCodeSelection(null)} disabled={savingCode} aria-label="Close code selection" className="rounded-lg p-1 text-slate-400 hover:text-slate-700"><X className="h-5 w-5" /></button>
             </div>
-            <div className="space-y-4 overflow-y-auto p-5">
-              <label className="block text-xs font-semibold text-slate-700">To<input value={preview.recipient} readOnly className="mt-1.5 w-full rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 font-normal text-slate-700" /></label>
-              <label className="block text-xs font-semibold text-slate-700">Subject<input value={preview.subject} onChange={(event) => setPreview({ ...preview, subject: event.target.value })} className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" /></label>
-              <div className="text-xs font-semibold text-slate-700">Message<RichTextEmailEditor value={preview.body} onChange={(body) => setPreview((current) => current ? { ...current, body } : current)} minHeightClassName="min-h-64" /></div>
+            <div className="max-h-[60vh] space-y-2 overflow-y-auto p-5">
+              {codeSelection.templates.map((template) => (
+                <label key={template.id} className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm transition ${selectedCodeId === template.id ? codeSelection.status === 'REJECTED' ? 'border-rose-400 bg-rose-50' : 'border-emerald-400 bg-emerald-50' : 'border-slate-200 hover:bg-slate-50'}`}>
+                  <input type="radio" name="submission-email-code" value={template.id} checked={selectedCodeId === template.id} onChange={() => setSelectedCodeId(template.id)} className="mt-0.5" />
+                  <span><strong className="block text-slate-900">{template.template_code} — {template.name}</strong><span className="mt-1 block text-xs text-slate-500">{template.subject_template}</span></span>
+                </label>
+              ))}
+              {codeSelection.submission.registration_type === 'COMPANY' && codeSelection.status === 'REJECTED' && <p className="text-xs text-slate-500">Rejecting the company also rejects its linked User Registration. You can review the email before sending.</p>}
             </div>
             <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4">
-              <button type="button" onClick={() => setPreview(null)} disabled={sendingEmail} className="rounded-lg px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200">Cancel</button>
-              <button type="button" onClick={() => void sendRejectionEmail()} disabled={sendingEmail} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-60"><Mail className="h-4 w-4" />{sendingEmail ? 'Sending...' : 'Send Email'}</button>
+              <button type="button" onClick={() => setCodeSelection(null)} disabled={savingCode} className="rounded-lg px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200">Cancel</button>
+              <button type="button" onClick={() => { const template = codeSelection.templates.find((item) => item.id === selectedCodeId); if (template) void applyCodeAndPreview(codeSelection, template); }} disabled={savingCode || !selectedCodeId} className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold text-white disabled:opacity-50 ${codeSelection.status === 'REJECTED' ? 'bg-rose-600 hover:bg-rose-700' : 'bg-emerald-600 hover:bg-emerald-700'}`}><Mail className="h-4 w-4" />{savingCode ? 'Preparing...' : 'Preview Email'}</button>
             </div>
           </div>
         </div>
@@ -930,13 +977,13 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 p-4 backdrop-blur-xs">
           <div role="dialog" aria-modal="true" aria-labelledby="submission-email-preview-title" className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-4">
-              <div><h3 id="submission-email-preview-title" className="font-bold text-slate-900">Registration Email Preview</h3><p className="mt-0.5 text-xs text-slate-500">{submissionEmailPreview.templateName}</p></div>
+              <div><h3 id="submission-email-preview-title" className="font-bold text-slate-900">Registration Email Preview</h3><p className="mt-0.5 text-xs text-slate-500">{submissionEmailPreview.templateCode ? `${submissionEmailPreview.templateCode} — ` : ''}{submissionEmailPreview.templateName}{submissionEmailPreview.portId ? ` · ${submissionEmailPreview.portId}` : ''}</p></div>
               <button type="button" onClick={() => setSubmissionEmailPreviews([])} disabled={sendingSubmissionEmail} aria-label="Close email preview" className="rounded-lg p-1 text-slate-400 hover:text-slate-700"><X className="h-5 w-5" /></button>
             </div>
             <div className="space-y-4 overflow-y-auto p-5">
               <label className="block text-xs font-semibold text-slate-700">To<input value={submissionEmailPreview.recipient} readOnly className="mt-1.5 w-full rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 font-normal text-slate-700" /></label>
               <label className="block text-xs font-semibold text-slate-700">Subject<input value={submissionEmailPreview.subject} onChange={(event) => updateSubmissionEmailPreview((current) => ({ ...current, subject: event.target.value }))} className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" /></label>
-              {submissionEmailPreview.attachments.map((attachment) => <div key={attachment.path} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs"><span className="flex min-w-0 items-center gap-3"><PdfAttachmentIcon /><span className="min-w-0"><span className="block text-slate-500">Attachment</span><strong className="block truncate text-slate-800" title={attachment.name}>{attachment.name}</strong></span></span><span className="flex shrink-0 gap-3"><a href={attachment.path} target="_blank" rel="noreferrer" className="font-semibold text-blue-600 hover:text-blue-800">View</a><a href={`${attachment.path}&download=1`} className="font-semibold text-blue-600 hover:text-blue-800">Download</a></span></div>)}
+              {submissionEmailPreview.attachments.map((attachment) => <div key={attachment.path} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs"><span className="flex min-w-0 items-center gap-3"><PdfAttachmentIcon /><span className="min-w-0"><span className="block text-slate-500">Attachment</span><strong className="block truncate text-slate-800" title={attachment.name}>{attachment.name}</strong></span></span>{attachment.path.startsWith('/api/email/submission-attachment') && <span className="flex shrink-0 gap-3"><a href={attachment.path} target="_blank" rel="noreferrer" className="font-semibold text-blue-600 hover:text-blue-800">View</a><a href={`${attachment.path}&download=1`} className="font-semibold text-blue-600 hover:text-blue-800">Download</a></span>}</div>)}
               <div className="text-xs font-semibold text-slate-700">Message<RichTextEmailEditor value={submissionEmailPreview.body} onChange={(body) => updateSubmissionEmailPreview((current) => ({ ...current, body }))} minHeightClassName="min-h-64" /></div>
             </div>
             <div className="relative flex flex-col items-center gap-3 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:justify-end">

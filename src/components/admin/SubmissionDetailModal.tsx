@@ -22,7 +22,7 @@ interface SubmissionDetailModalProps {
   onClose: () => void;
   onOpenAssignId: (companyId: string) => void;
   onStatusChange?: () => void;
-  onStatusUpdate?: (submission: RegistrationSubmission, status: 'DONE' | 'REJECTED') => void;
+  onStatusUpdate?: (submission: RegistrationSubmission, status: 'DONE' | 'REJECTED', notes: string) => void;
   onExportSuccess?: (submission: RegistrationSubmission) => void;
   onReject?: (submission: RegistrationSubmission) => void;
 }
@@ -62,14 +62,19 @@ export function SubmissionDetailModal({
   const company = submission.company_id ? getCompanyById(submission.company_id) : undefined;
   const idInfo = getCompanyExternalId(company || { company_type: submission.company_type });
 
-  const handleUpdateStatus = (newStatus: any) => {
-    if (newStatus === 'REJECTED' && submission.registration_type === 'COMPANY' && onReject) {
-      onReject(submission);
-      return;
+  const handleUpdateStatus = (newStatus: 'PENDING' | 'DONE' | 'REJECTED') => {
+    if (newStatus === 'DONE' || newStatus === 'REJECTED') {
+      if (newStatus === 'REJECTED' && submission.registration_type === 'COMPANY' && onReject) {
+        onReject(submission);
+        return;
+      }
+      if (onStatusUpdate) {
+        onStatusUpdate(submission, newStatus, adminNotes);
+        return;
+      }
     }
     updateSubmissionStatus(submission.id, newStatus, adminNotes);
     onStatusChange?.();
-    if (newStatus === 'DONE' || newStatus === 'REJECTED') onStatusUpdate?.(submission, newStatus);
   };
 
   const handleExportSingle = () => {

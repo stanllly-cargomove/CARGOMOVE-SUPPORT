@@ -1,4 +1,4 @@
-import { bodyOf, configuredClient, createSubmissionPreviewToken, noStore, requireAdmin, sanitizeEmailHtml } from '../_email.js';
+import { bodyOf, configuredClient, createSubmissionPreviewToken, noStore, renderWelcomeTemplate, requireAdmin } from '../_email.js';
 import { assetRegistrationPdfName } from './submission-asset-pdf.js';
 
 function validEmail(value: unknown) {
@@ -33,31 +33,67 @@ export default async function submissionPreview(request: any, response: any) {
   const body: Record<string, unknown> = await bodyOf(request).catch(() => ({}));
   const submissionId = String(body.submissionId || '').trim();
   const status = String(body.status || '').trim().toUpperCase();
-  if (!submissionId || !['DONE', 'REJECTED'].includes(status)) return response.status(400).json({ error: 'A completed or rejected submission is required.' });
+  const templateId = String(body.templateId || '').trim();
+  const portId = String(body.portId || '').trim();
+  if (!submissionId || !['DONE', 'REJECTED'].includes(status) || !templateId || !portId) return response.status(400).json({ error: 'A submission, port, and email code are required.' });
 
-  const result = await client.from('registration_submissions').select('id,reference_no,registration_type,company_id,company_name,submitted_by_email,notification_email,data').eq('id', submissionId).maybeSingle();
+  const result = await client.from('registration_submissions').select('id,reference_no,registration_type,company_id,company_name,port_id,status,submitted_by_name,submitted_by_email,notification_email,rejection_detail,data').eq('id', submissionId).maybeSingle();
   if (result.error) return response.status(502).json({ error: result.error.message });
   const submission = result.data;
-  if (!submission || !['DRIVER', 'TRAILER', 'VEHICLE'].includes(submission.registration_type)) return response.status(404).json({ error: 'Asset registration submission not found.' });
+  if (!submission || !['COMPANY', 'DRIVER', 'TRAILER', 'VEHICLE'].includes(submission.registration_type)) return response.status(404).json({ error: 'Registration submission not found.' });
+  if (submission.registration_type === 'COMPANY' && status === 'DONE' && submission.status !== 'DONE') {
+    return response.status(409).json({ error: 'Register the company before previewing its acceptance email.' });
+  }
+  const submissionPortId = ['jh-pg-ics', 'jh-pg-depot'].includes(submission.port_id) ? 'johor-port' : submission.port_id;
+  if (!submissionPortId || submissionPortId !== portId) return response.status(409).json({ error: 'The selected code does not match this submission port.' });
+  const [templateResult, assignmentResult] = await Promise.all([
+    client.from('email_templates').select('*').eq('id', templateId).eq('active', true).eq('trigger_status', status).not('template_code', 'is', null).maybeSingle(),
+    client.from('email_template_ports').select('port_id').eq('template_id', templateId).eq('port_id', portId).maybeSingle(),
+  ]);
+  if (templateResult.error || assignmentResult.error) return response.status(502).json({ error: templateResult.error?.message || assignmentResult.error?.message });
+  if (!templateResult.data || !assignmentResult.data) return response.status(409).json({ error: 'This email code is not active for the submission port.' });
   const companyResult = submission.company_id
     ? await client.from('companies').select('contact_email,details').eq('id', submission.company_id).maybeSingle()
     : { data: null, error: null };
   if (companyResult.error) return response.status(502).json({ error: companyResult.error.message });
-  const recipients = recipientsFor(submission, companyResult.data);
+  const linkedUserResult = submission.registration_type === 'COMPANY' && submission.company_id
+    ? await client.from('external_user_access').select('email,username,password,status').eq('company_id', submission.company_id).order('created_at', { ascending: false }).limit(1).maybeSingle()
+    : { data: null, error: null };
+  if (linkedUserResult.error) return response.status(502).json({ error: linkedUserResult.error.message });
+  if (submission.registration_type === 'COMPANY' && status === 'DONE' && linkedUserResult.data?.status !== 'DONE') {
+    return response.status(409).json({ error: 'Complete the linked User Registration before previewing the company acceptance email.' });
+  }
+  if (submission.registration_type === 'COMPANY' && status === 'REJECTED' && linkedUserResult.data && linkedUserResult.data.status !== 'REJECTED') {
+    return response.status(409).json({ error: 'The linked User Registration must be rejected before previewing the company rejection email.' });
+  }
+  if (submission.registration_type === 'COMPANY' && status === 'DONE' && !validEmail(linkedUserResult.data?.email)) {
+    return response.status(409).json({ error: 'The approved User Registration needs a valid email address.' });
+  }
+  const recipients = submission.registration_type === 'COMPANY'
+    ? [status === 'DONE' ? validEmail(linkedUserResult.data?.email) : validEmail(linkedUserResult.data?.email) || validEmail(submission.submitted_by_email) || validEmail(submission.notification_email)].filter(Boolean)
+    : recipientsFor(submission, companyResult.data);
   if (!recipients.length) return response.status(409).json({ error: 'This submission has no valid notification email address.' });
   const recipient = recipients.join(', ');
-  const assetLabel = submission.registration_type.charAt(0) + submission.registration_type.slice(1).toLowerCase();
-  const isApproved = status === 'DONE';
-  const subject = `CargoMove ${assetLabel.toLowerCase()} registration ${isApproved ? 'approved' : 'rejected'} — ${submission.reference_no}`;
-  const bodyHtml = isApproved
-    ? `<p>Dear Customer,</p><p>Your ${assetLabel.toLowerCase()} registration for <strong>${submission.company_name}</strong> has been approved. Your registration is now complete.</p><p>Reference number: <strong>${submission.reference_no}</strong></p><p>If you notice an issue, error, or incorrect registration data, please contact CargoMove Support through our <strong>Official WhatsApp:</strong> 018-266 0085</p><p>Regards,<br>CargoMove Support Team</p>`
-    : `<p>Dear Customer,</p><p>We are unable to proceed with your ${assetLabel.toLowerCase()} registration for <strong>${submission.company_name}</strong>.</p><p>Reference number: <strong>${submission.reference_no}</strong></p><p>Please contact CargoMove Support if you need more information.</p><p>Regards,<br>CargoMove</p>`;
-  response.json({
-    recipient,
-    subject,
-    body: sanitizeEmailHtml(bodyHtml),
-    templateName: `${assetLabel} Registration — ${isApproved ? 'Approved' : 'Rejected'}`,
-    attachments: [{ path: `/api/email/submission-attachment?submissionIds=${encodeURIComponent(submission.id)}`, name: assetRegistrationPdfName([submission]), content_type: 'application/pdf', size: 0 }],
-    previewToken: createSubmissionPreviewToken(session, submission.id, status as 'DONE' | 'REJECTED', recipient),
-  });
+  try {
+    const template = templateResult.data;
+    const rendered = renderWelcomeTemplate(template, {
+      id: submission.id,
+      email: recipient,
+      username: linkedUserResult.data?.username || submission.submitted_by_name || submission.company_name,
+      password: submission.registration_type === 'COMPANY' && status === 'DONE' ? linkedUserResult.data.password : 'Not applicable',
+      status: status as 'DONE' | 'REJECTED',
+      rejection_detail: submission.rejection_detail || template.name,
+      email_status: 'READY',
+    });
+    response.json({
+      ...rendered,
+      templateName: template.name,
+      templateCode: template.template_code,
+      portId,
+      attachments: [...(template.attachments || []), ...(submission.registration_type === 'COMPANY' ? [] : [{ path: `/api/email/submission-attachment?submissionIds=${encodeURIComponent(submission.id)}`, name: assetRegistrationPdfName([submission]), content_type: 'application/pdf', size: 0 }])],
+      previewToken: createSubmissionPreviewToken(session, submission.id, status as 'DONE' | 'REJECTED', recipient, template, portId),
+    });
+  } catch (error) {
+    response.status(400).json({ error: error instanceof Error ? error.message : 'Unable to render the email code.' });
+  }
 }

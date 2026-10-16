@@ -12,7 +12,7 @@ import {
 } from '../types';
 import { normalizeCompanyType, normalizeRegNo } from './companyHelper';
 import { deleteSupabaseRow, fetchSupabaseSnapshot, isSupabaseConfigured, upsertSupabaseRow } from './supabase';
-import { clearExternalUserAccessCache, refreshExternalUserAccess, saveExternalUserAccess } from './auth';
+import { clearExternalUserAccessCache, getExternalUserAccess, refreshExternalUserAccess, saveExternalUserAccess, updateExternalUserAccess } from './auth';
 
 const STORAGE_KEYS = {
   COMPANIES: 'port_reg_companies_v1',
@@ -1192,15 +1192,7 @@ export function saveUserRegistration(
   return user;
 }
 
-export function updateSubmissionStatus(
-  submissionId: string,
-  status: SubmissionStatus,
-  notes?: string
-): RegistrationSubmission | null {
-  const subs = getSubmissions();
-  const sub = subs.find((s) => s.id === submissionId);
-  if (!sub) return null;
-
+function applySubmissionStatus(sub: RegistrationSubmission, status: SubmissionStatus, notes?: string) {
   sub.status = status;
   if (status !== 'REJECTED') {
     sub.rejection_reason = null;
@@ -1215,9 +1207,37 @@ export function updateSubmissionStatus(
   if (notes !== undefined) {
     sub.admin_notes = notes;
   }
+}
+
+export function updateSubmissionStatus(
+  submissionId: string,
+  status: SubmissionStatus,
+  notes?: string
+): RegistrationSubmission | null {
+  const subs = getSubmissions();
+  const sub = subs.find((s) => s.id === submissionId);
+  if (!sub) return null;
+
+  applySubmissionStatus(sub, status, notes);
 
   localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(subs));
   syncSubmission(sub);
+  notifyListeners();
+  return sub;
+}
+
+export async function updateSubmissionStatusPersisted(
+  submissionId: string,
+  status: SubmissionStatus,
+  notes?: string,
+): Promise<RegistrationSubmission> {
+  const subs = getSubmissions();
+  const sub = subs.find((item) => item.id === submissionId);
+  if (!sub) throw new Error('Registration submission not found.');
+
+  applySubmissionStatus(sub, status, notes);
+  await upsertSupabaseRow('registration_submissions', sub);
+  localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(subs));
   notifyListeners();
   return sub;
 }
@@ -1249,7 +1269,10 @@ export async function rejectCompanySubmission(
   return rejected;
 }
 
-export async function revertSubmissionToPending(submissionId: string): Promise<RegistrationSubmission> {
+export async function revertSubmissionToPending(
+  submissionId: string,
+  reopenLinkedUser = false,
+): Promise<RegistrationSubmission> {
   const submissions = getSubmissions();
   const current = submissions.find((submission) => submission.id === submissionId);
   if (!current) throw new Error('Registration submission not found.');
@@ -1260,6 +1283,11 @@ export async function revertSubmissionToPending(submissionId: string): Promise<R
     rejection_detail: null,
   };
   await upsertSupabaseRow('registration_submissions', pending);
+  if (reopenLinkedUser && current.registration_type === 'COMPANY' && current.company_id) {
+    const linkedUser = (await getExternalUserAccess()).find((user) => user.company_id === current.company_id);
+    if (!linkedUser) throw new Error('The company was reverted, but its linked User Registration could not be found.');
+    await updateExternalUserAccess(linkedUser.id, { status: 'PENDING' });
+  }
   const next = submissions.map((submission) => submission.id === submissionId ? pending : submission);
   localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(next));
   notifyListeners();

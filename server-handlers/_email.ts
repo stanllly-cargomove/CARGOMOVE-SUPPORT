@@ -30,7 +30,9 @@ export type EmailTemplate = {
   trigger_status: 'DONE' | 'REJECTED';
   rejection_reason?: 'ALREADY_REGISTERED_BOTH' | 'NORTHPORT_ADDED' | 'NO_LEDGER_CODE' | 'OTHER' | null;
   port_id?: string | null;
+  port_ids?: string[];
   template_code?: string | null;
+  legacy_fallback?: boolean;
   recipient_template: string;
   subject_template: string;
   body_template: string;
@@ -127,12 +129,13 @@ function signingKey() {
   return secret;
 }
 
-export function createPreviewToken(session: AdminSession, user: ExternalEmailUser, template: EmailTemplate) {
+export function createPreviewToken(session: AdminSession, user: ExternalEmailUser, template: EmailTemplate, portId?: string) {
   const payload = Buffer.from(JSON.stringify({
     adminId: session.id,
     userId: user.id,
     templateId: template.id,
     templateVersion: template.version,
+    portId: portId || null,
     exp: Date.now() + 15 * 60 * 1000,
   })).toString('base64url');
   const signature = crypto.createHmac('sha256', signingKey()).update(payload).digest('base64url');
@@ -146,7 +149,7 @@ export function verifyPreviewToken(token: string, session: AdminSession) {
   if (signature.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) return null;
   try {
     const parsed = JSON.parse(Buffer.from(payload, 'base64url').toString()) as {
-      adminId: string; userId: string; templateId: string; templateVersion: number; exp: number;
+      adminId: string; userId: string; templateId: string; templateVersion: number; portId?: string | null; exp: number;
     };
     return parsed.adminId === session.id && parsed.exp > Date.now() ? parsed : null;
   } catch {
@@ -154,12 +157,15 @@ export function verifyPreviewToken(token: string, session: AdminSession) {
   }
 }
 
-export function createSubmissionPreviewToken(session: AdminSession, submissionId: string, status: 'DONE' | 'REJECTED', recipient: string) {
+export function createSubmissionPreviewToken(session: AdminSession, submissionId: string, status: 'DONE' | 'REJECTED', recipient: string, template: EmailTemplate, portId: string) {
   const payload = Buffer.from(JSON.stringify({
     adminId: session.id,
     submissionId,
     status,
     recipient,
+    templateId: template.id,
+    templateVersion: template.version,
+    portId,
     exp: Date.now() + 15 * 60 * 1000,
   })).toString('base64url');
   const signature = crypto.createHmac('sha256', signingKey()).update(payload).digest('base64url');
@@ -173,10 +179,11 @@ export function verifySubmissionPreviewToken(token: string, session: AdminSessio
   if (signature.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) return null;
   try {
     const parsed = JSON.parse(Buffer.from(payload, 'base64url').toString()) as {
-      adminId: string; submissionId: string; status: 'DONE' | 'REJECTED'; recipient: string; exp: number;
+      adminId: string; submissionId: string; status: 'DONE' | 'REJECTED'; recipient: string; templateId: string; templateVersion: number; portId: string; exp: number;
     };
     return parsed.adminId === session.id
       && ['DONE', 'REJECTED'].includes(parsed.status)
+      && !!parsed.templateId && !!parsed.portId && Number.isInteger(parsed.templateVersion)
       && parsed.exp > Date.now()
       ? parsed
       : null;

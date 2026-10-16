@@ -35,13 +35,15 @@ export const missingVariables = [
 type Operation = 'select' | 'insert' | 'upsert' | 'update' | 'delete';
 type SingleMode = 'many' | 'single' | 'maybeSingle';
 
-class PostgrestBuilder implements PromiseLike<{ data: any; error: any }> {
+class PostgrestBuilder implements PromiseLike<{ data: any; error: any; count?: number | null }> {
   private operation: Operation = 'select';
   private columns = '*';
   private payload: unknown;
   private filters = new URLSearchParams();
   private orderValue?: string;
   private limitValue?: number;
+  private offsetValue?: number;
+  private countValue?: 'exact';
   private timeoutMs?: number;
   private returnRepresentation = false;
   private singleMode: SingleMode = 'many';
@@ -52,8 +54,9 @@ class PostgrestBuilder implements PromiseLike<{ data: any; error: any }> {
     private readonly table: string,
   ) {}
 
-  select(columns = '*') {
+  select(columns = '*', options?: { count?: 'exact' }) {
     this.columns = columns;
+    this.countValue = options?.count;
     if (this.operation !== 'select') this.returnRepresentation = true;
     return this;
   }
@@ -106,6 +109,11 @@ class PostgrestBuilder implements PromiseLike<{ data: any; error: any }> {
     return this;
   }
 
+  lte(column: string, value: unknown) {
+    this.filters.append(column, `lte.${String(value)}`);
+    return this;
+  }
+
   order(column: string, options?: { ascending?: boolean }) {
     this.orderValue = `${column}.${options?.ascending === false ? 'desc' : 'asc'}`;
     return this;
@@ -113,6 +121,12 @@ class PostgrestBuilder implements PromiseLike<{ data: any; error: any }> {
 
   limit(value: number) {
     this.limitValue = value;
+    return this;
+  }
+
+  range(from: number, to: number) {
+    this.offsetValue = from;
+    this.limitValue = to - from + 1;
     return this;
   }
 
@@ -131,8 +145,8 @@ class PostgrestBuilder implements PromiseLike<{ data: any; error: any }> {
     return this.execute();
   }
 
-  then<TResult1 = { data: any; error: any }, TResult2 = never>(
-    onfulfilled?: ((value: { data: any; error: any }) => TResult1 | PromiseLike<TResult1>) | null,
+  then<TResult1 = { data: any; error: any; count?: number | null }, TResult2 = never>(
+    onfulfilled?: ((value: { data: any; error: any; count?: number | null }) => TResult1 | PromiseLike<TResult1>) | null,
     onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null,
   ): PromiseLike<TResult1 | TResult2> {
     return this.execute().then(onfulfilled, onrejected);
@@ -143,6 +157,7 @@ class PostgrestBuilder implements PromiseLike<{ data: any; error: any }> {
     if (this.operation === 'select' || this.returnRepresentation) params.set('select', this.columns);
     if (this.orderValue) params.set('order', this.orderValue);
     if (this.limitValue !== undefined) params.set('limit', String(this.limitValue));
+    if (this.offsetValue !== undefined) params.set('offset', String(this.offsetValue));
 
     const method = this.operation === 'select'
       ? 'GET'
@@ -154,6 +169,7 @@ class PostgrestBuilder implements PromiseLike<{ data: any; error: any }> {
     const prefer = [
       this.operation === 'upsert' ? 'resolution=merge-duplicates' : '',
       this.returnRepresentation ? 'return=representation' : 'return=minimal',
+      this.countValue ? `count=${this.countValue}` : '',
     ].filter(Boolean).join(',');
 
     try {
@@ -173,6 +189,9 @@ class PostgrestBuilder implements PromiseLike<{ data: any; error: any }> {
         return { data: null, error: parsed || { message: `Supabase request failed (${result.status}).` } };
       }
 
+      const totalFromHeader = result.headers.get('content-range')?.split('/')[1];
+      const count = totalFromHeader && /^\d+$/.test(totalFromHeader) ? Number(totalFromHeader) : null;
+
       if (this.singleMode !== 'many') {
         const rows = Array.isArray(parsed) ? parsed : parsed == null ? [] : [parsed];
         if (rows.length === 0 && this.singleMode === 'maybeSingle') return { data: null, error: null };
@@ -181,7 +200,7 @@ class PostgrestBuilder implements PromiseLike<{ data: any; error: any }> {
         }
         return { data: rows[0], error: null };
       }
-      return { data: parsed, error: null };
+      return { data: parsed, error: null, count };
     } catch (error) {
       return {
         data: null,

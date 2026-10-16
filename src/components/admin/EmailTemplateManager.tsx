@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { ArrowLeft, CalendarClock, Mail, Paperclip, Pencil, PlugZap, Plus, Save, Trash2 } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { motion } from 'motion/react';
+import { ArrowLeft, Paperclip, Pencil, Plus, Save, Trash2 } from 'lucide-react';
 import {
   connectGmail,
   deleteEmailTemplate,
@@ -18,19 +19,68 @@ import { formatAdminDate, formatAdminDateTime } from '../../utils/date';
 
 type EmailTemplateManagerProps = { onViewChange?: (view: 'list' | 'design') => void };
 
-const isRequiredRejectionTemplate = (id: string) => [
+function GoogleIcon({ connected }: { connected: boolean }) {
+  const color = (brandColor: string) => connected ? brandColor : '#111827';
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-7 w-7">
+      <path fill={color('#4285F4')} d="M21.6 12.23c0-.71-.06-1.39-.18-2.05H12v3.87h5.38a4.6 4.6 0 0 1-2 3.02v2.51h3.24c1.9-1.75 2.98-4.33 2.98-7.35Z" />
+      <path fill={color('#34A853')} d="M12 22c2.7 0 4.97-.9 6.62-2.42l-3.24-2.51c-.9.6-2.05.96-3.38.96-2.61 0-4.82-1.76-5.61-4.13H3.04v2.59A10 10 0 0 0 12 22Z" />
+      <path fill={color('#FBBC05')} d="M6.39 13.9A6.01 6.01 0 0 1 6.08 12c0-.66.11-1.3.31-1.9V7.51H3.04A10 10 0 0 0 2 12c0 1.61.39 3.14 1.04 4.49l3.35-2.59Z" />
+      <path fill={color('#EA4335')} d="M12 5.97c1.47 0 2.79.51 3.83 1.5l2.87-2.88A9.62 9.62 0 0 0 12 2a10 10 0 0 0-8.96 5.51l3.35 2.59C7.18 7.73 9.39 5.97 12 5.97Z" />
+    </svg>
+  );
+}
+
+const isProtectedTemplate = (id: string) => [
+  'cargomove-welcome',
   'rejection-already-registered-both',
   'rejection-northport-added',
   'rejection-no-ledger-code',
   'rejection-other',
 ].includes(id);
 
-const newTemplate = (active: boolean, portId: string | null = null, triggerStatus: 'DONE' | 'REJECTED' = 'DONE'): EmailTemplate => ({
+function getVisibleLogPageNumbers(currentPage: number, totalPages: number): number[] {
+  const visibleCount = Math.min(5, totalPages);
+  const start = Math.min(Math.max(1, currentPage - Math.floor(visibleCount / 2)), totalPages - visibleCount + 1);
+  return Array.from({ length: visibleCount }, (_, index) => start + index);
+}
+
+const portAbbreviations: Record<string, string> = {
+  'KUANTAN PORT CONSORTIUM KP1': 'KP1',
+  'KUANTAN PORT CONSORTIUM KP2': 'KP2',
+  'KUANTAN PORT - KP1': 'KP1',
+  'KUANTAN PORT - KP2': 'KP2',
+  WESTPORT: 'WP',
+  NORTHPORT: 'NP',
+  'PORT KLANG FREE ZONE': 'PKFZ',
+  'LUMUT MARITIME TERMINAL': 'LP',
+  'JOHOR PORT': 'JP',
+  'PENANG PORT': 'PP',
+};
+
+function abbreviatedPortName(name: string): string {
+  const normalized = name.trim().toUpperCase();
+  if (normalized.includes('KUANTAN') && /KP\s*[- ]?1\b/.test(normalized)) return 'KP1';
+  if (normalized.includes('KUANTAN') && /KP\s*[- ]?2\b/.test(normalized)) return 'KP2';
+  return portAbbreviations[normalized] || name;
+}
+
+function assignedPortNames(template: EmailTemplate, ports: EmailTemplatePort[], abbreviated = false): string {
+  const assignedIds = [...new Set(template.port_ids || [template.port_id].filter((id): id is string => !!id))];
+  if (ports.length > 0 && ports.every((port) => assignedIds.includes(port.id))) return abbreviated ? 'ALL PORT' : ports.map((port) => port.display_name).join(', ');
+  return assignedIds
+    .map((id) => ports.find((port) => port.id === id)?.display_name || id)
+    .map((name) => abbreviated ? abbreviatedPortName(name) : name)
+    .join(', ') || 'None assigned';
+}
+
+const newTemplate = (active: boolean, triggerStatus: 'DONE' | 'REJECTED' = 'DONE', coded = false): EmailTemplate => ({
   id: `email-${crypto.randomUUID()}`,
   name: '',
   trigger_status: triggerStatus,
-  port_id: portId,
-  template_code: null,
+  port_id: null,
+  port_ids: [],
+  template_code: coded ? (triggerStatus === 'DONE' ? 'ACC' : 'REJ') : null,
   rejection_reason: null,
   recipient_template: '{{user.email}}',
   subject_template: '',
@@ -44,6 +94,7 @@ export function EmailTemplateManager({ onViewChange }: EmailTemplateManagerProps
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [ports, setPorts] = useState<EmailTemplatePort[]>([]);
   const [apiSupportsPortCodes, setApiSupportsPortCodes] = useState(true);
+  const [activeCodeTab, setActiveCodeTab] = useState<'DONE' | 'REJECTED'>('DONE');
   const [editing, setEditing] = useState<EmailTemplate | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [gmailEmail, setGmailEmail] = useState('');
@@ -52,6 +103,11 @@ export function EmailTemplateManager({ onViewChange }: EmailTemplateManagerProps
   const [deletingId, setDeletingId] = useState('');
   const [connecting, setConnecting] = useState(false);
   const [logs, setLogs] = useState<EmailLog[]>([]);
+  const [logTotal, setLogTotal] = useState(0);
+  const [logPage, setLogPage] = useState(1);
+  const [prefetchingLogs, setPrefetchingLogs] = useState(false);
+  const [logPrefetchError, setLogPrefetchError] = useState(false);
+  const prefetchInFlight = useRef(false);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
 
   const load = async () => {
@@ -60,7 +116,8 @@ export function EmailTemplateManager({ onViewChange }: EmailTemplateManagerProps
     setPorts(catalog.ports);
     setApiSupportsPortCodes(catalog.apiSupportsPortCodes);
     setGmailEmail(gmail.connected && gmail.connection ? gmail.connection.email : '');
-    setLogs(emailLogs);
+    setLogs(emailLogs.logs);
+    setLogTotal(emailLogs.total ?? emailLogs.logs.length);
   };
 
   useEffect(() => {
@@ -68,7 +125,7 @@ export function EmailTemplateManager({ onViewChange }: EmailTemplateManagerProps
   }, []);
 
   const openDesigner = (template: EmailTemplate, create = false) => {
-    setEditing({ ...template, attachments: [...template.attachments] });
+    setEditing({ ...template, port_ids: template.port_ids || (template.port_id ? [template.port_id] : []), attachments: [...template.attachments] });
     setIsCreating(create);
     setPendingFiles([]);
     onViewChange?.('design');
@@ -85,6 +142,12 @@ export function EmailTemplateManager({ onViewChange }: EmailTemplateManagerProps
     if (!editing) return;
     setSaving(true);
     try {
+      if (editing.template_code !== null && editing.template_code !== undefined) {
+        if (!apiSupportsPortCodes) throw new Error('The API server is still using the old single-port template format. Restart the API server (or redeploy the backend), then reload this page and save again.');
+        const pattern = editing.trigger_status === 'DONE' ? /^ACC\d{3}$/ : /^REJ\d{3}$/;
+        if (!pattern.test(editing.template_code)) throw new Error(`Use ${editing.trigger_status === 'DONE' ? 'ACC' : 'REJ'} followed by exactly three digits (for example, ${editing.trigger_status === 'DONE' ? 'ACC001' : 'REJ001'}).`);
+      }
+      if (editing.template_code !== null && editing.template_code !== undefined && !editing.port_ids?.length && !editing.legacy_fallback) throw new Error('Select at least one port for this code.');
       const pendingSize = pendingFiles.reduce((total, file) => total + file.size, 0);
       const savedSize = editing.attachments.reduce((total, file) => total + file.size, 0);
       const allowedTypes = new Set(['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'image/jpeg', 'image/png']);
@@ -127,10 +190,38 @@ export function EmailTemplateManager({ onViewChange }: EmailTemplateManagerProps
     }
   };
 
-  const templateCard = (template: EmailTemplate) => <div key={template.id} onClick={() => openDesigner(template)} className="group cursor-pointer rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-blue-300 hover:shadow-md">
-    <div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="truncate text-sm font-bold text-slate-900">{template.name}</h3>{template.template_code && <span className="rounded-full bg-blue-50 px-2 py-0.5 font-mono text-[10px] font-semibold text-blue-700">{template.template_code}</span>}{template.active && <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700">Active</span>}</div><p className="mt-2 line-clamp-2 text-xs text-slate-500">{template.subject_template}</p></div><Mail className="h-5 w-5 shrink-0 text-slate-300 group-hover:text-blue-500" /></div>
-    <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-3"><span className="inline-flex items-center gap-1.5 text-[11px] text-slate-400"><CalendarClock className="h-3.5 w-3.5" />{template.updated_at ? formatAdminDate(template.updated_at) : `Version ${template.version}`}</span><div className="flex gap-1"><button type="button" onClick={(event) => { event.stopPropagation(); openDesigner(template); }} className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-50"><Pencil className="h-3.5 w-3.5" />Edit</button><button type="button" disabled={deletingId === template.id || templates.length === 1 || isRequiredRejectionTemplate(template.id)} title={isRequiredRejectionTemplate(template.id) ? 'Built-in rejection templates can be edited but not removed' : templates.length === 1 ? 'At least one template is required' : 'Remove template'} onClick={(event) => { event.stopPropagation(); void remove(template); }} className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-bold text-rose-600 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-40"><Trash2 className="h-3.5 w-3.5" />{deletingId === template.id ? 'Removing...' : 'Remove'}</button></div></div>
-  </div>;
+  const visibleTemplates = templates
+    .filter((template) => template.template_code && template.trigger_status === activeCodeTab)
+    .sort((first, second) => (first.template_code || '').localeCompare(second.template_code || ''));
+  const logsPerPage = 15;
+  const logPageCount = Math.max(1, Math.ceil(logTotal / logsPerPage));
+  const availableLogPages = Math.max(1, Math.ceil(logs.length / logsPerPage));
+  const currentLogPage = Math.min(logPage, logPageCount);
+  const visibleLogPageNumbers = getVisibleLogPageNumbers(currentLogPage, logPageCount);
+  const visibleLogs = logs.slice((currentLogPage - 1) * logsPerPage, currentLogPage * logsPerPage);
+
+  const openLogPage = async (page: number) => {
+    if (page < 1 || page > logPageCount || page > availableLogPages) return;
+    setLogPage(page);
+    if (page < 2 || logs.length >= logTotal || prefetchInFlight.current) return;
+    prefetchInFlight.current = true;
+    setPrefetchingLogs(true);
+    setLogPrefetchError(false);
+    try {
+      const next = await getEmailLogs(logs.length, Math.min(15, logTotal - logs.length), logs[0]?.requested_at || '');
+      setLogs((current) => {
+        const existingIds = new Set(current.map((log) => log.id));
+        return [...current, ...next.logs.filter((log) => !existingIds.has(log.id))];
+      });
+      if (next.total !== undefined) setLogTotal(next.total);
+      else if (next.logs.length === 0) setLogTotal(logs.length);
+    } catch {
+      setLogPrefetchError(true);
+    } finally {
+      prefetchInFlight.current = false;
+      setPrefetchingLogs(false);
+    }
+  };
 
   if (loading) return <div className="text-sm text-slate-500">Loading email settings...</div>;
 
@@ -139,27 +230,32 @@ export function EmailTemplateManager({ onViewChange }: EmailTemplateManagerProps
       <button type="button" onClick={closeDesigner} className="inline-flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-blue-700"><ArrowLeft className="h-4 w-4" />Back to Email Templates</button>
       <div>
         <p className="text-xs font-semibold uppercase tracking-wider text-blue-600">{isCreating ? 'New template' : 'Edit template'}</p>
-        <h2 className="mt-1 text-xl font-bold tracking-tight text-slate-900">Design Template</h2>
+        <h2 className="mt-1 text-xl font-bold tracking-tight text-slate-900">{editing.template_code !== null && editing.template_code !== undefined ? `${editing.template_code} — ${editing.trigger_status === 'DONE' ? 'ACCEPT' : 'REJECT'}` : 'Design Template'}</h2>
         <p className="mt-1 text-xs text-slate-500">Design the message recipients will receive for this registration outcome.</p>
       </div>
       <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="grid gap-4 md:grid-cols-2">
-          <label className="text-xs font-semibold text-slate-700">Template name
+        <div className="grid gap-4 md:grid-cols-12">
+          <label className="text-xs font-semibold text-slate-700 md:col-span-6">Template name
             <input autoFocus value={editing.name} onChange={(event) => setEditing({ ...editing, name: event.target.value })} placeholder="e.g. Standard welcome email" className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
           </label>
-          <label className="text-xs font-semibold text-slate-700">Trigger
-            <input value={`${editing.trigger_status === 'DONE' ? 'Acceptance' : 'Rejection'}${editing.port_id ? ` / ${ports.find((port) => port.id === editing.port_id)?.display_name || editing.port_id}` : editing.rejection_reason ? ` / ${editing.rejection_reason.replaceAll('_', ' ')}` : ' / Default'}`} disabled className="mt-1.5 w-full rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 font-normal text-slate-600" />
-          </label>
-          {editing.port_id && <label className="text-xs font-semibold text-slate-700">{editing.trigger_status === 'DONE' ? 'Acceptance' : 'Rejection'} code
-            <input required autoCapitalize="characters" value={editing.template_code || ''} disabled={!isCreating} onChange={(event) => setEditing({ ...editing, template_code: event.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 32) })} placeholder={editing.trigger_status === 'DONE' ? 'ACC001' : 'REJ001'} className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2 font-mono font-normal disabled:bg-slate-100" />
+          {editing.template_code !== null && editing.template_code !== undefined && <label className="text-xs font-semibold text-slate-700 md:col-span-3">{editing.trigger_status === 'DONE' ? 'Acceptance' : 'Rejection'} code
+            <span className="mt-1.5 flex overflow-hidden rounded-lg border border-slate-300">
+              <span className="border-r border-slate-300 bg-slate-100 px-3 py-2 font-mono font-bold text-slate-700">{editing.trigger_status === 'DONE' ? 'ACC' : 'REJ'}</span>
+              <input required inputMode="numeric" pattern="[0-9]{3}" maxLength={3} value={(editing.template_code || '').slice(3)} disabled={!isCreating} onChange={(event) => setEditing({ ...editing, template_code: `${editing.trigger_status === 'DONE' ? 'ACC' : 'REJ'}${event.target.value.replace(/\D/g, '').slice(0, 3)}` })} placeholder="001" aria-label="Three-digit code number" className="min-w-0 flex-1 px-3 py-2 font-mono font-normal outline-none disabled:bg-slate-100" />
+            </span>
+            <span className="mt-1 block text-[11px] font-normal text-slate-500">Enter exactly three digits, for example {editing.trigger_status === 'DONE' ? 'ACC001' : 'REJ001'}.</span>
           </label>}
-          <label className="text-xs font-semibold text-slate-700">Recipient
-            <input value={editing.recipient_template} disabled className="mt-1.5 w-full rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 font-mono font-normal text-slate-600" />
+          <label className={`text-xs font-semibold text-slate-700 ${editing.template_code !== null && editing.template_code !== undefined ? 'md:col-span-3' : 'md:col-span-6'}`}>Trigger
+            <input value={`${editing.trigger_status === 'DONE' ? 'Acceptance' : 'Rejection'}${editing.template_code !== null && editing.template_code !== undefined ? ' code' : editing.rejection_reason ? ` / ${editing.rejection_reason.replaceAll('_', ' ')}` : ' / Default'}`} disabled className="mt-1.5 w-full rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 font-normal text-slate-600" />
           </label>
-          <label className="text-xs font-semibold text-slate-700">Subject
+          <label className="text-xs font-semibold text-slate-700 md:col-span-6">Subject
             <input value={editing.subject_template} onChange={(event) => setEditing({ ...editing, subject_template: event.target.value })} placeholder="Email subject" className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
           </label>
+          <label className="text-xs font-semibold text-slate-700 md:col-span-6">Recipient
+            <input value={editing.recipient_template} disabled className="mt-1.5 w-full rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 font-mono font-normal text-slate-600" />
+          </label>
         </div>
+        {editing.template_code !== null && editing.template_code !== undefined && <fieldset className="rounded-lg border border-slate-200 p-4"><legend className="px-1 text-xs font-semibold text-slate-700">Assigned ports</legend><p className="mb-3 text-[11px] text-slate-500">Choose every port that can use this code and template.</p><div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">{ports.map((port) => <label key={port.id} className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-700 hover:bg-slate-50"><input type="checkbox" checked={editing.port_ids?.includes(port.id) || false} onChange={(event) => setEditing({ ...editing, port_ids: event.target.checked ? [...(editing.port_ids || []), port.id] : (editing.port_ids || []).filter((id) => id !== port.id) })} /><span>{port.display_name}</span></label>)}</div></fieldset>}
         <div className="text-xs font-semibold text-slate-700">Email body
           <RichTextEmailEditor value={editing.body_template} onChange={(body_template) => setEditing((current) => current ? { ...current, body_template } : current)} />
           <p className="mt-1.5 text-[11px] font-normal text-slate-500">Available variables: <code>{'{{user.email}}'}</code>, <code>{'{{user.username}}'}</code>, <code>{'{{user.password}}'}</code>{editing.trigger_status === 'REJECTED' && <>, <code>{'{{rejection.reason}}'}</code></>}</p>
@@ -177,7 +273,7 @@ export function EmailTemplateManager({ onViewChange }: EmailTemplateManagerProps
           )}
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
-          <label className="flex items-center gap-2 text-xs font-semibold text-slate-700"><input type="checkbox" checked={editing.active} disabled={!editing.port_id && !isCreating && editing.active} onChange={(event) => setEditing({ ...editing, active: event.target.checked })} />{editing.active ? 'Active template' : 'Use as the active template'}</label>
+          <label className="flex items-center gap-2 text-xs font-semibold text-slate-700"><input type="checkbox" checked={editing.active} disabled={editing.legacy_fallback || (!editing.template_code && !isCreating && editing.active)} onChange={(event) => setEditing({ ...editing, active: event.target.checked })} />{editing.active ? 'Active template' : 'Use as the active template'}</label>
           <div className="flex gap-2"><button type="button" onClick={closeDesigner} className="rounded-lg px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100">Cancel</button><button type="button" onClick={() => void save()} disabled={saving} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-60"><Save className="h-4 w-4" />{saving ? 'Saving...' : 'Save Template'}</button></div>
         </div>
       </div>
@@ -187,23 +283,83 @@ export function EmailTemplateManager({ onViewChange }: EmailTemplateManagerProps
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div><h2 className="text-xl font-bold tracking-tight text-slate-900">Email Templates</h2><p className="mt-1 text-xs text-slate-500">Assign acceptance and rejection codes to each port. Every code has its own template.</p></div>
-        <div className="flex flex-wrap gap-2"><button type="button" onClick={() => void connect()} disabled={connecting} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-60"><PlugZap className="h-4 w-4" />{connecting ? 'Connecting...' : gmailEmail ? 'Reconnect Gmail' : 'Connect Gmail'}</button><button type="button" onClick={() => openDesigner(newTemplate(templates.length === 0), true)} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700"><Plus className="h-4 w-4" />New Template</button></div>
-      </div>
-      <div className={`rounded-xl border p-4 text-xs ${gmailEmail ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}><div className="flex items-center gap-2 font-bold"><Mail className="h-4 w-4" />{gmailEmail ? `Connected as ${gmailEmail}` : 'Gmail is not connected'}</div></div>
-      {ports.map((port) => <section key={port.id} className="space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="text-sm font-semibold text-slate-900">{port.display_name}</h3><p className="text-xs text-slate-500">{port.active ? 'Port-specific codes' : 'Inactive port — existing codes remain available for reference'}</p></div><div className="flex gap-2"><button type="button" onClick={() => openDesigner(newTemplate(true, port.id, 'DONE'), true)} className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-50"><Plus className="h-3.5 w-3.5" />Acceptance code</button><button type="button" onClick={() => openDesigner(newTemplate(true, port.id, 'REJECTED'), true)} className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-white px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50"><Plus className="h-3.5 w-3.5" />Rejection code</button></div></div>
-        {(['DONE', 'REJECTED'] as const).map((status) => <div key={status} className="space-y-2"><h4 className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{status === 'DONE' ? 'Acceptance codes' : 'Rejection codes'}</h4><div className="grid gap-3 md:grid-cols-2">{templates.filter((template) => template.port_id === port.id && template.trigger_status === status).map(templateCard)}{!templates.some((template) => template.port_id === port.id && template.trigger_status === status) && <p className="rounded-lg border border-dashed border-slate-200 p-4 text-xs text-slate-500">No {status === 'DONE' ? 'acceptance' : 'rejection'} codes yet.</p>}</div></div>)}
-      </section>)}
-      {!apiSupportsPortCodes ? <p className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-xs text-amber-800">The API server is still using the previous email-template response. Restart the API server (or redeploy the backend), then reload this page to manage port codes.</p> : ports.length === 0 && <p className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-xs text-amber-800">No ports were returned by the API. Check Ports &amp; Depots and the API's Supabase connection.</p>}
-      <section className="space-y-3"><div><h3 className="text-sm font-semibold text-slate-900">Default templates</h3><p className="text-xs text-slate-500">Existing templates are still used when no port code is selected.</p></div>
-      {templates.length === 0 ? <div className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center"><Mail className="mx-auto h-8 w-8 text-slate-300" /><h3 className="mt-3 text-sm font-bold text-slate-800">No email templates</h3><p className="mt-1 text-xs text-slate-500">Create your first reusable email template.</p></div> : (
-        <div className="grid gap-4 md:grid-cols-2">
-          {templates.filter((template) => !template.port_id).map(templateCard)}
+        <div><h2 className="text-xl font-bold tracking-tight text-slate-900">Email Templates</h2><p className="mt-1 text-xs text-slate-500">Manage acceptance and rejection codes, then assign each code to one or more ports.</p></div>
+        <div className="group relative self-end sm:self-auto">
+          <motion.button
+            type="button"
+            onClick={() => void connect()}
+            disabled={connecting}
+            aria-label={gmailEmail ? `Google connected as ${gmailEmail}. Click to reconnect.` : 'Google is not connected. Click to connect.'}
+            whileHover={{ y: -2, rotate: [0, -7, 7, 0], scale: 1.08 }}
+            whileTap={{ scale: 0.94 }}
+            transition={{ duration: 0.35 }}
+            className="relative inline-flex h-12 w-12 items-center justify-center rounded-full border border-slate-200 bg-white shadow-sm outline-none transition-shadow hover:shadow-lg focus-visible:ring-2 focus-visible:ring-blue-500 disabled:cursor-wait disabled:opacity-60"
+          >
+            <GoogleIcon connected={!!gmailEmail} />
+            {gmailEmail && <span className="absolute bottom-0.5 right-0.5 h-3 w-3 rounded-full border-2 border-white bg-emerald-500" aria-hidden="true" />}
+          </motion.button>
+          <div role="tooltip" className="pointer-events-none absolute right-full top-1/2 z-30 mr-3 w-max max-w-72 -translate-y-1/2 translate-x-2 rounded-lg bg-slate-900 px-3 py-2 text-xs text-white opacity-0 shadow-xl transition-all duration-200 group-hover:translate-x-0 group-hover:opacity-100 group-focus-within:translate-x-0 group-focus-within:opacity-100">
+            <span className="block font-semibold">{gmailEmail ? 'Google connected' : 'Google not connected'}</span>
+            <span className="mt-0.5 block text-slate-300">{connecting ? 'Connecting…' : gmailEmail || 'Click to connect'}</span>
+            <span className="absolute -right-1 top-1/2 h-2 w-2 -translate-y-1/2 rotate-45 bg-slate-900" />
+          </div>
         </div>
-      )}
+      </div>
+      <section className="rounded-xl">
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <div className="ml-[0.5px] flex w-fit items-end" role="tablist" aria-label="Email template code type">
+            {(['DONE', 'REJECTED'] as const).map((status) => <button key={status} type="button" role="tab" aria-selected={activeCodeTab === status} onClick={() => setActiveCodeTab(status)} className={`admin-registration-tab relative -mr-px flex h-10 min-w-[152px] items-center justify-center rounded-t-lg border px-3 text-xs font-bold uppercase tracking-wider transition-none ${activeCodeTab === status ? 'z-10 border-slate-400 border-b-transparent bg-[#CBD5E1] text-slate-900' : 'border-slate-300 bg-[#F1F5F9] text-slate-500 hover:bg-slate-200 hover:text-slate-900'}`}>{status === 'DONE' ? 'Acceptance codes' : 'Rejection codes'}</button>)}
+          </div>
+          <button type="button" onClick={() => openDesigner(newTemplate(true, activeCodeTab, true), true)} disabled={!ports.length || !apiSupportsPortCodes} aria-label={`Add ${activeCodeTab === 'DONE' ? 'acceptance' : 'rejection'} code`} className={`mb-2 inline-flex h-10 w-[132px] shrink-0 items-center justify-center gap-1 rounded-lg px-3 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-50 ${activeCodeTab === 'DONE' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-rose-600 hover:bg-rose-700'}`}><Plus className="h-4 w-4" />Add Code</button>
+        </div>
+        <div role="tabpanel" className="overflow-hidden rounded-b-xl rounded-tr-xl border-x border-b border-slate-200 bg-white shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[900px] table-fixed border-collapse text-left text-xs">
+              <colgroup><col className="w-[7%]" /><col className="w-[22%]" /><col className="w-[30%]" /><col className="w-[15%]" /><col className="w-[8%]" /><col className="w-[9%]" /><col className="w-[9%]" /></colgroup>
+              <thead>
+                <tr className="admin-registration-table-header whitespace-nowrap border border-slate-400 bg-[#CBD5E1] text-[10px] font-bold uppercase tracking-wide text-slate-700"><th scope="col" className="px-4 py-3">Code</th><th scope="col" className="px-4 py-3">Template name</th><th scope="col" className="px-4 py-3">Subject</th><th scope="col" className="px-4 py-3 text-center">Assigned ports</th><th scope="col" className="px-3 py-3">Status</th><th scope="col" className="px-3 py-3">Updated</th><th scope="col" className="px-3 py-3 text-center">Actions</th></tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {visibleTemplates.length === 0 ? <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-500">No {activeCodeTab === 'DONE' ? 'acceptance' : 'rejection'} codes yet.</td></tr> : visibleTemplates.map((template) => (
+                  <tr key={template.id} className="hover:bg-slate-50">
+                    <td className="px-4 py-3 font-mono font-bold text-blue-700">{template.template_code}</td>
+                    <td className="px-4 py-3"><button type="button" onClick={() => openDesigner(template)} className="text-left font-semibold text-slate-900 hover:text-blue-700 hover:underline">{template.name}</button></td>
+                    <td className="truncate px-4 py-3 text-slate-600" title={template.subject_template}>{template.subject_template}</td>
+                    <td className="px-4 py-3 text-center text-slate-600" title={assignedPortNames(template, ports)}>{assignedPortNames(template, ports, true)}</td>
+                    <td className="px-3 py-3"><span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${template.active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>{template.active ? 'Active' : 'Inactive'}</span></td>
+                    <td className="whitespace-nowrap px-3 py-3 text-[11px] text-slate-500">{template.updated_at ? formatAdminDate(template.updated_at) : `Version ${template.version}`}</td>
+                    <td className="px-3 py-3"><div className="flex items-center justify-center gap-1"><button type="button" onClick={() => openDesigner(template)} title={`Edit ${template.template_code}`} aria-label={`Edit ${template.template_code}`} className="rounded-md p-1.5 text-blue-700 hover:bg-blue-50"><Pencil className="h-4 w-4" /></button><button type="button" onClick={() => void remove(template)} disabled={deletingId === template.id || templates.length === 1 || isProtectedTemplate(template.id)} title={isProtectedTemplate(template.id) ? 'Built-in templates can be edited but not removed' : `Remove ${template.template_code}`} aria-label={`Remove ${template.template_code}`} className="rounded-md p-1.5 text-rose-600 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-40"><Trash2 className="h-4 w-4" /></button></div></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </section>
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"><div className="border-b border-slate-200 px-5 py-4"><h3 className="text-sm font-bold text-slate-900">Recent Email Logs</h3></div><div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead className="bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-600"><tr><th className="px-4 py-3">Template</th><th className="px-4 py-3">Recipient</th><th className="px-4 py-3">Subject</th><th className="px-4 py-3">Date</th><th className="px-4 py-3">Status</th></tr></thead><tbody className="divide-y divide-slate-100">{logs.length === 0 ? <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-500">No emails have been sent yet.</td></tr> : logs.map((log) => <tr key={log.id}><td className="px-4 py-3 font-semibold text-slate-700">{log.template_code && <span className="mr-1 font-mono text-blue-700">{log.template_code}</span>}{log.template_name}</td><td className="px-4 py-3 text-slate-700">{log.recipient}</td><td className="max-w-xs truncate px-4 py-3 text-slate-600">{log.subject}</td><td className="whitespace-nowrap px-4 py-3 text-slate-600">{formatAdminDateTime(log.sent_at || log.requested_at)}</td><td className={`px-4 py-3 font-bold ${log.status === 'SENT' ? 'text-emerald-700' : log.status === 'FAILED' ? 'text-rose-700' : 'text-amber-700'}`}>{log.status}</td></tr>)}</tbody></table></div></div>
+      {!apiSupportsPortCodes ? <p className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-xs text-amber-800">The API server is still using the old single-port template format. Restart the API server (or redeploy the backend), then reload this page to manage port codes.</p> : ports.length === 0 && <p className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-xs text-amber-800">No ports were returned by the API. Check Ports &amp; Depots and the API's Supabase connection.</p>}
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-200 px-5 py-4"><h3 className="text-sm font-bold text-slate-900">Recent Email Logs</h3></div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[700px] text-left text-xs">
+            <thead className="bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-600"><tr><th className="px-4 py-3">Template</th><th className="px-4 py-3">Recipient</th><th className="px-4 py-3">Subject</th><th className="px-4 py-3">Date</th><th className="px-4 py-3">Status</th></tr></thead>
+            <tbody className="divide-y divide-slate-100">
+              {logs.length === 0 ? <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-500">No emails have been sent yet.</td></tr> : visibleLogs.map((log) => <tr key={log.id}><td className="px-4 py-3 font-semibold text-slate-700">{log.template_code && <span className="mr-1 font-mono text-blue-700">{log.template_code}</span>}{log.template_name}</td><td className="px-4 py-3 text-slate-700">{log.recipient}</td><td className="max-w-xs truncate px-4 py-3 text-slate-600">{log.subject}</td><td className="whitespace-nowrap px-4 py-3 text-slate-600">{formatAdminDateTime(log.sent_at || log.requested_at)}</td><td className={`px-4 py-3 font-bold ${log.status === 'SENT' ? 'text-emerald-700' : log.status === 'FAILED' ? 'text-rose-700' : 'text-amber-700'}`}>{log.status}</td></tr>)}
+            </tbody>
+          </table>
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-4 py-3">
+          <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+            <span>{logTotal === 0 ? '0 emails' : `Showing ${(currentLogPage - 1) * logsPerPage + 1}–${Math.min(currentLogPage * logsPerPage, logTotal)} of ${logTotal} recent emails`}</span>
+            {prefetchingLogs && <span>Loading next page…</span>}
+            {logPrefetchError && currentLogPage >= 2 && <button type="button" onClick={() => void openLogPage(currentLogPage)} className="font-semibold text-blue-700 hover:underline">Could not preload next page. Retry</button>}
+          </div>
+          <nav className="flex items-center gap-1" aria-label="Recent email logs pagination">
+            <button type="button" onClick={() => void openLogPage(currentLogPage - 1)} disabled={currentLogPage === 1} aria-label="Previous page" className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40">&lsaquo;</button>
+            {visibleLogPageNumbers.map((page) => <button key={page} type="button" onClick={() => void openLogPage(page)} disabled={page > availableLogPages} aria-current={currentLogPage === page ? 'page' : undefined} className={`h-8 min-w-8 rounded-md px-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-40 ${currentLogPage === page ? 'bg-blue-600 text-white' : 'border border-slate-300 bg-white text-slate-600 hover:bg-slate-100'}`}>{page}</button>)}
+            <button type="button" onClick={() => void openLogPage(currentLogPage + 1)} disabled={currentLogPage >= logPageCount || currentLogPage + 1 > availableLogPages} aria-label="Next page" className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40">&rsaquo;</button>
+          </nav>
+        </div>
+      </div>
     </div>
   );
 }

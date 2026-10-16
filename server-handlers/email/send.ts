@@ -38,8 +38,8 @@ export default async function sendEmail(request: any, response: any) {
   if (!emailHtmlToText(messageBody) || messageBody.length > 100_000) return response.status(400).json({ error: 'A valid email body is required.' });
 
   const [userResult, templateResult, connectionResult] = await Promise.all([
-    client.from('external_user_access').select('id,email,status,rejection_reason,email_status').eq('id', token.userId).maybeSingle(),
-    client.from('email_templates').select('id,name,version,active,trigger_status,rejection_reason,port_id,template_code,attachments').eq('id', token.templateId).maybeSingle(),
+    client.from('external_user_access').select('id,email,company_id,status,rejection_reason,email_status').eq('id', token.userId).maybeSingle(),
+    client.from('email_templates').select('id,name,version,active,trigger_status,rejection_reason,port_id,template_code,legacy_fallback,attachments').eq('id', token.templateId).maybeSingle(),
     client.from('gmail_connections').select('*').eq('id', 'system').eq('status', 'ACTIVE').maybeSingle(),
   ]);
   const readError = userResult.error || templateResult.error || connectionResult.error;
@@ -49,10 +49,27 @@ export default async function sendEmail(request: any, response: any) {
   const connection = connectionResult.data;
   if (!user || !['DONE', 'REJECTED'].includes(user.status)) return response.status(409).json({ error: 'The user registration must still be DONE or REJECTED.' });
   if (recipient !== String(user.email).toLowerCase()) return response.status(400).json({ error: 'The recipient must match the registered user email.' });
+  if (user.status === 'DONE' || (user.status === 'REJECTED' && token.portId)) {
+    if (!user.company_id) return response.status(409).json({ error: 'This user has no linked Company Registration.' });
+    let companyQuery = client.from('registration_submissions').select('port_id')
+      .eq('company_id', user.company_id).eq('registration_type', 'COMPANY');
+    if (user.status === 'DONE') companyQuery = companyQuery.eq('status', 'DONE');
+    const companyResult = await companyQuery;
+    if (companyResult.error) return response.status(502).json({ error: companyResult.error.message });
+    if (!companyResult.data?.length) return response.status(409).json({ error: user.status === 'DONE' ? 'Register the linked company before sending the acceptance email.' : 'This user has no linked Company Registration port for a rejection code.' });
+    const companyPortIds = companyResult.data.map((submission: { port_id: string }) => ['jh-pg-ics', 'jh-pg-depot'].includes(submission.port_id) ? 'johor-port' : submission.port_id);
+    if (!token.portId || !companyPortIds.includes(token.portId)) return response.status(409).json({ error: user.status === 'DONE' ? 'The registered company ports changed. Generate a new acceptance preview.' : 'The linked company ports changed. Generate a new rejection preview.' });
+  }
   if (!template?.active || template.version !== token.templateVersion) return response.status(409).json({ error: 'The email template changed. Generate a new preview.' });
-  if (template.trigger_status !== user.status || (!template.port_id && user.status === 'REJECTED' && template.rejection_reason !== user.rejection_reason)) {
+  if (template.trigger_status !== user.status || (user.status === 'REJECTED' && template.rejection_reason && template.rejection_reason !== user.rejection_reason)) {
     return response.status(409).json({ error: 'The registration status or rejection reason changed. Generate a new preview.' });
   }
+  if (template.template_code && token.portId) {
+    const { data: assigned, error: assignmentError } = await client.from('email_template_ports').select('port_id').eq('template_id', template.id).eq('port_id', token.portId).maybeSingle();
+    if (assignmentError) return response.status(502).json({ error: assignmentError.message });
+    if (!assigned) return response.status(409).json({ error: 'This code is no longer assigned to the selected port. Generate a new preview.' });
+  }
+  if (template.template_code && !token.portId && !template.legacy_fallback) return response.status(409).json({ error: 'The selected port is missing. Generate a new preview.' });
   if (!connection) return response.status(409).json({ error: 'Connect a Gmail account before sending.' });
   if (user.email_status === 'SENDING') return response.status(409).json({ error: 'This email is already being sent.' });
 
@@ -77,7 +94,7 @@ export default async function sendEmail(request: any, response: any) {
     template_id: template.id,
     template_name: template.name,
     template_version: template.version,
-    port_id: template.port_id,
+    port_id: token.portId || null,
     template_code: template.template_code,
     recipient,
     subject,
