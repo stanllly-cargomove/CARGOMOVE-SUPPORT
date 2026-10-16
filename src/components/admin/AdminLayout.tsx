@@ -37,6 +37,7 @@ import { UserRegistration } from './UserRegistration';
 import { AdminUser } from './AdminUser';
 import { EmailTemplateManager } from './EmailTemplateManager';
 import { DeveloperSettings } from './DeveloperSettings';
+import { NorthportRecovery } from './NorthportRecovery';
 import { notifyError, notifySuccess } from '../common/notifications';
 import { RegistrationType } from '../../types';
 import { getSubmissions, subscribeToStorage } from '../../services/storage';
@@ -179,7 +180,7 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout 
     setIsAccountMenuOpen(false);
   };
 
-  const activePageLabel = [...navItems, ...registrationQueueItems, ...devToolItems]
+  const activePageLabel = activeTab === 'northport-recovery' ? 'Test Tools / Northport Container Recovery' : [...navItems, ...registrationQueueItems, ...devToolItems]
     .find((item) => item.id === activeTab)?.label ?? (activeTab === 'account-settings' ? 'Settings' : 'Dashboard');
 
   return (
@@ -517,7 +518,8 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout 
           )}
           {activeTab === 'ports' && <PortDepotConfig />}
           {activeTab === 'schema' && <SchemaMappingInspector />}
-          {activeTab === 'developer-settings' && <DeveloperSettings />}
+          {activeTab === 'developer-settings' && <DeveloperSettings onNorthportRecovery={user?.type === 'ADMIN' ? () => setActiveTab('northport-recovery') : undefined} />}
+          {activeTab === 'northport-recovery' && user?.type === 'ADMIN' && <NorthportRecovery onBack={() => setActiveTab('developer-settings')} />}
           {activeTab === 'account-settings' && (
             <div className="max-w-3xl space-y-6">
               <div>

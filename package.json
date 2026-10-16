@@ -3,10 +3,12 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "engines": { "node": "24.x" },
+  "engines": {
+    "node": "24.x"
+  },
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
-    "dev:api": "tsx server.ts",
+    "dev:api": "tsx watch --include .env.local server.ts",
     "build": "vite build",
     "preview": "vite preview",
     "seed:supabase": "tsx scripts/seed-supabase.ts",
@@ -15,6 +17,9 @@
     "lint": "tsc --noEmit",
     "test:scheduler": "tsx --test tests/scheduler.test.ts",
     "test:scheduler:ui": "tsx tests/scheduler-ui.ts",
+    "test:northport": "tsx --test tests/northport.test.ts tests/northport-db.test.ts tests/northport-scan.test.ts tests/northport-reprocess.test.ts tests/dev-tools-router.test.ts",
+    "test:northport:ui": "tsx tests/northport-ui.ts",
+    "northport:check": "tsx scripts/check-northport-ftp.ts",
     "api": "tsx server.ts"
   },
   "dependencies": {
@@ -23,6 +28,9 @@
     "@supabase/supabase-js": "^2.116.0",
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",
+    "basic-ftp": "^6.2.3",
+    "csv-parse": "^7.0.3",
+    "csv-stringify": "^6.9.0",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
     "lucide-react": "^0.546.0",
@@ -35,6 +43,7 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.10",
     "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",
     "@types/react": "^19.0.0",

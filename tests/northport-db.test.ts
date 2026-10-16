@@ -1,0 +1,53 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { PGlite } from '@electric-sql/pglite';
+
+test('PostgreSQL migration enforces RLS, administrator admission, durable deduplication and atomic claims',async()=>{
+  const db=new PGlite();
+  const actor='10000000-0000-4000-8000-000000000001';
+  const other='10000000-0000-4000-8000-000000000002';
+  const revoked='10000000-0000-4000-8000-000000000003';
+  try {
+    await db.exec(`create role anon; create role authenticated; create role service_role bypassrls;
+      create schema auth;create table auth.users(id uuid primary key,email text);
+      create table public.user_registrations(id uuid primary key,email text,type text);
+      create table public.cargomove_scheduler_runs(id uuid primary key);
+      insert into auth.users values('${actor}','ADMIN@EXAMPLE.TEST'),('${other}','other@example.test'),('${revoked}','revoked@example.test');
+      insert into public.user_registrations values('${actor}','admin@example.test','ADMIN'),('${other}','other@example.test','ADMIN'),('${revoked}','revoked@example.test','COMPANY_ADMIN');`);
+    await db.exec(readFileSync(new URL('../supabase/migrations/20261017010000_northport_recovery.sql',import.meta.url),'utf8'));
+    const scalar=async(sql:string,params:any[]=[])=>Object.values((await db.query<any>(sql,params)).rows[0])[0] as any;
+    assert.equal(await scalar('select northport_admit_request($1)',[actor]),true);
+    assert.equal(await scalar('select northport_admit_request($1)',[actor]),false);
+    await assert.rejects(()=>db.query('select northport_admit_request($1)',[revoked]),/Administrator required/);
+    const approve=async(who=actor,container='MSBU4179350',key='source-1',digest='hash-1')=>scalar(`select northport_approve($1,$2,$3,'GP','CM_CONTAINER_20261017012016_GP.csv',1,$4,$5,ARRAY['BLNO'])`,[who,'admin@example.test',container,key,digest]);
+    const approved=await approve();assert.equal(approved.status,'Approved');
+    assert.equal((await approve()).id,approved.id,'Repeated identical approval is idempotent');
+    await assert.rejects(()=>approve(other),/unique constraint/);
+    await assert.rejects(()=>approve(actor,'DIFFERENT123'),/unique constraint/);
+    await assert.rejects(()=>approve(actor,'MSBU4179350','source-other'),/unique constraint/);
+    await assert.rejects(()=>approve(revoked,'REVOKED123','source-revoked'),/Administrator required/);
+    const claim=(who=actor,digest='hash-1',key='source-1')=>scalar('select northport_claim_upload($1,$2,$3,$4)',[who,approved.id,digest,key]);
+    assert.equal(await claim(other),null);assert.equal(await claim(actor,'tampered'),null);assert.equal(await claim(actor,'hash-1','other-source'),null);
+    const published=await claim();assert.match(published.recovery_filename,/^CM_CONTAINER_\d{14}_GP\.csv$/);
+    assert.equal(await claim(),null,'A second upload claim cannot succeed');
+    await db.query("update northport_recoveries set status='Failed' where id=$1",[approved.id]);
+    assert.equal(await claim(),null,'Failed uploads require manual reconciliation');
+    await assert.rejects(()=>approve(),/unique constraint/,'Failed history still blocks duplicate recovery');
+    const second=await approve(actor,'SECOND123','source-2','hash-2');
+    const secondFile=await scalar('select northport_claim_upload($1,$2,$3,$4)',[actor,second.id,'hash-2','source-2']);
+    assert.notEqual(secondFile.recovery_filename,published.recovery_filename,'Allocated timestamps are unique across submissions');
+    assert.equal(await scalar('select northport_claim_scheduler($1,$2)',[second.id,actor]),false,'Cannot dispatch before upload');
+    await db.query("update northport_recoveries set status='Uploaded' where id=$1",[second.id]);
+    assert.equal(await scalar('select northport_claim_scheduler($1,$2)',[second.id,actor]),true);
+    assert.equal(await scalar('select northport_claim_scheduler($1,$2)',[second.id,other]),false,'Concurrent/repeated dispatch is denied');
+    const rows=await db.query<any>('select * from northport_recoveries');assert.equal(rows.rows.length,2);
+    assert.ok(!Object.keys(rows.rows[0]).some(k=>['csv','values','original_values','edited_values'].includes(k)));
+    await db.exec('set role authenticated');
+    await assert.rejects(()=>db.query('select * from northport_recoveries'),/permission denied/);
+    await assert.rejects(()=>db.query('select northport_admit_request($1)',[actor]),/permission denied/);
+    await db.exec('reset role;set role anon');
+    await assert.rejects(()=>db.query('select * from northport_recoveries'),/permission denied/);
+    await db.exec('reset role');
+  } finally {await db.close();}
+});

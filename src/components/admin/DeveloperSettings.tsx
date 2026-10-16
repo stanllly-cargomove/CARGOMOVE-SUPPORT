@@ -3,7 +3,7 @@ import { FlaskConical } from 'lucide-react';
 import { areRegistrationTestToolsEnabled, setRegistrationTestToolsEnabled } from '../../services/developerSettings';
 import { CargoMoveScheduler } from './CargoMoveScheduler';
 
-export function DeveloperSettings() {
+export function DeveloperSettings({ onNorthportRecovery }: { onNorthportRecovery?: () => void }) {
   const [testToolsEnabled, setTestToolsEnabled] = useState(areRegistrationTestToolsEnabled);
 
   const updateTestTools = (enabled: boolean) => {
@@ -41,6 +41,11 @@ export function DeveloperSettings() {
         <p className={`mt-4 text-xs font-semibold ${testToolsEnabled ? 'text-emerald-700' : 'text-slate-500'}`}>{testToolsEnabled ? 'Enabled' : 'Disabled'}</p>
       </section>
       <CargoMoveScheduler />
+      {onNorthportRecovery && <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h3 className="text-sm font-bold text-slate-900">Northport Container Recovery</h3>
+        <p className="mt-1 text-xs leading-5 text-slate-600">Find a container in processed Northport CSVs, review its fields and prepare an approved recovery.</p>
+        <button type="button" onClick={onNorthportRecovery} className="mt-4 rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white">Open Northport Container Recovery</button>
+      </section>}
     </div>
   );
 }

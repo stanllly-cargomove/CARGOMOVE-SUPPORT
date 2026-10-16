@@ -1,0 +1,2 @@
+# Preserve the supplied Northport CR CR LF separators byte-for-byte.
+tests/fixtures/northport/*.csv -text

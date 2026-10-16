@@ -15,6 +15,7 @@ import companyLookup from './server-handlers/registration/lookup.js';
 import registrationStatus from './server-handlers/registration/status.js';
 import runScheduler from './server-handlers/scheduler/handler.js';
 import schedulerCatalog from './server-handlers/scheduler/catalog.js';
+import northportRecovery from './server-handlers/northport/handler.js';
 
 config({ path: '.env.local' });
 
@@ -110,6 +111,7 @@ app.use(express.json({ limit: '1mb' }));
 app.post('/api/dev-tools/run-scheduler', runScheduler);
 app.get('/api/dev-tools/schedulers', schedulerCatalog);
 app.post('/api/dev-tools/schedulers', schedulerCatalog);
+app.all('/api/dev-tools/northport-recovery', express.json({ limit: '64kb' }), northportRecovery);
 
 // Vercel can invoke an API function with either the public /api path or the
 // function-relative path. Normalize both forms for the Express route table.

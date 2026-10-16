@@ -3,13 +3,15 @@
   "outputDirectory": "dist",
   "functions": {
     "api/mail.ts": { "maxDuration": 60 },
-    "api/dev-tools/schedulers.ts": { "maxDuration": 30 },
-    "api/dev-tools/run-scheduler.ts": {
+    "api/dev-tools.ts": {
       "maxDuration": 120,
       "includeFiles": "node_modules/@sparticuz/chromium/bin/**"
     }
   },
   "rewrites": [
+    { "source": "/api/dev-tools/schedulers", "destination": "/api/dev-tools?route=schedulers" },
+    { "source": "/api/dev-tools/run-scheduler", "destination": "/api/dev-tools?route=run-scheduler" },
+    { "source": "/api/dev-tools/northport-recovery", "destination": "/api/dev-tools?route=northport-recovery" },
     { "source": "/api/email/:path*", "destination": "/api/mail?route=email/:path*" },
     { "source": "/api/gmail/:path*", "destination": "/api/mail?route=gmail/:path*" },
     { "source": "/api/company-registration", "destination": "/api/registration?route=submit" },
