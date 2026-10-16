@@ -1,14 +1,7 @@
-import { AutomationSettings } from './support/AutomationSettings';
-import { SupportAnalytics } from './support/SupportAnalytics';
-import { LearningSuggestions } from './support/LearningSuggestions';
-import { KnowledgeBase } from './support/KnowledgeBase';
 import React, { useEffect, useState } from 'react';
 import { Toaster } from 'react-hot-toast';
 import {
   LayoutDashboard,
-  ChartNoAxesCombined,
-  Bot,
-  Brain,
   Building2,
   Inbox,
   Settings,
@@ -47,15 +40,6 @@ import { getSubmissions, subscribeToStorage } from '../../services/storage';
 import { getExternalUserAccess, subscribeToExternalUserAccess } from '../../services/auth';
 import collapsedSidebarLogo from '../../../media/LOGO2.png';
 
-import { SupportInbox } from './support/SupportInbox';
-import { supportTab, supportCaseId } from '../../utils/support/routes';
-
-const emailConfigurationTabs = new Set(['support-automation', 'support-learning', 'support-knowledge']);
-
-function portalForPath(path: string): 'admin' | 'developer' {
-  return emailConfigurationTabs.has(supportTab(path) || '') ? 'developer' : 'admin';
-}
-
 interface AdminLayoutProps {
   onSwitchToCustomer: () => void;
   onRefreshData: () => Promise<void>;
@@ -63,21 +47,8 @@ interface AdminLayoutProps {
 }
 
 export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: AdminLayoutProps) {
-  const [activeTab, setActiveTab] = useState<string>(()=>supportTab(window.location.pathname) || 'dashboard');
-  const [supportPath,setSupportPath]=useState(window.location.pathname);
-  const navigateSupport=(path:string)=>{
-    window.history.pushState({},'',path);
-    setSupportPath(path);setActiveTab(supportTab(path) || 'dashboard');setPortalMode(portalForPath(path));
-    setIsRegistrationQueueExpanded(false);
-  };
-  useEffect(()=>{
-    const back=()=>{setSupportPath(window.location.pathname);setActiveTab(supportTab(window.location.pathname) || 'dashboard');setPortalMode(portalForPath(window.location.pathname));};
-    window.addEventListener('popstate',back);return()=>window.removeEventListener('popstate',back);
-  },[]);
-  useEffect(()=>{
-    if(!activeTab.startsWith('support-') && supportTab(window.location.pathname)) window.history.pushState({},'','/');
-  },[activeTab]);
-  const [portalMode, setPortalMode] = useState<'admin' | 'developer'>(() => portalForPath(window.location.pathname));
+  const [activeTab, setActiveTab] = useState<string>('dashboard');
+  const [portalMode, setPortalMode] = useState<'admin' | 'developer'>('admin');
   const [isRegistrationQueueExpanded, setIsRegistrationQueueExpanded] = useState(false);
   const [queueRegistrationType, setQueueRegistrationType] = useState<RegistrationType>('COMPANY');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -130,11 +101,6 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
     { id: 'user-registration', label: 'User Access Reg.', icon: UserRoundPlus },
   ];
 
-  const supportItems = [
-    { id: 'support-inbox', label: 'Email Inbox', icon: Mail, path: '/admin/support/inbox' },
-    { id: 'support-analytics', label: 'Email Analytics', icon: ChartNoAxesCombined, path: '/admin/support/analytics' },
-  ];
-
   const registrationQueueItems = [
     { id: 'submissions-pending', label: 'Pending', status: 'PENDING' as const, icon: Clock3 },
     { id: 'submissions-done', label: 'Closed / Done', status: 'DONE' as const, icon: CircleCheck },
@@ -150,9 +116,6 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
     { id: 'schema', label: 'Excel Mapping', icon: TableProperties, section: 'Registration Setup', path: undefined },
     { id: 'developer-settings', label: 'Test Tools', icon: Wrench, section: 'Registration Setup', path: undefined },
     { id: 'email-template', label: 'Registration Templates', icon: Mail, section: 'Email Setup', path: undefined },
-    { id: 'support-automation', label: 'Automation Rules', icon: Bot, section: 'Email Setup', path: '/admin/support/automation' },
-    { id: 'support-knowledge', label: 'Knowledge Base', icon: BookOpen, section: 'Email Setup', path: '/admin/support/knowledge' },
-    { id: 'support-learning', label: 'AI Learning', icon: Brain, section: 'Email Setup', path: '/admin/support/learning' },
     { id: 'admin-user', label: 'Admin Users', icon: UserRoundPlus, section: 'Administration', path: undefined },
   ];
 
@@ -292,11 +255,6 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
             );
           })}
 
-          {portalMode === 'admin' && <div className="mt-5 space-y-1 border-t border-slate-800 pt-4">
-            <p className={`px-3 pb-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 ${isSidebarCollapsed ? 'md:hidden' : ''}`}>Auto Email</p>
-            {supportItems.map(item=>{const Icon=item.icon;return <button key={item.id} type="button" onClick={()=>{ navigateSupport(item.path); setIsMobileSidebarOpen(false); }} title={item.label} aria-label={item.label} className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-xs font-semibold ${isSidebarCollapsed ? 'md:justify-center md:px-2' : ''} ${activeTab===item.id ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}><Icon className="h-4 w-4 shrink-0"/><span className={isSidebarCollapsed ? 'md:hidden' : ''}>{item.label}</span></button>;})}
-          </div>}
-
           {portalMode === 'developer' && devToolItems.map((item, index) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
@@ -309,8 +267,7 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
               <button
                 type="button"
                 onClick={() => {
-                  if (item.path) navigateSupport(item.path);
-                  else setActiveTab(item.id);
+                  setActiveTab(item.id);
                   if (item.id === 'email-template') setEmailTemplateView('list');
                   setIsMobileSidebarOpen(false);
                 }}
@@ -394,7 +351,7 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
             </span>
             <span className="text-slate-300">/</span>
             <h1 className="flex items-center gap-3 text-sm font-bold text-slate-900">
-              <span>{[...navItems, ...registrationQueueItems, ...devToolItems, ...supportItems].find((item) => item.id === activeTab)?.label}</span>
+              <span>{[...navItems, ...registrationQueueItems, ...devToolItems].find((item) => item.id === activeTab)?.label}</span>
               {activeTab === 'email-template' && emailTemplateView === 'design' && <><span className="font-normal text-slate-300">/</span><span>Design Template</span></>}
             </h1>
           </div>
@@ -468,11 +425,6 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
               }
             }} />
           )}
-          {activeTab === 'support-automation' && <AutomationSettings/>}
-          {activeTab === 'support-analytics' && <SupportAnalytics/>}
-          {activeTab === 'support-learning' && <LearningSuggestions/>}
-          {activeTab === 'support-knowledge' && <KnowledgeBase/>}
-          {activeTab === 'support-inbox' && <SupportInbox caseId={supportCaseId(supportPath)} onNavigate={navigateSupport}/> }
           {activeTab === 'companies' && <CompanyMaster />}
           {activeQueueItem && (
             <SubmissionsList

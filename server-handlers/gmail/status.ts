@@ -1,4 +1,3 @@
-import { GMAIL_READ_SCOPE } from './client.js';
 // Routed through the single Express Vercel function.
 import { configuredClient, noStore, requireAdmin } from '../_email.js';
 
@@ -14,5 +13,5 @@ export default async function gmailStatus(request: any, response: any) {
     .eq('id', 'system')
     .maybeSingle();
   if (error) return response.status(502).json({ error: error.message });
-  response.json({ connected: data?.status === 'ACTIVE', inboxPermissionGranted: Array.isArray(data?.scopes) && data.scopes.includes(GMAIL_READ_SCOPE), connection: data || null });
+  response.json({ connected: data?.status === 'ACTIVE', connection: data || null });
 }
