@@ -10,6 +10,7 @@ export default async function preview(request: any, response: any) {
   if (!client) return;
   const body: Record<string, unknown> = await bodyOf(request).catch(() => ({}));
   const userId = String(body.userId || '').trim();
+  const templateId = String(body.templateId || '').trim();
   if (!userId) return response.status(400).json({ error: 'A user ID is required.' });
 
   const userResult = await client.from('external_user_access').select('id,email,username,password,status,rejection_reason,rejection_detail,email_status').eq('id', userId).maybeSingle();
@@ -17,13 +18,18 @@ export default async function preview(request: any, response: any) {
   if (!userResult.data) return response.status(404).json({ error: 'User registration not found.' });
   if (!['DONE', 'REJECTED'].includes(userResult.data.status)) return response.status(409).json({ error: 'Set the user registration status to DONE or REJECTED before previewing the email.' });
   let templateQuery = client.from('email_templates').select('*').eq('active', true).eq('trigger_status', userResult.data.status);
-  if (userResult.data.status === 'REJECTED') {
-    if (!userResult.data.rejection_reason) return response.status(409).json({ error: 'Select a rejection reason before previewing the email.' });
-    templateQuery = templateQuery.eq('rejection_reason', userResult.data.rejection_reason);
+  if (templateId) {
+    templateQuery = templateQuery.eq('id', templateId).not('port_id', 'is', null);
+  } else {
+    templateQuery = templateQuery.is('port_id', null);
+    if (userResult.data.status === 'REJECTED') {
+      if (!userResult.data.rejection_reason) return response.status(409).json({ error: 'Select a rejection reason before previewing the email.' });
+      templateQuery = templateQuery.eq('rejection_reason', userResult.data.rejection_reason);
+    }
   }
   const templateResult = await templateQuery.order('updated_at', { ascending: false }).limit(1).maybeSingle();
   if (templateResult.error) return response.status(502).json({ error: templateResult.error.message });
-  if (!templateResult.data) return response.status(409).json({ error: `No active ${userResult.data.status.toLowerCase()} email template is configured.` });
+  if (!templateResult.data) return response.status(409).json({ error: `No active ${userResult.data.status.toLowerCase()} email template is configured for this selection.` });
 
   try {
     const rendered = renderWelcomeTemplate(templateResult.data, userResult.data);
@@ -31,6 +37,7 @@ export default async function preview(request: any, response: any) {
       ...rendered,
       attachments: templateResult.data.attachments || [],
       templateName: templateResult.data.name,
+      templateCode: templateResult.data.template_code,
       previewToken: createPreviewToken(session, userResult.data, templateResult.data),
     });
   } catch (error) {

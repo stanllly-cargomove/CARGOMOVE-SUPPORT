@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Download, Info, Mail, Pencil, Save, Search, UsersRound, X } from 'lucide-react';
 import { getExternalUserAccess, ExternalUserAccess, updateExternalUserAccess } from '../../services/auth';
-import { EmailPreview, generateWelcomeEmailPreview, sendWelcomeEmail } from '../../services/email';
+import { EmailPreview, EmailTemplate, EmailTemplatePort, generateWelcomeEmailPreview, getEmailTemplateCatalog, sendWelcomeEmail } from '../../services/email';
 import { RichTextEmailEditor } from './RichTextEmailEditor';
 import { notifyError, notifySuccess } from '../common/notifications';
 import { subscribeToStorage } from '../../services/storage';
@@ -94,6 +94,10 @@ export function UserRegistration() {
   const [preview, setPreview] = useState<EmailPreview | null>(null);
   const [previewUserId, setPreviewUserId] = useState('');
   const [openingPreview, setOpeningPreview] = useState('');
+  const [codeUser, setCodeUser] = useState<ExternalUserAccess | null>(null);
+  const [codeTemplates, setCodeTemplates] = useState<EmailTemplate[]>([]);
+  const [codePorts, setCodePorts] = useState<EmailTemplatePort[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState('__choose__');
   const [sending, setSending] = useState(false);
   const [editingUser, setEditingUser] = useState<ExternalUserAccess | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
@@ -151,9 +155,33 @@ export function UserRegistration() {
   const openPreview = async (user: ExternalUserAccess) => {
     setOpeningPreview(user.id);
     try {
-      const generated = await generateWelcomeEmailPreview(user.id);
-      setPreviewUserId(user.id);
+      const catalog = await getEmailTemplateCatalog();
+      const coded = catalog.templates.filter((template) => template.active && template.port_id && template.trigger_status === user.status);
+      if (coded.length) {
+        setCodeUser(user);
+        setCodeTemplates(catalog.templates);
+        setCodePorts(catalog.ports);
+        setSelectedTemplateId('__choose__');
+      } else {
+        const generated = await generateWelcomeEmailPreview(user.id);
+        setPreviewUserId(user.id);
+        setPreview(generated);
+      }
+    } catch (error) {
+      notifyError(error instanceof Error ? error.message : 'Unable to generate the email preview.');
+    } finally {
+      setOpeningPreview('');
+    }
+  };
+
+  const openSelectedPreview = async () => {
+    if (!codeUser || selectedTemplateId === '__choose__') return;
+    setOpeningPreview(codeUser.id);
+    try {
+      const generated = await generateWelcomeEmailPreview(codeUser.id, selectedTemplateId || undefined);
+      setPreviewUserId(codeUser.id);
       setPreview(generated);
+      setCodeUser(null);
     } catch (error) {
       notifyError(error instanceof Error ? error.message : 'Unable to generate the email preview.');
     } finally {
@@ -474,7 +502,7 @@ export function UserRegistration() {
                       <button
                         type="button"
                         onClick={() => void openPreview(user)}
-                        disabled={!['DONE', 'REJECTED'].includes(user.status) || (user.status === 'REJECTED' && !user.rejection_reason) || openingPreview === user.id || user.email_status === 'SENDING'}
+                        disabled={!['DONE', 'REJECTED'].includes(user.status) || openingPreview === user.id || user.email_status === 'SENDING'}
                         aria-label={`${user.email_status === 'SENT' ? 'Resend email to' : ['DONE', 'REJECTED'].includes(user.status) ? 'Preview email for' : 'Set registration status for'} ${user.username}`}
                         title={`${user.email_status === 'SENT' ? 'Resend email to' : ['DONE', 'REJECTED'].includes(user.status) ? 'Preview email for' : 'Set registration status for'} ${user.username}`}
                         className="inline-flex h-7 w-20 shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-md border border-blue-200 bg-blue-50 px-1 text-[9px] font-bold text-blue-700 transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-500"
@@ -578,11 +606,13 @@ export function UserRegistration() {
         </div>
       )}
 
+      {codeUser && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 p-4 backdrop-blur-xs"><div role="dialog" aria-modal="true" aria-labelledby="email-code-title" className="w-full max-w-lg rounded-2xl border border-slate-100 bg-white p-5 shadow-2xl"><div className="flex items-start justify-between gap-3"><div><h3 id="email-code-title" className="text-base font-semibold text-slate-900">Choose email template</h3><p className="mt-1 text-xs text-slate-500">Select a {codeUser.status === 'DONE' ? 'port acceptance' : 'port rejection'} code for {codeUser.email}.</p></div><button type="button" onClick={() => setCodeUser(null)} aria-label="Close code selection" className="text-slate-400 hover:text-slate-700"><X className="h-5 w-5" /></button></div><label className="mt-5 block text-xs font-semibold text-slate-700">Port and code<select autoFocus value={selectedTemplateId} onChange={(event) => setSelectedTemplateId(event.target.value)} className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal"><option value="__choose__" disabled>Choose a code...</option>{codeTemplates.some((template) => template.active && !template.port_id && template.trigger_status === codeUser.status && (codeUser.status !== 'REJECTED' || template.rejection_reason === codeUser.rejection_reason)) && <option value="">Default template (no port code)</option>}{codePorts.map((port) => <optgroup key={port.id} label={port.display_name}>{codeTemplates.filter((template) => template.active && template.port_id === port.id && template.trigger_status === codeUser.status).map((template) => <option key={template.id} value={template.id}>{template.template_code} — {template.name}</option>)}</optgroup>)}</select></label><div className="mt-5 flex justify-end gap-2"><button type="button" onClick={() => setCodeUser(null)} className="rounded-lg px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100">Cancel</button><button type="button" onClick={() => void openSelectedPreview()} disabled={selectedTemplateId === '__choose__' || openingPreview === codeUser.id} className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50">{openingPreview === codeUser.id ? 'Loading...' : 'Preview email'}</button></div></div></div>}
+
       {preview && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 p-4 backdrop-blur-xs">
           <div role="dialog" aria-modal="true" aria-labelledby="email-preview-title" className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-4">
-              <div><h3 id="email-preview-title" className="font-bold text-slate-900">Email Preview</h3><p className="mt-0.5 text-xs text-slate-500">{preview.templateName}</p></div>
+              <div><h3 id="email-preview-title" className="font-bold text-slate-900">Email Preview</h3><p className="mt-0.5 text-xs text-slate-500">{preview.templateCode ? `${preview.templateCode} — ` : ''}{preview.templateName}</p></div>
               <button type="button" onClick={() => setPreview(null)} disabled={sending} className="rounded-lg p-1 text-slate-400 hover:text-slate-700"><X className="h-5 w-5" /></button>
             </div>
             <div className="space-y-4 overflow-y-auto p-5">

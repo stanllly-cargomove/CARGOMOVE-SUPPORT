@@ -2,11 +2,11 @@ import React, { useRef, useState } from 'react';
 import { ArrowLeft, Info, LoaderCircle, Lock, User, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import cargoMoveLogo from '../../../media/image-removebg-preview.png';
-import { loginApplicationUser } from '../../services/auth';
+import { ApplicationUser, loginApplicationUser } from '../../services/auth';
 
 interface LoginPageProps {
   onBack: () => void;
-  onSuccess: (authenticated: boolean) => void;
+  onSuccess: (user: ApplicationUser) => void;
 }
 
 export function LoginPage({ onBack, onSuccess }: LoginPageProps) {
@@ -30,8 +30,8 @@ export function LoginPage({ onBack, onSuccess }: LoginPageProps) {
 
     setIsSubmitting(true);
     try {
-      await loginApplicationUser(identifier.trim(), password);
-      onSuccess(true);
+      const user = await loginApplicationUser(identifier.trim(), password);
+      onSuccess(user);
     } catch (loginError) {
       setError(loginError instanceof Error ? loginError.message : 'Login failed. Please try again.');
       setPasswordShakeNonce((current) => current + 1);

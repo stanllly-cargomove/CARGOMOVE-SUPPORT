@@ -4,19 +4,21 @@ import { AdminLayout } from './components/admin/AdminLayout';
 import { LoginPage } from './components/auth/LoginPage';
 import { PasswordResetPage } from './components/auth/PasswordResetPage';
 import { clearProtectedStorage, refreshProtectedStorage, startProtectedStorageSync } from './services/storage';
-import { getApplicationSession, logoutApplicationUser } from './services/auth';
+import { ApplicationUser, getApplicationSession, logoutApplicationUser } from './services/auth';
 
 export default function App() {
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(() => window.location.hash.includes('type=recovery') || window.location.hash.includes('error_code=otp_expired'));
   const [viewMode, setViewMode] = useState<'CUSTOMER' | 'LOGIN' | 'ADMIN'>('CUSTOMER');
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [currentUser, setCurrentUser] = useState<ApplicationUser | null>(null);
 
   useEffect(() => {
     let isMounted = true;
-    void getApplicationSession().then(({ authenticated }) => {
+    void getApplicationSession().then(({ authenticated, user }) => {
       if (!isMounted) return;
       setIsAuthenticated(authenticated);
+      setCurrentUser(user);
       if (authenticated) setViewMode('ADMIN');
       setIsAuthLoading(false);
     });
@@ -47,19 +49,22 @@ export default function App() {
       ) : viewMode === 'LOGIN' ? (
         <LoginPage
           onBack={() => setViewMode('CUSTOMER')}
-          onSuccess={(authenticated) => {
-            setIsAuthenticated(authenticated);
+          onSuccess={(user) => {
+            setCurrentUser(user);
+            setIsAuthenticated(true);
             setViewMode('ADMIN');
           }}
         />
       ) : (
         <AdminLayout
+          user={currentUser}
           onSwitchToCustomer={() => setViewMode('CUSTOMER')}
           onRefreshData={() => refreshProtectedStorage()}
           onLogout={async () => {
             await logoutApplicationUser();
             clearProtectedStorage();
             setIsAuthenticated(false);
+            setCurrentUser(null);
             setViewMode('CUSTOMER');
           }}
         />

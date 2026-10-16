@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Toaster } from 'react-hot-toast';
 import {
   LayoutDashboard,
@@ -22,6 +22,10 @@ import {
   ChevronRight,
   Menu,
   X,
+  Home,
+  ChevronRight as BreadcrumbChevronRight,
+  MoreVertical,
+  KeyRound,
 } from 'lucide-react';
 import { AdminDashboard } from './AdminDashboard';
 import { CompanyMaster } from './CompanyMaster';
@@ -33,20 +37,20 @@ import { UserRegistration } from './UserRegistration';
 import { AdminUser } from './AdminUser';
 import { EmailTemplateManager } from './EmailTemplateManager';
 import { DeveloperSettings } from './DeveloperSettings';
-import { Logo } from '../common/Logo';
 import { notifyError, notifySuccess } from '../common/notifications';
 import { RegistrationType } from '../../types';
 import { getSubmissions, subscribeToStorage } from '../../services/storage';
-import { getExternalUserAccess, subscribeToExternalUserAccess } from '../../services/auth';
-import collapsedSidebarLogo from '../../../media/LOGO2.png';
+import { ApplicationUser, getExternalUserAccess, subscribeToExternalUserAccess } from '../../services/auth';
+import { browserSupabaseAuth } from '../../services/supabaseAuth';
 
 interface AdminLayoutProps {
+  user: ApplicationUser | null;
   onSwitchToCustomer: () => void;
   onRefreshData: () => Promise<void>;
   onLogout: () => void;
 }
 
-export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: AdminLayoutProps) {
+export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout }: AdminLayoutProps) {
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [portalMode, setPortalMode] = useState<'admin' | 'developer'>('admin');
   const [isRegistrationQueueExpanded, setIsRegistrationQueueExpanded] = useState(false);
@@ -58,6 +62,25 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
   const [emailTemplateView, setEmailTemplateView] = useState<'list' | 'design'>('list');
   const [pendingSubmissionCount, setPendingSubmissionCount] = useState(0);
   const [pendingUserCount, setPendingUserCount] = useState(0);
+  const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
+  const [isSendingReset, setIsSendingReset] = useState(false);
+  const accountMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isAccountMenuOpen) return;
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (!accountMenuRef.current?.contains(event.target as Node)) setIsAccountMenuOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsAccountMenuOpen(false);
+    };
+    document.addEventListener('pointerdown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [isAccountMenuOpen]);
 
   useEffect(() => {
     let disposed = false;
@@ -95,8 +118,28 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
     }
   };
 
+  const handlePasswordReset = async () => {
+    if (!user?.email || isSendingReset) return;
+    if (!browserSupabaseAuth) {
+      notifyError('Password reset is not configured.');
+      return;
+    }
+    setIsSendingReset(true);
+    try {
+      const redirectTo = `${window.location.origin}${window.location.pathname}`;
+      const { error } = await browserSupabaseAuth.auth.resetPasswordForEmail(user.email, { redirectTo });
+      if (error) throw error;
+      setIsAccountMenuOpen(false);
+      notifySuccess(`Password reset link sent to ${user.email}.`);
+    } catch (error) {
+      notifyError(error instanceof Error ? error.message : 'Unable to send password reset email.');
+    } finally {
+      setIsSendingReset(false);
+    }
+  };
+
   const navItems = [
-    { id: 'dashboard', label: 'Registration Dashboard', icon: LayoutDashboard },
+    { id: 'dashboard', label: 'Registration Dashboard', navLabel: 'Overview', icon: LayoutDashboard },
     { id: 'submissions', label: 'Registration Queue', icon: Inbox },
     { id: 'user-registration', label: 'User Access Reg.', icon: UserRoundPlus },
   ];
@@ -125,42 +168,78 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
     setActiveTab(nextPortal === 'developer' ? 'companies' : 'dashboard');
     setIsRegistrationQueueExpanded(false);
     setIsMobileSidebarOpen(false);
+    setIsAccountMenuOpen(false);
   };
 
+  const goToPortalHome = () => {
+    setActiveTab(portalMode === 'admin' ? 'dashboard' : 'companies');
+    setEmailTemplateView('list');
+    setIsRegistrationQueueExpanded(false);
+    setIsMobileSidebarOpen(false);
+    setIsAccountMenuOpen(false);
+  };
+
+  const activePageLabel = [...navItems, ...registrationQueueItems, ...devToolItems]
+    .find((item) => item.id === activeTab)?.label ?? (activeTab === 'account-settings' ? 'Settings' : 'Dashboard');
+
   return (
-    <div className={`admin-theme min-h-screen bg-slate-100 flex flex-col md:flex-row ${isDarkMode ? 'admin-theme-dark' : ''}`}>
+    <div className={`admin-theme min-h-screen bg-[#f6f8fb] flex flex-col md:flex-row ${isDarkMode ? 'admin-theme-dark' : ''}`}>
       {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-72 -translate-x-full flex-col shrink-0 border-r border-slate-800 bg-[#0b1220] text-slate-300 shadow-2xl transition-[width,transform] duration-300 ease-out md:relative md:inset-auto md:z-auto md:h-screen md:translate-x-0 md:shadow-none md:sticky md:top-0 md:self-start ${
+        className={`fixed inset-y-0 left-0 z-50 flex w-64 -translate-x-full flex-col shrink-0 overflow-visible border-r border-[#17263d] bg-[#0b1930] text-slate-300 shadow-2xl transition-[width,transform] duration-300 ease-out md:relative md:inset-auto md:h-screen md:translate-x-0 md:shadow-none md:sticky md:top-0 md:self-start ${
           isMobileSidebarOpen ? 'translate-x-0' : ''
         } ${
-          isSidebarCollapsed ? 'md:w-16' : 'md:w-60'
+          isSidebarCollapsed ? 'md:w-[60px]' : 'md:w-[185px]'
         }`}
       >
-        <div className={`h-16 border-b border-slate-800/80 flex shrink-0 items-center px-3.5 ${isSidebarCollapsed ? 'md:justify-center md:px-2' : ''}`}>
-          <div className={isSidebarCollapsed ? 'md:hidden' : ''}>
-            <div className="flex items-center gap-2 select-none">
-              <Logo size="sm" />
-              <span className="text-[9px] font-bold text-white uppercase px-1.5 py-0.2 bg-[#ea7a24] rounded">
-                {portalMode === 'admin' ? 'Admin' : 'Developer'}
-              </span>
+        <div ref={accountMenuRef} className={`relative flex h-12 shrink-0 items-center border-b border-white/10 px-2 ${isSidebarCollapsed ? 'md:justify-center md:px-2' : ''}`}>
+          <div className={`flex min-w-0 flex-1 items-center gap-2 ${isSidebarCollapsed ? 'md:hidden' : ''}`}>
+            <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-sky-300 bg-[#0095e8] text-sm font-semibold text-[#0b1930]">C</span>
+            <div className="min-w-0 flex-1 select-none">
+              <p className="truncate text-xs font-medium leading-4 text-white">CargoMove</p>
+              <p className="truncate text-[10px] leading-3.5 text-sky-200">{portalMode === 'admin' ? 'Admin portal' : 'Developer tools'}</p>
             </div>
           </div>
-
-          <img
-            src={collapsedSidebarLogo}
-            alt="CargoMove"
-            className={`hidden h-10 w-10 object-contain ${isSidebarCollapsed ? 'md:block' : ''}`}
-          />
-
+          <button
+            type="button"
+            onClick={() => {
+              if (isSidebarCollapsed) setIsSidebarCollapsed(false);
+              setIsAccountMenuOpen((open) => !open);
+            }}
+            aria-label="Account menu"
+            aria-expanded={isAccountMenuOpen}
+            aria-controls="admin-account-menu"
+            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0095e8] ${isSidebarCollapsed ? 'md:mx-auto' : ''}`}
+          >
+            <MoreVertical className="h-5 w-5" />
+          </button>
+          {isAccountMenuOpen && (
+            <div id="admin-account-menu" className="absolute left-0 top-[calc(100%-1px)] z-50 w-[min(15rem,calc(100vw-1rem))] overflow-hidden rounded-xl border border-white/10 bg-[#111d35] p-2 text-slate-200 shadow-[0_18px_35px_rgba(2,6,23,0.3)]">
+              <div className="border-b border-white/10 px-2 pb-2 pt-1">
+                <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">Account</p>
+                <p className="mt-1 truncate text-xs font-normal text-slate-200" title={user?.email}>{user?.email || 'Signed-in admin'}</p>
+              </div>
+              <div className="space-y-0.5 pt-1.5">
+                <button type="button" onClick={() => void handlePasswordReset()} disabled={!user?.email || isSendingReset} className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs font-normal hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">
+                  <KeyRound className="h-4 w-4 shrink-0" />{isSendingReset ? 'Sending...' : 'Reset password'}
+                </button>
+                <button type="button" onClick={() => { setActiveTab('account-settings'); setIsAccountMenuOpen(false); setIsMobileSidebarOpen(false); }} className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs font-normal hover:bg-white/10">
+                  <Settings className="h-4 w-4 shrink-0" />Settings
+                </button>
+                <button type="button" onClick={() => { setIsAccountMenuOpen(false); onLogout(); }} className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs font-normal text-rose-300 hover:bg-rose-400/10">
+                  <LogOut className="h-4 w-4 shrink-0" />Logout
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Navigation list */}
         <nav
           aria-label={portalMode === 'admin' ? 'Admin navigation' : 'Developer navigation'}
-          className={`min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain p-3 ${isSidebarCollapsed ? 'md:p-2' : ''}`}
+          className={`min-h-0 flex-1 space-y-0.5 overflow-y-auto overscroll-contain px-2 py-3 ${isSidebarCollapsed ? 'md:px-2' : ''}`}
         >
-          {portalMode === 'admin' && <p className={`px-3 pb-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 ${isSidebarCollapsed ? 'md:hidden' : ''}`}>Registration</p>}
+          {portalMode === 'admin' && <p className={`px-2 pb-1 text-[9px] font-medium uppercase tracking-[0.14em] text-slate-500 ${isSidebarCollapsed ? 'md:hidden' : ''}`}>Registration</p>}
           {portalMode === 'admin' && navItems.map((item) => {
             const Icon = item.icon;
             const isRegistrationQueue = item.id === 'submissions';
@@ -188,14 +267,14 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
                   aria-expanded={isRegistrationQueue ? isRegistrationQueueExpanded : undefined}
                   aria-label={isSidebarCollapsed ? item.label : undefined}
                   title={isSidebarCollapsed ? item.label : undefined}
-                  className={`relative w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs font-semibold transition-all ${isSidebarCollapsed ? 'md:justify-center md:px-2' : ''} ${
+                  className={`relative w-full flex items-center rounded-lg py-2 text-[11px] font-medium transition-all ${isRegistrationQueue ? 'gap-1 px-1.5' : 'gap-2 px-2'} ${isSidebarCollapsed ? 'md:justify-center md:px-2' : ''} ${
                     isActive
-                      ? 'bg-blue-600 text-white shadow-xs font-bold'
-                      : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/80'
+                      ? 'bg-[#0095e8] text-white shadow-sm font-semibold'
+                      : 'text-slate-300 hover:text-white hover:bg-white/8'
                   }`}
                 >
-                  <Icon className="w-4 h-4 shrink-0" />
-                  <span className={`flex-1 text-left ${isSidebarCollapsed ? 'md:hidden' : ''}`}>{item.label}</span>
+                  <Icon className={`shrink-0 ${isRegistrationQueue ? 'h-3.5 w-3.5' : 'h-4 w-4'}`} />
+                  <span className={`min-w-0 flex-1 text-left ${isRegistrationQueue ? 'whitespace-nowrap tracking-tight' : 'truncate'} ${isSidebarCollapsed ? 'md:hidden' : ''}`}>{item.navLabel || item.label}</span>
                   {notificationCount > 0 && (
                     <span
                       aria-label={`${notificationCount} pending`}
@@ -205,7 +284,7 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
                     </span>
                   )}
                   {isRegistrationQueue && (
-                    <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ease-out ${isSidebarCollapsed ? 'md:hidden' : ''} ${isRegistrationQueueExpanded ? 'rotate-180' : ''}`} />
+                    <ChevronDown className={`h-3 w-3 shrink-0 transition-transform duration-200 ease-out ${isSidebarCollapsed ? 'md:hidden' : ''} ${isRegistrationQueueExpanded ? 'rotate-180' : ''}`} />
                   )}
                 </button>
 
@@ -218,7 +297,7 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
                         : 'pointer-events-none max-h-0 -translate-y-1 opacity-0'
                     } ${isSidebarCollapsed ? 'md:hidden' : ''}`}
                   >
-                    <div className="ml-3 mt-1 space-y-1 border-l border-slate-700 pl-3">
+                    <div className="ml-3 mt-1 space-y-0.5 border-l border-slate-700 pl-2">
                       {registrationQueueItems.map((queueItem) => {
                         const QueueIcon = queueItem.icon;
                         const isQueueItemActive = activeTab === queueItem.id;
@@ -231,9 +310,9 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
                               setActiveTab(queueItem.id);
                               setIsMobileSidebarOpen(false);
                             }}
-                            className={`relative flex w-full items-center gap-3 rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
+                            className={`relative flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-[11px] font-medium transition-colors ${
                               isQueueItemActive
-                                ? 'bg-slate-800 font-bold text-white'
+                                ? 'bg-slate-800 font-semibold text-white'
                                 : 'text-slate-400 hover:bg-slate-800/80 hover:text-slate-100'
                             }`}
                           >
@@ -262,7 +341,7 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
             return (
               <React.Fragment key={item.id}>
                 {(index === 0 || devToolItems[index - 1].section !== item.section) && (
-                  <p className={`px-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 ${index > 0 ? 'mt-5 border-t border-slate-800 pt-4' : 'pt-2'} ${isSidebarCollapsed ? 'md:hidden' : ''}`}>{item.section}</p>
+                  <p className={`px-2 pb-1 text-[9px] font-medium uppercase tracking-[0.14em] text-slate-500 ${index > 0 ? 'mt-4 border-t border-white/10 pt-3' : ''} ${isSidebarCollapsed ? 'md:hidden' : ''}`}>{item.section}</p>
                 )}
               <button
                 type="button"
@@ -272,15 +351,15 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
                   setIsMobileSidebarOpen(false);
                 }}
                 aria-label={isSidebarCollapsed ? item.label : undefined}
-                title={isSidebarCollapsed ? item.label : undefined}
-                className={`w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-xs font-semibold transition-all ${isSidebarCollapsed ? 'md:justify-center md:px-2' : ''} ${
+                title={item.label}
+                className={`w-full flex items-center rounded-lg py-2 text-[11px] font-medium transition-all ${item.id === 'email-template' ? 'gap-1.5 px-1.5' : 'gap-2 px-2'} ${isSidebarCollapsed ? 'md:justify-center md:px-2' : ''} ${
                   isActive
-                    ? 'bg-blue-600 text-white shadow-xs font-bold'
-                    : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/80'
+                    ? 'bg-[#0095e8] text-white shadow-sm font-semibold'
+                    : 'text-slate-300 hover:text-white hover:bg-white/8'
                 }`}
               >
                 <Icon className="h-3.5 w-3.5 shrink-0" />
-                <span className={`flex-1 text-left ${isSidebarCollapsed ? 'md:hidden' : ''}`}>{item.label}</span>
+                <span className={`min-w-0 flex-1 text-left ${item.id === 'email-template' ? 'whitespace-nowrap tracking-tight' : 'truncate'} ${isSidebarCollapsed ? 'md:hidden' : ''}`}>{item.label}</span>
               </button>
               </React.Fragment>
             );
@@ -291,7 +370,7 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
         <div className={`hidden shrink-0 justify-end px-3 py-2 md:flex ${isSidebarCollapsed ? 'md:justify-center md:px-2' : ''}`}>
           <button
             type="button"
-            onClick={() => setIsSidebarCollapsed((collapsed) => !collapsed)}
+            onClick={() => { setIsSidebarCollapsed((collapsed) => !collapsed); setIsAccountMenuOpen(false); }}
             aria-label={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             title={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-600 bg-slate-900 text-slate-400 shadow-sm transition-all hover:border-slate-400 hover:bg-slate-800 hover:text-white hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
@@ -311,7 +390,7 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
             onClick={switchPortal}
             aria-label={portalMode === 'admin' ? 'Open Dev Tools' : 'Return to Admin Portal'}
             title={isSidebarCollapsed ? (portalMode === 'admin' ? 'Dev Tools' : 'Admin Portal') : undefined}
-            className={`flex w-full items-center justify-center gap-2 rounded-lg bg-slate-800 px-3 py-2 text-xs font-bold text-slate-200 transition-colors hover:bg-slate-700 ${isSidebarCollapsed ? 'md:px-2' : ''}`}
+            className={`flex w-full items-center justify-center gap-2 rounded-lg bg-slate-800 px-3 py-2 text-xs font-normal text-slate-200 transition-colors hover:bg-slate-700 ${isSidebarCollapsed ? 'md:px-2' : ''}`}
           >
             {portalMode === 'admin' ? (
               <Wrench className="h-3.5 w-3.5 shrink-0" />
@@ -335,8 +414,8 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
       {/* Main Administrative Pane */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Header */}
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-slate-200 bg-white px-4 sm:px-6">
-          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+        <header className="sticky top-0 z-30 flex h-12 items-center justify-between border-b border-slate-200 bg-white px-4 shadow-[0_1px_2px_rgba(15,23,42,0.03)] sm:px-6 lg:px-8">
+          <div className="flex min-w-0 items-center gap-2">
             <button
               type="button"
               onClick={() => setIsMobileSidebarOpen((open) => !open)}
@@ -346,13 +425,19 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
             >
               {isMobileSidebarOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
             </button>
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-              {portalMode === 'admin' ? 'Admin Portal' : 'Dev Tools'}
-            </span>
-            <span className="text-slate-300">/</span>
-            <h1 className="flex items-center gap-3 text-sm font-bold text-slate-900">
-              <span>{[...navItems, ...registrationQueueItems, ...devToolItems].find((item) => item.id === activeTab)?.label}</span>
-              {activeTab === 'email-template' && emailTemplateView === 'design' && <><span className="font-normal text-slate-300">/</span><span>Design Template</span></>}
+            <button
+              type="button"
+              onClick={goToPortalHome}
+              aria-label={`Go to ${portalMode === 'admin' ? 'Admin Portal' : 'Dev Tools'} home`}
+              title="Home"
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-sky-50 hover:text-[#0095e8] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0095e8]"
+            >
+              <Home className="h-[17px] w-[17px]" />
+            </button>
+            <BreadcrumbChevronRight className="h-4 w-4 shrink-0 text-slate-300" aria-hidden="true" />
+            <h1 className="flex min-w-0 items-center gap-2 text-sm font-semibold text-slate-700">
+              <span className="truncate">{activePageLabel}</span>
+              {activeTab === 'email-template' && emailTemplateView === 'design' && <><BreadcrumbChevronRight className="h-4 w-4 shrink-0 text-slate-300" /><span className="truncate">Design Template</span></>}
             </h1>
           </div>
 
@@ -393,21 +478,13 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
               </span>
             </button>
 
-            <button
-              type="button"
-              onClick={onLogout}
-              className="inline-flex h-7 shrink-0 items-center gap-1.5 px-2 text-[11px] font-medium text-rose-500 transition-colors hover:text-rose-700 focus:outline-none"
-            >
-              <LogOut className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Logout</span>
-            </button>
           </div>
         </header>
 
         {/* Content Body */}
         <main
-          className={`flex-1 w-full p-4 sm:p-6 lg:p-8 transition-[max-width] duration-200 ${
-            (activeQueueItem || activeTab === 'user-registration') && isSidebarCollapsed ? 'max-w-none' : 'mx-auto max-w-7xl'
+          className={`flex-1 w-full p-4 sm:p-6 lg:px-7 lg:py-4 transition-[max-width] duration-200 ${
+            (activeQueueItem || activeTab === 'user-registration') && isSidebarCollapsed ? 'max-w-none' : 'mx-auto max-w-[1600px]'
           }`}
         >
           {activeTab === 'dashboard' && (
@@ -441,6 +518,30 @@ export function AdminLayout({ onSwitchToCustomer, onRefreshData, onLogout }: Adm
           {activeTab === 'ports' && <PortDepotConfig />}
           {activeTab === 'schema' && <SchemaMappingInspector />}
           {activeTab === 'developer-settings' && <DeveloperSettings />}
+          {activeTab === 'account-settings' && (
+            <div className="max-w-3xl space-y-6">
+              <div>
+                <h2 className="text-xl font-bold tracking-tight text-slate-900">Settings</h2>
+                <p className="mt-1 text-xs text-slate-500">Manage your account and appearance.</p>
+              </div>
+              <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                <h3 className="text-sm font-bold text-slate-900">Account</h3>
+                <p className="mt-1 text-xs text-slate-500">Signed in as {user?.email || 'Admin'}</p>
+                <button type="button" onClick={() => void handlePasswordReset()} disabled={!user?.email || isSendingReset} className="mt-4 inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50">
+                  <KeyRound className="h-4 w-4" />{isSendingReset ? 'Sending reset link...' : 'Email me a password reset link'}
+                </button>
+              </section>
+              <section className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Dark appearance</h3>
+                  <p className="mt-1 text-xs text-slate-500">Use the dark theme for admin pages.</p>
+                </div>
+                <button type="button" role="switch" aria-checked={isDarkMode} aria-label="Dark appearance" onClick={() => setIsDarkMode((darkMode) => !darkMode)} className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${isDarkMode ? 'bg-[#0095e8]' : 'bg-slate-300'}`}>
+                  <span className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${isDarkMode ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+              </section>
+            </div>
+          )}
         </main>
       </div>
 

@@ -29,6 +29,8 @@ export type EmailTemplate = {
   name: string;
   trigger_status: 'DONE' | 'REJECTED';
   rejection_reason?: 'ALREADY_REGISTERED_BOTH' | 'NORTHPORT_ADDED' | 'NO_LEDGER_CODE' | 'OTHER' | null;
+  port_id?: string | null;
+  template_code?: string | null;
   recipient_template: string;
   subject_template: string;
   body_template: string;

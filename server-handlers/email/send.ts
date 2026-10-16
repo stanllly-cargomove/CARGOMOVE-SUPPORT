@@ -39,7 +39,7 @@ export default async function sendEmail(request: any, response: any) {
 
   const [userResult, templateResult, connectionResult] = await Promise.all([
     client.from('external_user_access').select('id,email,status,rejection_reason,email_status').eq('id', token.userId).maybeSingle(),
-    client.from('email_templates').select('id,name,version,active,trigger_status,rejection_reason,attachments').eq('id', token.templateId).maybeSingle(),
+    client.from('email_templates').select('id,name,version,active,trigger_status,rejection_reason,port_id,template_code,attachments').eq('id', token.templateId).maybeSingle(),
     client.from('gmail_connections').select('*').eq('id', 'system').eq('status', 'ACTIVE').maybeSingle(),
   ]);
   const readError = userResult.error || templateResult.error || connectionResult.error;
@@ -50,7 +50,7 @@ export default async function sendEmail(request: any, response: any) {
   if (!user || !['DONE', 'REJECTED'].includes(user.status)) return response.status(409).json({ error: 'The user registration must still be DONE or REJECTED.' });
   if (recipient !== String(user.email).toLowerCase()) return response.status(400).json({ error: 'The recipient must match the registered user email.' });
   if (!template?.active || template.version !== token.templateVersion) return response.status(409).json({ error: 'The email template changed. Generate a new preview.' });
-  if (template.trigger_status !== user.status || (user.status === 'REJECTED' && template.rejection_reason !== user.rejection_reason)) {
+  if (template.trigger_status !== user.status || (!template.port_id && user.status === 'REJECTED' && template.rejection_reason !== user.rejection_reason)) {
     return response.status(409).json({ error: 'The registration status or rejection reason changed. Generate a new preview.' });
   }
   if (!connection) return response.status(409).json({ error: 'Connect a Gmail account before sending.' });
@@ -77,6 +77,8 @@ export default async function sendEmail(request: any, response: any) {
     template_id: template.id,
     template_name: template.name,
     template_version: template.version,
+    port_id: template.port_id,
+    template_code: template.template_code,
     recipient,
     subject,
     attachments: attachmentMetadata,

@@ -10,6 +10,8 @@ export interface EmailTemplate {
   name: string;
   trigger_status: 'DONE' | 'REJECTED';
   rejection_reason?: 'ALREADY_REGISTERED_BOTH' | 'NORTHPORT_ADDED' | 'NO_LEDGER_CODE' | 'OTHER' | null;
+  port_id?: string | null;
+  template_code?: string | null;
   recipient_template: '{{user.email}}';
   subject_template: string;
   body_template: string;
@@ -19,6 +21,8 @@ export interface EmailTemplate {
   updated_at?: string;
 }
 
+export interface EmailTemplatePort { id: string; display_name: string; active: boolean }
+
 export type WelcomeEmailTemplate = EmailTemplate;
 
 export interface EmailPreview {
@@ -26,6 +30,7 @@ export interface EmailPreview {
   subject: string;
   body: string;
   templateName: string;
+  templateCode?: string | null;
   previewToken: string;
   attachments: EmailAttachment[];
 }
@@ -35,6 +40,7 @@ export interface EmailLog {
   recipient: string;
   subject: string;
   template_name: string;
+  template_code?: string | null;
   external_user_id: string;
   sent_by_email: string;
   requested_at: string;
@@ -52,8 +58,12 @@ async function parse<T>(response: Response): Promise<T> {
 }
 
 export async function getEmailTemplates(): Promise<EmailTemplate[]> {
+  return (await getEmailTemplateCatalog()).templates;
+}
+
+export async function getEmailTemplateCatalog(): Promise<{ templates: EmailTemplate[]; ports: EmailTemplatePort[]; apiSupportsPortCodes: boolean }> {
   const response = await fetch('/api/email/templates', { credentials: 'include', cache: 'no-store' });
-  const result = await parse<{ templates?: EmailTemplate[]; template?: EmailTemplate | null }>(response);
+  const result = await parse<{ templates?: EmailTemplate[]; template?: EmailTemplate | null; ports?: EmailTemplatePort[] }>(response);
   // During a rolling/local update the API may still be serving the previous
   // single-template response shape. Supporting it prevents the page crashing
   // while the API process restarts or frontend/backend deployments overlap.
@@ -62,10 +72,14 @@ export async function getEmailTemplates(): Promise<EmailTemplate[]> {
     : result.template
       ? [result.template]
       : [];
-  return templates.map((template) => ({ ...template, attachments: Array.isArray(template.attachments) ? template.attachments : [] }));
+  return {
+    templates: templates.map((template) => ({ ...template, attachments: Array.isArray(template.attachments) ? template.attachments : [] })),
+    ports: Array.isArray(result.ports) ? result.ports : [],
+    apiSupportsPortCodes: Array.isArray(result.ports),
+  };
 }
 
-export async function saveEmailTemplate(template: Pick<EmailTemplate, 'id' | 'name' | 'recipient_template' | 'subject_template' | 'body_template' | 'attachments' | 'active'>, create = false) {
+export async function saveEmailTemplate(template: Pick<EmailTemplate, 'id' | 'name' | 'trigger_status' | 'rejection_reason' | 'port_id' | 'template_code' | 'recipient_template' | 'subject_template' | 'body_template' | 'attachments' | 'active'>, create = false) {
   const response = await fetch('/api/email/templates', {
     method: create ? 'POST' : 'PUT',
     credentials: 'include',
@@ -116,12 +130,12 @@ export async function connectGmail() {
   window.location.assign(result.authorizationUrl);
 }
 
-export async function generateWelcomeEmailPreview(userId: string) {
+export async function generateWelcomeEmailPreview(userId: string, templateId?: string) {
   const response = await fetch('/api/email/preview', {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ userId }),
+    body: JSON.stringify({ userId, templateId }),
   });
   const preview = await parse<EmailPreview>(response);
   return { ...preview, attachments: preview.attachments || [] };
