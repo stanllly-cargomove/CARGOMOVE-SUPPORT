@@ -5,6 +5,7 @@
     "api/mail.ts": { "maxDuration": 60 },
     "api/dev-tools.ts": {
       "maxDuration": 120,
+      "regions": ["sin1"],
       "includeFiles": "node_modules/@sparticuz/chromium/bin/**"
     }
   },
