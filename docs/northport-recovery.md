@@ -16,6 +16,8 @@ Vercel CLI 64.4.0 is authenticated, and the official Vercel plugin plus shared `
 
 ### Configuration checklist
 
+The follow-up production deployment `dpl_Fj2EhSqzsB6k2t3YUNUWRe6SoTDL` (03:14 MYT, 17 October 2026) corrected `SCHEDULER_PORTAL_URL` to `https://cargomove-register.vercel.app`. This setting authorizes the Support Tool request origin; it is separate from the CargoMove scheduler destination stored in Supabase. Vercel confirmed Ready, the production environment check matched this public origin, and the page, health and unauthenticated recovery-route checks passed. No live scheduler execution was used for this verification.
+
 1. Apply existing scheduler migrations first, then `supabase/migrations/20261017010000_northport_recovery.sql` in a staging Supabase project. Exercise approval and concurrent upload claims there before applying it to production. This migration has not been executed against a live database by this implementation.
 2. Set existing server-side Supabase/session settings and `SCHEDULER_PORTAL_URL` to the portal origin. Existing CargoMove scheduler credentials and gallery configuration remain in use.
 3. Configure the server-only FTP variables in `.env.example`. Never add a `VITE_` prefix. The supplied FileZilla XML specifies FTP protocol 0, port 21, default passive mode and auto encoding, but contains **no password**. Obtain the password through the existing secret-management process.

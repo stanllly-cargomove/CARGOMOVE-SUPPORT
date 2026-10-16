@@ -53,6 +53,12 @@ left untouched.
    the scheduler uses the existing `APP_URL` value; other `APP_URL` uses are
    unchanged. `VERCEL_URL`
    also permits the current deployment origin. Never prefix secrets with `VITE_`.
+
+   For the current production Support Tool, use
+   `SCHEDULER_PORTAL_URL=https://cargomove-register.vercel.app` and redeploy after
+   changing it. This is the origin of the website sending the request. The
+   CargoMove scheduler destination saved in Supabase is a separate setting;
+   saving that link does not authorize the Support Tool's request origin.
 4. Use Node.js 24.x (package engines). The function includes Chromium's compressed
    binary and requests a 120-second limit. Enable Fluid Compute or a plan/configuration
    supporting that duration, and at least 2 GB function memory. Check the Vercel
