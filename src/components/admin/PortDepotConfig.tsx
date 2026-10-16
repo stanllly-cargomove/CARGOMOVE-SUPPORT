@@ -2,10 +2,11 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { DepotConfig, PortConfig } from '../../types';
 import { deleteDepotConfig, deletePortConfig, getDepots, getPorts, saveDepot as persistDepot, savePort as persistPort, updateDepotConfig, updatePortConfig } from '../../services/storage';
-import { Anchor, Building2, Check, Edit2, MoreVertical, Plus, X } from 'lucide-react';
+import { Check, Edit2, MoreVertical, Plus, X } from 'lucide-react';
 import { notifySuccess, notifyWarning } from '../common/notifications';
 
 export function PortDepotConfig() {
+  const [activeTab, setActiveTab] = useState<'ports' | 'depots'>('ports');
   const [ports, setPorts] = useState<PortConfig[]>(getPorts());
   const [depots, setDepots] = useState<DepotConfig[]>(getDepots());
   const [editingPortId, setEditingPortId] = useState<string | null>(null);
@@ -115,11 +116,11 @@ export function PortDepotConfig() {
         <p className="text-xs text-slate-500 mt-1">Manage the human-readable names and backend export IDs used by the registration system.</p>
       </div>
 
-      <ConfigTable
-        title="Ports"
+      {activeTab === 'ports' && <ConfigTable
+        activeTab={activeTab}
+        onTabChange={(tab) => { setActiveTab(tab); setOpenActionId(null); }}
         description="Backend values exported to the PORTS column."
         count={ports.length}
-        icon={<Anchor className="w-4 h-4 text-blue-600" />}
         headers={['Port', 'Location', 'Internal Key', "Cargomove's Port ID", '']}
         action={<button type="button" onClick={() => { setIsAddingPort((adding) => !adding); setIsAddingDepot(false); }} className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1.5 text-[11px] font-bold text-white hover:bg-blue-700"><Plus className="w-3.5 h-3.5" /> Add port</button>}
       >
@@ -142,13 +143,13 @@ export function PortDepotConfig() {
             </tr>
           );
         })}
-      </ConfigTable>
+      </ConfigTable>}
 
-      <ConfigTable
-        title="Depots & Staging Yards"
+      {activeTab === 'depots' && <ConfigTable
+        activeTab={activeTab}
+        onTabChange={(tab) => { setActiveTab(tab); setOpenActionId(null); }}
         description="Backend values exported to the DEPOTS column."
         count={depots.length}
-        icon={<Building2 className="w-4 h-4 text-emerald-600" />}
         headers={['Depot', 'Associated Port', 'Internal Key', 'Backend Depot ID', '']}
         action={<button type="button" onClick={() => { setIsAddingDepot((adding) => !adding); setIsAddingPort(false); setNewDepot((current) => ({ ...current, port_id: current.port_id || ports[0]?.id || '' })); }} className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-bold text-white hover:bg-emerald-700"><Plus className="w-3.5 h-3.5" /> Add depot</button>}
       >
@@ -171,45 +172,47 @@ export function PortDepotConfig() {
             </tr>
           );
         })}
-      </ConfigTable>
+      </ConfigTable>}
       {pendingRemoval && <RemovalConfirmation name={pendingRemoval.name} onCancel={() => setPendingRemoval(null)} onConfirm={confirmRemoval} />}
     </div>
   );
 }
 
 function ConfigTable({
-  title,
+  activeTab,
+  onTabChange,
   description,
   count,
-  icon,
   headers,
   action,
   children,
 }: {
-  title: string;
+  activeTab: 'ports' | 'depots';
+  onTabChange: (tab: 'ports' | 'depots') => void;
   description: string;
   count: number;
-  icon: React.ReactNode;
   headers: string[];
   action?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
-    <section className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-      <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-200">
-        <div className="flex items-center gap-2">
-          {icon}
-          <div><h3 className="text-sm font-bold text-slate-900">{title}</h3><p className="text-[11px] text-slate-500">{description}</p></div>
+    <section className="rounded-xl">
+      <div className="flex flex-wrap items-end justify-between gap-2">
+        <div className="ml-[0.5px] flex w-fit max-w-full items-end" role="tablist" aria-label="Port and depot configuration">
+          {(['ports', 'depots'] as const).map((tab) => <button key={tab} id={`config-tab-${tab}`} type="button" role="tab" aria-selected={activeTab === tab} aria-controls={`config-panel-${tab}`} onClick={() => onTabChange(tab)} className={`admin-registration-tab relative -mr-px flex h-10 min-w-[120px] items-center justify-center rounded-t-lg border px-3 text-xs font-bold uppercase tracking-wider transition-none ${activeTab === tab ? 'z-10 border-slate-400 border-b-transparent bg-[#CBD5E1] text-slate-900' : 'border-slate-300 bg-[#F1F5F9] text-slate-500 hover:bg-slate-200 hover:text-slate-900'}`}>{tab === 'ports' ? 'Ports' : 'Depots & Staging Yards'}</button>)}
         </div>
-        <div className="flex items-center gap-2"><span className="text-[11px] font-semibold text-slate-400">{count} configured</span>{action}</div>
+        <div className="mb-2 [&>button]:h-10 [&>button]:min-w-[132px] [&>button]:justify-center [&>button]:gap-1 [&>button]:rounded-lg [&>button]:px-3 [&>button]:text-xs">{action}</div>
       </div>
+      <div id={`config-panel-${activeTab}`} role="tabpanel" aria-labelledby={`config-tab-${activeTab}`} className="overflow-hidden rounded-b-xl rounded-tr-xl border-x border-b border-slate-200 bg-white shadow-sm">
       <div className="overflow-x-auto">
-        <table className="w-full text-left text-xs">
-          <thead className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500 border-b border-slate-200">
-            <tr>{headers.map((header) => <th key={header || 'action'} className="px-3 py-2.5 font-bold first:pl-4 last:pr-4">{header}</th>)}</tr>
+        <table className="w-full min-w-[800px] border-collapse text-left text-xs">
+          <thead>
+            <tr className="admin-registration-table-header whitespace-nowrap border border-slate-400 bg-[#CBD5E1] text-[10px] font-bold uppercase tracking-wide text-slate-700">{headers.map((header) => <th scope="col" key={header || 'action'} className="px-3 py-3 font-bold first:pl-4 last:pr-4">{header || <span className="sr-only">Actions</span>}</th>)}</tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">{children}</tbody>
+          <tbody className="divide-y divide-slate-100">{count === 0 ? <tr><td colSpan={headers.length} className="px-4 py-8 text-center text-slate-500">No {activeTab} configured yet.</td></tr> : null}{children}</tbody>
         </table>
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3 text-[11px] text-slate-500"><span>{description}</span><span className="font-semibold">{count} configured</span></div>
       </div>
     </section>
   );

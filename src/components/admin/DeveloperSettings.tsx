@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { FlaskConical } from 'lucide-react';
 import { areRegistrationTestToolsEnabled, setRegistrationTestToolsEnabled } from '../../services/developerSettings';
+import { CargoMoveScheduler } from './CargoMoveScheduler';
 
 export function DeveloperSettings() {
   const [testToolsEnabled, setTestToolsEnabled] = useState(areRegistrationTestToolsEnabled);
@@ -39,6 +40,7 @@ export function DeveloperSettings() {
         </div>
         <p className={`mt-4 text-xs font-semibold ${testToolsEnabled ? 'text-emerald-700' : 'text-slate-500'}`}>{testToolsEnabled ? 'Enabled' : 'Disabled'}</p>
       </section>
+      <CargoMoveScheduler />
     </div>
   );
 }

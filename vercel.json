@@ -1,7 +1,14 @@
 {
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "functions": { "api/mail.ts": { "maxDuration": 60 } },
+  "functions": {
+    "api/mail.ts": { "maxDuration": 60 },
+    "api/dev-tools/schedulers.ts": { "maxDuration": 30 },
+    "api/dev-tools/run-scheduler.ts": {
+      "maxDuration": 120,
+      "includeFiles": "node_modules/@sparticuz/chromium/bin/**"
+    }
+  },
   "rewrites": [
     { "source": "/api/email/:path*", "destination": "/api/mail?route=email/:path*" },
     { "source": "/api/gmail/:path*", "destination": "/api/mail?route=gmail/:path*" },
