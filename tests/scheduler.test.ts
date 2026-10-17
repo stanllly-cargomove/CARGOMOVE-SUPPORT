@@ -29,6 +29,7 @@ test('API authorization, origin, revoked roles, shared admission and audit failu
   let session: any = { id: 'admin', email: 'admin@example.test', type: 'ADMIN' };
   let profile: any = { id: 'profile' };
   let reason: string | undefined;
+  let cooldownSeconds: number | undefined;
   let occupied = false;
   let executions = 0;
   let failAudit = false;
@@ -37,7 +38,7 @@ test('API authorization, origin, revoked roles, shared admission and audit failu
     from() { return { select() { return this; }, eq() { return this; }, timeout() { return this; }, async maybeSingle() { return { data: profile, error: null }; } }; },
     async rpc(name: string) {
       if (name.startsWith('acquire')) {
-        if (reason || occupied) return { data: { reason: reason || 'running' }, error: null };
+        if (reason || occupied) return { data: { reason: reason || 'running', cooldown_seconds: cooldownSeconds }, error: null };
         occupied = true;
         return { data: { id: 'run-1', worker_name: NORTHPORT_TARGET.workerName, task_id: NORTHPORT_TARGET.taskId }, error: null };
       }
@@ -75,6 +76,10 @@ test('API authorization, origin, revoked roles, shared admission and audit failu
     assert.equal((await call()).code, code);
   }
   assert.equal(executions, 0);
+  reason='cooldown';cooldownSeconds=45;
+  assert.equal((await call()).body.message,'Please wait 45 seconds between scheduler requests.');
+  cooldownSeconds=undefined;
+  assert.equal((await call()).body.message,'Please wait five minutes between scheduler requests.','Old databases retain an accurate message until migration');
   reason = undefined;
   const first = call();
   while (!release) await new Promise(resolve => setTimeout(resolve, 1));

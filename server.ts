@@ -16,6 +16,7 @@ import registrationStatus from './server-handlers/registration/status.js';
 import runScheduler from './server-handlers/scheduler/handler.js';
 import schedulerCatalog from './server-handlers/scheduler/catalog.js';
 import northportRecovery from './server-handlers/northport/handler.js';
+import { uploadsEnabled } from './server-handlers/northport/configuration.js';
 
 config({ path: '.env.local' });
 
@@ -123,11 +124,13 @@ app.use((request, _response, next) => {
 });
 
 app.get('/api/health', (_request, response) => {
+  response.setHeader('Cache-Control','no-store');
   response.status(missingServerVariables.length ? 503 : 200).json({
     ok: missingServerVariables.length === 0 && !clientInitializationError,
     service: 'cargomove-api',
     missing: missingServerVariables,
     configurationError: clientInitializationError,
+    northportRecovery: { uploadsEnabled: uploadsEnabled() },
   });
 });
 

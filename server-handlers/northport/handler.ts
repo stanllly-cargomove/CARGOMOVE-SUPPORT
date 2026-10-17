@@ -7,10 +7,10 @@ import { RecoveryError, searchInput, filenameInfo, parseCsv, generateCsv, valida
 import { NORTHPORT_COLUMNS, type Match } from '../../src/types/northport.js';
 import { searchFiles, listingMode } from './listing.js';
 import { readScanCursor, signScanCursor } from './scan.js';
+import { NORTHPORT_UPLOAD_GATES as GATES, uploadsEnabled } from './configuration.js';
+export { uploadsEnabled } from './configuration.js';
 
 const hash = (v: string | Buffer) => crypto.createHash('sha256').update(v).digest('hex');
-const GATES = ['READONLY_VERIFIED','SINGLE_RECORD_VERIFIED','FILENAME_VERIFIED','SERIALIZATION_VERIFIED','NON_NORTHPORT_VERIFIED','DUPLICATES_VERIFIED','RENAME_NO_REPLACE_VERIFIED','TIMEZONE_VERIFIED'] as const;
-export const uploadsEnabled = () => process.env.NORTHPORT_RECOVERY_UPLOAD_ENABLED === 'true' && GATES.every(g => process.env[`NORTHPORT_${g}`] === 'true');
 type Source = Omit<Match,'token'> & { actor: string; digest: string; expires: number; format: ReturnType<typeof parseCsv>['format'] };
 function sign(source: Source) {
   const encoded = Buffer.from(JSON.stringify(source)).toString('base64url');

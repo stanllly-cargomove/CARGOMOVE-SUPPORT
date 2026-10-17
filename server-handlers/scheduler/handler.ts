@@ -30,13 +30,13 @@ export function createSchedulerHandler(deps = { adminClient, readSession, runAut
       const username = process.env.CARGOMOVE_USERNAME;
       const password = process.env.CARGOMOVE_PASSWORD;
       if (!username || !password) return reply(503, 'CargoMove credentials are not configured on the server.');
-      const acquired = await client.rpc<{ id?: string; reason?: string; worker_name?: string; task_id?: string }>('acquire_saved_cargomove_scheduler', { p_actor: session.id, p_scheduler_id: schedulerId });
+      const acquired = await client.rpc<{ id?: string; reason?: string; cooldown_seconds?: number; worker_name?: string; task_id?: string }>('acquire_saved_cargomove_scheduler', { p_actor: session.id, p_scheduler_id: schedulerId });
       if (acquired.error || !acquired.data) return reply(503, 'Scheduler protection is unavailable. Apply the scheduler gallery database migration.');
       if (!acquired.data.id) {
         const reason = acquired.data.reason;
         if (reason === 'unavailable') return reply(404, 'The saved scheduler is missing or disabled. Refresh the gallery.');
         return reply(reason === 'cooldown' ? 429 : 409, reason === 'cooldown'
-          ? 'Please wait five minutes between scheduler requests.'
+          ? acquired.data.cooldown_seconds === 45 ? 'Please wait 45 seconds between scheduler requests.' : 'Please wait five minutes between scheduler requests.'
           : reason === 'unknown' ? 'A previous request has an uncertain outcome. An operator must check CargoMove and resolve the audit record before another run.'
           : 'Another scheduler request is already running.');
       }

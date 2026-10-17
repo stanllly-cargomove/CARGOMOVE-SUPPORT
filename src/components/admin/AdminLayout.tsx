@@ -180,7 +180,7 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout 
     setIsAccountMenuOpen(false);
   };
 
-  const activePageLabel = activeTab === 'northport-recovery' ? 'Test Tools / Northport Container Recovery' : [...navItems, ...registrationQueueItems, ...devToolItems]
+  const activePageLabel = activeTab === 'northport-recovery' ? 'Tools / NP Container' : [...navItems, ...registrationQueueItems, ...devToolItems]
     .find((item) => item.id === activeTab)?.label ?? (activeTab === 'account-settings' ? 'Settings' : 'Dashboard');
 
   return (
@@ -334,6 +334,26 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout 
               </React.Fragment>
             );
           })}
+
+          {portalMode === 'admin' && user?.type === 'ADMIN' && (
+            <>
+              <p className={`mt-4 border-t border-white/10 px-2 pb-1 pt-3 text-[9px] font-medium uppercase tracking-[0.14em] text-slate-500 ${isSidebarCollapsed ? 'md:hidden' : ''}`}>Tools</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('northport-recovery');
+                  setIsMobileSidebarOpen(false);
+                }}
+                aria-label="NP Container"
+                aria-current={activeTab === 'northport-recovery' ? 'page' : undefined}
+                title="NP Container"
+                className={`flex w-full items-center gap-2 rounded-lg px-2 py-2 text-[11px] font-medium transition-all ${isSidebarCollapsed ? 'md:justify-center md:px-2' : ''} ${activeTab === 'northport-recovery' ? 'bg-[#0095e8] font-semibold text-white shadow-sm' : 'text-slate-300 hover:bg-white/8 hover:text-white'}`}
+              >
+                <Wrench className="h-4 w-4 shrink-0" />
+                <span className={`min-w-0 flex-1 truncate text-left ${isSidebarCollapsed ? 'md:hidden' : ''}`}>NP Container</span>
+              </button>
+            </>
+          )}
 
           {portalMode === 'developer' && devToolItems.map((item, index) => {
             const Icon = item.icon;
@@ -518,8 +538,8 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout 
           )}
           {activeTab === 'ports' && <PortDepotConfig />}
           {activeTab === 'schema' && <SchemaMappingInspector />}
-          {activeTab === 'developer-settings' && <DeveloperSettings onNorthportRecovery={user?.type === 'ADMIN' ? () => setActiveTab('northport-recovery') : undefined} />}
-          {activeTab === 'northport-recovery' && user?.type === 'ADMIN' && <NorthportRecovery onBack={() => setActiveTab('developer-settings')} />}
+          {activeTab === 'developer-settings' && <DeveloperSettings />}
+          {activeTab === 'northport-recovery' && portalMode === 'admin' && user?.type === 'ADMIN' && <NorthportRecovery onBack={goToPortalHome} />}
           {activeTab === 'account-settings' && (
             <div className="max-w-3xl space-y-6">
               <div>

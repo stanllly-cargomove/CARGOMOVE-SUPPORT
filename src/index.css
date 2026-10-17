@@ -8,6 +8,22 @@
   --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
+/* Fit recovery filters to the card's available width, including a collapsed sidebar. */
+.northport-search-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.northport-search-fields > :nth-child(1) { flex: 1 1 160px; }
+.northport-search-fields > :nth-child(2) { flex: 0 1 200px; }
+.northport-search-fields > :nth-child(3) { flex: 1 1 130px; }
+.northport-search-fields > :nth-child(4) { flex: 1 1 170px; }
+.northport-search-fields > .northport-search-actions { flex: 0 0 auto; }
+
+.northport-search-actions > button[type="submit"] { padding-inline: 14px; }
+
 :root {
   --primary: #0095e8;
   --primary-dark: #0078c8;

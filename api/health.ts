@@ -1,3 +1,5 @@
+import { uploadsEnabled } from '../server-handlers/northport/configuration.js';
+
 export default function health(_request: any, response: any) {
   const names = [
     'VITE_SUPABASE_URL',
@@ -8,5 +10,7 @@ export default function health(_request: any, response: any) {
     'SESSION_SECRET',
   ];
   const configured = names.filter((name) => Boolean(process.env[name]));
-  response.status(200).json({ ok: true, service: 'cargomove-api', configured });
+  response.setHeader('Cache-Control','no-store');
+  response.status(200).json({ ok: true, service: 'cargomove-api', configured, northportRecovery: { uploadsEnabled: uploadsEnabled() } });
 }
+

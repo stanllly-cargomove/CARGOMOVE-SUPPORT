@@ -33,6 +33,16 @@ left untouched.
 
 ## Deployment
 
+### 45-second scheduler cooldown
+
+Apply [`20261017020000_scheduler_cooldown_45_seconds.sql`](../supabase/migrations/20261017020000_scheduler_cooldown_45_seconds.sql) after the scheduler gallery migration to change the shared cooldown from five minutes to **45 seconds**. This replaces only the saved admission function, preserves audit rows, and also covers the legacy Northport wrapper. The cooldown is measured from the last admitted request and applies across all administrators and saved tasks. Running tasks and unresolved UNKNOWN outcomes still block admission. The recovery API's separate five-second per-administrator request limit is unchanged.
+
+The new function returns `cooldown_seconds: 45` on cooldown rejection. The API uses that value for the message and keeps the truthful five-minute message for databases that have not applied this migration. Changing the text alone does not change the database lock. The migration does not trigger a task or alter historical timestamps.
+
+The operator confirmed this migration was applied on 17 October 2026. Thirteen scheduler tests passed, including isolated PostgreSQL checks at 44/45/46 seconds, shared admission across tasks, the legacy Northport wrapper, retained audit records, role restrictions and RUNNING/UNKNOWN protection. No production scheduler request was issued for validation.
+
+The matching API update is deployed as `dpl_9wGumkHU4dUruJ7i3RYuxgoCgvXm`, verified Ready on the existing production domains with Dev Tools in Singapore. Production health checks retained upload enablement; a GET-only probe of the execution endpoint returned the expected 405 without dispatching anything.
+
 1. Apply the original `20261016000000_cargomove_scheduler.sql` if not already applied,
    then apply `supabase/migrations/20261017000000_cargomove_scheduler_gallery.sql`
    through your normal Supabase migration process. Do not rerun the original
@@ -91,7 +101,7 @@ execution audit before automation. The authenticated external task page must
 contain the exact corresponding link before dispatch.
 
 An atomic transaction advisory lock serializes admission across instances. One
-run at a time and a global five-minute cooldown apply even to failed runs. This
+run at a time and a global 45-second cooldown (after the cooldown migration) apply even to failed runs. This
 limits all administrators and all saved schedulers together. RLS and revoked public function grants keep
 the audit and RPCs service-role-only. A dispatch marker is persisted before the
 single trigger request; redirects and network retries are disabled.
