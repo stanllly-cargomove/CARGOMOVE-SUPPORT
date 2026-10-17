@@ -17,6 +17,7 @@ try {
   page.on('pageerror', error => pageErrors.push(error.message));
   const values = Array(20).fill(''); values[0] = 'FTAU1735746'; values[3] = 'SNKU010210006677'; values[16] = '2026-10-17 19:54';
   let finishSearch: (() => void) | undefined;
+  let matchCount=1;
   const history = [{ id: 'recovery-1', container: values[0], container_type: 'GP', source_filename: 'CM_CONTAINER_20261017162920_GP.csv', recovery_filename: 'CM_CONTAINER_20261017163934_GP.csv', submitted_by: 'support@example.test', created_at: '2026-10-17T08:39:11Z', changed_fields: [], status: 'Scheduler Triggered', scheduler_status: 'trigger_requested' }];
   await page.route('**/*', async route => {
     const url = new URL(route.request().url());
@@ -24,7 +25,7 @@ try {
     if (url.pathname === '/api/dev-tools/northport-recovery') {
       if (route.request().method() === 'GET') return route.fulfill({ json: { history, uploadsEnabled: false, missingGates: [] } });
       await new Promise<void>(resolve => { finishSearch = resolve; });
-      return route.fulfill({ json: { matches: [{ filename: history[0].source_filename, type: 'GP', timestamp: '2026-10-17T16:29:20', record: 1, values, token: 'test-token' }], errors: [], complete: true, candidates: 1, listed: 1, progress: { checked: 2101, total: 2101, files: 1, records: 1 } } });
+      return route.fulfill({ json: { matches: Array.from({length:matchCount},(_,index)=>({ filename: history[0].source_filename, type: 'GP', timestamp: '2026-10-17T16:29:20', record: index+1, values, token: 'test-token' })), errors: [], complete: true, candidates: 1, listed: 1, progress: { checked: 2101, total: 2101, files: 1, records: matchCount } } });
     }
     if (url.pathname === '/styles.css') return route.fulfill({ contentType: 'text/css', body: css });
     return route.fulfill({ contentType: 'text/html', body: `<meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/styles.css"><main style="padding:16px"><div id="root"></div></main><script>${bundle.outputFiles[0].text}</script>` });
@@ -35,6 +36,7 @@ try {
     await page.setViewportSize({ width, height: 900 });
     await page.goto('http://northport.test');
     await page.getByRole('heading', { name: 'Recovery History', exact: true }).waitFor();
+    const initialResultsHeight = await page.locator('.northport-results-container').evaluate(card=>card.getBoundingClientRect().height);
     const historyHeading = await page.getByRole('heading', { name: 'Recovery History', exact: true }).locator('..').boundingBox();
     const refreshHistory = await page.getByRole('button', { name: 'Refresh History', exact: true }).boundingBox();
     assert.ok(historyHeading && refreshHistory && Math.abs((historyHeading.y+historyHeading.height/2)-(refreshHistory.y+refreshHistory.height/2))<2, 'Refresh must be vertically centered beside the history heading and description');
@@ -86,6 +88,7 @@ try {
     await page.getByLabel('EIR time (Malaysia)', { exact: true }).fill('2026-10-17T16:30');
     await page.getByRole('button', { name: 'Search FTP', exact: true }).click();
     while (!finishSearch) await new Promise(resolve => setTimeout(resolve, 5));
+    const searchingResultsHeight = await page.locator('.northport-results-container').evaluate(card=>card.getBoundingClientRect().height);
     const rangeBefore = await page.locator('.northport-search-details').evaluate(element=>Array.from(element.closest('section')!.children).indexOf(element.parentElement!));
     assert.equal(await page.locator('.border-dashed .northport-search-details').count(), 0, 'Range and progress must sit outside the empty-state panel');
     if (width < 640) {
@@ -169,10 +172,20 @@ try {
       await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
     }
     await checkOverflow();
+    const matchedResultsHeight = await page.locator('.northport-results-container').evaluate(card=>card.getBoundingClientRect().height);
+    assert.ok(Math.abs(initialResultsHeight-searchingResultsHeight)<1 && Math.abs(initialResultsHeight-matchedResultsHeight)<1, `Results card must stay stable for one match at ${width}px: ${initialResultsHeight}, ${searchingResultsHeight}, ${matchedResultsHeight}`);
     const rangeAfter = await page.locator('.northport-search-details').evaluate(element=>Array.from(element.closest('section')!.children).indexOf(element.parentElement!));
     assert.equal(rangeBefore, 2, 'Search range must follow the progress bar');
     assert.equal(rangeAfter, rangeBefore, 'Search range must stay in the same location before and after matches arrive');
     if (width === 390) await page.screenshot({ path: join(tmpdir(), 'northport-mobile.png'), fullPage: true });
+    if (width===1440) {
+      matchCount=20;
+      await page.getByRole('button',{name:'Search FTP',exact:true}).click();
+      while(!finishSearch)await new Promise(resolve=>setTimeout(resolve,5));
+      finishSearch();finishSearch=undefined;
+      await page.waitForFunction(()=>document.querySelectorAll('.northport-results-table tbody tr').length===20);
+      assert.ok(await page.locator('.northport-results-container').evaluate(card=>card.getBoundingClientRect().height)>initialResultsHeight,'Long result lists must expand the card');
+    }
   }
   assert.deepEqual(pageErrors, []);
   console.log('Northport responsive layouts passed at 320, 390, 640, 768, 1024 and 1440px, including history beside an expanded sidebar.');

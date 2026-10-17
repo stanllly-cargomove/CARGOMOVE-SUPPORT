@@ -72,7 +72,14 @@
 .northport-results-table td:nth-child(5),
 .northport-results-table td:nth-child(6),
 .northport-results-table td:last-child { width: 1%; white-space: nowrap; }
-.northport-results-container { container: northport-results / inline-size; }
+.northport-results-container { container: northport-results / inline-size; min-height: 300px; padding-bottom: 32px; }
+.northport-results-empty { min-height: 190px; justify-content: center; }
+.northport-results-list { min-height: 190px; }
+@media (max-width: 767px) {
+  .northport-results-container { min-height: 0; }
+  .northport-results-empty { min-height: 150px; }
+  .northport-results-list { min-height: 150px; }
+}
 @container northport-results (max-width: 900px) {
   .northport-results-table th { white-space: normal; }
 }
