@@ -28,6 +28,13 @@
 
 .northport-search-actions > button[type="submit"] { padding-inline: 14px; }
 
+@media (min-width: 1024px) {
+  .northport-parameter-grid { grid-template-columns: var(--parameter-columns-5); }
+}
+@media (min-width: 1280px) {
+  .northport-parameter-grid { grid-template-columns: var(--parameter-columns-10); }
+}
+
 .northport-history-table { width: 100%; table-layout: auto; }
 .northport-history-table th,
 .northport-history-table td { padding: 8px; white-space: normal; overflow-wrap: anywhere; }
