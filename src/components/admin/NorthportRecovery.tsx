@@ -31,10 +31,10 @@ function RecordActions({ disabled, onChoose }: { disabled: boolean; onChoose: (a
     </div>
   </>;
 }
-function FileEditorDialog({ children, busy, onClose }: { children: React.ReactNode; busy: boolean; onClose: () => void }) {
+function FileEditorDialog({ children, busy, onClose, label = 'Container file editor' }: { children: React.ReactNode; busy: boolean; onClose: () => void; label?: string }) {
   const ref=useRef<HTMLDialogElement>(null);
   useEffect(()=>{const dialog=ref.current;const previous=document.body.style.overflow;document.body.style.overflow='hidden';dialog?.showModal();return()=>{dialog?.close();document.body.style.overflow=previous;};},[]);
-  return <dialog ref={ref} aria-label="Container file editor" onCancel={event=>{event.preventDefault();if(!busy)onClose();}} className="m-auto max-h-[92dvh] w-[96vw] max-w-[1800px] overflow-auto rounded-2xl border border-slate-200 bg-white p-5 text-slate-900 shadow-2xl backdrop:bg-slate-950/50">
+  return <dialog ref={ref} aria-label={label} onCancel={event=>{event.preventDefault();if(!busy)onClose();}} className="m-auto max-h-[92dvh] w-[96vw] max-w-[1800px] overflow-auto rounded-2xl border border-slate-200 bg-white p-5 text-slate-900 shadow-2xl backdrop:bg-slate-950/50">
     <div className="mb-3 flex justify-end"><button type="button" aria-label="Close file editor" disabled={busy} onClick={onClose} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 disabled:opacity-50"><X aria-hidden="true" className="h-5 w-5"/></button></div>
     {children}
     {northportToaster}
@@ -52,13 +52,24 @@ function SectionHeading({ step, title, description, action, icon, green = false 
 }) {
   return <div className={`${title === 'Search Container' || title === 'Search Results' ? 'mb-4' : 'mb-1'} flex flex-wrap items-start justify-between gap-1`}>
     <div className="flex min-w-0 items-start gap-3 sm:gap-4">
-      <span aria-hidden="true" className={`flex h-10 w-10 shrink-0 items-center justify-center text-base font-semibold ${icon ? 'rounded-xl bg-violet-50 text-violet-600' : `rounded-full text-white ${green ? 'bg-emerald-500' : 'bg-blue-600'}`}`}>{icon || step}</span>
+      {(icon || step != null)&&<span aria-hidden="true" className={`flex h-10 w-10 shrink-0 items-center justify-center text-base font-semibold ${icon ? 'rounded-xl bg-violet-50 text-violet-600' : `rounded-full text-white ${green ? 'bg-emerald-500' : 'bg-blue-600'}`}`}>{icon || step}</span>}
       <div className="min-w-0 pt-0.5"><h3 className="text-sm font-bold text-slate-900">{title}</h3><p className="mt-0 text-xs leading-4 text-slate-500">{description}</p></div>
     </div>
     {action && <div className="ml-auto max-w-full shrink-0">{action}</div>}
   </div>;
 }
 const displayTime = (value: string) => value?.replace('T',' ') + ' MYT';
+function historyStatusLabel(recovery: Recovery) {
+  if (recovery.scheduler_status === 'trigger_requested' || recovery.status === 'Scheduler Triggered') return 'DONE';
+  if (['Approved','Uploaded','Verification Unavailable'].includes(recovery.status)) return 'PROCESSED';
+  return recovery.status.toUpperCase();
+}
+function HistoryStatus({ recovery }: { recovery: Recovery }) {
+  const label = historyStatusLabel(recovery);
+  const color = label === 'FAILED' ? 'bg-red-50 text-red-700' : label === 'UPLOADING' ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-700';
+  return <span className={`inline-flex h-6 w-24 items-center justify-center rounded-lg text-[11px] font-medium ${color}`}>{label}</span>;
+}
+const historySchedulerLabel = (status?: string) => !status ? 'Not requested' : status === 'trigger_requested' || status === 'Scheduler Triggered' ? 'DONE' : status === 'Verification Unavailable' ? '' : status;
 function exportApprovedCsv(preview: string, type: 'GP' | 'EX') {
   const timestamp = new Date(Date.now()+8*3600000).toISOString().slice(0,19).replace(/[-:T]/g,'');
   const url = URL.createObjectURL(new Blob([preview],{type:'text/csv;charset=utf-8',endings:'transparent'}));
@@ -111,6 +122,7 @@ export function NorthportRecovery({ onBack }: { onBack: () => void }) {
   const [identityConfirmed,setIdentityConfirmed] = useState(false);
   const [approved,setApproved] = useState<{id:string;preview:string}|null>(null);
   const [history,setHistory] = useState<Recovery[]>([]);
+  const [historyDetail,setHistoryDetail] = useState<Recovery|null>(null);
   const [enabled,setEnabled] = useState(false);
   const [gates,setGates] = useState<string[]>([]);
   const [historyError,setHistoryError] = useState('');
@@ -243,7 +255,7 @@ export function NorthportRecovery({ onBack }: { onBack: () => void }) {
             </div>
           </div>
           <label className="min-w-0 text-xs font-medium text-slate-700">EIR time
-            <input aria-label="EIR time (Malaysia)" disabled={busy==='search'} required type="datetime-local" step="1" className={inputClass+' mt-2'} value={form.timestamp} onChange={e=>setForm({...form,timestamp:e.target.value.length===16?e.target.value+':00':e.target.value})}/>
+            <input aria-label="EIR time (Malaysia)" disabled={busy==='search'} required type="datetime-local" step="1" className={inputClass+' mt-2 cursor-pointer'} value={form.timestamp} onClick={event=>{try{event.currentTarget.showPicker?.();}catch{event.currentTarget.focus();}}} onChange={e=>setForm({...form,timestamp:e.target.value.length===16?e.target.value+':00':e.target.value})}/>
           </label>
           <label className="min-w-0 text-xs font-medium text-slate-700">Container Type
             <span className="relative mt-2 block"><ListFilter aria-hidden="true" className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-slate-500"/><select disabled={busy==='search'} className={inputClass+' appearance-none pl-10 pr-8'} value={form.type} onChange={e=>setForm({...form,type:e.target.value})}><option value="ALL">All</option><option value="GP">Import (GP)</option><option value="EX">Export (EX)</option></select><ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-3.5 h-4 w-4 text-slate-500"/></span>
@@ -310,10 +322,13 @@ export function NorthportRecovery({ onBack }: { onBack: () => void }) {
       </>}
     </FileEditorDialog>}
 
-    <section className={cardClass}>
-      <SectionHeading title="Recovery History" description="Latest 50 approvals. A scheduler response does not prove import. No container import verification API is configured." icon={<History className="h-5 w-5"/>} action={<button className={secondaryClass+' text-xs'} disabled={!!busy} onClick={()=>void loadHistory()}><RefreshCw aria-hidden="true" className="h-3.5 w-3.5"/>Refresh History</button>}/>
-      <div className="overflow-x-auto"><table className="w-full min-w-[780px] text-left text-xs"><thead className="border-y border-slate-100 bg-slate-50"><tr>{['Container / Type','Source → Recovery','Submitted By / Time','Changed Fields','Status / Processing','Scheduler / Actions'].map(h=><th scope="col" key={h} className={tableHeadingClass}>{h}</th>)}</tr></thead><tbody>{history.map(row=><tr key={row.id} className="border-b border-slate-100 last:border-0"><td className="px-4 py-4 align-top"><p className="font-semibold text-slate-900">{row.container}</p><span className="mt-1.5 inline-block rounded-md bg-slate-100 px-2 py-1 text-[10px] font-medium text-slate-600">{row.container_type==='GP'?'Import (GP)':'Export (EX)'}</span></td><td className="max-w-64 break-words px-4 py-4 align-top text-slate-600"><p>{row.source_filename}</p><p className="mt-1.5 text-slate-400">→ {row.recovery_filename||'Filename allocated on upload'}</p></td><td className="px-4 py-4 align-top text-slate-600"><p className="break-all">{row.submitted_by}</p><p className="mt-1.5 text-slate-400">{new Date(row.created_at).toLocaleString('en-GB',{timeZone:'Asia/Kuala_Lumpur'})} MYT</p></td><td className="px-4 py-4 align-top text-slate-600">{row.changed_fields.join(', ')||'None'}</td><td className="px-4 py-4 align-top"><span className={'inline-flex rounded-full px-2.5 py-1 text-[11px] font-medium '+(row.status==='Failed'?'bg-red-50 text-red-700':row.status==='Approved'?'bg-blue-50 text-blue-700':row.status==='Uploading'?'bg-amber-50 text-amber-800':row.status==='Import Verified'?'bg-emerald-50 text-emerald-700':'bg-slate-100 text-slate-600')}>{row.status}</span><p className="mt-2 text-slate-500">{row.processing_result||'Not submitted'}</p>{row.status==='Uploading'&&<p className="mt-2 text-amber-800">If interrupted, check FTP before resolving. Do not retry.</p>}</td><td className="px-4 py-4 align-top text-slate-600">{row.scheduler_status||'Not requested'}{row.scheduler_run_id&&<p className="mt-1.5 break-all text-slate-400">Execution: {row.scheduler_run_id}</p>}{row.status==='Uploaded'&&!row.scheduler_status&&<div className="mt-3 flex flex-wrap gap-2"><button className={buttonClass+' text-xs'} disabled={!!busy} onClick={()=>{if(window.confirm('Run the existing Northport scheduler on CargoMove?'))void action('scheduler',{id:row.id});}}>Run Scheduler Now</button><button className={secondaryClass+' text-xs'} disabled={!!busy} onClick={()=>setMessage('Process Later selected. The existing production scheduler may process the uploaded file on its normal schedule. Import verification is unavailable.')}>Process Later</button></div>}</td></tr>)}</tbody></table></div>
+    <section className="flex flex-col gap-4 pt-5 pb-4">
+      <SectionHeading title="Recovery History" description="Latest 50 approvals. A scheduler response does not prove import. No container import verification API is configured." action={<button className="inline-flex h-7 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-2 text-[10px] font-medium text-slate-700 shadow-sm hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-50" disabled={!!busy} onClick={()=>void loadHistory()}><RefreshCw aria-hidden="true" className="h-2.5 w-2.5"/>Refresh History</button>}/>
+      <div className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="overflow-x-auto"><table className="w-full min-w-[1100px] table-fixed text-left text-xs"><colgroup>{[13,6,25,12,20,12,12].map((width,index)=><col key={index} style={{width:`${width}%`}}/>)}</colgroup><thead className="border-y border-slate-100 bg-slate-50"><tr>{['Container','Type','Source file','Submitted by','Time','Modification','Status'].map(h=><th scope="col" key={h} className={tableHeadingClass+' whitespace-nowrap '+(['Type','Submitted by','Time','Modification','Status'].includes(h)?'text-center':'')}>{h}</th>)}</tr></thead><tbody>{history.map(row=><tr key={row.id} className="border-b border-slate-100 last:border-0"><td className="px-4 py-2 align-middle"><button type="button" className="font-semibold text-blue-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" onClick={()=>setHistoryDetail(row)}>{row.container}</button></td><td className="px-2 py-2 align-middle text-center text-slate-600">{row.container_type}</td><td className="px-4 py-2 align-middle text-slate-600" title={row.source_filename}><span className="block truncate">{row.source_filename}</span></td><td className="px-2 py-2 align-middle text-center text-slate-600">{row.submitted_by.split('@')[0]}</td><td className="whitespace-nowrap px-2 py-2 align-middle text-center text-slate-600">{new Date(row.created_at).toLocaleString('en-GB',{timeZone:'Asia/Kuala_Lumpur'})} MYT</td><td className="px-2 py-2 align-middle text-center text-slate-600">{row.changed_fields.join(', ')||'None'}</td><td className="px-2 py-2 align-middle text-center"><HistoryStatus recovery={row}/>{row.status==='Uploaded'&&!row.scheduler_status&&<div className="mt-1 flex flex-col items-center gap-0.5"><button className="text-[10px] text-blue-700 hover:underline" disabled={!!busy} onClick={()=>{if(window.confirm('Run the existing Northport scheduler on CargoMove?'))void action('scheduler',{id:row.id});}}>Run scheduler</button><button className="text-[10px] text-slate-500 hover:underline" disabled={!!busy} onClick={()=>setMessage('Process Later selected. The existing production scheduler may process the uploaded file on its normal schedule. Import verification is unavailable.')}>Process later</button></div>}</td></tr>)}</tbody></table></div>
       {!history.length&&!historyError&&<div className="flex flex-col items-center gap-2 py-3 text-center text-xs text-slate-500"><span aria-hidden="true" className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-400"><FileClock className="h-5 w-5"/></span><p>No recovery approvals yet.</p></div>}
+      </div>
     </section>
+    {historyDetail&&<FileEditorDialog label="Recovery details" busy={false} onClose={()=>setHistoryDetail(null)}><div className="mx-auto max-w-2xl"><SectionHeading title="Recovery details" description={`${historyDetail.container} · ${historyDetail.container_type==='GP'?'Import (GP)':'Export (EX)'}`} action={<button type="button" aria-label="Close recovery details" onClick={()=>setHistoryDetail(null)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"><X className="h-5 w-5"/></button>}/><dl className="grid gap-4 sm:grid-cols-2">{[['Source file',historyDetail.source_filename],['Recovery file',historyDetail.recovery_filename||'Filename allocated on upload'],['Submitted by',historyDetail.submitted_by],['Submitted at',`${new Date(historyDetail.created_at).toLocaleString('en-GB',{timeZone:'Asia/Kuala_Lumpur'})} MYT`],['Modification',historyDetail.changed_fields.join(', ')||'None'],['Status',historyStatusLabel(historyDetail)],['Processing',historyDetail.processing_result==='Verification Unavailable'?'':historyDetail.processing_result],['Scheduler',historySchedulerLabel(historyDetail.scheduler_status)],['Scheduler execution ID',historyDetail.scheduler_run_id||'Not available']].map(([label,value])=><div key={label} className="min-w-0 rounded-lg bg-slate-50 p-3"><dt className="text-[11px] font-medium text-slate-500">{label}</dt><dd className="mt-1 break-all text-xs text-slate-800">{value}</dd></div>)}</dl></div></FileEditorDialog>}
   </div>;
 }
