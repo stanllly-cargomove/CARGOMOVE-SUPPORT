@@ -8,6 +8,7 @@ import {
   TableProperties,
   BookOpen,
   Wrench,
+  Container,
   UserRoundPlus,
   ChevronDown,
   Moon,
@@ -349,7 +350,7 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout 
                 title="NP Container"
                 className={`flex w-full items-center gap-2 rounded-lg px-2 py-2 text-[11px] font-medium transition-all ${isSidebarCollapsed ? 'md:justify-center md:px-2' : ''} ${activeTab === 'northport-recovery' ? 'bg-[#0095e8] font-semibold text-white shadow-sm' : 'text-slate-300 hover:bg-white/8 hover:text-white'}`}
               >
-                <Wrench className="h-4 w-4 shrink-0" />
+                <Container className="h-4 w-4 shrink-0" />
                 <span className={`min-w-0 flex-1 truncate text-left ${isSidebarCollapsed ? 'md:hidden' : ''}`}>NP Container</span>
               </button>
             </>

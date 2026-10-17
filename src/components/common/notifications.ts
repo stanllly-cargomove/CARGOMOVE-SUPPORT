@@ -1,4 +1,4 @@
-import { toast } from 'react-hot-toast';
+import { toast, type ToastOptions } from 'react-hot-toast';
 
 const warningStyle = {
   background: '#f59e0b',
@@ -36,23 +36,26 @@ const successStyle = {
   padding: '12px 18px',
 };
 
-export function notifyWarning(message: string) {
+export function notifyWarning(message: string, options: ToastOptions = {}) {
   toast(message, {
     icon: '!',
+    ...options,
     style: warningStyle,
     iconTheme: { primary: '#ffffff', secondary: '#f59e0b' },
   });
 }
 
-export function notifyError(message: string) {
+export function notifyError(message: string, options: ToastOptions = {}) {
   toast.error(message, {
+    ...options,
     style: errorStyle,
     iconTheme: { primary: '#ffffff', secondary: '#dc2626' },
   });
 }
 
-export function notifySuccess(message: string) {
+export function notifySuccess(message: string, options: ToastOptions = {}) {
   toast.success(message, {
+    ...options,
     style: successStyle,
     iconTheme: { primary: '#ffffff', secondary: '#16c968' },
   });

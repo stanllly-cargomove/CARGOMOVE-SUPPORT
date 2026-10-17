@@ -1,9 +1,13 @@
+import { Toaster } from 'react-hot-toast';
+import { notifyError, notifySuccess } from '../common/notifications';
 import React, { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { ArrowLeft, Check, CheckCircle2, ChevronDown, Clock3, Container, Download, FileClock, FileSearch, History, Info, ListFilter, Loader2, MoreVertical, PlugZap, RefreshCw, Search, ShieldCheck, X } from 'lucide-react';
 import { NORTHPORT_COLUMNS, type Match, type Recovery } from '../../types/northport';
 import { reprocessApprovedRecovery, type ReprocessSubmission } from '../../services/northportReprocess';
 
+const notificationOptions = { toasterId: 'northport' };
+const northportToaster = <Toaster toasterId="northport" position="top-center" containerStyle={{top:16}} toastOptions={{duration:6000}}/>;
 const inputClass = 'min-h-11 w-full min-w-0 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-xs text-slate-900 shadow-sm outline-none placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-60';
 const buttonClass = 'inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-[#0095e8] px-5 py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-[#0078c8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50';
 const secondaryClass = 'inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50';
@@ -33,6 +37,7 @@ function FileEditorDialog({ children, busy, onClose }: { children: React.ReactNo
   return <dialog ref={ref} aria-label="Container file editor" onCancel={event=>{event.preventDefault();if(!busy)onClose();}} className="m-auto max-h-[92dvh] w-[96vw] max-w-[1800px] overflow-auto rounded-2xl border border-slate-200 bg-white p-5 text-slate-900 shadow-2xl backdrop:bg-slate-950/50">
     <div className="mb-3 flex justify-end"><button type="button" aria-label="Close file editor" disabled={busy} onClick={onClose} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 disabled:opacity-50"><X aria-hidden="true" className="h-5 w-5"/></button></div>
     {children}
+    {northportToaster}
   </dialog>;
 }
 function recordCsv(values: string[]) {
@@ -45,10 +50,10 @@ function FileZillaIcon() {
 function SectionHeading({ step, title, description, action, icon, green = false }: {
   step?: number; title: string; description: string; action?: React.ReactNode; icon?: React.ReactNode; green?: boolean;
 }) {
-  return <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+  return <div className={`${title === 'Search Container' || title === 'Search Results' ? 'mb-4' : 'mb-1'} flex flex-wrap items-start justify-between gap-1`}>
     <div className="flex min-w-0 items-start gap-3 sm:gap-4">
       <span aria-hidden="true" className={`flex h-10 w-10 shrink-0 items-center justify-center text-base font-semibold ${icon ? 'rounded-xl bg-violet-50 text-violet-600' : `rounded-full text-white ${green ? 'bg-emerald-500' : 'bg-blue-600'}`}`}>{icon || step}</span>
-      <div className="min-w-0 pt-0.5"><h3 className="text-sm font-bold text-slate-900">{title}</h3><p className="mt-1 text-xs leading-5 text-slate-500">{description}</p></div>
+      <div className="min-w-0 pt-0.5"><h3 className="text-sm font-bold text-slate-900">{title}</h3><p className="mt-0 text-xs leading-4 text-slate-500">{description}</p></div>
     </div>
     {action && <div className="ml-auto max-w-full shrink-0">{action}</div>}
   </div>;
@@ -87,15 +92,19 @@ export function NorthportRecovery({ onBack }: { onBack: () => void }) {
   const [showExactFilename,setShowExactFilename] = useState(false);
   const [connectionOptions,setConnectionOptions] = useState(false);
   const [filenameOptions,setFilenameOptions] = useState(false);
+  const [infoOpen,setInfoOpen] = useState(false);
+  const [infoPinned,setInfoPinned] = useState(false);
   const connectionOptionsRef = useRef<HTMLDivElement>(null);
+  const infoRef = useRef<HTMLDivElement>(null);
   const filenameOptionsRef = useRef<HTMLDivElement>(null);
   const reducedMotion = useReducedMotion();
   const [results,setResults] = useState<Match[]>([]);
   const [searchSummary,setSearchSummary] = useState<any>(null);
+  const [displayProgress,setDisplayProgress] = useState(0);
   const [selected,setSelected] = useState<Match | null>(null);
   const [values,setValues] = useState<string[]>([]);
   const [drafts,setDrafts] = useState<Record<string,string[]>>({});
-  const [draftMessage,setDraftMessage] = useState('');
+  const setDraftMessage=(text:string)=>{if(text)notifySuccess(text,notificationOptions);};
   const [recoveryUploaded,setRecoveryUploaded] = useState(false);
   const [reprocessStarted,setReprocessStarted] = useState(false);
   const [review,setReview] = useState(false);
@@ -105,8 +114,8 @@ export function NorthportRecovery({ onBack }: { onBack: () => void }) {
   const [enabled,setEnabled] = useState(false);
   const [gates,setGates] = useState<string[]>([]);
   const [historyError,setHistoryError] = useState('');
-  const [error,setError] = useState('');
-  const [message,setMessage] = useState('');
+  const setError=(text:string)=>{if(text)notifyError(text,notificationOptions);};
+  const setMessage=(text:string)=>{if(text)notifySuccess(text,notificationOptions);};
   const [busy,setBusy] = useState('');
   const pending = useRef(false);
   const searchController = useRef<AbortController|null>(null);
@@ -116,12 +125,13 @@ export function NorthportRecovery({ onBack }: { onBack: () => void }) {
       const data = await recoveryResponse(response);
       if (!response.ok) throw new Error(data.error || 'Unable to load recovery history.');
       setHistory(data.history);setEnabled(data.uploadsEnabled);setGates(data.missingGates);setHistoryError('');
-    } catch(e) { if (!signal?.aborted) setHistoryError((e as Error).message); }
+    } catch(e) { if (!signal?.aborted) {setHistoryError((e as Error).message);if(!historyError)notifyError((e as Error).message,notificationOptions);} }
   }
   useEffect(()=> { const controller = new AbortController();void loadHistory(controller.signal);return ()=>{controller.abort();searchController.current?.abort();}; },[]);
   useEffect(()=>{
     const dismiss=(event:PointerEvent)=>{
       if(!connectionOptionsRef.current?.contains(event.target as Node))setConnectionOptions(false);
+      if(!infoRef.current?.contains(event.target as Node)){setInfoOpen(false);setInfoPinned(false);}
       if(!filenameOptionsRef.current?.contains(event.target as Node))setFilenameOptions(false);
     };
     const escape=(event:KeyboardEvent)=>{
@@ -170,7 +180,7 @@ export function NorthportRecovery({ onBack }: { onBack: () => void }) {
       const response=await fetch('/api/dev-tools/northport-recovery',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CargoMove-Confirm':'northport-recovery'},body:JSON.stringify({action:name,...payload}),signal:controller.signal});
       const data=await recoveryResponse(response);
       if(!response.ok) throw new Error(data.error || data.message || 'Recovery operation failed. Check history before retrying.');
-      if(name==='check') setMessage(`${data.message} Account root: ${data.root}; incoming: ${data.incoming}; processed: ${data.success}; TLS: ${data.secure || 'disabled'}.${data.coverageWarning?' '+data.coverageWarning:''}`);
+      if(name==='check') setMessage(`Northport is connected and ready. Container files can be searched safely.${data.coverageWarning?' '+data.coverageWarning:''}`);
       if(name==='approve') {setApproved({id:data.recovery.id,preview:data.preview});if(typeof data.uploadsEnabled==='boolean'){setEnabled(data.uploadsEnabled);if(data.uploadsEnabled)setGates([]);}setMessage('Approved. Recovery CSV generated for review.');}
       if(name==='upload') {setMessage(data.message);setApproved(null);setSelected(null);}
       if(name==='scheduler') setMessage(`${data.status}: ${data.message} Import verification: ${data.processingResult}. Execution: ${data.executionId || 'see scheduler audit'}.`);
@@ -181,41 +191,42 @@ export function NorthportRecovery({ onBack }: { onBack: () => void }) {
   }
   const changed = selected ? NORTHPORT_COLUMNS.filter((_,i)=>values[i]!==selected.values[i]) : [];
   const showSearchPercentage=busy==='search'||!!searchSummary;
-  const searchPercentage=busy==='search'&&!searchSummary?.progress?2:searchSummary?.progress?.total>0?Math.min(100,Math.max(0,Math.round(searchSummary.progress.checked/searchSummary.progress.total*100))):searchSummary?.complete?100:0;
-  const searchDetails=<div className="mt-1 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs leading-relaxed text-slate-500" aria-live="polite">
+  const checkedPercentage=searchSummary?.progress?.total>0?Math.min(100,Math.max(0,searchSummary.progress.checked/searchSummary.progress.total*100)):0;
+  useEffect(()=>{
+    if(searchSummary?.interrupted)return;
+    if(busy!=='search') {
+      setDisplayProgress(searchSummary?(searchSummary.complete?100:checkedPercentage):0);
+      return;
+    }
+    // Smooth batch updates and simulate activity between responses, reserving 100% for completion.
+    const ceiling=Math.min(99,checkedPercentage+8);
+    const timer=window.setInterval(()=>setDisplayProgress(previous=>previous>=ceiling?previous:Math.min(ceiling,previous+Math.max(0.05,(ceiling-previous)*0.06))),100);
+    return ()=>window.clearInterval(timer);
+  },[busy,checkedPercentage,searchSummary?.complete,searchSummary?.interrupted]);
+  const searchPercentage=Math.floor(displayProgress);
+  const searchDetails=<div className={`mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs leading-relaxed ${results.length?'justify-between text-left':'justify-center text-center'} text-slate-500`} aria-live="polite">
     {form.timestamp&&<p className="text-xs leading-relaxed text-slate-500">Search range: <span className="font-medium text-slate-700">{rangeTime(form.timestamp,-form.before)}</span> to <span className="font-medium text-slate-700">{rangeTime(form.timestamp,form.after)}</span></p>}
-    <p>{searchSummary?.progress?<>{searchSummary.scanning?'Searching':'Checked'} <span className="font-medium text-slate-700">{searchSummary.progress.checked.toLocaleString()} / {searchSummary.progress.total.toLocaleString()}</span> timestamp filenames</>:busy==='search'?'Connecting to FTP and checking the selected time range…':searchSummary?`${searchSummary.listed} entries listed · ${searchSummary.candidates} candidate files`:null}</p>
+    {searchSummary?.progress&&!searchSummary.complete&&<p>{searchSummary.scanning?'Searching':'Checked'} <span className="font-medium text-slate-700">{searchSummary.progress.checked.toLocaleString()} / {searchSummary.progress.total.toLocaleString()}</span> timestamp filenames</p>}
   </div>;
   const identityChanged=changed.some(c=>['UNIT','GPNO','EXPNO','BLNO'].includes(c));
   const approvePayload={token:selected?.token,values,approved:true,identityConfirmed};
   const choose=(match:Match)=>{setReprocessStarted(false);setRecoveryUploaded(false);setSelected(match);setValues([...(drafts[match.filename+':'+match.record]??match.values)]);setDraftMessage('');setError('');setMessage('');setReview(false);setApproved(null);setIdentityConfirmed(false);};
   return <div className="w-full min-w-0 space-y-5 text-slate-900">
+    {!selected&&northportToaster}
     <div className="flex flex-wrap items-center justify-between gap-4 py-1">
-      <div className="min-w-0"><h2 className="text-xl font-bold tracking-tight text-slate-900">Northport Container Recovery</h2><p className="mt-1 max-w-3xl text-xs text-slate-500">Search and recover containers from Northport FTP files using EIR times.</p></div>
+      <div className="min-w-0"><div className="flex items-center gap-2"><h2 className="text-xl font-bold tracking-tight text-slate-900">Northport Container Recovery</h2><div ref={infoRef} className="relative" onMouseEnter={()=>setInfoOpen(true)} onMouseLeave={()=>{if(!infoPinned)setInfoOpen(false)}}><button type="button" aria-label="How it works" title="How it works" aria-expanded={infoOpen} onClick={()=>{setInfoPinned(value=>!value);setInfoOpen(true)}} className="flex h-6 w-6 items-center justify-center rounded-full border border-blue-200 bg-blue-50 text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"><Info aria-hidden="true" className="h-3.5 w-3.5"/></button>{infoOpen&&<div className="absolute left-8 top-0 z-30 w-[min(88vw,26rem)] rounded-xl border border-slate-200 bg-white p-5 text-xs shadow-xl" onMouseEnter={()=>setInfoOpen(true)}><p className="font-semibold text-slate-900">How to recover a container</p><ol className="mt-3 list-decimal space-y-2 pl-4 text-xs leading-relaxed text-slate-600"><li>Enter the container number, EIR time, type, and search window.</li><li>Start the FTP search and select the matching container record.</li><li>Review or edit the CSV fields, then save any changes for this session.</li><li>Review the record and approve it to generate a recovery CSV.</li><li>If enabled, reprocess the approved CSV and run the Northport scheduler.</li></ol><p className="mt-4 text-xs leading-relaxed text-slate-500">The original SUCCESS file is kept unchanged. A scheduler response does not confirm container import.</p>{!enabled&&gates.length>0&&<p className="mt-3 text-xs leading-relaxed text-amber-800">Pending verification: {gates.map(g=>g.toLowerCase().replaceAll('_',' ')).join(', ')}.</p>}</div>}</div></div><p className="mt-1 max-w-3xl text-xs text-slate-500">Search and recover containers from Northport FTP files using EIR times.</p></div>
       <div className="relative ml-auto flex shrink-0 items-center gap-3">
       <div ref={connectionOptionsRef}>
         <motion.button type="button" aria-label="Northport FTP connection options" aria-expanded={connectionOptions} aria-controls="northport-connection-options" title="Northport FTP connection options" disabled={!!busy} onClick={()=>setConnectionOptions(value=>!value)} whileHover={reducedMotion?undefined:{y:-2,rotate:[0,-7,7,0],scale:1.08}} whileTap={reducedMotion?undefined:{scale:0.94}} transition={{duration:0.35}} className="relative inline-flex h-12 w-12 items-center justify-center rounded-full border border-slate-200 bg-white shadow-sm outline-none transition-shadow hover:shadow-lg focus-visible:ring-2 focus-visible:ring-blue-500 disabled:cursor-wait disabled:opacity-60">{busy==='check'?<Loader2 aria-hidden="true" className="h-7 w-7 animate-spin text-slate-500"/>:<FileZillaIcon/>}<span aria-hidden="true" className="pointer-events-none absolute bottom-0.5 right-0.5 h-3 w-3 rounded-full border-2 border-white bg-emerald-500 shadow-sm"/></motion.button>
-        {connectionOptions&&<div id="northport-connection-options" role="region" aria-label="Northport FTP connection" className="absolute right-0 top-full z-30 mt-2 w-[min(86vw,19rem)] rounded-xl border border-slate-200 bg-white p-4 shadow-xl"><p className="text-xs font-semibold text-slate-900">Northport FTP</p><p className="mt-1 text-xs leading-relaxed text-slate-500">Check the server connection and folder access. No files are changed.</p><button type="button" disabled={!!busy} className={secondaryClass+' mt-3 w-full text-xs'} onClick={()=>{setConnectionOptions(false);void action('check');}}><PlugZap aria-hidden="true" className="h-3.5 w-3.5"/>Check read-only connection</button></div>}
+        {connectionOptions&&<div id="northport-connection-options" role="region" aria-label="Northport FTP connection" className="absolute right-full top-0 z-30 mr-2 w-[min(86vw,19rem)] rounded-xl border border-slate-200 bg-white p-4 shadow-xl"><p className="text-xs font-semibold text-slate-900">Northport FTP</p><p className="mt-1 text-xs leading-relaxed text-slate-500">Check the server connection and folder access. No files are changed.</p><button type="button" disabled={!!busy} className={secondaryClass+' mt-3 w-full text-xs'} onClick={()=>{setConnectionOptions(false);void action('check');}}><PlugZap aria-hidden="true" className="h-3.5 w-3.5"/>Check read-only connection</button></div>}
       </div>
-      <details className="group relative shrink-0">
-        <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-4 py-2 text-xs font-medium text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 [&::-webkit-details-marker]:hidden"><Info aria-hidden="true" className="h-4 w-4"/>How it works?</summary>
-        <div className="absolute right-0 top-12 z-20 w-[min(88vw,26rem)] rounded-xl border border-slate-200 bg-white p-5 text-xs shadow-xl">
-          <p className="font-semibold text-slate-900">Your recovery workflow</p>
-          <ol className="mt-3 list-decimal space-y-2 pl-4 text-xs leading-relaxed text-slate-600"><li>Search by container number and Malaysia timestamp.</li><li>Select a matching record and review all 20 CSV fields.</li><li>Approve the record and inspect the generated CSV.</li><li>When uploads are enabled, upload the recovery and run the existing Northport scheduler.</li></ol>
-          <p className="mt-4 text-xs leading-relaxed text-slate-500">Original SUCCESS files stay unchanged. A scheduler response does not confirm container import.</p>
-          {!enabled&&gates.length>0&&<p className="mt-3 text-xs leading-relaxed text-amber-800">Pending verification: {gates.map(g=>g.toLowerCase().replaceAll('_',' ')).join(', ')}.</p>}
-          <button className="mt-4 inline-flex items-center gap-1.5 text-xs font-medium text-blue-700" onClick={onBack}><ArrowLeft aria-hidden="true" className="h-3.5 w-3.5"/>Back to Overview</button>
-        </div>
-      </details>
       </div>
     </div>
 
-    {error&&!selected&&<p role="alert" className="rounded-lg border border-red-100 bg-red-50 p-3 text-xs text-red-700">{error}</p>}
-    {message&&!selected&&<p role="status" className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-xs text-blue-700">{message}</p>}
 
     <section className={cardClass}>
       <SectionHeading step={1} title="Search Container" description="Enter container details and a time range to search in FTP files."/>
-      <form onSubmit={e=>{e.preventDefault();if(pending.current)return;setFilenameOptions(false);setConnectionOptions(false);setResults([]);setSearchSummary(null);setSelected(null);setApproved(null);void action('search',{...form,sourceFilename:showExactFilename?form.sourceFilename:''});}} className="space-y-3">
+      <form onSubmit={e=>{e.preventDefault();if(pending.current)return;setFilenameOptions(false);setConnectionOptions(false);setResults([]);setSearchSummary(null);setDisplayProgress(0);setSelected(null);setApproved(null);void action('search',{...form,sourceFilename:showExactFilename?form.sourceFilename:''});}} className="space-y-3">
         <div className="northport-search-fields">
           <div className="min-w-0">
             <label htmlFor="northport-container" className="mb-2 block text-xs font-medium text-slate-700">Container No.</label>
@@ -242,7 +253,7 @@ export function NorthportRecovery({ onBack }: { onBack: () => void }) {
           </div></div>
           <div className="northport-search-actions flex items-center gap-2">
             <button disabled={!!busy} className={buttonClass+' min-h-11 whitespace-nowrap'} type="submit">{busy==='search'?<Loader2 aria-hidden="true" className="h-4 w-4 animate-spin"/>:<Search aria-hidden="true" className="h-4 w-4"/>}Search FTP</button>
-            {busy==='search'?<button type="button" aria-label="Cancel Search" title="Cancel Search" className="inline-flex h-11 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" onClick={()=>searchController.current?.abort()}><X aria-hidden="true" className="h-4 w-4"/></button>:<button type="button" aria-label="Clear" title="Clear search" className="inline-flex h-11 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-50" disabled={!!busy} onClick={()=>{if(pending.current)return;setForm({unit:'',timestamp:'',type:'GP',before:5,after:30,sourceFilename:''});setShowExactFilename(false);setFilenameOptions(false);setResults([]);setSearchSummary(null);setSelected(null);setApproved(null);setError('');setMessage('');}}><RefreshCw aria-hidden="true" className="h-4 w-4"/></button>}
+            {busy==='search'?<button type="button" aria-label="Cancel Search" title="Cancel Search" className="inline-flex h-11 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" onClick={()=>searchController.current?.abort()}><X aria-hidden="true" className="h-4 w-4"/></button>:<button type="button" aria-label="Clear" title="Clear search" className="inline-flex h-11 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-50" disabled={!!busy} onClick={()=>{if(pending.current)return;setForm({unit:'',timestamp:'',type:'GP',before:5,after:30,sourceFilename:''});setShowExactFilename(false);setFilenameOptions(false);setResults([]);setSearchSummary(null);setDisplayProgress(0);setSelected(null);setApproved(null);setError('');setMessage('');}}><RefreshCw aria-hidden="true" className="h-4 w-4"/></button>}
           </div>
         </div>
       </form>
@@ -256,7 +267,7 @@ export function NorthportRecovery({ onBack }: { onBack: () => void }) {
         <div className="flex items-center">
           <motion.div layout={!reducedMotion} transition={{duration:reducedMotion?0:0.3,ease:'easeOut'}} className="min-w-0 flex-1">
             <div className="relative overflow-hidden rounded-full">
-              {showSearchPercentage?<progress className="block h-3 w-full appearance-none overflow-hidden rounded-full bg-slate-100 [&::-webkit-progress-bar]:bg-slate-100 [&::-webkit-progress-value]:rounded-full [&::-webkit-progress-value]:bg-emerald-500 [&::-webkit-progress-value]:transition-[width] [&::-webkit-progress-value]:duration-300 [&::-moz-progress-bar]:bg-emerald-500" aria-label="Filename scan progress" max={searchSummary?.progress?.total||100} value={searchSummary?.progress?.total?searchSummary.progress.checked:searchPercentage}/>:<div aria-hidden="true" className="h-3 bg-slate-100"/>}
+              {showSearchPercentage?<div role="progressbar" aria-label="Filename scan progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={searchPercentage} aria-valuetext={`${searchPercentage}%${busy==='search'?' (estimated)':''}`} className="h-3 bg-slate-100"><motion.div initial={false} animate={{width:`${displayProgress}%`,backgroundColor:searchSummary?.interrupted?'#ef4444':searchSummary?.complete&&!results.length?'#f59e0b':'#10b981'}} transition={{duration:reducedMotion?0:0.45,ease:'easeOut'}} className="h-full rounded-full"/></div>:<div aria-hidden="true" className="h-3 bg-slate-100"/>}
               {busy==='search'&&!reducedMotion&&<motion.span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 w-1/3 rounded-full bg-gradient-to-r from-transparent via-emerald-300/50 to-transparent" initial={{left:'-35%'}} animate={{left:'100%'}} transition={{duration:1.3,repeat:Infinity,ease:'linear'}}/>}
             </div>
           </motion.div>
@@ -267,25 +278,22 @@ export function NorthportRecovery({ onBack }: { onBack: () => void }) {
           </AnimatePresence>
         </div>
       </div>
-      {searchSummary?.interrupted&&<p role="alert" className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">Search stopped before completion. Results shown are incomplete; start a new search to check the entire range.</p>}
       {searchSummary?.scope==='file'&&<p className="mb-3 text-xs leading-relaxed text-blue-700">Searched only {searchSummary.sourceFilename}. Other files in the time window were not searched.</p>}
       {searchSummary?.coverageWarning&&<p role="alert" className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">Search incomplete: {searchSummary.coverageWarning}</p>}
       {searchSummary?.errors?.map((e:any)=><p role="alert" key={e.filename} className="mb-2 text-xs text-red-700">{e.filename}: {e.message} Recovery from this file is blocked. Search results are incomplete.</p>)}
       {!results.length?<div className="flex flex-col items-center rounded-lg border border-dashed border-slate-200 bg-slate-50/50 px-4 py-4 text-center">
         <FileSearch aria-hidden="true" className={'mb-2.5 h-9 w-9 '+(searchSummary?.interrupted?'text-red-500':'text-slate-400')}/>
-        <p className="text-xs font-medium text-slate-700">{searchSummary?.interrupted?'Search stopped':!searchSummary||busy==='search'?'No results yet':searchSummary.complete?'No matching records':'Search incomplete'}</p>
-        <p className="mt-2 max-w-3xl text-xs leading-relaxed text-slate-500">{!searchSummary?(busy==='search'?'The search is still running. Every discovered CSV is scanned; no matching record has been found yet.':'Enter a container number and EIR time above, then select Search FTP.'):searchSummary.scanning?'The search is still running. Every discovered CSV is scanned; no matching record has been found yet.':searchSummary.interrupted?'No matches were found in the completed batches. The rest of the time range was not checked.':searchSummary.coverageWarning?'No matching record was returned by this incomplete search. The container may exist in files omitted by the server.':searchSummary.complete?(searchSummary.scope==='file'?'No matching container record was found in the selected source file.':'No matching container record was found within the selected timestamp range.'):'No matches in valid files; malformed candidate files could not be searched.'} {searchSummary&&!searchSummary.scanning&&!searchSummary.interrupted&&<>{searchSummary.candidates===0&&' No candidate files were found in the checked scope.'} {searchSummary.scope==='file'?'Check the source filename or clear it to discover other files.':'Increase the search window or switch the GP/EX filter, then search again.'}</>}</p>
+        <p className="text-xs font-medium text-slate-700">{searchSummary?.interrupted?'Search stopped before completion':busy==='search'?'Connecting to FTP and checking the selected time range…':!searchSummary?'No results yet':searchSummary.complete?'No matching records found':'Search incomplete'}</p>
+        <p className="mt-2 max-w-3xl text-xs leading-relaxed text-slate-500">{!searchSummary?(busy==='search'?'The search is still running. Every discovered CSV is scanned; no matching record has been found yet.':'Enter a container number and EIR time above, then select Search FTP.'):searchSummary.scanning?'The search is still running. Every discovered CSV is scanned; no matching record has been found yet.':searchSummary.interrupted?'Results shown are incomplete; start a new search to check the entire range.':searchSummary.coverageWarning?'No matching record was returned by this incomplete search. The container may exist in files omitted by the server.':searchSummary.complete?(searchSummary.scope==='file'?'No matching container record was found in the selected source file.':'Increase the search window or switch the GP/EX filter, then search again.'):'No matches in valid files; malformed candidate files could not be searched.'} {searchSummary&&!searchSummary.scanning&&!searchSummary.interrupted&&<> {searchSummary.scope==='file'?'Check the source filename or clear it to discover other files.':''}</>}</p>
         {searchDetails}
       </div>:<>
-        <div className="mb-3">{searchSummary?.interrupted&&<p className="flex items-center gap-2 text-xs font-medium text-red-600"><FileSearch aria-hidden="true" className="h-4 w-4"/>Search stopped</p>}{searchDetails}</div>
+        <div className="mb-3">{searchSummary?.interrupted&&<p className="flex items-center gap-2 text-xs font-medium text-red-600"><FileSearch aria-hidden="true" className="h-4 w-4"/>Search stopped before completion</p>}{searchDetails}</div>
         <div className="overflow-x-auto rounded-lg border border-slate-100"><table className="w-full min-w-[900px] text-left text-xs"><thead className="border-b border-slate-300 bg-slate-200 text-slate-800"><tr>{['Container No.','Type','Source Filename','File Timestamp','Record No.','Match Status','Actions'].map(h=><th scope="col" className={tableHeadingClass} key={h}>{h}</th>)}</tr></thead><tbody>{results.map((m,i)=><tr key={m.filename+':'+m.record} className={'border-b border-slate-100 last:border-0 '+(selected?.filename===m.filename&&selected.record===m.record?'bg-blue-50':'hover:bg-slate-50')}><td className="px-4 py-4 font-semibold text-slate-900">{m.values[0]}</td><td className="whitespace-nowrap px-4 py-4"><span className="rounded-md bg-slate-100 px-2 py-1 font-medium text-slate-600">{m.type==='GP'?'Import (GP)':'Export (EX)'}</span></td><td className="px-4 py-4 text-slate-600">{m.filename}</td><td className="whitespace-nowrap px-4 py-4 text-slate-600">{displayTime(m.timestamp)}</td><td className="px-4 py-4 text-center">{m.record}</td><td className="whitespace-nowrap px-4 py-4 text-emerald-700"><span className="inline-flex items-center gap-1"><CheckCircle2 aria-hidden="true" className="h-3.5 w-3.5"/>MATCH</span></td><td className="px-4 py-3"><RecordActions disabled={!!busy} onChoose={action=>{choose(results[i]);if(action==='reprocess')setReview(true);}}/></td></tr>)}</tbody></table></div>
       </>}
     </section>
 
     {selected&&<FileEditorDialog busy={!!busy} onClose={()=>setSelected(null)}>
       <SectionHeading title={`${review?'Review & Approval':'View/Edit File'} — ${selected.values[0]}`} description={`${selected.type} · ${selected.filename} · ${displayTime(selected.timestamp)} · Record ${selected.record}`} action={<button disabled={!!busy||!!approved} className={secondaryClass} onClick={()=>{setValues([...selected.values]);setDraftMessage('');setReview(false);setIdentityConfirmed(false);}}><RefreshCw aria-hidden="true" className="h-3.5 w-3.5"/>Reset Changes</button>}/>
-      {error&&<p role="alert" className="mb-3 rounded-lg bg-red-50 p-3 text-xs text-red-700">{error}</p>}
-      {(draftMessage||message)&&<p role="status" className="mb-3 rounded-lg bg-blue-50 p-3 text-xs text-blue-700">{draftMessage||message}</p>}
       {busy&&<p role="status" className="mb-3 flex items-center gap-2 text-xs text-blue-700"><Loader2 aria-hidden="true" className="h-4 w-4 animate-spin"/>Processing recovery, please wait...</p>}
       {!review?<>
         <div className="overflow-x-auto pb-2"><div className="grid min-w-[1400px] grid-cols-10 gap-2">{NORTHPORT_COLUMNS.map((column,i)=><label key={column} className={'min-w-0 rounded-lg border p-3 text-xs '+(values[i]!==selected.values[i]?'border-amber-300 bg-amber-50':'border-slate-100 bg-slate-50/50')}><span className="font-semibold text-slate-600">{column}</span>{values[i]!==selected.values[i]&&<span className="float-right text-[10px] font-medium text-amber-800">Modified</span>}<input aria-label={column} disabled={!!busy} maxLength={1000} className={inputClass+' mt-2'} value={values[i]} onChange={e=>{setDraftMessage('');setValues(v=>v.map((x,n)=>n===i?(i===0?e.target.value.trim().toUpperCase():e.target.value):x));}}/>{values[i]!==selected.values[i]&&<span className="mt-2 block break-all text-amber-800">Original: {selected.values[i]||'(blank)'}</span>}</label>)}</div></div>
@@ -304,7 +312,6 @@ export function NorthportRecovery({ onBack }: { onBack: () => void }) {
 
     <section className={cardClass}>
       <SectionHeading title="Recovery History" description="Latest 50 approvals. A scheduler response does not prove import. No container import verification API is configured." icon={<History className="h-5 w-5"/>} action={<button className={secondaryClass+' text-xs'} disabled={!!busy} onClick={()=>void loadHistory()}><RefreshCw aria-hidden="true" className="h-3.5 w-3.5"/>Refresh History</button>}/>
-      {historyError&&<p role="alert" className="mb-3 rounded-lg bg-red-50 p-3 text-xs text-red-700">{historyError}</p>}
       <div className="overflow-x-auto"><table className="w-full min-w-[780px] text-left text-xs"><thead className="border-y border-slate-100 bg-slate-50"><tr>{['Container / Type','Source → Recovery','Submitted By / Time','Changed Fields','Status / Processing','Scheduler / Actions'].map(h=><th scope="col" key={h} className={tableHeadingClass}>{h}</th>)}</tr></thead><tbody>{history.map(row=><tr key={row.id} className="border-b border-slate-100 last:border-0"><td className="px-4 py-4 align-top"><p className="font-semibold text-slate-900">{row.container}</p><span className="mt-1.5 inline-block rounded-md bg-slate-100 px-2 py-1 text-[10px] font-medium text-slate-600">{row.container_type==='GP'?'Import (GP)':'Export (EX)'}</span></td><td className="max-w-64 break-words px-4 py-4 align-top text-slate-600"><p>{row.source_filename}</p><p className="mt-1.5 text-slate-400">→ {row.recovery_filename||'Filename allocated on upload'}</p></td><td className="px-4 py-4 align-top text-slate-600"><p className="break-all">{row.submitted_by}</p><p className="mt-1.5 text-slate-400">{new Date(row.created_at).toLocaleString('en-GB',{timeZone:'Asia/Kuala_Lumpur'})} MYT</p></td><td className="px-4 py-4 align-top text-slate-600">{row.changed_fields.join(', ')||'None'}</td><td className="px-4 py-4 align-top"><span className={'inline-flex rounded-full px-2.5 py-1 text-[11px] font-medium '+(row.status==='Failed'?'bg-red-50 text-red-700':row.status==='Approved'?'bg-blue-50 text-blue-700':row.status==='Uploading'?'bg-amber-50 text-amber-800':row.status==='Import Verified'?'bg-emerald-50 text-emerald-700':'bg-slate-100 text-slate-600')}>{row.status}</span><p className="mt-2 text-slate-500">{row.processing_result||'Not submitted'}</p>{row.status==='Uploading'&&<p className="mt-2 text-amber-800">If interrupted, check FTP before resolving. Do not retry.</p>}</td><td className="px-4 py-4 align-top text-slate-600">{row.scheduler_status||'Not requested'}{row.scheduler_run_id&&<p className="mt-1.5 break-all text-slate-400">Execution: {row.scheduler_run_id}</p>}{row.status==='Uploaded'&&!row.scheduler_status&&<div className="mt-3 flex flex-wrap gap-2"><button className={buttonClass+' text-xs'} disabled={!!busy} onClick={()=>{if(window.confirm('Run the existing Northport scheduler on CargoMove?'))void action('scheduler',{id:row.id});}}>Run Scheduler Now</button><button className={secondaryClass+' text-xs'} disabled={!!busy} onClick={()=>setMessage('Process Later selected. The existing production scheduler may process the uploaded file on its normal schedule. Import verification is unavailable.')}>Process Later</button></div>}</td></tr>)}</tbody></table></div>
       {!history.length&&!historyError&&<div className="flex flex-col items-center gap-2 py-3 text-center text-xs text-slate-500"><span aria-hidden="true" className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-400"><FileClock className="h-5 w-5"/></span><p>No recovery approvals yet.</p></div>}
     </section>
