@@ -15,7 +15,7 @@ try {
   page.setDefaultTimeout(10000);
   const pageErrors: string[] = [];
   page.on('pageerror', error => pageErrors.push(error.message));
-  const values = Array(20).fill(''); values[0] = 'FTAU1735746';
+  const values = Array(20).fill(''); values[0] = 'FTAU1735746'; values[3] = 'SNKU010210006677'; values[16] = '2026-10-17 19:54';
   let finishSearch: (() => void) | undefined;
   const history = [{ id: 'recovery-1', container: values[0], container_type: 'GP', source_filename: 'CM_CONTAINER_20261017162920_GP.csv', recovery_filename: 'CM_CONTAINER_20261017163934_GP.csv', submitted_by: 'support@example.test', created_at: '2026-10-17T08:39:11Z', changed_fields: [], status: 'Scheduler Triggered', scheduler_status: 'trigger_requested' }];
   await page.route('**/*', async route => {
@@ -113,7 +113,13 @@ try {
       const actions = await dialog.locator('.northport-dialog-actions > button').all();
       const positions = await Promise.all(actions.map(action => action.boundingBox()));
       assert.ok(positions.every(position => position && Math.abs(position.y-positions[0]!.y)<2), 'Editor actions must stay on one row');
+      assert.equal(await dialog.getByRole('button', { name: 'Reset Changes', exact: true }).isDisabled(), true);
+      await dialog.getByLabel('SRV', { exact: true }).fill('I');
+      assert.equal(await dialog.getByRole('button', { name: 'Reset Changes', exact: true }).isEnabled(), true);
       await dialog.getByRole('button', { name: 'Review Record', exact: true }).click();
+      await dialog.getByRole('button', { name: 'Reset Changes', exact: true }).click();
+      assert.equal(await dialog.getByRole('button', { name: 'Reset Changes', exact: true }).isDisabled(), true);
+      await dialog.getByRole('heading', { name: `Review & Approval — ${values[0]}`, exact: true }).waitFor();
       const reviewActions = await dialog.locator('.northport-dialog-actions > button').all();
       const reviewPositions = await Promise.all(reviewActions.map(action => action.boundingBox()));
       assert.ok(reviewPositions.length===2 && reviewPositions.every(position => position && Math.abs(position.y-reviewPositions[0]!.y)<2), 'Review actions must stay on one row');
@@ -121,6 +127,18 @@ try {
       await page.getByRole('button', { name: 'Close file editor', exact: true }).click();
     } else {
       await page.getByRole('button', { name: 'Record actions', exact: true }).waitFor();
+      await page.getByRole('button', { name: 'Record actions', exact: true }).click();
+      await page.getByRole('button', { name: 'View/Edit File', exact: true }).click();
+      const dialog = page.getByRole('dialog', { name: 'Container file editor', exact: true });
+      await dialog.getByRole('button', { name: 'Review Record', exact: true }).click();
+      const fields = dialog.locator('.northport-parameter-grid > div');
+      const columnCount = width>=1280?10:width>=1024?5:2;
+      const top = await fields.nth(0).boundingBox();
+      const bottom = await fields.nth(columnCount).boundingBox();
+      assert.ok(top && bottom && Math.abs(top.width-bottom.width)<1 && Math.abs(top.x-bottom.x)<1, 'Field columns must align between rows');
+      const valueBoxes = await fields.locator('p:nth-child(2)').all();
+      for (const value of valueBoxes) assert.ok((await value.boundingBox())!.height<=36, 'Review values must stay on a single row');
+      await page.getByRole('button', { name: 'Close file editor', exact: true }).click();
     }
     await checkOverflow();
     if (width === 390) await page.screenshot({ path: join(tmpdir(), 'northport-mobile.png'), fullPage: true });
