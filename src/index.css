@@ -28,7 +28,7 @@
 
 .northport-search-actions > button[type="submit"] { padding-inline: 14px; }
 
-@media (min-width: 1024px) {
+@media (min-width: 768px) {
   .northport-parameter-grid { grid-template-columns: var(--parameter-columns-5); }
 }
 @media (min-width: 1280px) {
@@ -46,6 +46,25 @@
 .northport-history-table th:last-child,
 .northport-history-table td:last-child { width: 1%; white-space: nowrap; }
 .northport-history-table td:nth-child(3) { width: auto; }
+.northport-results-table { width: 100%; table-layout: auto; }
+.northport-results-table th,
+.northport-results-table td { padding: 8px; vertical-align: middle; white-space: normal; overflow-wrap: anywhere; }
+.northport-results-table th { font-size: 10px; letter-spacing: 0; white-space: nowrap; overflow-wrap: normal; word-break: normal; hyphens: none; }
+.northport-results-table th:nth-child(n+5),
+.northport-results-table td:nth-child(n+5) { text-align: center; }
+.northport-results-table td:first-child,
+.northport-results-table td:nth-child(2),
+.northport-results-table td:nth-child(5),
+.northport-results-table td:nth-child(6),
+.northport-results-table td:last-child { width: 1%; white-space: nowrap; }
+.northport-results-container { container: northport-results / inline-size; }
+@container northport-results (max-width: 900px) {
+  .northport-results-table th { white-space: normal; }
+}
+@container northport-results (max-width: 639px) {
+  .northport-results-cards { display: block; }
+  .northport-results-table-wrap { display: none; }
+}
 .northport-history-container { container: northport-history / inline-size; }
 @container northport-history (max-width: 639px) {
   .northport-history-cards { display: block; }

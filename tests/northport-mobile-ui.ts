@@ -86,6 +86,8 @@ try {
     await page.getByLabel('EIR time (Malaysia)', { exact: true }).fill('2026-10-17T16:30');
     await page.getByRole('button', { name: 'Search FTP', exact: true }).click();
     while (!finishSearch) await new Promise(resolve => setTimeout(resolve, 5));
+    const rangeBefore = await page.locator('.northport-search-details').evaluate(element=>Array.from(element.closest('section')!.children).indexOf(element.parentElement!));
+    assert.equal(await page.locator('.border-dashed .northport-search-details').count(), 0, 'Range and progress must sit outside the empty-state panel');
     if (width < 640) {
       await page.getByText('Connecting to FTP', { exact: true }).waitFor();
       assert.equal(await page.getByText('The search is still running.', { exact: false }).isVisible(), false, 'Verbose scanning explanation must be hidden on mobile');
@@ -127,12 +129,28 @@ try {
       await page.getByRole('button', { name: 'Close file editor', exact: true }).click();
     } else {
       await page.getByRole('button', { name: 'Record actions', exact: true }).waitFor();
+      const checkResultsFit = async () => {
+        assert.equal(await page.locator('.northport-results-container').evaluate(card => card.scrollWidth<=card.clientWidth), true, 'Results must fit without horizontal scrolling');
+        if (await page.locator('.northport-results-table').isVisible()) {
+          assert.equal(await page.locator('.northport-results-table td').evaluateAll(cells => cells.every(cell=>cell.scrollWidth<=cell.clientWidth)), true, 'Result cells and Actions must not be clipped');
+          assert.equal(await page.locator('.northport-results-table th').evaluateAll(headers => headers.every(header=>{
+            const style=getComputedStyle(header);
+            const contentHeight=header.getBoundingClientRect().height-parseFloat(style.paddingTop)-parseFloat(style.paddingBottom);
+            const maxLines=header.closest('table')!.clientWidth>900?1:2;
+            return contentHeight<=parseFloat(style.lineHeight)*maxLines+2 && style.verticalAlign==='middle' && header.scrollWidth<=header.clientWidth;
+          })), true, 'Result headers must fit within two lines without splitting words or clipping');
+        }
+      };
+      await checkResultsFit();
+      await page.locator('main').evaluate(main => { main.style.paddingLeft='240px'; });
+      await checkResultsFit();
+      await page.locator('main').evaluate(main => { main.style.paddingLeft='16px'; });
       await page.getByRole('button', { name: 'Record actions', exact: true }).click();
       await page.getByRole('button', { name: 'View/Edit File', exact: true }).click();
       const dialog = page.getByRole('dialog', { name: 'Container file editor', exact: true });
       await dialog.getByRole('button', { name: 'Review Record', exact: true }).click();
       const fields = dialog.locator('.northport-parameter-grid > div');
-      const columnCount = width>=1280?10:width>=1024?5:2;
+      const columnCount = width>=1280?10:width>=768?5:2;
       const top = await fields.nth(0).boundingBox();
       const bottom = await fields.nth(columnCount).boundingBox();
       assert.ok(top && bottom && Math.abs(top.width-bottom.width)<1 && Math.abs(top.x-bottom.x)<1, 'Field columns must align between rows');
@@ -141,6 +159,9 @@ try {
       await page.getByRole('button', { name: 'Close file editor', exact: true }).click();
     }
     await checkOverflow();
+    const rangeAfter = await page.locator('.northport-search-details').evaluate(element=>Array.from(element.closest('section')!.children).indexOf(element.parentElement!));
+    assert.equal(rangeBefore, 2, 'Search range must follow the progress bar');
+    assert.equal(rangeAfter, rangeBefore, 'Search range must stay in the same location before and after matches arrive');
     if (width === 390) await page.screenshot({ path: join(tmpdir(), 'northport-mobile.png'), fullPage: true });
   }
   assert.deepEqual(pageErrors, []);
