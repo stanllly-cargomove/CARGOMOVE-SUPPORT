@@ -124,9 +124,9 @@ try {
       await dialog.getByRole('heading', { name: `Review & Approval — ${values[0]}`, exact: true }).waitFor();
       const reviewActions = await dialog.locator('.northport-dialog-actions > button').all();
       const reviewPositions = await Promise.all(reviewActions.map(action => action.boundingBox()));
-      assert.ok(reviewPositions.length===2 && reviewPositions.every(position => position && Math.abs(position.y-reviewPositions[0]!.y)<2), 'Review actions must stay on one row');
+      assert.ok(reviewPositions.length===3 && reviewPositions.every(position => position && Math.abs(position.y-reviewPositions[0]!.y)<2), 'Review actions must stay on one row');
       assert.equal(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth), true, 'Review must not scroll horizontally');
-      await page.getByRole('button', { name: 'Close file editor', exact: true }).click();
+      await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
     } else {
       await page.getByRole('button', { name: 'Record actions', exact: true }).waitFor();
       const checkResultsFit = async () => {
@@ -156,7 +156,7 @@ try {
       assert.ok(top && bottom && Math.abs(top.width-bottom.width)<1 && Math.abs(top.x-bottom.x)<1, 'Field columns must align between rows');
       const valueBoxes = await fields.locator('p:nth-child(2)').all();
       for (const value of valueBoxes) assert.ok((await value.boundingBox())!.height<=36, 'Review values must stay on a single row');
-      await page.getByRole('button', { name: 'Close file editor', exact: true }).click();
+      await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
     }
     await checkOverflow();
     const rangeAfter = await page.locator('.northport-search-details').evaluate(element=>Array.from(element.closest('section')!.children).indexOf(element.parentElement!));
