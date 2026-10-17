@@ -101,14 +101,13 @@ try {
       await page.getByRole('button', { name: 'View / Edit', exact: true }).click();
       const dialog = page.getByRole('dialog', { name: 'Container file editor', exact: true });
       await dialog.waitFor();
+      const editorBounds = await dialog.boundingBox();
       assert.equal(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth), true, 'Editor must not scroll horizontally');
       const unit = await dialog.getByLabel('UNIT', { exact: true }).boundingBox();
       const gpno = await dialog.getByLabel('GPNO', { exact: true }).boundingBox();
       assert.ok(unit && gpno && Math.abs(unit.y-gpno.y)<2 && unit.x+unit.width<gpno.x, 'Data fields must use two columns on mobile');
       assert.ok(unit && unit.height<=36, 'Parameter inputs must use a compact height');
-      const heading = await dialog.getByRole('heading').boundingBox();
-      const close = await dialog.getByRole('button', { name: 'Close file editor', exact: true }).boundingBox();
-      assert.ok(heading && close && Math.abs(heading.y-close.y)<10, 'Close button must align with the heading');
+      assert.equal(await dialog.getByRole('button', { name: 'Close file editor', exact: true }).count(), 0, 'Editor must use the footer Cancel instead of an X');
       const headerText = await dialog.locator('p').first().innerText();
       assert.equal(headerText.includes('MYT'), false, 'Header must omit the timestamp');
       assert.equal(headerText.includes('Record'), false, 'Header must omit the record number');
@@ -118,10 +117,12 @@ try {
       assert.equal(await dialog.getByRole('button', { name: 'Reset Changes', exact: true }).isDisabled(), true);
       await dialog.getByLabel('SRV', { exact: true }).fill('I');
       assert.equal(await dialog.getByRole('button', { name: 'Reset Changes', exact: true }).isEnabled(), true);
-      await dialog.getByRole('button', { name: 'Review Record', exact: true }).click();
+      await dialog.getByRole('button', { name: width<640?'Review':'Review Record', exact: true }).click();
       await dialog.getByRole('button', { name: 'Reset Changes', exact: true }).click();
       assert.equal(await dialog.getByRole('button', { name: 'Reset Changes', exact: true }).isDisabled(), true);
       await dialog.getByRole('heading', { name: `Review & Approval — ${values[0]}`, exact: true }).waitFor();
+      const reviewBounds = await dialog.boundingBox();
+      assert.ok(editorBounds && reviewBounds && Math.abs(editorBounds.width-reviewBounds.width)<1 && Math.abs(editorBounds.height-reviewBounds.height)<1 && Math.abs(editorBounds.y-reviewBounds.y)<1 && editorBounds.height<=830, 'Editor and review must keep the same compact size and position');
       const reviewActions = await dialog.locator('.northport-dialog-actions > button').all();
       const reviewPositions = await Promise.all(reviewActions.map(action => action.boundingBox()));
       assert.ok(reviewPositions.length===3 && reviewPositions.every(position => position && Math.abs(position.y-reviewPositions[0]!.y)<2), 'Review actions must stay on one row');
@@ -148,6 +149,9 @@ try {
       await page.getByRole('button', { name: 'Record actions', exact: true }).click();
       await page.getByRole('button', { name: 'View/Edit File', exact: true }).click();
       const dialog = page.getByRole('dialog', { name: 'Container file editor', exact: true });
+      const editorBox = await dialog.boundingBox();
+      const editorFooter = await dialog.locator('.northport-dialog-footer').boundingBox();
+      assert.ok(editorBox && editorFooter && editorBox.y+editorBox.height-(editorFooter.y+editorFooter.height)<=24, 'Desktop editor must end directly below its footer');
       await dialog.getByRole('button', { name: 'Review Record', exact: true }).click();
       const fields = dialog.locator('.northport-parameter-grid > div');
       const columnCount = width>=1280?10:width>=768?5:2;
@@ -156,6 +160,12 @@ try {
       assert.ok(top && bottom && Math.abs(top.width-bottom.width)<1 && Math.abs(top.x-bottom.x)<1, 'Field columns must align between rows');
       const valueBoxes = await fields.locator('p:nth-child(2)').all();
       for (const value of valueBoxes) assert.ok((await value.boundingBox())!.height<=36, 'Review values must stay on a single row');
+      const gridBounds = await dialog.locator('.northport-parameter-grid').boundingBox();
+      const footerBounds = await dialog.locator('.northport-dialog-footer').boundingBox();
+      assert.ok(gridBounds && footerBounds && footerBounds.y-(gridBounds.y+gridBounds.height)<=84, 'Review footer must follow the shared message slot without a large empty area');
+      const reviewBox = await dialog.boundingBox();
+      assert.ok(editorBox && reviewBox && Math.abs(editorBox.height-reviewBox.height)<1 && Math.abs(editorBox.y-reviewBox.y)<1, 'Desktop editor and review must keep identical size and position');
+      assert.ok(reviewBox && footerBounds && reviewBox.y+reviewBox.height-(footerBounds.y+footerBounds.height)<=24, 'Desktop review must end directly below its footer');
       await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
     }
     await checkOverflow();

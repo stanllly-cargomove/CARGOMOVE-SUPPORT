@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { build } from 'esbuild';
 import { chromium } from 'playwright-core';
 
@@ -43,6 +44,9 @@ try {
     const editor=page.getByRole('dialog',{name:'Container file editor',exact:true});
     assert.equal(await editor.getByRole('button',{name:'Close file editor',exact:true}).count(),0);
     const approve=editor.getByRole('button',{name:width<640?'Approve CSV':'Approve & Generate Recovery CSV',exact:true});
+    await editor.locator('.northport-dialog-footer').scrollIntoViewIfNeeded();
+    const reviewSize=await editor.boundingBox();
+    const cancelBefore=await editor.getByRole('button',{name:'Cancel',exact:true}).boundingBox();
     await approve.click();
     const confirmation=page.getByRole('alertdialog');
     await confirmation.getByRole('button',{name:'Cancel',exact:true}).click();
@@ -50,6 +54,16 @@ try {
     await approve.click();
     await confirmation.getByRole('button',{name:'Approve',exact:true}).click();
     await editor.getByText('Approved · Ready to reprocess',{exact:true}).waitFor();
+    await editor.getByRole('heading',{name:`Reprocess File — ${values[0]}`,exact:true}).waitFor();
+    const approvedSize=await editor.boundingBox();
+    assert.ok(reviewSize&&approvedSize&&Math.abs(reviewSize.height-approvedSize.height)<1&&Math.abs(reviewSize.y-approvedSize.y)<1,'Approval must preserve the review size and position');
+    const cancelAfter=await editor.getByRole('button',{name:'Cancel',exact:true}).boundingBox();
+    assert.ok(cancelBefore&&cancelAfter&&Math.abs(cancelBefore.y-cancelAfter.y)<1&&Math.abs(cancelBefore.x-cancelAfter.x)<1,`Cancel must stay in the same position after approval: ${JSON.stringify({cancelBefore,cancelAfter,scroll:await editor.locator('.northport-dialog-body').evaluate(body=>body.scrollTop)})}`);
+    if(width>=768){
+      const box=await editor.boundingBox(),footer=await editor.locator('.northport-dialog-footer').boundingBox();
+      assert.ok(box&&footer&&box.y+box.height-(footer.y+footer.height)<=24,'Reprocess dialog must end directly below its footer');
+      await page.screenshot({path:join(tmpdir(),'northport-reprocess-compact.png')});
+    }
     assert.equal(await editor.locator('pre').count(),0,'Raw CSV preview must be removed');
     const reprocess=editor.getByRole('button',{name:width<640?'Reprocess':'Reprocess & Run Scheduler',exact:true});
     const color=await reprocess.evaluate(button=>getComputedStyle(button).backgroundColor);

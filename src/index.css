@@ -27,6 +27,21 @@
 .northport-search-fields > .northport-search-actions { flex: 0 0 auto; }
 
 .northport-search-actions > button[type="submit"] { padding-inline: 14px; }
+.northport-file-dialog button,
+.northport-confirm-dialog button { text-transform: uppercase; }
+.northport-dialog-footer > button:first-child { margin-right: auto; }
+.northport-file-dialog[open] { display: flex; flex-direction: column; }
+.northport-standard-dialog { height: fit-content; min-height: 0; }
+.northport-standard-dialog .northport-dialog-body { display: flex; flex: 0 1 auto; flex-direction: column; }
+.northport-dialog-body > * { flex-shrink: 0; }
+.northport-dialog-body > .northport-dialog-footer { margin-top: 16px; }
+.northport-stage-note { height: 64px; }
+.northport-dialog-footer { position: relative; border-top-width: 0; }
+.northport-dialog-footer::before { position: absolute; top: 0; right: -12px; left: -12px; border-top: 1px solid #e2e8f0; content: ''; }
+@media (min-width: 640px) {
+  .northport-stage-note { height: 44px; }
+  .northport-dialog-footer::before { right: -20px; left: -20px; }
+}
 
 @media (min-width: 768px) {
   .northport-parameter-grid { grid-template-columns: var(--parameter-columns-5); }
