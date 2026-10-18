@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
-import { ArrowDown, ArrowRight, ArrowUp, Bell, Building2, Caravan, ChevronRight, Headphones, Mail, MailOpen, MapPin, MessageCircle, Moon, MousePointer2, Phone, Sun, Truck, UserRound } from 'lucide-react';
+import { ArrowDown, ArrowRight, ArrowUp, Bell, Building2, Caravan, ChevronRight, Headphones, Mail, MailOpen, MapPin, MessageCircle, MousePointer2, Phone, Truck, UserRound } from 'lucide-react';
 import cargoMoveLogo from '../../../media/image-removebg-preview.png';
 import portBackground from '../../../media/home-port-background.avif';
+import { PORTAL_VERSION } from '../../constants/versions';
+import { PortalFooterBottom } from './PortalFooterBottom';
+import { PortalHeader } from './PortalHeader';
 import './HomePage.css';
 
 interface HomePageProps {
@@ -62,24 +65,7 @@ export function HomePage({ onRegister, onTrackStatus, onGuideline, onLogin, onCo
   return (
     <div className="cm-home" data-theme={theme}>
       <a className="cm-home-skip" href="#home-content">Skip to content</a>
-      <header className="cm-home-header">
-        <img className="cm-home-logo" src={cargoMoveLogo} alt="CargoMove" width="180" height="58" />
-        <nav className="cm-home-nav" aria-label="Main navigation">
-          <button type="button" onClick={() => runAction('Register', onRegister)}>REGISTER</button>
-          <button type="button" onClick={() => runAction('Track status', onTrackStatus)}>TRACK STATUS</button>
-          <button type="button" onClick={() => runAction('Guideline', onGuideline)}>GUIDELINE</button>
-        </nav>
-        <div className="cm-home-header-actions">
-          <button className="cm-home-theme-toggle" type="button" role="switch" aria-checked={theme === 'dark'} onClick={toggleTheme} aria-label="Dark theme" title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}>
-            <span className="cm-home-theme-track" aria-hidden="true">
-              <Sun className="cm-home-theme-sun" size={13} />
-              <Moon className="cm-home-theme-moon" size={13} />
-              <span className="cm-home-theme-thumb">{theme === 'dark' ? <Moon size={12} /> : <Sun size={13} />}</span>
-            </span>
-          </button>
-          <button className="cm-home-login" type="button" onClick={() => runAction('Login', onLogin)}>Login <ArrowRight size={15} aria-hidden="true" /></button>
-        </div>
-      </header>
+      <PortalHeader theme={theme} onToggleTheme={toggleTheme} onRegister={() => runAction('Register', onRegister)} onTrackStatus={() => runAction('Track status', onTrackStatus)} onGuideline={() => runAction('Guideline', onGuideline)} onLogin={() => runAction('Login', onLogin)} />
 
       <main id="home-content">
         <section className="cm-home-hero" aria-labelledby="home-heading">
@@ -101,7 +87,7 @@ export function HomePage({ onRegister, onTrackStatus, onGuideline, onLogin, onCo
             <div className="cm-home-locations"><MapPin size={14} aria-hidden="true" /><span>Port Klang</span><span className="cm-home-location-divider" /><span>Johor · Pasir Gudang</span></div>
           </div>
 
-          <div className="cm-home-hero-caption" aria-hidden="true"><span className="cm-home-hero-caption-label"><span />CONNECTING YOUR BUSINESS TO THE PORT</span><span className="cm-home-hero-caption-version">V1.2.1</span></div>
+          <div className="cm-home-hero-caption" aria-hidden="true"><span className="cm-home-hero-caption-label"><span />CONNECTING YOUR BUSINESS TO THE PORT</span><span className="cm-home-hero-caption-version">{PORTAL_VERSION}</span></div>
           <a className="cm-home-explore" href="#home-contact" onClick={scrollToBottom} aria-label="Scroll to the bottom of the page"><ArrowDown size={17} aria-hidden="true" /></a>
         </section>
 
@@ -136,8 +122,8 @@ export function HomePage({ onRegister, onTrackStatus, onGuideline, onLogin, onCo
           <div className="cm-home-contact-item"><span className="cm-home-contact-icon"><WhatsAppMark /></span><div><span className="cm-home-contact-label">WhatsApp</span><a href="https://wa.me/60182660085" target="_blank" rel="noreferrer">+60 18 266 0085</a></div></div>
         </div>
         </div>
-        <div className="cm-home-footer-bottom"><span>© {new Date().getFullYear()} CargoMove. All rights reserved.</span><span>Registration portal</span></div>
       </footer>
+      <PortalFooterBottom />
       <div className="cm-home-preview-message" role="status" aria-live="polite">{previewMessage && <><span>{previewMessage}</span><button type="button" onClick={() => setPreviewMessage('')} aria-label="Dismiss preview message">×</button></>}</div>
     </div>
   );
