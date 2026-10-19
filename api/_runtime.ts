@@ -47,6 +47,7 @@ class PostgrestBuilder implements PromiseLike<{ data: any; error: any; count?: n
   private timeoutMs?: number;
   private returnRepresentation = false;
   private singleMode: SingleMode = 'many';
+  private upsertOptions?: { onConflict?: string; ignoreDuplicates?: boolean };
 
   constructor(
     private readonly baseUrl: string,
@@ -67,9 +68,10 @@ class PostgrestBuilder implements PromiseLike<{ data: any; error: any; count?: n
     return this;
   }
 
-  upsert(payload: unknown) {
+  upsert(payload: unknown, options?: { onConflict?: string; ignoreDuplicates?: boolean }) {
     this.operation = 'upsert';
     this.payload = payload;
+    this.upsertOptions = options;
     return this;
   }
 
@@ -115,7 +117,7 @@ class PostgrestBuilder implements PromiseLike<{ data: any; error: any; count?: n
   }
 
   order(column: string, options?: { ascending?: boolean }) {
-    this.orderValue = `${column}.${options?.ascending === false ? 'desc' : 'asc'}`;
+    this.orderValue = [this.orderValue, `${column}.${options?.ascending === false ? 'desc' : 'asc'}`].filter(Boolean).join(',');
     return this;
   }
 
@@ -154,6 +156,7 @@ class PostgrestBuilder implements PromiseLike<{ data: any; error: any; count?: n
 
   private async execute() {
     const params = new URLSearchParams(this.filters);
+    if (this.upsertOptions?.onConflict) params.set('on_conflict', this.upsertOptions.onConflict);
     if (this.operation === 'select' || this.returnRepresentation) params.set('select', this.columns);
     if (this.orderValue) params.set('order', this.orderValue);
     if (this.limitValue !== undefined) params.set('limit', String(this.limitValue));
@@ -167,7 +170,7 @@ class PostgrestBuilder implements PromiseLike<{ data: any; error: any; count?: n
           ? 'PATCH'
           : 'POST';
     const prefer = [
-      this.operation === 'upsert' ? 'resolution=merge-duplicates' : '',
+      this.operation === 'upsert' ? `resolution=${this.upsertOptions?.ignoreDuplicates ? 'ignore' : 'merge'}-duplicates` : '',
       this.returnRepresentation ? 'return=representation' : 'return=minimal',
       this.countValue ? `count=${this.countValue}` : '',
     ].filter(Boolean).join(',');

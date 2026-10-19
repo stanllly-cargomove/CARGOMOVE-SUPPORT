@@ -8,5 +8,8 @@ coverage/
 tests/
 test-results/
 docs/
-scripts/
+# Keep build-time versioning available to vite.config.ts.
+scripts/*
+!scripts/system-version-plugin.ts
+!scripts/system-version.ts
 *.log

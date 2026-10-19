@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "version": "1.4.8",
-  "updatedAt": "2026-10-19T14:25:47.702Z",
+  "version": "1.4.9",
+  "updatedAt": "2026-10-19T14:34:54.405Z",
   "entries": [
     {
       "id": "account-settings",
@@ -11,9 +11,9 @@
         "src/components/admin/AdminLayout.tsx"
       ],
       "kind": "page",
-      "version": "1.0.13",
-      "updatedAt": "2026-10-19T14:25:47.702Z",
-      "fingerprint": "e8473ff01752ba1f83af8cd11bf0e7e7bc252d8730ad58d69459fe4baaaa3238"
+      "version": "1.0.14",
+      "updatedAt": "2026-10-19T14:34:54.405Z",
+      "fingerprint": "547d988a8cb40fc0f03b1564c0ec1203a2d94f7e809ccf384c0ad57e63a60e29"
     },
     {
       "id": "admin",
@@ -23,9 +23,9 @@
         "src/components/admin/AdminLayout.tsx"
       ],
       "kind": "page",
-      "version": "1.0.13",
-      "updatedAt": "2026-10-19T14:25:47.702Z",
-      "fingerprint": "bf8498228c10ce74970a815ec6205c30570c87f4a7a8e70af45523e2d9f72000"
+      "version": "1.0.14",
+      "updatedAt": "2026-10-19T14:34:54.405Z",
+      "fingerprint": "01ba7e60f27bf67a45014e73f3f13a9feac35208ea81fdb66ecf80fea111b2f6"
     },
     {
       "id": "auto-email",
@@ -54,9 +54,9 @@
         "src/components/admin/AdminLayout.tsx"
       ],
       "kind": "page",
-      "version": "1.0.13",
-      "updatedAt": "2026-10-19T14:25:47.702Z",
-      "fingerprint": "13bbccc536c9fb355274d8c40ec77c272142a9452398a3f0d41cffa89468a274"
+      "version": "1.0.14",
+      "updatedAt": "2026-10-19T14:34:54.405Z",
+      "fingerprint": "191990da43c6a1fa97f475c20594e48229475de839736c83364fb3896248407f"
     },
     {
       "id": "northport",
@@ -298,9 +298,9 @@
         "src/components/admin/GuidelineManager.tsx"
       ],
       "kind": "page",
-      "version": "1.0.0",
-      "updatedAt": "2026-10-19T10:26:54.699Z",
-      "fingerprint": "728575156588a8bb966925b0f70e290afb89206b83fae170318a1539f375f8aa"
+      "version": "1.0.1",
+      "updatedAt": "2026-10-19T14:34:54.405Z",
+      "fingerprint": "ebc02755d9d1cb40b849c2a5343cb29ababaf733a3dc111ad23d476ee9e3c452"
     },
     {
       "id": "src/components/admin/NorthportRecovery.tsx",
@@ -358,9 +358,9 @@
         "src/components/admin/SystemVersion.tsx"
       ],
       "kind": "page",
-      "version": "1.0.0",
-      "updatedAt": "2026-10-19T10:26:54.699Z",
-      "fingerprint": "84da0e5cfd9fa9fce35e62c5b86489072d4d970bdd5bb2612cc29a90f9e99205"
+      "version": "1.0.1",
+      "updatedAt": "2026-10-19T14:34:54.405Z",
+      "fingerprint": "1b73e478961fe4145d7344f24782ac44bba1bdd1a033caf92e28764cf83a1ee1"
     },
     {
       "id": "src/components/admin/UserRegistration.tsx",
@@ -460,14 +460,14 @@
     }
   ],
   "sourceFiles": {
-    "api/_runtime.ts": "665678e5a2e595f08dff6111d77073f3d509911011e06bbfa83fdf2c000ae21f",
+    "api/_runtime.ts": "85fbaf7657252cb9302580b82be311d178efba01755538107d6caa58729a7c91",
     "api/auth/login.ts": "b9ca37e15306678b28cad3646b66ca59e0a5d888e47ca88a9b91a521573610ca",
     "api/auth/logout.ts": "b9b0a8d91f7a8e2df747e72105e1c75d0b7a8f276cd16a81ca2087769cadbe55",
     "api/auth/session.ts": "b558da6ab3889ec7b6eea64efd7d62c312575a41032e974f5e72c9da40d3f807",
     "api/auth/users.ts": "64b48a48aa0c16b1369ad7b16859554ab59d93c58358385728c19fd5b5777f09",
     "api/data/[table].ts": "f78331d45ccb6b2fd47c08b7bcb8a3206828fe5e2e3424060640c5a497b81ac5",
     "api/data/[table]/[id].ts": "0d7de1f24e8a4b0e3e329254e829273771898ce34627327816edd902cd07a297",
-    "api/dev-tools.ts": "3c0ac0d3d0421568251b044e99d1491145a6da77dbe5898b8ed7e135a5d67c73",
+    "api/dev-tools.ts": "33dba3ffa27c0bd6dce92fdf4f7af113d50f1004c0761578d149749d7fecb0a5",
     "api/external-user-access.ts": "3b2184020b94da4d7d96e065ed7acab54887e5ed624e356b471be3b83b31c940",
     "api/health.ts": "bd85c6a0ce4c58094322532e63cdfada9114c66bf81ce294b7ee7014399ff049",
     "api/mail.ts": "39c43982e49553146b2972fde01ac9cb699f802f56caf19a95f9163129a8d86f",
@@ -488,7 +488,7 @@
     "media/registration-depot-card.png": "de3a1dfdc105987f1400cdf87b836faa9b474ac0cd7344db6f1f2c2f9a293468",
     "media/registration-port-hero-fast.webp": "36830a87ccaf357ccfc531603d2937abbfd8ea8a819eeeb6f18d6aca2438d01a",
     "media/registration-port-hero.png": "2b6df14a930709895dc1f2a5572e4897545952bfd726f8cffde61727f7a1ced5",
-    "package.json": "12d9e43cde362f53702f03a3576aacce07efb0260be0b83ce0e225fe3c1331ae",
+    "package.json": "8c35e8cf73334260482b08df6d8e04de5086421423c1fdb935616d4f71fce19f",
     "scripts/system-version-plugin.ts": "3556cb65adf8ceac100bb3ea8e96af0eefc752ce4fbd919935e85c01cff9b3c2",
     "scripts/system-version.ts": "168ad07610c4918920ad8b2b97e2bc7c599ebbf6517d658da64e4d593547d990",
     "server-handlers/_email.ts": "9722520ad92b1e7adc090f6ff78b9b9a17df587b6af63a5f5284895911eb2eb8",
@@ -523,7 +523,8 @@
     "server-handlers/scheduler/catalog.ts": "4833774bf6056f24159c3ba39cc6b3750cee4cc5cf6ae476cb03beaa340fcc2a",
     "server-handlers/scheduler/handler.ts": "8be0097f92654127dd09a93053032f66c50a30882bfeb8b22327f1a32a239814",
     "server-handlers/scheduler/targets.ts": "be6109d1121d6f850ac15675564c71cd463dbc93f3e848ff5f7cbe24d9ed9c55",
-    "server.ts": "95d959c7c87330561fa9f32b87da3a8b09297bbbb45ce184b3ea447f9198047b",
+    "server-handlers/system-versions.ts": "def9d5d9ff42fc4e4c636b11adeb94f85db5d5f2b2a2e4e201621f968f05a5b8",
+    "server.ts": "a1cb6825f5052ad478dbca43abfce7539eb45284deeac6a41eee18420412d4fb",
     "src/App.tsx": "ba8d10a8ed7ee6ed98cec81bb89311361d1bd7ab600bbfd729dced469ca665c0",
     "src/components/admin/AdminDashboard.tsx": "39c2f7dcaaef4f91fa034feb9041bc3cb46d456d3a0d1cfbfc8a034d86c2a419",
     "src/components/admin/AdminLayout.tsx": "2f5addab6b30a94bd72f50db3c5b0d7869a2a21e504f1433d2e58fd27d61eb3d",
@@ -535,7 +536,7 @@
     "src/components/admin/DeveloperSettings.tsx": "555d26000a784a8e880ab033a6149ed610010ce03bca50efc34dc4124ac1bd0d",
     "src/components/admin/EmailTemplateManager.tsx": "482a5243a97618f09760e7d7dd7662598cdce5b7f93614bda9b999a0b54f8e46",
     "src/components/admin/ExcelExportCenter.tsx": "7c809f9d537cc2db7d91eb5bbb119ba6d234ff0d77086b7bf9330bbb8a9c14d2",
-    "src/components/admin/GuidelineManager.tsx": "dd3582ea92a51f2b8649348b503585c5acffe373ae6fa454272923eadbef5ef3",
+    "src/components/admin/GuidelineManager.tsx": "612391e3048b8681230ec8b91c623aa9c0d79ac30872affcd92546c37d2abcc4",
     "src/components/admin/NorthportRecovery.tsx": "db0dcb7b87230a92feabc8eb62b6284a3bc7b9bfeb1c121d86b247dc0a937ab6",
     "src/components/admin/NorthportScannedFiles.tsx": "11f3bfb46b50e72f55d5380d35585307bc9f4dbf982b6c4dfa64b42337c9d425",
     "src/components/admin/PdfAttachmentIcon.tsx": "4b65ea388a582c838e1782957115244f628de17b2f056cbae9ba39ef41afcc7d",
@@ -544,7 +545,7 @@
     "src/components/admin/SchemaMappingInspector.tsx": "b15f2621134ebf78526030f0bd91e8c0aa4c17c2e49836564223155c5f09e91d",
     "src/components/admin/SubmissionDetailModal.tsx": "857a67b206c63cb0c66203a6c1ffe571f2d2c9f12651da31d1736497267992ac",
     "src/components/admin/SubmissionsList.tsx": "c01564a3625065cc3420feebeaf93643b5f5369492c33420e6897c2fca0d68ea",
-    "src/components/admin/SystemVersion.tsx": "211cb6038dd1593aceb1f74f834763a732fecc40cf2a3b2da7ee73ae37f6615d",
+    "src/components/admin/SystemVersion.tsx": "d340e7d0c3da0aabe3d08d8cb29978cf6da731fb61f3e7245661b8ce6c47476f",
     "src/components/admin/UserRegistration.tsx": "5ba3333d1c142ca95aff806731f34d4b57a7891d15e089faf29fbf02ab74dce0",
     "src/components/auth/LoginPage.tsx": "b3a80fb8dbca5fe5e3ac078cc7ad97bef6f255d99cfa470bd89e85050c28e009",
     "src/components/auth/PasswordResetPage.tsx": "2d7b0bea5510275f8aa16eb7980ae9cbfa2c841e761b50f1572195e9a96e3b16",
@@ -637,10 +638,69 @@
     "supabase/migrations/20261017000000_cargomove_scheduler_gallery.sql": "1d9410826dca2af2fd46654f620791fae11222f609a045ff8ecc6d018f79db12",
     "supabase/migrations/20261017010000_northport_recovery.sql": "a658c056bfa45841eefcfd51e4f93a97ff57c64d0af91eeb8eaa3e03753ec80f",
     "supabase/migrations/20261017020000_scheduler_cooldown_45_seconds.sql": "b246e6c45847d039810e3f94075d99eba8cd21339b15bb0ca385a9935d4bf28c",
+    "supabase/migrations/20261019000000_system_version_history.sql": "e09c97cf4872efec25bb3c19ff264ac84c39f96a19cf60c22cbdeda4037ab9ba",
     "supabase/migrations/20261019010000_northport_whole_file_recovery.sql": "04c119a2069e6abcfe71c2e8dda91ec709251fac7600773f1216e1dfad068384",
     "vite.config.ts": "053b10dfb740e02783233b0383c990904f912bb4cedf7ee1fd6bf3c5b0802e82"
   },
   "history": [
+    {
+      "version": "1.4.9",
+      "previousVersion": "1.4.8",
+      "date": "2026-10-19T14:34:54.405Z",
+      "summary": "Updated existing pages, tools or shared system files",
+      "files": [
+        "api/_runtime.ts",
+        "api/dev-tools.ts",
+        "package.json",
+        "server-handlers/system-versions.ts",
+        "server.ts",
+        "src/components/admin/GuidelineManager.tsx",
+        "src/components/admin/SystemVersion.tsx",
+        "supabase/migrations/20261019000000_system_version_history.sql"
+      ],
+      "changes": [
+        {
+          "id": "account-settings",
+          "name": "Account Settings",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.13",
+          "to": "1.0.14"
+        },
+        {
+          "id": "admin",
+          "name": "Admin Page",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.13",
+          "to": "1.0.14"
+        },
+        {
+          "id": "developer",
+          "name": "Dev Page",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.13",
+          "to": "1.0.14"
+        },
+        {
+          "id": "src/components/admin/GuidelineManager.tsx",
+          "name": "Haulier Guidelines",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.0",
+          "to": "1.0.1"
+        },
+        {
+          "id": "src/components/admin/SystemVersion.tsx",
+          "name": "System Version",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.0",
+          "to": "1.0.1"
+        }
+      ]
+    },
     {
       "version": "1.4.8",
       "previousVersion": "1.4.7",
