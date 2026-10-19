@@ -1,12 +1,20 @@
 .cm-register { min-height: 100vh; display: flex; flex-direction: column; background: #f4f7fb; color: #142b42; }
 .cm-register > main { flex: 1; }
 .cm-register .cm-home-nav button:first-child { color: #008bd7; }
-.cm-register-panel { position: relative; isolation: isolate; width: 100%; min-height: calc(100vh - 58px); background: #fff; }
-.cm-register-panel:has(.group[class*='min-h-[300px]'])::before { content: ''; position: absolute; z-index: -1; inset: 0; pointer-events: none; background: linear-gradient(180deg, #f4f7fb 0%, #ffffffc7 95px, #ffffffc7 100%), url('../../../media/registration-background-fast.webp') center 52% / cover no-repeat; }
+.cm-register[data-theme='light'] { background: #e8f0f7; }
+.cm-register[data-theme='light'] .cm-home-header { background: linear-gradient(180deg, #edf3f8 0%, #e8f0f7 100%); border-bottom: 0; box-shadow: none; }
+.cm-register-panel { position: relative; isolation: isolate; width: 100%; min-height: calc(100vh - 58px); background: #edf3f8; }
+.cm-register-panel:has(.group[class*='min-h-[300px]'])::before { content: ''; position: absolute; z-index: -1; inset: 0; pointer-events: none; background: linear-gradient(180deg, #e8f0f7c9 0%, #eef4f9a8 150px, #f3f7fa8c 100%), url('../../../media/registration-background-fast.webp') center 52% / cover no-repeat; }
+/* Carry one background behind both the navigation and port selection. */
+.cm-register[data-theme='light']:has(.cm-wizard-progress-port) { background: linear-gradient(180deg, #e8f0f7c9 0%, #eef4f9a8 150px, #f3f7fa8c 100%), url('../../../media/registration-background-fast.webp') center 52% / cover no-repeat; }
+.cm-register[data-theme='light']:has(.cm-wizard-progress-port) .cm-home-header,
+.cm-register[data-theme='light']:has(.cm-wizard-progress-port) .cm-register-panel { background: transparent; }
+.cm-register[data-theme='light']:has(.cm-wizard-progress-port) .cm-register-panel::before { content: none; }
+.cm-register[data-theme='light']:has(.cm-wizard-progress-port) .cm-home-nav::before { border: 0; }
 .cm-register-panel > .customer-theme { min-height: 0; background: transparent !important; }
 .cm-register-panel > .customer-theme > div.flex.flex-1 { background: transparent !important; }
-.cm-register-panel > .customer-theme > div.flex.flex-1 > div:first-child { min-height: 78px; padding: 20px 4%; background: transparent; }
-.cm-register-panel > .customer-theme > div.flex.flex-1 > div:first-child > div { max-width: 830px; }
+.cm-register-panel > .customer-theme > div.flex.flex-1 > .cm-wizard-progress-form { min-height: 78px; padding: 20px 4%; background: transparent; }
+.cm-register-panel > .customer-theme > div.flex.flex-1 > .cm-wizard-progress-form > div { max-width: 830px; }
 .cm-register-panel > .customer-theme > div.flex.flex-1 > .cm-wizard-content { max-width: none; padding: 38px 4% 48px; }
 .cm-register-panel > .customer-theme > div.flex.flex-1 > .cm-wizard-content > div { max-width: 1000px; margin: 0 auto; padding: 0; translate: none; transform: none; }
 .cm-register-panel h2 { margin: 0; color: #18324b; font-size: 21px; line-height: 1.3; letter-spacing: -.025em; font-weight: 700; }
@@ -51,7 +59,7 @@
 .cm-register-panel .customer-form button[class*='bg-[#ea7a24]'] { background: #0095e8; border-radius: 8px; }
 .cm-register-panel .customer-form button[class*='bg-[#ea7a24]']:hover { background: #0078c8; }
 .cm-register-help { display: none; align-items: center; justify-content: center; gap: 8px; padding: 0 4% 26px; color: #60758a; font-size: 12px; }
-.cm-register-panel:has(.group[class*='min-h-[300px]']) > .cm-register-help { display: flex; }
+.cm-register-panel:has(.group[class*='min-h-[300px]']) > .cm-register-help { display: flex; margin-top: -16px; }
 .cm-register-help svg, .cm-register-help a { color: #008bd7; }
 .cm-register-help a { font-weight: 700; }
 .cm-register-help a:hover { text-decoration: underline; }
@@ -65,15 +73,19 @@
 .cm-register[data-theme='dark']:has(.group[class*='min-h-[300px]']) .cm-register-help a,
 .cm-register[data-theme='dark']:has(.group[class*='min-h-[300px]']) .cm-register-help svg { color: #66c9ff; }
 .cm-register .cm-portal-footer { border-top: 0; }
-.cm-register[data-theme='dark'] .cm-register-panel:has(.group[class*='min-h-[300px]']) > .customer-theme > div.flex.flex-1 > div:first-child > div > div > span { color: #c3d3e3; }
-.cm-register[data-theme='dark'] .cm-register-panel:has(.group[class*='min-h-[300px]']) > .customer-theme > div.flex.flex-1 > div:first-child > div > div > span.font-bold { color: #f3f8ff; }
-.cm-register[data-theme='dark'] .cm-register-panel:has(.group[class*='min-h-[300px]']) > .customer-theme > div.flex.flex-1 > div:first-child [class*='bg-[#eef3f8]'] { background: #20374d; color: #d6e6f5; }
-.cm-register[data-theme='dark'] .cm-register-panel:has(.group[class*='min-h-[300px]']) > .customer-theme > div.flex.flex-1 > div:first-child [aria-hidden='true'] { background: #536b81; }
+.cm-register[data-theme='dark'] .cm-wizard-progress-form > div > div > span { color: #5b6b84; }
+.cm-register[data-theme='dark'] .cm-wizard-progress-form > div > div > span.font-bold { color: #102a56; }
+.cm-register[data-theme='dark'] .cm-wizard-progress-form [class*='bg-[#eef3f8]'] { background: #eef3f8; color: #395274; }
+.cm-register[data-theme='dark'] .cm-wizard-progress-form > div > [aria-hidden='true'] { background: #cbd5e1; }
+.cm-register[data-theme='dark'] .cm-wizard-progress-port > div > div > span { color: #c3d3e3; }
+.cm-register[data-theme='dark'] .cm-wizard-progress-port > div > div > span.font-bold { color: #f3f8ff; }
+.cm-register[data-theme='dark'] .cm-wizard-progress-port [class*='bg-[#eef3f8]'] { background: #20374d; color: #d6e6f5; }
+.cm-register[data-theme='dark'] .cm-wizard-progress-port > div > [aria-hidden='true'] { background: #536b81; }
 .cm-register[data-theme='dark'] .cm-register-panel .cm-wizard-content > div > div:has(> .grid > .group) > div:first-child h2,
 .cm-register[data-theme='dark'] .cm-register-panel .cm-wizard-content > div > div:has(> .grid > .group) > div:first-child h2 span { color: #f1f7ff; }
 .cm-register[data-theme='dark'] .cm-register-panel .cm-wizard-content > div > div:has(> .grid > .group) > div:first-child p { color: #cfdeec; }
 @media (max-width: 700px) {
-  .cm-register-panel > .customer-theme > div.flex.flex-1 > div:first-child { overflow-x: auto; min-height: 65px; padding: 15px; }
+  .cm-register-panel > .customer-theme > div.flex.flex-1 > .cm-wizard-progress-form { overflow-x: auto; min-height: 65px; padding: 15px; }
   .cm-register-panel > .customer-theme > div.flex.flex-1 > .cm-wizard-content { padding: 30px 4% 38px; }
 }
 @media (max-width: 480px) {
@@ -96,3 +108,13 @@
 }
 
 .cm-register-panel button:disabled { cursor: not-allowed; opacity: .5; }
+
+.cm-register-panel .cm-wizard-progress-port { width: min(100%, 830px); min-height: 54px; margin: 0 auto 14px; padding-block: 4px; }
+.cm-register-panel .cm-wizard-progress-port > div { justify-content: center; }
+
+/* Let the landing cards use the space below the progress bar for vertical centering. */
+.cm-register-panel:has(.group[class*='min-h-[300px]']) { display: flex; flex-direction: column; min-height: calc(100svh - 58px); }
+.cm-register-panel:has(.group[class*='min-h-[300px]']) > .customer-theme { flex: 1; }
+@media (max-width: 600px) {
+  .cm-register-panel:has(.group[class*='min-h-[300px]']) { min-height: calc(100svh - 92px); }
+}

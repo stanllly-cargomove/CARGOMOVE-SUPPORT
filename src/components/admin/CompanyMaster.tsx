@@ -120,9 +120,9 @@ export function CompanyMaster() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-slate-900 tracking-tight">Company Master Database</h2>
+          <h2 className="text-xl font-bold text-slate-900 tracking-tight">Company list</h2>
           <p className="text-xs text-slate-500 mt-1">
-            Permanent mapping registry for automated HAULIERID and FORWARDING_AGENT_ID resolution.
+            Find and manage registered companies, their contact details and port access information.
           </p>
         </div>
 

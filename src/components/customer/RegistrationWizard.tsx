@@ -28,6 +28,43 @@ interface RegistrationWizardProps {
   onTrackStatus: (reference?: string) => void;
 }
 
+interface WizardProgressProps {
+  activeStep: number;
+  steps: { num: number; label: string }[];
+  placement?: 'form' | 'port';
+}
+
+function WizardProgress({ activeStep, steps, placement = 'form' }: WizardProgressProps) {
+  return (
+    <div className={`cm-wizard-progress cm-wizard-progress-${placement} min-h-[68px] border-0 bg-transparent flex items-center px-2 py-2 sm:px-4`}>
+      <div className="mx-auto flex w-full max-w-[880px] items-start text-xs font-semibold sm:items-center">
+        {steps.map((step, idx) => {
+          const isPast = activeStep > step.num;
+          const isCurrent = activeStep === step.num;
+
+          return (
+            <React.Fragment key={step.num}>
+              <div className="flex min-w-0 shrink-0 flex-col items-center gap-1 text-center sm:flex-row sm:gap-2 sm:text-left">
+                <div className={`h-7 w-7 shrink-0 rounded-full flex items-center justify-center font-bold text-[11px] transition-colors ${
+                  isPast ? 'bg-emerald-600 text-white' : isCurrent ? 'bg-[#0095e8] text-white ring-4 ring-sky-100' : 'bg-[#eef3f8] text-[#395274]'
+                }`}>
+                  {isPast ? <Check className="w-3.5 h-3.5" /> : step.num}
+                </div>
+                <span className={`max-w-[76px] text-[9px] leading-3 sm:max-w-none sm:whitespace-nowrap sm:text-xs ${isCurrent ? 'text-[#102a56] font-bold' : 'text-[#5b6b84]'}`}>
+                  {step.label}
+                </span>
+              </div>
+              {idx < steps.length - 1 && (
+                <div className={`mx-2 mt-3.5 h-px min-w-2 flex-1 sm:mt-0 lg:mx-4 ${isPast ? 'bg-emerald-200' : 'bg-slate-300'}`} aria-hidden="true" />
+              )}
+            </React.Fragment>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function RegistrationWizard({ onTrackStatus }: RegistrationWizardProps) {
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [selectedLocation, setSelectedLocation] = useState<PortLocation | null>(null);
@@ -223,35 +260,8 @@ export function RegistrationWizard({ onTrackStatus }: RegistrationWizardProps) {
   return (
     <div className={`customer-theme min-h-screen flex flex-col ${isLandingStep ? 'bg-white' : 'bg-[#f8fafc]'}`}>
       <div className={`${isLandingStep ? 'bg-[#f8fafc]' : ''} flex flex-1 flex-col`}>
-      {/* Progress Bar (visible through the Review screen) */}
-      {currentStep <= reviewStep && (
-        <div className="min-h-[68px] border-0 bg-transparent flex items-center px-2 py-2 sm:px-4">
-          <div className="mx-auto flex w-full max-w-[880px] items-start text-xs font-semibold sm:items-center">
-            {progressSteps.map((step, idx) => {
-              const isPast = activeProgressStep > step.num;
-              const isCurrent = activeProgressStep === step.num;
-
-              return (
-                <React.Fragment key={step.num}>
-                  <div className="flex min-w-0 shrink-0 flex-col items-center gap-1 text-center sm:flex-row sm:gap-2 sm:text-left">
-                    <div className={`h-7 w-7 shrink-0 rounded-full flex items-center justify-center font-bold text-[11px] transition-colors ${
-                      isPast ? 'bg-emerald-600 text-white' : isCurrent ? 'bg-[#0095e8] text-white ring-4 ring-sky-100' : 'bg-[#eef3f8] text-[#395274]'
-                    }`}>
-                      {isPast ? <Check className="w-3.5 h-3.5" /> : step.num}
-                    </div>
-                    <span className={`max-w-[76px] text-[9px] leading-3 sm:max-w-none sm:whitespace-nowrap sm:text-xs ${isCurrent ? 'text-[#102a56] font-bold' : 'text-[#5b6b84]'}`}>
-                      {step.label}
-                    </span>
-                  </div>
-                  {idx < progressSteps.length - 1 && (
-                    <div className={`mx-2 mt-3.5 h-px min-w-2 flex-1 sm:mt-0 lg:mx-4 ${isPast ? 'bg-emerald-200' : 'bg-slate-300'}`} aria-hidden="true" />
-                  )}
-                </React.Fragment>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      {/* Form progress stays above the changing form content. */}
+      {currentStep > 1 && currentStep <= reviewStep && <WizardProgress activeStep={activeProgressStep} steps={progressSteps} />}
 
       {/* Main Content Area */}
       <div
@@ -261,6 +271,7 @@ export function RegistrationWizard({ onTrackStatus }: RegistrationWizardProps) {
         {/* Step 1: Port Selection */}
         {currentStep === 1 && (
           <PortSelection
+            progress={<WizardProgress activeStep={activeProgressStep} steps={progressSteps} placement="port" />}
             selectedLocation={selectedLocation}
             onSelectLocation={handlePortSelect}
             ports={ports}

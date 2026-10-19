@@ -7,7 +7,7 @@ import { DEFAULT_SCHEDULER_ID } from '../server-handlers/scheduler/targets.js';
 
 const bundle = await build({
   stdin: {
-    contents: `import React from 'react'; import {createRoot} from 'react-dom/client'; import {DeveloperSettings} from './src/components/admin/DeveloperSettings'; createRoot(document.getElementById('root')).render(<DeveloperSettings/>);`,
+    contents: `import React from 'react'; import {createRoot} from 'react-dom/client'; import {CargoMoveScheduler} from './src/components/admin/CargoMoveScheduler'; createRoot(document.getElementById('root')).render(<CargoMoveScheduler/>);`,
     resolveDir: process.cwd(), loader: 'tsx',
   }, bundle: true, write: false, format: 'iife', platform: 'browser', define: { 'process.env.NODE_ENV': '"test"' },
 });
@@ -54,7 +54,6 @@ try {
   });
   await page.goto('http://scheduler.test');
   await page.getByRole('heading', { name: 'CargoMove Scheduler' }).waitFor();
-  await page.getByRole('heading', { name: 'Registration test tools' }).waitFor();
   await page.getByRole('button', { name: 'Add Scheduler', exact: true }).click();
   await page.getByLabel('Title', { exact: true }).fill('Example Scheduler');
   await page.getByLabel('Scheduler link', { exact: true }).fill('https://evil.example.test');

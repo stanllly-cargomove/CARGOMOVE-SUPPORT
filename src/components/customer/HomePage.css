@@ -114,7 +114,7 @@
   .cm-home-orbits { width: 670px; height: 820px; top: -55px; }
   .cm-home-orbit-inner { inset: 56px; }
   .cm-home-hero-caption { bottom: 27px; font-size: 6px; letter-spacing: 1px; left: 6%; right: 6%; }
-  .cm-home-explore { left: auto; right: 6%; }
+  .cm-home-explore { left: 50%; right: auto; bottom: 56px; transform: translateX(-50%); }
   .cm-home-category-strip { grid-template-columns: repeat(4, 1fr); padding: 16px 0; row-gap: 14px; }
   .cm-home-category-strip > p { grid-column: 1 / -1; text-align: center; }
   .cm-home-category-strip > p br { display: none; }
@@ -295,5 +295,19 @@
   .cm-home .cm-home-contact-label { font-size: 11px; margin-bottom: 3px; }
   .cm-home .cm-home-contact-details a { text-align: left; font-size: 12px; }
   .cm-home .cm-home-footer-bottom { font-size: 10px; }
+}
+/* Center the hero copy in the space above the bottom caption. */
+.cm-home-landing .cm-home-hero { min-height: calc(100vh - 58px); min-height: calc(100svh - 58px); align-items: center; padding: 20px 0 70px; }
+.cm-home-landing .cm-home-hero-copy { padding-top: 0; }
+@media (max-width: 600px) {
+  .cm-home-landing .cm-home-hero { min-height: calc(100vh - 92px); min-height: calc(100svh - 92px); padding-bottom: 60px; }
+}
+@media (max-height: 700px) {
+  .cm-home-landing h1 { font-size: clamp(30px, min(4.7vw, 7svh), 58px); margin: 14px 0; }
+  .cm-home-landing .cm-home-actions { margin-top: 18px; }
+  .cm-home-landing .cm-home-help { margin: 10px 0 14px; }
+}
+@media (max-width: 600px) and (max-height: 700px) {
+  .cm-home-landing .cm-home-intro { line-height: 1.55; }
 }
 @media (prefers-reduced-motion: reduce) { .cm-home *, .cm-home *::before, .cm-home *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }

@@ -1,9 +1,14 @@
 import React, { useState } from 'react';
-import { FlaskConical } from 'lucide-react';
+import { ChevronRight, Clock3, FlaskConical, Settings, TableProperties } from 'lucide-react';
 import { areRegistrationTestToolsEnabled, setRegistrationTestToolsEnabled } from '../../services/developerSettings';
-import { CargoMoveScheduler } from './CargoMoveScheduler';
 
-export function DeveloperSettings() {
+interface DeveloperSettingsProps {
+  onOpenScheduler: () => void;
+  onOpenExcelMapping: () => void;
+  onOpenPortDepotConfig: () => void;
+}
+
+export function DeveloperSettings({ onOpenScheduler, onOpenExcelMapping, onOpenPortDepotConfig }: DeveloperSettingsProps) {
   const [testToolsEnabled, setTestToolsEnabled] = useState(areRegistrationTestToolsEnabled);
 
   const updateTestTools = (enabled: boolean) => {
@@ -12,35 +17,34 @@ export function DeveloperSettings() {
   };
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="w-full space-y-6">
       <div>
         <h2 className="text-xl font-bold tracking-tight text-slate-900">Developer Settings</h2>
-        <p className="mt-1 text-xs text-slate-500">Control tools intended only for registration testing.</p>
+        <p className="mt-1 text-xs text-slate-500">Manage registration testing, ports and depots, schedulers and Excel mappings.</p>
       </div>
-
-      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex items-start justify-between gap-5">
-          <div className="flex gap-3">
-            <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-700"><FlaskConical className="h-4 w-4" /></span>
-            <div>
-              <h3 className="text-sm font-bold text-slate-900">Registration test tools</h3>
-              <p className="mt-1 max-w-xl text-xs leading-5 text-slate-600">Shows Auto Fill on the company form and Generate Excel on the review page. The Excel download is a draft and does not submit or mark a registration as exported.</p>
-            </div>
+      <section aria-label="Developer settings" className="w-full divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex w-full items-center gap-4 p-4 sm:p-5">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-700"><FlaskConical className="h-5 w-5" aria-hidden="true" /></span>
+          <div className="min-w-0 flex-1">
+            <h3 id="registration-tools-label" className="text-sm font-semibold text-slate-900">Registration test tools</h3>
+            <p id="registration-tools-description" className="mt-1 text-xs leading-5 text-slate-500">Show Auto Fill on company forms and download a draft Excel file from the review page.</p>
           </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={testToolsEnabled}
-            onClick={() => updateTestTools(!testToolsEnabled)}
-            className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${testToolsEnabled ? 'bg-emerald-600' : 'bg-slate-300'}`}
-          >
-            <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform ${testToolsEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
-            <span className="sr-only">Toggle registration test tools</span>
+          <button type="button" role="switch" aria-labelledby="registration-tools-label" aria-describedby="registration-tools-description" aria-checked={testToolsEnabled} onClick={() => updateTestTools(!testToolsEnabled)} className={`relative ml-auto inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 ${testToolsEnabled ? 'bg-emerald-600' : 'bg-slate-300'}`}>
+            <span className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${testToolsEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
           </button>
         </div>
-        <p className={`mt-4 text-xs font-semibold ${testToolsEnabled ? 'text-emerald-700' : 'text-slate-500'}`}>{testToolsEnabled ? 'Enabled' : 'Disabled'}</p>
+        {[
+          { title: 'Ports & Depots', description: 'Manage the ports and depots available for registration.', icon: Settings, onClick: onOpenPortDepotConfig },
+          { title: 'Scheduler', description: 'View saved schedulers and request a run.', icon: Clock3, onClick: onOpenScheduler },
+          { title: 'Excel Mapping', description: 'Review how registration details map to Excel templates and database fields.', icon: TableProperties, onClick: onOpenExcelMapping },
+        ].map(({ title, description, icon: Icon, onClick }) => (
+          <button key={title} type="button" onClick={onClick} className="flex w-full items-center gap-4 p-4 text-left transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky-500 sm:p-5">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-sky-700"><Icon className="h-5 w-5" aria-hidden="true" /></span>
+            <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-slate-900">{title}</span><span className="mt-1 block text-xs leading-5 text-slate-500">{description}</span></span>
+            <ChevronRight className="ml-auto h-5 w-5 shrink-0 text-slate-400" aria-hidden="true" />
+          </button>
+        ))}
       </section>
-      <CargoMoveScheduler />
     </div>
   );
 }

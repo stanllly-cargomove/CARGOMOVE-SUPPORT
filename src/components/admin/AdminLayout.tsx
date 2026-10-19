@@ -5,7 +5,6 @@ import {
   Building2,
   Inbox,
   Settings,
-  TableProperties,
   BookOpen,
   Wrench,
   Container,
@@ -38,6 +37,7 @@ import { UserRegistration } from './UserRegistration';
 import { AdminUser } from './AdminUser';
 import { EmailTemplateManager } from './EmailTemplateManager';
 import { DeveloperSettings } from './DeveloperSettings';
+import { CargoMoveScheduler } from './CargoMoveScheduler';
 import { NorthportRecovery } from './NorthportRecovery';
 import { notifyError, notifySuccess } from '../common/notifications';
 import { RegistrationType } from '../../types';
@@ -155,13 +155,11 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout 
   const activeQueueItem = registrationQueueItems.find((item) => item.id === activeTab);
 
   const devToolItems = [
-    { id: 'companies', label: 'Company Master', icon: Building2, section: 'Registration Setup', path: undefined },
+    { id: 'companies', label: 'Company list', icon: Building2, section: 'Registration Setup', path: undefined },
+    { id: 'email-template', label: 'Registration Templates', icon: Mail, section: 'Registration Setup', path: undefined },
     { id: 'guidelines', label: 'Haulier Guidelines', icon: BookOpen, section: 'Registration Setup', path: undefined },
-    { id: 'ports', label: 'Ports & Depots', icon: Settings, section: 'Registration Setup', path: undefined },
-    { id: 'schema', label: 'Excel Mapping', icon: TableProperties, section: 'Registration Setup', path: undefined },
-    { id: 'developer-settings', label: 'Test Tools', icon: Wrench, section: 'Registration Setup', path: undefined },
-    { id: 'email-template', label: 'Registration Templates', icon: Mail, section: 'Email Setup', path: undefined },
-    { id: 'admin-user', label: 'Admin Users', icon: UserRoundPlus, section: 'Administration', path: undefined },
+    { id: 'admin-user', label: 'Admin Users', icon: UserRoundPlus, section: 'Dev Admin', path: undefined },
+    { id: 'developer-settings', label: 'Dev Setting', icon: Wrench, section: 'Dev Admin', path: undefined },
   ];
 
   const switchPortal = () => {
@@ -181,7 +179,8 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout 
     setIsAccountMenuOpen(false);
   };
 
-  const activePageLabel = activeTab === 'northport-recovery' ? 'Tools / NP Container' : [...navItems, ...registrationQueueItems, ...devToolItems]
+  const isDevSettingsPage = activeTab === 'schema' || activeTab === 'scheduler' || activeTab === 'ports';
+  const activePageLabel = activeTab === 'ports' ? 'Ports & Depots' : activeTab === 'schema' ? 'Excel Mapping' : activeTab === 'scheduler' ? 'Scheduler' : activeTab === 'northport-recovery' ? 'Tools / NP Container' : [...navItems, ...registrationQueueItems, ...devToolItems]
     .find((item) => item.id === activeTab)?.label ?? (activeTab === 'account-settings' ? 'Settings' : 'Dashboard');
 
   return (
@@ -358,7 +357,7 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout 
 
           {portalMode === 'developer' && devToolItems.map((item, index) => {
             const Icon = item.icon;
-            const isActive = activeTab === item.id;
+            const isActive = activeTab === item.id || (item.id === 'developer-settings' && isDevSettingsPage);
 
             return (
               <React.Fragment key={item.id}>
@@ -458,6 +457,7 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout 
             </button>
             <BreadcrumbChevronRight className="h-4 w-4 shrink-0 text-slate-300" aria-hidden="true" />
             <h1 className="flex min-w-0 items-center gap-2 text-sm font-semibold text-slate-700">
+              {isDevSettingsPage && <><button type="button" onClick={() => setActiveTab('developer-settings')} className="shrink-0 hover:text-[#0095e8]">Dev Setting</button><BreadcrumbChevronRight className="h-4 w-4 shrink-0 text-slate-300" aria-hidden="true" /></>}
               <span className="truncate">{activePageLabel}</span>
               {activeTab === 'email-template' && emailTemplateView === 'design' && <><BreadcrumbChevronRight className="h-4 w-4 shrink-0 text-slate-300" /><span className="truncate">Design Template</span></>}
             </h1>
@@ -513,7 +513,7 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout 
             <AdminDashboard onNavigate={(tab, registrationType) => {
               const destination = tab === 'submissions' ? 'submissions-pending' : tab;
               if (registrationType) setQueueRegistrationType(registrationType);
-              if (devToolItems.some((item) => item.id === destination)) {
+              if (devToolItems.some((item) => item.id === destination) || ['ports', 'schema', 'scheduler'].includes(destination)) {
                 setPortalMode('developer');
               }
               setActiveTab(destination);
@@ -535,11 +535,12 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout 
           {activeTab === 'admin-user' && <AdminUser />}
           {activeTab === 'email-template' && <EmailTemplateManager onViewChange={setEmailTemplateView} />}
           {activeTab === 'guidelines' && (
-            <GuidelineManager onPreviewCustomerView={onSwitchToCustomer} />
+            <GuidelineManager />
           )}
           {activeTab === 'ports' && <PortDepotConfig />}
           {activeTab === 'schema' && <SchemaMappingInspector />}
-          {activeTab === 'developer-settings' && <DeveloperSettings />}
+          {activeTab === 'developer-settings' && <DeveloperSettings onOpenScheduler={() => setActiveTab('scheduler')} onOpenExcelMapping={() => setActiveTab('schema')} onOpenPortDepotConfig={() => setActiveTab('ports')} />}
+          {activeTab === 'scheduler' && <div className="space-y-6"><div><h2 className="text-xl font-bold tracking-tight text-slate-900">Scheduler</h2><p className="mt-1 text-xs text-slate-500">Manage saved schedulers and request a run when needed.</p></div><CargoMoveScheduler /></div>}
           {activeTab === 'northport-recovery' && portalMode === 'admin' && user?.type === 'ADMIN' && <NorthportRecovery onBack={goToPortalHome} />}
           {activeTab === 'account-settings' && (
             <div className="max-w-3xl space-y-6">

@@ -46,7 +46,7 @@ try {
   assert.equal(await page.getByRole('heading', { name: 'Northport Container Recovery', exact: true }).count(), 0);
   await page.getByRole('button', { name: 'Open Dev Tools', exact: true }).click();
   assert.equal(await page.getByRole('button', { name: 'NP Container', exact: true }).count(), 0);
-  await page.getByRole('button', { name: 'Test Tools', exact: true }).click();
+  await page.getByRole('button', { name: 'Dev Setting', exact: true }).click();
   await page.getByRole('heading', { name: 'Developer Settings', exact: true }).waitFor();
   assert.equal(await page.getByRole('button', { name: 'Open Northport Container Recovery', exact: true }).count(), 0);
   await page.getByRole('button', { name: 'Return to Admin Portal', exact: true }).click();

@@ -6,6 +6,7 @@ import depotCardImage from '../../../media/registration-depot-card-fast.webp';
 import { Logo } from '../common/Logo';
 
 interface PortSelectionProps {
+  progress?: React.ReactNode;
   selectedLocation: PortLocation | null;
   onSelectLocation: (loc: PortLocation) => void;
   ports: PortConfig[];
@@ -14,6 +15,7 @@ interface PortSelectionProps {
 }
 
 export function PortSelection({
+  progress,
   selectedLocation,
   ports,
   onSelectLocation,
@@ -33,6 +35,7 @@ export function PortSelection({
   return (
     <div className="mx-auto max-w-[1080px] space-y-5">
       <div className="text-center space-y-1 pt-0 sm:pt-0">
+        {progress}
         <h2 className="flex flex-wrap items-center justify-center gap-x-2 text-[28px] font-bold leading-tight text-[#102a56] sm:text-[32px] sm:leading-10">
           <span>What are you <span className="text-[#102a56]">registering</span></span>
           <Logo size="lg" className="shrink-0 self-center translate-y-1" />
