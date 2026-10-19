@@ -15,7 +15,7 @@ const cancelButtonClass = 'inline-flex min-h-10 items-center justify-center roun
 const secondaryClass = 'inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50';
 const cardClass = 'min-w-0 rounded-xl border border-slate-200 bg-white p-4 shadow-sm';
 const tableHeadingClass = 'px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-600';
-function RecordActions({ disabled, onChoose }: { disabled: boolean; onChoose: (action: 'edit' | 'reprocess') => void }) {
+function RecordActions({ disabled, onChoose }: { disabled: boolean; onChoose: (action: 'edit' | 'reprocess' | 'download') => void }) {
   const menuRef=useRef<HTMLDivElement>(null);
   const [open,setOpen]=useState(false);
   useEffect(()=>{if(disabled)menuRef.current?.hidePopover();},[disabled]);
@@ -29,7 +29,7 @@ function RecordActions({ disabled, onChoose }: { disabled: boolean; onChoose: (a
       menu.showPopover();menu.querySelector<HTMLButtonElement>('button')?.focus();
     }}><MoreVertical aria-hidden="true" className="h-4 w-4"/></button>
     <div ref={menuRef} popover="auto" role="dialog" aria-label="Record actions" onToggle={()=>setOpen(menuRef.current?.matches(':popover-open')??false)} style={{position:'fixed',margin:0}} className="w-[184px] rounded-xl border border-slate-200 bg-white p-1.5 text-xs text-slate-700 shadow-xl">
-      {([['edit','View/Edit File'],['reprocess','Reprocess']] as const).map(([action,label])=><button key={action} type="button" disabled={disabled} className="block w-full rounded-lg px-3 py-2.5 text-left hover:bg-slate-100 focus-visible:bg-blue-50 focus-visible:outline-none disabled:opacity-50" onClick={()=>{menuRef.current?.hidePopover();onChoose(action);}}>{label}</button>)}
+      {([['edit','View/Edit File'],['reprocess','Reprocess'],['download','Download whole file']] as const).map(([action,label])=><button key={action} type="button" disabled={disabled} className="block w-full rounded-lg px-3 py-2.5 text-left hover:bg-slate-100 focus-visible:bg-blue-50 focus-visible:outline-none disabled:opacity-50" onClick={()=>{menuRef.current?.hidePopover();onChoose(action);}}>{label}</button>)}
     </div>
   </>;
 }
@@ -218,6 +218,19 @@ export function NorthportRecovery({ onBack }: { onBack: () => void }) {
     pending.current=true;setBusy(name);setError('');setMessage('');
     const controller = new AbortController();if(name==='search') searchController.current=controller;
     try {
+      if(name==='download-source') {
+        const response=await fetch('/api/dev-tools/northport-recovery',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CargoMove-Confirm':'northport-recovery'},body:JSON.stringify({action:name,token:payload.token}),signal:controller.signal});
+        if(!response.ok) {
+          const data=await recoveryResponse(response);
+          throw new Error(data.error||'Unable to download the source file.');
+        }
+        const url=URL.createObjectURL(await response.blob());
+        const link=document.createElement('a');
+        link.href=url;link.download=payload.filename;link.hidden=true;
+        document.body.appendChild(link);link.click();link.remove();
+        setTimeout(()=>URL.revokeObjectURL(url),1000);
+        return;
+      }
       if(name==='reprocess') {
         if(!enabled)throw new Error('Reprocess is disabled until production upload compatibility is verified.');
         setReprocessStarted(true);setBusy('reprocess-upload');
@@ -372,9 +385,9 @@ export function NorthportRecovery({ onBack }: { onBack: () => void }) {
         <div className="northport-results-cards northport-results-list space-y-3 md:hidden">{results.map(match=><article key={match.filename+':'+match.record} className="min-w-0 rounded-xl border border-slate-200 bg-white p-3">
           <div className="flex items-center justify-between gap-2"><p className="text-sm font-semibold text-slate-900">{match.values[0]}</p><span className="rounded-md bg-emerald-50 px-2 py-1 text-[10px] font-medium text-emerald-700">MATCH · {match.type}</span></div>
           <p className="mt-2 break-all text-xs leading-5 text-slate-600">{match.filename}</p><p className="mt-1 text-[11px] text-slate-500">{displayTime(match.timestamp)} · Record {match.record}</p>
-          <div className="mt-3 grid grid-cols-2 gap-2"><button type="button" disabled={!!busy} className={secondaryClass+' px-2'} onClick={()=>choose(match)}>View / Edit</button><button type="button" disabled={!!busy} className={buttonClass+' px-2'} onClick={()=>{choose(match);setReview(true);}}>Reprocess</button></div>
+          <div className="mt-3 grid grid-cols-2 gap-2"><button type="button" disabled={!!busy} className={secondaryClass+' px-2'} onClick={()=>choose(match)}>View / Edit</button><button type="button" disabled={!!busy} className={buttonClass+' px-2'} onClick={()=>{choose(match);setReview(true);}}>Reprocess</button><button type="button" disabled={!!busy} className={secondaryClass+' col-span-2 px-2'} onClick={()=>void action('download-source',match)}><Download aria-hidden="true" className="h-4 w-4"/>Download whole file</button></div>
         </article>)}</div>
-        <div className="northport-results-table-wrap northport-results-list hidden min-w-0 rounded-lg border border-slate-100 md:block overflow-hidden"><table className="northport-results-table text-left text-xs"><thead className="border-b border-slate-300 bg-slate-200 text-slate-800"><tr>{['Container No.','Type','Source Filename','File Timestamp','Record No.','Match Status','Actions'].map(h=><th scope="col" className={tableHeadingClass} key={h}>{h}</th>)}</tr></thead><tbody>{results.map((m,i)=><tr key={m.filename+':'+m.record} className={'border-b border-slate-100 last:border-0 '+(selected?.filename===m.filename&&selected.record===m.record?'bg-blue-50':'hover:bg-slate-50')}><td className="px-4 py-4 font-semibold text-slate-900">{m.values[0]}</td><td className="whitespace-nowrap px-4 py-4"><span className="rounded-md bg-slate-100 px-2 py-1 font-medium text-slate-600">{m.type==='GP'?'Import (GP)':'Export (EX)'}</span></td><td className="px-4 py-4 text-slate-600">{m.filename}</td><td className="whitespace-nowrap px-4 py-4 text-slate-600"><span className="inline-block whitespace-nowrap">{m.timestamp.slice(0,10)}</span>{' '}<span className="inline-block whitespace-nowrap">{m.timestamp.slice(11)} MYT</span></td><td className="px-4 py-4 text-center">{m.record}</td><td className="whitespace-nowrap px-4 py-4 text-emerald-700"><span className="inline-flex items-center gap-1"><CheckCircle2 aria-hidden="true" className="h-3.5 w-3.5"/>MATCH</span></td><td className="px-4 py-3"><RecordActions disabled={!!busy} onChoose={action=>{choose(results[i]);if(action==='reprocess')setReview(true);}}/></td></tr>)}</tbody></table></div>
+        <div className="northport-results-table-wrap northport-results-list hidden min-w-0 rounded-lg border border-slate-100 md:block overflow-hidden"><table className="northport-results-table text-left text-xs"><thead className="border-b border-slate-300 bg-slate-200 text-slate-800"><tr>{['Container No.','Type','Source Filename','File Timestamp','Record No.','Match Status','Actions'].map(h=><th scope="col" className={tableHeadingClass} key={h}>{h}</th>)}</tr></thead><tbody>{results.map((m,i)=><tr key={m.filename+':'+m.record} className={'border-b border-slate-100 last:border-0 '+(selected?.filename===m.filename&&selected.record===m.record?'bg-blue-50':'hover:bg-slate-50')}><td className="px-4 py-4 font-semibold text-slate-900">{m.values[0]}</td><td className="whitespace-nowrap px-4 py-4"><span className="rounded-md bg-slate-100 px-2 py-1 font-medium text-slate-600">{m.type==='GP'?'Import (GP)':'Export (EX)'}</span></td><td className="px-4 py-4 text-slate-600">{m.filename}</td><td className="whitespace-nowrap px-4 py-4 text-slate-600"><span className="inline-block whitespace-nowrap">{m.timestamp.slice(0,10)}</span>{' '}<span className="inline-block whitespace-nowrap">{m.timestamp.slice(11)} MYT</span></td><td className="px-4 py-4 text-center">{m.record}</td><td className="whitespace-nowrap px-4 py-4 text-emerald-700"><span className="inline-flex items-center gap-1"><CheckCircle2 aria-hidden="true" className="h-3.5 w-3.5"/>MATCH</span></td><td className="px-4 py-3"><RecordActions disabled={!!busy} onChoose={choice=>{if(choice==='download')void action('download-source',results[i]);else{choose(results[i]);if(choice==='reprocess')setReview(true);}}}/></td></tr>)}</tbody></table></div>
       </>}
     </section>
 

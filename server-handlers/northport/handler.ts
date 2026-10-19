@@ -109,6 +109,17 @@ export function createNorthportHandler(deps = { adminClient, readSession, withFt
           return response.json(result);
         } finally { request.removeListener?.('aborted',cancel); response.removeListener?.('close',disconnected); }
       }
+      if (input.action === 'download-source') {
+        const source = verify(input.token,session.id);
+        const bytes = await deps.withFtp(async (ftp,config) => {
+          await ftp.cd(config.success);
+          return download(ftp,source.filename);
+        });
+        if (hash(bytes) !== source.digest) throw new RecoveryError('Source file changed since the search. Search again before downloading.',409);
+        response.setHeader('Content-Type','text/csv; charset=utf-8');
+        response.setHeader('Content-Disposition',`attachment; filename="${source.filename}"`);
+        return response.send(bytes);
+      }
       if (input.action === 'approve' || input.action === 'upload') {
         const source = verify(input.token,session.id); validateValues(input.values);
         const values = input.values as string[];

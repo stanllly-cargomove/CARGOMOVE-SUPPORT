@@ -58,7 +58,7 @@ function harness() {
   const ftp={pwd:async()=>'/account',cd:async()=>{},list:async(pattern?:string)=>{listingRequests.push(pattern);return entries;},downloadTo:async(stream:any,name:string)=>{downloads.push(name);stream.end(name===exName?ex:source);},uploadFrom:async()=>{uploaded=true;},size:async(name:string)=>sizeLookup(name),rename:async()=>{}};
   const client={from(){const query:any={select(){return this;},eq(){return this;},order(){return this;},limit(){return this;},timeout(){return this;},update(value:any){updates.push(value);return this;},async maybeSingle(){return {data:profile,error:null};},then(resolve:any){return Promise.resolve({data:[],error:null}).then(resolve);}};return query;},async rpc(name:string){return {error:null,data:name==='northport_admit_request'?rate:name==='northport_approve'?approve:name==='northport_claim_upload'?claim:name==='northport_claim_scheduler'?schedulerClaim:null};}};
   const handler=createNorthportHandler({adminClient:()=>client as any,readSession:()=>session,withFtp:async(operation:any)=>{if(ftpError)throw new RecoveryError('FTP operation failed',502);return operation(ftp,{base:'/incoming',success:'/incoming/SUCCESS',access:{secure:true}});},runScheduler:async(_req:any,res:any)=>{schedulerCalls++;res.status(schedulerFailure?502:200).json({status:schedulerFailure?'failed':'trigger_requested',message:'Test result',executionId:'run-test'});}} as any);
-  const call=async(payload:any,overrides:any={})=>{const response:any={code:200,body:null,setHeader(){},status(code:number){this.code=code;return this;},json(body:any){this.body=body;return this;}};await handler({method:'POST',headers:{origin:'https://portal.example.test','x-cargomove-confirm':'northport-recovery'},body:payload,...overrides},response);return response;};
+  const call=async(payload:any,overrides:any={})=>{const response:any={code:200,body:null,headers:{} as Record<string,string>,setHeader(name:string,value:string){this.headers[name]=value;},status(code:number){this.code=code;return this;},json(body:any){this.body=body;return this;},send(body:any){this.body=body;return this;}};await handler({method:'POST',headers:{origin:'https://portal.example.test','x-cargomove-confirm':'northport-recovery'},body:payload,...overrides},response);return response;};
   return {call,downloads,updates,listingRequests,setSize:(fn:typeof sizeLookup)=>sizeLookup=fn,get uploaded(){return uploaded;},get schedulerCalls(){return schedulerCalls;},setSession:(v:any)=>session=v,setProfile:(v:any)=>profile=v,setEntries:(v:any)=>entries=v,setRate:(v:boolean)=>rate=v,setFtpError:()=>ftpError=true,setSource:(v:Buffer)=>source=v,setApprove:(v:any)=>approve=v,setClaim:(v:any)=>claim=v,setSchedulerFailure:()=>schedulerFailure=true,setSchedulerClaim:(v:boolean)=>schedulerClaim=v};
 }
 test('time-window scan discovers a file omitted from listings and matches its second container row without a filename',async()=>{
@@ -114,6 +114,18 @@ test('search downloads only timestamp candidates, filters GP/EX and matches UNIT
   const filtered=await h.call({action:'search',...search,type:'EX'});assert.deepEqual(filtered.body.matches,[]);
   assert.equal((await h.call({action:'search',...search,unit:'MSBU417935'})).body.matches.length,0);
   const boundary=await h.call({action:'search',...search,timestamp:'2026-10-17T01:20:16',before:0,after:0});assert.equal(boundary.body.matches.length,1);
+});
+test('whole-file download returns the exact original CSV and rejects changed or unauthorized sources',async()=>{
+  const h=harness();const found=await h.call({action:'search',...search});const token=found.body.matches[0].token;
+  const result=await h.call({action:'download-source',token});
+  assert.equal(result.code,200);assert.deepEqual(result.body,gp);
+  assert.equal(result.headers['Content-Type'],'text/csv; charset=utf-8');
+  assert.equal(result.headers['Content-Disposition'],`attachment; filename="${gpName}"`);
+  assert.equal(parseCsv(result.body).rows.length,3);
+  h.setSource(ex);assert.equal((await h.call({action:'download-source',token})).code,409);
+  h.setSession({id:'other',email:'other@example.test',type:'ADMIN'});
+  assert.equal((await h.call({action:'download-source',token})).code,400);
+  assert.equal((await h.call({action:'download-source',token:token+'x'})).code,400);
 });
 test('multiple exact matches are all returned, malformed source blocks recovery for that file',async()=>{
   const h=harness();const csv=parseCsv(gp);h.setSource(Buffer.from(NORTHPORT_COLUMNS.join(',')+'\r\n'+csv.rows[0].join(',')+'\r\n'+csv.rows[0].join(',')+'\r\n'));

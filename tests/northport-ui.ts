@@ -11,6 +11,7 @@ try {
   const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
   const values=Array(20).fill('');values[0]='MSBU4179350';values[1]='000123';values[4]='I';
   const match={filename:'CM_CONTAINER_20261017012016_GP.csv',type:'GP',timestamp:'2026-10-17T01:20:16',record:1,values,token:'test-token'};
+  const sourceCsv=NORTHPORT_COLUMNS.join(',')+'\r\n'+values.join(',')+'\r\nOTHER123,'+Array(19).fill('').join(',')+'\r\n';
   let searches=0;let approvals=0;let uploads=0;let triggers=0;let checks=0;let noResults=false;
   let coverageWarning:string|null=null;
   let htmlFailure=false;let historyUnavailable=false;
@@ -26,6 +27,7 @@ try {
       if(route.request().method()==='GET')return historyUnavailable?route.fulfill({status:503,json:{error:'History temporarily unavailable.'}}):route.fulfill({json:{history,uploadsEnabled:writesEnabled,missingGates:writesEnabled?[]:['READONLY_VERIFIED']}});
       const body=route.request().postDataJSON();assert.equal(route.request().headers()['x-cargomove-confirm'],'northport-recovery');
       if(body.action==='check'){checks++;return route.fulfill({json:{message:'Read-only FTP check succeeded.',root:'/',incoming:'/CONTAINERS',success:'/CONTAINERS/SUCCESS',secure:true}});}
+      if(body.action==='download-source'){assert.equal(body.token,match.token);return route.fulfill({contentType:'text/csv',body:sourceCsv});}
       if(body.action==='search') {
         searches++;assert.equal(body.unit,'MSBU4179350');assert.equal(body.timestamp,'2026-10-17T01:20:00');
         await new Promise<void>(resolve=>{finish=resolve;});
@@ -74,6 +76,12 @@ try {
   finish();finish=undefined;
   await page.getByRole('heading',{name:'Search Results',exact:true}).waitFor();
   assert.equal(await page.getByRole('button',{name:'Record actions',exact:true}).count(),2);
+  await page.getByRole('button',{name:'Record actions',exact:true}).first().click();
+  const wholeDownload=page.waitForEvent('download');
+  await page.getByRole('button',{name:'Download whole file',exact:true}).click();
+  const wholeFile=await wholeDownload;
+  assert.equal(wholeFile.suggestedFilename(),match.filename);
+  assert.equal(await readFile((await wholeFile.path())!,'utf8'),sourceCsv);
   assert.equal(await page.getByRole('heading',{name:/Edit Record —/}).count(),0,'Must not auto-select first match');
   await page.getByRole('button',{name:'Record actions',exact:true}).first().click();
   await page.getByRole('button',{name:'View/Edit File',exact:true}).click();
