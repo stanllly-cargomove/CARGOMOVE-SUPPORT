@@ -6,6 +6,7 @@ import { ArrowLeft, Check, CheckCircle2, ChevronDown, Clock3, Container, Downloa
 import { NORTHPORT_COLUMNS, NORTHPORT_SEARCH_MODES, type Match, type Recovery, type ScannedFile, type SearchMode } from '../../types/northport';
 import { ReprocessError, reprocessApprovedRecovery, type ReprocessSubmission } from '../../services/northportReprocess';
 import { NorthportScannedFiles } from './NorthportScannedFiles';
+import { NorthportDateTimePicker, NorthportTimeRangePicker } from './NorthportDateTimePicker';
 
 const notificationOptions = { toasterId: 'northport' };
 const northportToaster = <Toaster toasterId="northport" position="top-center" containerStyle={{top:16}} toastOptions={{duration:6000}}/>;
@@ -164,10 +165,10 @@ function batchPause(ms:number,signal:AbortSignal) {
 }
 function rangeTime(value: string, minutes: number) {
   const ms = Date.parse(value + '+08:00') + minutes * 60000;
-  return Number.isFinite(ms) ? displayTime(new Date(ms+8*3600000).toISOString().slice(0,19)) : 'Enter a timestamp';
+  return Number.isFinite(ms) ? displayTime(new Date(ms+8*3600000).toISOString().slice(0,16)) : 'Enter a timestamp';
 }
 export function NorthportRecovery({ onBack }: { onBack: () => void }) {
-  const [form,setForm] = useState({unit:'',timestamp:'',type:'GP',before:5,after:30,sourceFilename:'',mode:'standard' as SearchMode});
+  const [form,setForm] = useState({unit:'',timestamp:'',type:'GP',before:10,after:30,sourceFilename:'',mode:'standard' as SearchMode});
   const [showExactFilename,setShowExactFilename] = useState(false);
   const [connectionOptions,setConnectionOptions] = useState(false);
   const [filenameOptions,setFilenameOptions] = useState(false);
@@ -349,7 +350,7 @@ export function NorthportRecovery({ onBack }: { onBack: () => void }) {
 
     <section className={cardClass+' northport-search-card'}>
       <SectionHeading step={1} title="Search Container" description="Enter container details and a time range to search in SUCCESS." action={<SearchModeButton mode={form.mode} disabled={!!busy} onChange={mode=>setForm(current=>({...current,mode}))}/>}/>
-      <form onSubmit={e=>{e.preventDefault();if(pending.current)return;setFilenameOptions(false);setConnectionOptions(false);setResults([]);setSearchSummary(null);setDisplayProgress(0);setSelected(null);setApproved(null);void action('search',{...form,sourceFilename:showExactFilename?form.sourceFilename:''});}} className="space-y-3">
+      <form onSubmit={e=>{e.preventDefault();if(pending.current)return;if(!form.timestamp){setError('Select the EIR date and time.');e.currentTarget.querySelector<HTMLButtonElement>('[aria-label="EIR time (Malaysia)"]')?.focus();return;}setFilenameOptions(false);setConnectionOptions(false);setResults([]);setSearchSummary(null);setDisplayProgress(0);setSelected(null);setApproved(null);void action('search',{...form,sourceFilename:showExactFilename?form.sourceFilename:''});}} className="space-y-3">
         <div className="northport-search-fields">
           <div className="min-w-0">
             <label htmlFor="northport-container" className="mb-2 block text-xs font-medium text-slate-700">Container No.</label>
@@ -365,21 +366,18 @@ export function NorthportRecovery({ onBack }: { onBack: () => void }) {
               </div>}
             </div>
           </div>
-          <label className="min-w-0 text-xs font-medium text-slate-700">EIR time
-            <span className="relative mt-2 block h-11 min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm focus-within:ring-2 focus-within:ring-blue-100 sm:h-auto sm:overflow-visible sm:border-0 sm:shadow-none">
-              <span aria-hidden="true" className="flex h-full flex-wrap content-center items-center gap-x-1 px-2 text-[11px] leading-[14px] sm:hidden">{form.timestamp?<><span className="whitespace-nowrap font-medium text-slate-900">{form.timestamp.slice(0,10).split('-').reverse().join('/')}</span><span className="whitespace-nowrap text-slate-500">{form.timestamp.slice(11)}</span></>:<span className="font-normal text-slate-400">Select date &amp; time</span>}</span>
-              <input aria-label="EIR time (Malaysia)" disabled={busy==='search'} required type="datetime-local" step="1" className={inputClass+' cursor-pointer'} value={form.timestamp} onClick={event=>{try{event.currentTarget.showPicker?.();}catch{event.currentTarget.focus();}}} onChange={e=>setForm({...form,timestamp:e.target.value.length===16?e.target.value+':00':e.target.value})}/>
-            </span>
-          </label>
+          <div className="min-w-0 text-xs font-medium text-slate-700">EIR time
+            <div className="mt-2"><NorthportDateTimePicker value={form.timestamp} disabled={busy==='search'} onChange={timestamp=>setForm(current=>({...current,timestamp}))}/></div>
+          </div>
           <label className="min-w-0 text-xs font-medium text-slate-700">Container Type
             <span className="relative mt-2 block"><ListFilter aria-hidden="true" className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-slate-500"/><select disabled={busy==='search'} className={inputClass+' appearance-none pl-10 pr-8'} value={form.type} onChange={e=>setForm({...form,type:e.target.value})}><option value="ALL">All</option><option value="GP">Import (GP)</option><option value="EX">Export (EX)</option></select><ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-3.5 h-4 w-4 text-slate-500"/></span>
           </label>
           <div className="min-w-0"><div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-slate-700">Time Range (min)<span title="Search this many minutes before and after the EIR time."><Info aria-hidden="true" className="h-3.5 w-3.5 text-blue-600"/></span></div><div className="grid grid-cols-2 gap-2">
-            {(['before','after'] as const).map(key=><label key={key} className="relative min-w-0"><span className="sr-only">Minutes {key}</span><input disabled={busy==='search'} type="number" min="0" max="1440" step="1" required className={inputClass+' pr-12 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'} value={form[key]} onChange={e=>setForm({...form,[key]:e.target.valueAsNumber})}/><span aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-[10px] text-slate-500">{key}</span></label>)}
+            {(['before','after'] as const).map(key=><NorthportTimeRangePicker key={key} direction={key} value={form[key]} disabled={busy==='search'} onChange={value=>setForm(current=>({...current,[key]:value}))}/>)}
           </div></div>
           <div className="northport-search-actions flex items-center gap-2">
             <button disabled={!!busy} className={buttonClass+' min-h-11 whitespace-nowrap'} type="submit">{busy==='search'?<Loader2 aria-hidden="true" className="h-4 w-4 animate-spin"/>:<Search aria-hidden="true" className="h-4 w-4"/>}Search FTP</button>
-            {busy==='search'?<button type="button" aria-label="Cancel Search" title="Cancel Search" className="inline-flex h-11 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" onClick={()=>searchController.current?.abort()}><X aria-hidden="true" className="h-4 w-4"/></button>:<button type="button" aria-label="Clear" title="Clear search" className="inline-flex h-11 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-50" disabled={!!busy} onClick={()=>{if(pending.current)return;setForm({unit:'',timestamp:'',type:'GP',before:5,after:30,sourceFilename:'',mode:'standard'});setShowExactFilename(false);setFilenameOptions(false);setResults([]);setSearchSummary(null);setDisplayProgress(0);setSelected(null);setApproved(null);setError('');setMessage('');}}><RefreshCw aria-hidden="true" className="h-4 w-4"/></button>}
+            {busy==='search'?<button type="button" aria-label="Cancel Search" title="Cancel Search" className="inline-flex h-11 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" onClick={()=>searchController.current?.abort()}><X aria-hidden="true" className="h-4 w-4"/></button>:<button type="button" aria-label="Clear" title="Clear search" className="inline-flex h-11 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-50" disabled={!!busy} onClick={()=>{if(pending.current)return;setForm({unit:'',timestamp:'',type:'GP',before:10,after:30,sourceFilename:'',mode:'standard'});setShowExactFilename(false);setFilenameOptions(false);setResults([]);setSearchSummary(null);setDisplayProgress(0);setSelected(null);setApproved(null);setError('');setMessage('');}}><RefreshCw aria-hidden="true" className="h-4 w-4"/></button>}
           </div>
         </div>
       </form>

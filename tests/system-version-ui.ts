@@ -15,7 +15,7 @@ const server = createServer((req, res) => {
 });
 await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
 const origin = `http://127.0.0.1:${(server.address() as any).port}`;
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({ headless: true, channel: process.env.PLAYWRIGHT_CHANNEL });
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
   const errors: string[] = [];
@@ -34,18 +34,23 @@ try {
       case '/api/dev-tools/system-versions':
         assert.equal(route.request().method(), 'POST');
         assert.equal(route.request().headers()['x-cargomove-confirm'], 'record-system-versions');
-        return failHistory ? reply({ error: 'History storage unavailable.' }, 503) : reply({ history: manifest.history });
+        return failHistory ? reply({ error: 'History storage unavailable.' }, 503) : reply({ history: manifest.history.map((release, index) => index ? release : {
+          ...release, authors: ['Alice', 'Bob'], pushedBy: 'release-user',
+          commits: [{ sha: 'abcdef1234567', author: 'Alice', subject: 'Update home page' }],
+        }) });
       default: throw new Error('Unexpected API: ' + url.pathname);
     }
   });
   await page.goto(origin + '/admin');
   await page.getByRole('button', { name: 'Open Dev Tools', exact: true }).click();
-  await page.getByRole('button', { name: 'Dev Setting', exact: true }).click();
-  await page.getByRole('button', { name: /^System Version/ }).click();
+  await page.getByRole('button', { name: 'System Information', exact: true }).click();
   await page.getByRole('status').filter({ hasText: 'Showing history from this release.' }).waitFor();
+  assert.ok(await page.getByRole('cell', { name: 'Stanlly', exact: true }).count());
   failHistory = false;
   await page.getByRole('button', { name: 'Try again' }).click();
   await page.getByRole('status').filter({ hasText: 'Version history saved to the database.' }).waitFor();
+  await page.getByRole('region', { name: 'Version changes' }).getByRole('cell', { name: /Alice, Bob/ }).waitFor();
+  await page.getByText('Pushed by release-user', { exact: true }).waitFor();
   for (const width of [1440, 768]) {
     await page.setViewportSize({ width, height: 1000 });
     const pageTab = page.getByRole('tab', { name: 'Page Version' });
@@ -74,7 +79,7 @@ try {
     assert.ok(Math.abs(card.x + card.width - version.x - version.width - 21) < 2, 'Version aligned to right padding');
   }
   const headers = await page.getByRole('region', { name: 'Version changes' }).getByRole('columnheader').allTextContents();
-  assert.deepEqual(headers, ['Date', 'Time (MYT)', 'Changes', 'Old version', 'New version']);
+  assert.deepEqual(headers, ['Date', 'Time (MYT)', 'Author', 'Changes', 'Old version', 'New version']);
   assert.equal(await page.getByText('Existing page or tool updated:', { exact: false }).count(), 0);
   await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(await page.getByRole('tab').count(), 0);

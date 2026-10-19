@@ -1,3 +1,4 @@
+import { selectEirTime } from './northport-picker-helpers';
 // Build first with npm run build. All browser requests are intercepted locally.
 import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
@@ -41,7 +42,7 @@ try {
     const refreshHistory = await page.getByRole('button', { name: 'Refresh History', exact: true }).boundingBox();
     assert.ok(historyHeading && refreshHistory && Math.abs((historyHeading.y+historyHeading.height/2)-(refreshHistory.y+refreshHistory.height/2))<2, 'Refresh must be vertically centered beside the history heading and description');
     const searchCard = await page.locator('.northport-search-card').boundingBox();
-    assert.equal(await page.getByRole('spinbutton', { name: 'Minutes before' }).isVisible(), !!searchCard && searchCard.width>934, 'Time range visibility must follow the available card width');
+    assert.equal(await page.getByRole('button', { name: 'Minutes before', exact: true }).isVisible(), true, 'Time range is available at every viewport width');
     await checkOverflow();
     const checkHistoryFit = async () => {
       assert.equal(await page.locator('.northport-history-container').evaluate(card => card.scrollWidth<=card.clientWidth), true, 'History must fit its card without horizontal scrolling');
@@ -63,7 +64,7 @@ try {
       assert.ok(eir && type && eir.x+eir.width<type.x, 'EIR time must not overlap container type');
       assert.ok(eir && type && Math.abs(eir.height-type.height)<2, 'Both controls must have the same height');
       assert.ok(eir.x>=card.x && type.x+type.width<=card.x+card.width, 'Both fields must fit inside the card');
-      assert.equal(await page.getByRole('spinbutton', { name: 'Minutes before' }).isVisible(), false, 'Time range must be hidden on phones');
+      assert.equal(await page.getByRole('button', { name: 'Minutes before', exact: true }).isVisible(), true, 'Time range is available on phones');
       await page.getByRole('button', { name: 'How it works', exact: true }).click();
       await checkOverflow();
       await page.keyboard.press('Escape');
@@ -85,7 +86,7 @@ try {
       await page.getByRole('button', { name: 'Close recovery details', exact: true }).click();
     }
     await page.getByLabel('Container No.', { exact: true }).fill(values[0]);
-    await page.getByLabel('EIR time (Malaysia)', { exact: true }).fill('2026-10-17T16:30');
+    await selectEirTime(page, '2026-10-17T16:30');
     await page.getByRole('button', { name: 'Search FTP', exact: true }).click();
     while (!finishSearch) await new Promise(resolve => setTimeout(resolve, 5));
     const searchingResultsHeight = await page.locator('.northport-results-container').evaluate(card=>card.getBoundingClientRect().height);
@@ -100,8 +101,8 @@ try {
     }
     finishSearch(); finishSearch = undefined;
     if (width < 768) {
-      await page.getByRole('button', { name: 'View / Edit', exact: true }).waitFor();
-      await page.getByRole('button', { name: 'View / Edit', exact: true }).click();
+      await page.getByRole('button', { name: 'Record actions', exact: true }).click();
+      await page.getByRole('button', { name: 'View/Edit File', exact: true }).click();
       const dialog = page.getByRole('dialog', { name: 'Container file editor', exact: true });
       await dialog.waitFor();
       const editorBounds = await dialog.boundingBox();

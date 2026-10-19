@@ -7,6 +7,7 @@ import {
   Settings,
   BookOpen,
   Wrench,
+  Info,
   Container,
   UserRoundPlus,
   ChevronDown,
@@ -161,6 +162,7 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout 
     { id: 'guidelines', label: 'Haulier Guidelines', icon: BookOpen, section: 'Registration Setup', path: undefined },
     { id: 'admin-user', label: 'Admin Users', icon: UserRoundPlus, section: 'Dev Admin', path: undefined },
     { id: 'developer-settings', label: 'Dev Setting', icon: Wrench, section: 'Dev Admin', path: undefined },
+    { id: 'system-version', label: 'System Information', icon: Info, section: 'Dev Admin', path: undefined },
   ];
 
   const switchPortal = () => {
@@ -180,7 +182,7 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout 
     setIsAccountMenuOpen(false);
   };
 
-  const isDevSettingsPage = activeTab === 'schema' || activeTab === 'scheduler' || activeTab === 'ports' || activeTab === 'system-version';
+  const isDevSettingsPage = activeTab === 'schema' || activeTab === 'scheduler' || activeTab === 'ports';
   const activePageLabel = activeTab === 'system-version' ? 'System Version' : activeTab === 'ports' ? 'Ports & Depots' : activeTab === 'schema' ? 'Excel Mapping' : activeTab === 'scheduler' ? 'Scheduler' : activeTab === 'northport-recovery' ? 'Tools / NP Container' : [...navItems, ...registrationQueueItems, ...devToolItems]
     .find((item) => item.id === activeTab)?.label ?? (activeTab === 'account-settings' ? 'Settings' : 'Dashboard');
 
@@ -540,7 +542,7 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout 
           )}
           {activeTab === 'ports' && <PortDepotConfig />}
           {activeTab === 'schema' && <SchemaMappingInspector />}
-          {activeTab === 'developer-settings' && <DeveloperSettings onOpenScheduler={() => setActiveTab('scheduler')} onOpenExcelMapping={() => setActiveTab('schema')} onOpenPortDepotConfig={() => setActiveTab('ports')} onOpenSystemVersion={() => setActiveTab('system-version')} />}
+          {activeTab === 'developer-settings' && <DeveloperSettings onOpenScheduler={() => setActiveTab('scheduler')} onOpenExcelMapping={() => setActiveTab('schema')} onOpenPortDepotConfig={() => setActiveTab('ports')} />}
           {activeTab === 'system-version' && <SystemVersion />}
           {activeTab === 'scheduler' && <div className="space-y-6"><div><h2 className="text-xl font-bold tracking-tight text-slate-900">Scheduler</h2><p className="mt-1 text-xs text-slate-500">Manage saved schedulers and request a run when needed.</p></div><CargoMoveScheduler /></div>}
           {activeTab === 'northport-recovery' && portalMode === 'admin' && user?.type === 'ADMIN' && <NorthportRecovery onBack={goToPortalHome} />}

@@ -1,15 +1,14 @@
 import React, { useState } from 'react';
-import { ChevronRight, Clock3, FlaskConical, Settings, TableProperties, Layers3 } from 'lucide-react';
+import { ChevronRight, Clock3, FlaskConical, Settings, TableProperties } from 'lucide-react';
 import { areRegistrationTestToolsEnabled, setRegistrationTestToolsEnabled } from '../../services/developerSettings';
 
 interface DeveloperSettingsProps {
   onOpenScheduler: () => void;
   onOpenExcelMapping: () => void;
   onOpenPortDepotConfig: () => void;
-  onOpenSystemVersion: () => void;
 }
 
-export function DeveloperSettings({ onOpenScheduler, onOpenExcelMapping, onOpenPortDepotConfig, onOpenSystemVersion }: DeveloperSettingsProps) {
+export function DeveloperSettings({ onOpenScheduler, onOpenExcelMapping, onOpenPortDepotConfig }: DeveloperSettingsProps) {
   const [testToolsEnabled, setTestToolsEnabled] = useState(areRegistrationTestToolsEnabled);
 
   const updateTestTools = (enabled: boolean) => {
@@ -21,7 +20,7 @@ export function DeveloperSettings({ onOpenScheduler, onOpenExcelMapping, onOpenP
     <div className="w-full space-y-6">
       <div>
         <h2 className="text-xl font-bold tracking-tight text-slate-900">Developer Settings</h2>
-        <p className="mt-1 text-xs text-slate-500">Manage system versions, registration testing, ports and depots, schedulers and Excel mappings.</p>
+        <p className="mt-1 text-xs text-slate-500">Manage registration testing, ports and depots, schedulers and Excel mappings.</p>
       </div>
       <section aria-label="Developer settings" className="w-full divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="flex w-full items-center gap-4 p-4 sm:p-5">
@@ -35,7 +34,6 @@ export function DeveloperSettings({ onOpenScheduler, onOpenExcelMapping, onOpenP
           </button>
         </div>
         {[
-          { title: 'System Version', description: 'View the general version, page and tool versions, and version changes.', icon: Layers3, onClick: onOpenSystemVersion },
           { title: 'Ports & Depots', description: 'Manage the ports and depots available for registration.', icon: Settings, onClick: onOpenPortDepotConfig },
           { title: 'Scheduler', description: 'View saved schedulers and request a run.', icon: Clock3, onClick: onOpenScheduler },
           { title: 'Excel Mapping', description: 'Review how registration details map to Excel templates and database fields.', icon: TableProperties, onClick: onOpenExcelMapping },

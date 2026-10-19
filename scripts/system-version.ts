@@ -18,6 +18,10 @@ export interface VersionChange {
   date: string;
   summary: string;
   files: string[];
+  authors?: string[];
+  pushedBy?: string;
+  sourceCommit?: string;
+  commits?: { sha: string; author: string; subject: string }[];
   changes: { id: string; name: string; kind: 'page' | 'tool'; action: 'added' | 'updated' | 'removed'; from: string | null; to: string | null }[];
 }
 export interface VersionManifest {
@@ -46,6 +50,16 @@ function walk(root: string, directory: string): string[] {
 export function bumpVersion(version: string, addition = false) {
   const [major, minor, patch] = version.split('.').map(Number);
   return addition ? `${major}.${minor + 1}.0` : `${major}.${minor}.${patch + 1}`;
+}
+
+// Only page/tool patch numbers roll over. The minor number has no upper limit.
+export function normalizeEntryVersion(version: string) {
+  const [major, minor, patch] = version.split('.').map(Number);
+  return `${major}.${minor + Math.floor(patch / 10)}.${patch % 10}`;
+}
+
+export function bumpEntryVersion(version: string) {
+  return normalizeEntryVersion(bumpVersion(version));
 }
 
 function definitions(root: string): Definition[] {
@@ -115,12 +129,12 @@ function dependencies(root: string, initial: string[], sources: Record<string, s
   return [...visited].sort();
 }
 
-export function updateSystemVersion(root: string, now = new Date().toISOString()): VersionManifest {
+export function updateSystemVersion(root: string, now = new Date().toISOString(), metadata: Pick<VersionChange, 'authors' | 'pushedBy' | 'sourceCommit' | 'commits'> = {}): VersionManifest {
   const target = path.join(root, manifestPath);
   const previous: VersionManifest | null = existsSync(target) ? JSON.parse(readFileSync(target, 'utf8')) : null;
   const sourceFiles: Record<string, string> = {};
   const files = ['src', 'api', 'server-handlers', 'media', 'supabase'].flatMap(dir => walk(root, dir));
-  files.push('index.html', 'package.json', 'vite.config.ts', 'server.ts', 'scripts/system-version.ts', 'scripts/system-version-plugin.ts');
+  files.push('index.html', 'package.json', 'vite.config.ts', 'server.ts', 'scripts/system-version.ts', 'scripts/capture-push-version.ts', '.github/workflows/system-version.yml');
   for (const file of files.sort()) {
     if (excluded.has(file) || !existsSync(path.join(root, file))) continue;
     sourceFiles[file] = /\.(?:png|jpe?g|webp|avif|gif|ico|woff2?|pdf|xlsx?)$/.test(file)
@@ -135,8 +149,8 @@ export function updateSystemVersion(root: string, now = new Date().toISOString()
     const old = previous?.entries.find(entry => entry.id === definition.id);
     const added = !old && Boolean(previous);
     const updated = Boolean(old && old.fingerprint !== fingerprint);
-    const version = old ? (updated ? bumpVersion(old.version) : old.version) : '1.0.0';
-    if (added || updated) changes.push({ id: definition.id, name: definition.name, kind: definition.kind, action: added ? 'added' : 'updated', from: old?.version || null, to: version });
+    const version = old ? (updated ? bumpEntryVersion(old.version) : normalizeEntryVersion(old.version)) : '1.0.0';
+    if (added || updated) changes.push({ id: definition.id, name: definition.name, kind: definition.kind, action: added ? 'added' : 'updated', from: old ? normalizeEntryVersion(old.version) : null, to: version });
     return { ...definition, version, updatedAt: !old || updated ? now : old.updatedAt, fingerprint };
   });
   for (const old of previous?.entries || []) {
@@ -153,7 +167,7 @@ export function updateSystemVersion(root: string, now = new Date().toISOString()
   }
   const manifest: VersionManifest = {
     schema: 1, version, updatedAt: now, entries, sourceFiles,
-    history: [{ version, previousVersion: previous?.version || baselineVersion, date: now, summary: previous ? (changes.some(change => change.action === 'added') ? 'Added pages or tools' : 'Updated existing pages, tools or shared system files') : 'Added System Version; initialized page and tool tracking.', files: changedFiles, changes }, ...(previous?.history || [baseline])],
+    history: [{ ...metadata, version, previousVersion: previous?.version || baselineVersion, date: now, summary: previous ? (changes.some(change => change.action === 'added') ? 'Added pages or tools' : 'Updated existing pages, tools or shared system files') : 'Added System Version; initialized page and tool tracking.', files: changedFiles, changes }, ...(previous?.history || [baseline])],
   };
   mkdirSync(path.dirname(target), { recursive: true });
   writeFileSync(`${target}.tmp`, JSON.stringify(manifest, null, 2) + '\n');

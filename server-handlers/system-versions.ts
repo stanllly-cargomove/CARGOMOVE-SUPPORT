@@ -1,6 +1,7 @@
 import { adminClient, readSession } from '../api/_runtime.js';
 import { allowedOrigin, schedulerAdmin } from './scheduler/access.js';
 import manifest from '../src/generated/system-versions.json' with { type: 'json' };
+import type { VersionManifest } from '../scripts/system-version.js';
 
 export function createSystemVersionHandler(deps = { adminClient, readSession }) {
   return async function systemVersions(request: any, response: any) {
@@ -19,19 +20,22 @@ export function createSystemVersionHandler(deps = { adminClient, readSession }) 
     try {
       // Use only the deployed manifest; browser-supplied history is never trusted.
       // Existing releases remain immutable, including when an older deployment opens.
-      const saved = await access.client.from('system_version_history').upsert(manifest.history.map(release => ({
+      const saved = await access.client.from('system_version_history').upsert((manifest as VersionManifest).history.map(release => ({
         version: release.version, previous_version: release.previousVersion, changed_at: release.date,
         summary: release.summary, changes: release.changes, files: release.files,
+        metadata: { authors: release.authors, pushedBy: release.pushedBy, sourceCommit: release.sourceCommit, commits: release.commits },
       })), { onConflict: 'version', ignoreDuplicates: true }).timeout(8000);
       if (saved.error) return fail(503, 'Version history could not be saved. Check that the system version database migration has been applied.');
-      const history: typeof manifest.history = [];
+      const history: VersionManifest['history'] = [];
       // Read in batches to retain history beyond Supabase's default row limit.
       for (let start = 0; ; start += 500) {
         const rows = await access.client.from('system_version_history').select('*')
           .order('changed_at', { ascending: false }).order('version').range(start, start + 499).timeout(8000);
         if (rows.error) return fail(503, 'Saved version history could not be loaded. Please try again.');
         history.push(...(rows.data || []).map(row => ({ version: row.version, previousVersion: row.previous_version,
-          date: row.changed_at, summary: row.summary, changes: row.changes, files: row.files })));
+          date: row.changed_at, summary: row.summary, changes: row.changes, files: row.files,
+          authors: row.metadata?.authors, pushedBy: row.metadata?.pushedBy,
+          sourceCommit: row.metadata?.sourceCommit, commits: row.metadata?.commits })));
         if ((rows.data || []).length < 500) break;
       }
       return response.status(200).json({ history });

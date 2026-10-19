@@ -3,11 +3,16 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'nod
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { bumpVersion, manifestPath, updateSystemVersion } from '../scripts/system-version.ts';
+import { bumpEntryVersion, bumpVersion, normalizeEntryVersion, manifestPath, updateSystemVersion } from '../scripts/system-version.ts';
 
 test('version increment rules', () => {
   assert.equal(bumpVersion('1.2.5'), '1.2.6');
   assert.equal(bumpVersion('1.2.5', true), '1.3.0');
+  assert.equal(bumpVersion('1.0.9'), '1.0.10');
+  assert.equal(bumpEntryVersion('1.0.9'), '1.1.0');
+  assert.equal(bumpEntryVersion('1.9.9'), '1.10.0');
+  assert.equal(normalizeEntryVersion('1.0.23'), '1.2.3');
+  assert.equal(normalizeEntryVersion('1.2.3'), '1.2.3');
 });
 
 test('records real source changes once, dependencies, additions, removals and durable history', () => {
@@ -27,8 +32,10 @@ test('records real source changes once, dependencies, additions, removals and du
     assert.deepEqual(updateSystemVersion(root), initial);
     assert.equal(readFileSync(path.join(root, manifestPath), 'utf8'), initialText);
     put('src/components/customer/HomePage.css', '.home { color: blue; }');
-    const edited = updateSystemVersion(root);
+    const edited = updateSystemVersion(root, undefined, { authors: ['Alice', 'Bob'], pushedBy: 'release-user', sourceCommit: 'abc123', commits: [{ sha: 'abc123', author: 'Alice', subject: 'Change colour' }] });
     assert.equal(edited.version, '1.3.1');
+    assert.deepEqual(edited.history[0].authors, ['Alice', 'Bob']);
+    assert.equal(edited.history[0].pushedBy, 'release-user');
     assert.equal(edited.entries.find(entry => entry.name === 'Home Page')?.version, '1.0.1');
     assert.equal(edited.entries.find(entry => entry.id === 'northport')?.version, '1.0.0');
     put('server-handlers/northport/scan.ts', 'export const scan = 2;');
@@ -56,6 +63,14 @@ test('records real source changes once, dependencies, additions, removals and du
     const newline = updateSystemVersion(root);
     put('server-handlers/northport/scan.ts', 'export const scan = 2;\n');
     assert.deepEqual(updateSystemVersion(root), newline);
+    // Migration of an older page counter still uses rollover on the next edit.
+    const legacy = JSON.parse(readFileSync(path.join(root, manifestPath), 'utf8'));
+    legacy.entries.find((entry: any) => entry.name === 'Home Page').version = '1.0.19';
+    writeFileSync(path.join(root, manifestPath), JSON.stringify(legacy));
+    put('src/components/customer/HomePage.css', '.home { color: orange; }');
+    const rolled = updateSystemVersion(root);
+    assert.equal(rolled.entries.find(entry => entry.name === 'Home Page')?.version, '1.2.0');
+    assert.equal(rolled.history[0].changes.find(change => change.name === 'Home Page')?.from, '1.1.9');
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

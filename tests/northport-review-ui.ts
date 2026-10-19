@@ -1,3 +1,4 @@
+import { selectEirTime } from './northport-picker-helpers';
 // Offline approval/reprocess workflow. Run npm run build before this test.
 import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
@@ -42,7 +43,7 @@ try {
     });
     await page.goto('http://northport.test');
     await page.getByLabel('Container No.',{exact:true}).fill(values[0]);
-    await page.getByLabel('EIR time (Malaysia)',{exact:true}).fill('2026-10-18T00:53');
+    await selectEirTime(page, '2026-10-18T00:53');
     await page.getByRole('button',{name:'Search FTP',exact:true}).click();
     await page.getByRole('button',{name:'Record actions',exact:true}).click();await page.getByRole('button',{name:'View/Edit File',exact:true}).click();
     const draftEditor=page.getByRole('dialog',{name:'Container file editor',exact:true});await draftEditor.getByLabel('SRV',{exact:true}).fill('EDITED');

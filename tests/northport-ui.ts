@@ -1,3 +1,4 @@
+import { selectEirTime } from './northport-picker-helpers';
 // Fully offline browser interaction test; every request is intercepted.
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
@@ -65,7 +66,7 @@ try {
   await page.getByLabel('Container No.',{exact:true}).fill(' msbu4179350 ');
   assert.equal(await page.getByLabel('Container No.',{exact:true}).inputValue(),'MSBU4179350');
   assert.equal(await page.getByRole('combobox').inputValue(),'GP','Import is the default container type');
-  await page.getByLabel('EIR time (Malaysia)',{exact:true}).fill('2026-10-17T01:20');
+  await selectEirTime(page, '2026-10-17T01:20');
   await page.getByRole('button',{name:'Search FTP',exact:true}).click();
   while(!finish)await new Promise(resolve=>setTimeout(resolve,5));
   assert.equal(await page.getByRole('button',{name:'Search FTP',exact:true}).isDisabled(),true);assert.equal(searches,1);

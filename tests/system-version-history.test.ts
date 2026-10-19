@@ -14,7 +14,13 @@ test('history migration preserves releases and permits only server-side reads an
     const insert = "insert into system_version_history(version,changed_at,summary) values('1.0.0',now(),'Original') on conflict(version) do nothing";
     await db.exec(insert);
     await db.exec(insert.replace('Original', 'Replacement'));
+    const authorMigration = readFileSync(new URL('../supabase/migrations/20261019010000_system_version_authors.sql', import.meta.url), 'utf8');
+    await db.exec(authorMigration);
+    assert.deepEqual((await db.query('select metadata from system_version_history')).rows, [{ metadata: { authors: ['Stanlly'] } }]);
     assert.deepEqual((await db.query('select version,summary from system_version_history')).rows, [{ version: '1.0.0', summary: 'Original' }]);
+    await db.query("update system_version_history set metadata = $1 where version = '1.0.0'", [JSON.stringify({ authors: ['Alice'], pushedBy: 'release-user' })]);
+    await db.exec(authorMigration);
+    assert.deepEqual((await db.query('select metadata from system_version_history')).rows, [{ metadata: { authors: ['Alice'], pushedBy: 'release-user' } }]);
     for (const role of ['anon', 'authenticated']) {
       for (const permission of ['SELECT', 'INSERT', 'UPDATE', 'DELETE']) {
         const result = await db.query<{ allowed: boolean }>('select has_table_privilege($1, $2, $3) as allowed', [role, 'system_version_history', permission]);
@@ -67,8 +73,11 @@ test('history endpoint checks access, records only deployed releases and preserv
     assert.equal((await invoke(crossSite)).code, 403);
     assert.equal((await invoke()).code, 200);
     saved[0].summary = 'Previously saved description';
+    saved[0].metadata = { authors: ['Alice', 'Bob'], pushedBy: 'release-user', sourceCommit: 'abc123' };
     const repeated = await invoke();
     assert.equal(repeated.body.history[0].summary, 'Previously saved description');
+    assert.deepEqual(repeated.body.history[0].authors, ['Alice', 'Bob']);
+    assert.equal(repeated.body.history[0].pushedBy, 'release-user');
     assert.equal(saved.length, manifest.history.length);
     assert.ok(!saved.some(row => row.version === '99.0.0'));
     failSave = true; assert.equal((await invoke()).code, 503);
