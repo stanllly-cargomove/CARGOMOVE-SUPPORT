@@ -166,10 +166,13 @@ try {
   await page.getByRole('heading',{name:'Review & Approval — MSBU4179350',exact:true}).waitFor();
   page.once('dialog',dialog=>dialog.accept());await page.getByRole('button',{name:'Approve & Generate Recovery CSV',exact:true}).click();
   await page.getByText('Approved · CSV Preview',{exact:true}).waitFor();assert.equal(uploads,0,'Approval must not upload automatically');
-  assert.equal(await page.getByRole('button',{name:'Reprocess & Run Scheduler',exact:true}).isDisabled(),false,'Approval must use current server permissions even if history is unavailable');
+  const reprocessButton=page.getByRole('button',{name:/^Reprocess & Run Scheduler/});
+  assert.equal(await reprocessButton.isDisabled(),true,'Reprocess must wait for the server cooldown after approval');
+  await page.waitForFunction(()=>{const button=Array.from(document.querySelectorAll('button')).find(item=>item.innerText.trim().startsWith('Reprocess & Run Scheduler'));return !!button&&!button.disabled;});
   historyUnavailable=false;
-  page.once('dialog',dialog=>dialog.dismiss());await page.getByRole('button',{name:'Reprocess & Run Scheduler',exact:true}).click();assert.equal(uploads,0);
-  page.once('dialog',dialog=>dialog.accept());await page.getByRole('button',{name:'Reprocess & Run Scheduler',exact:true}).click();
+  page.once('dialog',dialog=>dialog.dismiss());await reprocessButton.click();assert.equal(uploads,0);
+  await page.waitForFunction(()=>{const button=Array.from(document.querySelectorAll('button')).find(item=>item.innerText.trim().startsWith('Reprocess & Run Scheduler'));return !!button&&!button.disabled;});
+  page.once('dialog',dialog=>dialog.accept());await reprocessButton.click();
   while(!releaseUpload)await new Promise(resolve=>setTimeout(resolve,5));
   assert.deepEqual(writeOrder,['upload']);assert.equal(triggers,1,'Scheduler must wait for upload confirmation');
   assert.equal(await page.getByRole('button',{name:'Close file editor',exact:true}).isDisabled(),true);

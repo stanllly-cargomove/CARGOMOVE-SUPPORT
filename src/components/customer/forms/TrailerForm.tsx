@@ -6,15 +6,16 @@ import { CompanyContextCard } from '../CompanyContextCard';
 
 interface TrailerFormProps {
   company: Company;
+  initialData?: TrailerData[];
   port: PortConfig;
   onSubmit: (data: TrailerData[]) => void;
   onBack: () => void;
 }
 
-export function TrailerForm({ company, onSubmit, onBack }: TrailerFormProps) {
+export function TrailerForm({ company, initialData, onSubmit, onBack }: TrailerFormProps) {
   const autoPorts = getAutoAssignedPorts('JOHOR');
 
-  const [trailers, setTrailers] = useState<TrailerData[]>([
+  const [trailers, setTrailers] = useState<TrailerData[]>(initialData?.length ? initialData : [
     {
       registration_number: '',
       weight: '',

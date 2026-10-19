@@ -1,15 +1,16 @@
 import React, { useRef, useState } from 'react';
 import { ArrowLeft, Info, LoaderCircle, Lock, User, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
-import cargoMoveLogo from '../../../media/image-removebg-preview.png';
+import cargoMoveLogo from '../../../media/image-removebg-preview.webp';
 import { ApplicationUser, loginApplicationUser } from '../../services/auth';
 
 interface LoginPageProps {
   onBack: () => void;
   onSuccess: (user: ApplicationUser) => void;
+  embedded?: boolean;
 }
 
-export function LoginPage({ onBack, onSuccess }: LoginPageProps) {
+export function LoginPage({ onBack, onSuccess, embedded = false }: LoginPageProps) {
   const passwordInputRef = useRef<HTMLInputElement>(null);
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
@@ -43,19 +44,20 @@ export function LoginPage({ onBack, onSuccess }: LoginPageProps) {
 
   return (
     <main
-      className="login-page relative flex min-h-screen items-center justify-center overflow-hidden bg-[#223c49] bg-cover bg-center px-4 py-20 sm:px-6"
+      id={embedded ? 'login-main' : undefined}
+      className={`login-page relative flex ${embedded ? 'cm-login-main' : 'min-h-screen'} items-center justify-center overflow-hidden bg-[#223c49] bg-cover bg-center px-4 py-20 sm:px-6`}
       style={{ backgroundImage: "url('https://images.unsplash.com/photo-1578575437130-527eed3abbec?q=80&w=2070&auto=format&fit=crop')" }}
     >
       <div className="absolute inset-0 bg-black/35 backdrop-blur-[5px]" aria-hidden="true" />
 
-      <button
+      {!embedded && <button
         type="button"
         onClick={onBack}
         className="group absolute left-4 top-4 z-20 inline-flex items-center gap-2 rounded-full border border-white/25 bg-black/20 px-4 py-2 text-xs font-semibold text-white/90 backdrop-blur-md transition hover:bg-black/35 hover:text-white focus:outline-none focus:ring-2 focus:ring-white/80 sm:left-8 sm:top-8"
       >
         <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-0.5" />
         Back to registration
-      </button>
+      </button>}
 
       <motion.section
         initial={{ opacity: 0, y: 20 }}
@@ -210,9 +212,9 @@ export function LoginPage({ onBack, onSuccess }: LoginPageProps) {
         )}
       </AnimatePresence>
 
-      <p className="absolute bottom-5 left-4 right-4 z-10 text-center text-[9px] font-normal italic tracking-[0.14em] text-white sm:bottom-8 sm:text-[10px]">
+      {!embedded && <p className="absolute bottom-5 left-4 right-4 z-10 text-center text-[9px] font-normal italic tracking-[0.14em] text-white sm:bottom-8 sm:text-[10px]">
         COPYRIGHT © 2026 ALL RIGHTS RESERVED. CARGOFLOW.
-      </p>
+      </p>}
     </main>
   );
 }

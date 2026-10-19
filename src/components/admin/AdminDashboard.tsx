@@ -20,10 +20,10 @@ import {
   Container,
   Truck,
   ArrowUpRight,
-  ShieldCheck,
   ChevronLeft,
   ChevronRight,
   Search,
+  Activity,
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -79,6 +79,8 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
 
   const pendingUserCount = externalUsers.filter((user) => user.status === 'PENDING').length;
   const registeredUserCount = externalUsers.filter((user) => user.status === 'DONE').length;
+  const registeredSubmissionCount = submissions.filter((submission) => submission.status === 'DONE').length;
+  const activeCompanyCount = companies.filter((company) => company.status === 'ACTIVE').length;
 
   const submissionQueue: RecentQueueItem[] = submissions.map((submission) => ({
     rowKey: `submission:${submission.id}`,
@@ -133,21 +135,50 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const currentQueuePage = Math.min(queuePage, queuePageCount);
   const queueStart = (currentQueuePage - 1) * queuePageSize;
   const visibleQueue = pendingQueue.slice(queueStart, queueStart + queuePageSize);
+  const totalRegisteredCount = registeredSubmissionCount + registeredUserCount;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Admin Operations Center</h2>
-          <p className="text-xs text-slate-500 mt-1">
-            Manage registration approvals, user access, and CargoMove IDs.
-          </p>
+    <div className="space-y-5">
+      <section className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white px-5 py-5 shadow-sm sm:px-6">
+        <div className="pointer-events-none absolute -right-10 -top-16 h-48 w-48 rounded-full bg-sky-100/70" aria-hidden="true" />
+        <div className="pointer-events-none absolute right-24 -top-24 h-48 w-48 rounded-full border-[24px] border-sky-50" aria-hidden="true" />
+        <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <div className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-sky-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-sky-700">
+              <Activity className="h-3.5 w-3.5" /> Admin overview
+            </div>
+            <h2 className="text-2xl font-bold tracking-tight text-slate-900">Registration operations</h2>
+            <p className="mt-1 max-w-xl text-xs text-slate-500">
+              Review new registrations, manage access requests, and keep company records up to date.
+            </p>
+          </div>
+          <div className="grid grid-cols-3 gap-2 sm:min-w-[420px] sm:gap-3">
+            <div className="rounded-xl border border-amber-100 bg-amber-50/80 px-3 py-2.5">
+              <p className="text-[9px] font-bold uppercase tracking-wider text-amber-700">Needs review</p>
+              <p className="mt-1 text-xl font-bold leading-none tabular-nums text-slate-900">{pendingQueue.length}</p>
+              <p className="mt-1 text-[10px] text-slate-500">registration requests</p>
+            </div>
+            <div className="rounded-xl border border-emerald-100 bg-emerald-50/80 px-3 py-2.5">
+              <p className="text-[9px] font-bold uppercase tracking-wider text-emerald-700">Completed</p>
+              <p className="mt-1 text-xl font-bold leading-none tabular-nums text-slate-900">{totalRegisteredCount}</p>
+              <p className="mt-1 text-[10px] text-slate-500">approved requests</p>
+            </div>
+            <div className="rounded-xl border border-sky-100 bg-sky-50/80 px-3 py-2.5">
+              <p className="text-[9px] font-bold uppercase tracking-wider text-sky-700">Company master</p>
+              <p className="mt-1 text-xl font-bold leading-none tabular-nums text-slate-900">{activeCompanyCount}</p>
+              <p className="mt-1 text-[10px] text-slate-500">active companies</p>
+            </div>
+          </div>
         </div>
-
-      </div>
+      </section>
 
       {/* Pending and registered counts by type */}
-      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+      <section className="space-y-3">
+        <div>
+          <h3 className="text-sm font-bold text-slate-900">Registration categories</h3>
+          <p className="mt-0.5 text-[11px] text-slate-500">Select a category to open its connected registration list.</p>
+        </div>
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {[
           {
             type: 'COMPANY' as RegistrationType,
@@ -246,11 +277,20 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             </div>
           </button>
         ))}
-      </div>
+        </div>
+      </section>
 
       {/* Pending Submissions Queue */}
       <section className="space-y-3">
-        <h3 className="text-sm font-bold text-slate-900">Pending Registrations Queue</h3>
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-bold text-slate-900">Pending registrations</h3>
+            <p className="mt-0.5 text-[11px] text-slate-500">Requests are loaded from the current registration and user access records.</p>
+          </div>
+          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-bold text-amber-700">
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-500" /> {pendingQueue.length} waiting
+          </span>
+        </div>
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="flex flex-nowrap items-center gap-2 border-b border-slate-100 px-3 py-3 sm:gap-3 sm:px-5 sm:py-4">
           <div className="relative min-w-0 flex-1 lg:max-w-sm">

@@ -89,8 +89,6 @@
 .cm-home-contact-details a:hover { color: #0078c8; text-decoration: underline; text-underline-offset: 4px; }
 .cm-portal-footer { width: 100%; border-top: 1px solid #deebf4; }
 .cm-home-footer-bottom { max-width: 1440px; margin: 0 auto; display: flex; justify-content: space-between; gap: 16px; padding: 12px 5%; color: #68788b; font-size: 10px; }
-.cm-home-preview-message:not(:empty) { position: fixed; z-index: 10; bottom: 22px; left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100% - 32px); padding: 13px 16px; display: flex; align-items: center; gap: 20px; border: 1px solid #dce5ec; border-radius: 12px; background: #fff; box-shadow: 0 8px 30px #0b19301f; font-size: 12px; }
-.cm-home-preview-message button { background: transparent; border: 0; font-size: 22px; padding: 0 4px; color: #516175; }
 @keyframes cm-home-enter { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
 @media (min-width: 1600px) { .cm-home-hero { min-height: 790px; } .cm-home-hero-copy { padding-top: 100px; } }
 @media (max-width: 900px) { .cm-home-header { gap: 18px; } .cm-home-logo { width: 148px; } .cm-home-nav { gap: 24px; } .cm-home-hero { min-height: 670px; } .cm-home-hero-copy { padding-top: 68px; width: 80%; } .cm-home-orbits { width: 1000px; } .cm-home-category-strip { gap: 12px; } .cm-home-steps { gap: 20px; } .cm-home-steps > li:not(:last-child)::after { width: calc(100% - 42px); } .cm-home-contact-details { grid-template-columns: 1fr 1fr; gap: 28px; } }
@@ -188,10 +186,14 @@
 .cm-home[data-theme='dark'] .cm-home-contact-label svg { color: #0086cc; }
 .cm-home[data-theme='dark'] .cm-home-contact-details a { color: #233c54; }
 .cm-home[data-theme='dark'] .cm-home-contact-details a:hover { color: #0078c8; }
-.cm-home[data-theme='dark'] .cm-home-preview-message:not(:empty) { background: #142c42; color: #edf5ff; border-color: #34516a; }
-.cm-home[data-theme='dark'] .cm-home-preview-message button { color: #cfdeeb; }
 .cm-home[data-theme='dark'] .cm-home-skip { color: #edf5ff; background: #142c42; }
-@media (min-width: 1441px) { .cm-home[data-theme='dark'] .cm-home-header { box-shadow: 0 0 0 100vmax #081320; clip-path: inset(0 -100vmax); } }
+/* Paint the actual header across the viewport to avoid clipped shadow seams. */
+@media (min-width: 601px) {
+  .cm-home[data-theme] .cm-home-header { max-width: none; padding-inline: max(5%, calc((100% - 1296px) / 2)); border: 0; box-shadow: none; clip-path: none; }
+  .cm-home-landing .cm-home-hero::before { background: linear-gradient(180deg, #fff 0px, #fff 24px, #ffffffe6 13%, #ffffffbf 39%, #ffffff66 65%, #eaf7ff08 100%); }
+  .cm-home-landing[data-theme='dark'] .cm-home-hero::before { background: linear-gradient(180deg, #081320 0px, #081320 24px, #081320d9 16%, #081320ad 42%, #08132070 70%, #0813208c 100%); }
+  .cm-home-landing .cm-home-orbits { mask-image: linear-gradient(180deg, transparent 140px, #000 220px); }
+}
 @media (max-width: 600px) { .cm-home[data-theme='dark'] .cm-home-nav::before { border-color: #223549; } .cm-home[data-theme='dark'] .cm-home-steps > li:not(:last-child)::after { background: linear-gradient(180deg, #0095e8, #afc4d0); } }
 /* Illustrated registration guide and compact contact panel. */
 .cm-home .cm-home-overview { max-width: 1440px; padding-bottom: 22px; }

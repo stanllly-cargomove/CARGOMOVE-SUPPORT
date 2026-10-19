@@ -1,74 +1,84 @@
-import React, { useState, useEffect } from 'react';
-import { RegistrationWizard } from './components/customer/RegistrationWizard';
+﻿import React, { useState, useEffect, useCallback } from 'react';
+import { HomePage } from './components/customer/HomePage';
 import { AdminLayout } from './components/admin/AdminLayout';
-import { LoginPage } from './components/auth/LoginPage';
+import { RegistrationPage } from './components/customer/RegistrationPage';
+import { TrackStatusPage } from './components/customer/TrackStatusPage';
+import { GuidelinePage } from './components/customer/GuidelinePage';
+import { PortalLoginPage } from './components/customer/PortalLoginPage';
 import { PasswordResetPage } from './components/auth/PasswordResetPage';
+import { PortalPage, pageFromPath, portalPaths } from './components/customer/portalNavigation';
 import { clearProtectedStorage, refreshProtectedStorage, startProtectedStorageSync } from './services/storage';
 import { ApplicationUser, getApplicationSession, logoutApplicationUser } from './services/auth';
 
 export default function App() {
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(() => window.location.hash.includes('type=recovery') || window.location.hash.includes('error_code=otp_expired'));
-  const [viewMode, setViewMode] = useState<'CUSTOMER' | 'LOGIN' | 'ADMIN'>('CUSTOMER');
+  const [page, setPage] = useState(() => pageFromPath(window.location.pathname));
+  const [routeKey, setRouteKey] = useState(() => window.location.pathname + window.location.search);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState<ApplicationUser | null>(null);
 
-  useEffect(() => {
-    let isMounted = true;
-    void getApplicationSession().then(({ authenticated, user }) => {
-      if (!isMounted) return;
-      setIsAuthenticated(authenticated);
-      setCurrentUser(user);
-      if (authenticated) setViewMode('ADMIN');
-      setIsAuthLoading(false);
-    });
+  const navigate = useCallback((next: PortalPage, reference?: string) => {
+    const url = portalPaths[next] + (reference ? `?reference_no=${encodeURIComponent(reference)}` : '');
+    if (window.location.pathname + window.location.search !== url) window.history.pushState(null, '', url);
+    setPage(next);
+    setRouteKey(window.location.pathname + window.location.search);
+    window.scrollTo(0, 0);
+  }, []);
 
+  useEffect(() => {
+    const onHashChange = () => setIsPasswordRecovery(window.location.hash.includes('type=recovery') || window.location.hash.includes('error_code=otp_expired'));
+    const onPopState = () => {
+      setPage(pageFromPath(window.location.pathname));
+      setRouteKey(window.location.pathname + window.location.search);
+    };
+    window.addEventListener('popstate', onPopState);
+    window.addEventListener('hashchange', onHashChange);
     return () => {
-      isMounted = false;
+      window.removeEventListener('popstate', onPopState);
+      window.removeEventListener('hashchange', onHashChange);
     };
   }, []);
 
   useEffect(() => {
-    if (!isAuthenticated) return;
-    const stopSync = startProtectedStorageSync();
-    return stopSync;
-  }, [isAuthenticated]);
+    let mounted = true;
+    void getApplicationSession().then(({ authenticated, user }) => {
+      if (!mounted) return;
+      setCurrentUser(authenticated ? user : null);
+      if (authenticated && ['/', '/login', '/admin'].includes(window.location.pathname)) navigate('admin');
+      setIsAuthLoading(false);
+    });
+    return () => { mounted = false; };
+  }, [navigate]);
 
-  if (isAuthLoading) {
-    return <div className="min-h-screen bg-[#f8fafc]" aria-busy="true" />;
-  }
+  useEffect(() => {
+    if (currentUser) return startProtectedStorageSync();
+  }, [currentUser]);
 
-  if (isPasswordRecovery) {
-    return <PasswordResetPage onDone={() => { setIsPasswordRecovery(false); setViewMode('LOGIN'); }} />;
-  }
+  useEffect(() => {
+    if (!isAuthLoading && page === 'admin' && !currentUser) navigate('login');
+  }, [isAuthLoading, page, currentUser, navigate]);
+
+  if (isAuthLoading && page === 'admin' && !currentUser) return <PortalLoginPage onNavigate={navigate} onSuccess={user => { setCurrentUser(user); navigate('admin'); }} />;
+  if (isPasswordRecovery) return <PasswordResetPage onDone={() => { setIsPasswordRecovery(false); navigate('login'); }} />;
 
   return (
-    <div className="min-h-screen text-slate-800 antialiased font-sans">
-      {viewMode === 'CUSTOMER' ? (
-        <RegistrationWizard onSwitchToAdmin={() => setViewMode('LOGIN')} />
-      ) : viewMode === 'LOGIN' ? (
-        <LoginPage
-          onBack={() => setViewMode('CUSTOMER')}
-          onSuccess={(user) => {
-            setCurrentUser(user);
-            setIsAuthenticated(true);
-            setViewMode('ADMIN');
-          }}
-        />
-      ) : (
-        <AdminLayout
-          user={currentUser}
-          onSwitchToCustomer={() => setViewMode('CUSTOMER')}
-          onRefreshData={() => refreshProtectedStorage()}
-          onLogout={async () => {
-            await logoutApplicationUser();
-            clearProtectedStorage();
-            setIsAuthenticated(false);
-            setCurrentUser(null);
-            setViewMode('CUSTOMER');
-          }}
-        />
-      )}
+    <div className="min-h-screen text-slate-800 antialiased font-sans" key={routeKey}>
+      {page === 'home' && <HomePage onRegister={() => navigate('register')} onTrackStatus={() => navigate('track')} onGuideline={() => navigate('guideline')} onLogin={() => navigate(currentUser ? 'admin' : 'login')} />}
+      {page === 'register' && <RegistrationPage onNavigate={navigate} />}
+      {page === 'track' && <TrackStatusPage onNavigate={navigate} />}
+      {page === 'guideline' && <GuidelinePage onNavigate={navigate} />}
+      {(page === 'login' || (page === 'admin' && !currentUser)) && <PortalLoginPage onNavigate={navigate} onSuccess={user => { setCurrentUser(user); navigate('admin'); }} />}
+      {page === 'admin' && currentUser && <AdminLayout
+        user={currentUser}
+        onSwitchToCustomer={() => navigate('home')}
+        onRefreshData={() => refreshProtectedStorage()}
+        onLogout={async () => {
+          await logoutApplicationUser();
+          clearProtectedStorage();
+          setCurrentUser(null);
+          navigate('home');
+        }}
+      />}
     </div>
   );
 }

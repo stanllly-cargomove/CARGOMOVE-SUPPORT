@@ -56,7 +56,10 @@ export function createNorthportHandler(deps = { adminClient, readSession, withFt
       if (!input || Array.isArray(input)) throw new RecoveryError('Invalid request.');
       const rate = await client.rpc<boolean>('northport_admit_request',{p_actor:session.id});
       if (rate.error) throw new RecoveryError('Recovery request protection unavailable. Apply the Northport migration.',503);
-      if (rate.data !== true) throw new RecoveryError('Please wait a few seconds before another recovery operation.',429);
+      if (rate.data !== true) {
+        response.setHeader('Retry-After','5');
+        throw new RecoveryError('Please wait a few seconds before another recovery operation.',429);
+      }
       if (input.action === 'search' || input.action === 'check') {
         const filter = input.action === 'search' ? searchInput(input) : null;
         const scanState=filter&&!filter.sourceFilename&&listingMode()==='timestamp-scan' ? readScanCursor(input.cursor,session.id,filter) : null;

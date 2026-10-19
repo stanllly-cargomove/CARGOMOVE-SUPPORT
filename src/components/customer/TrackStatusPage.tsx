@@ -1,13 +1,12 @@
+import { PortalPageProps, portalHeaderNavigation, usePortalTheme } from './portalNavigation';
 import React, { useEffect, useRef, useState } from 'react';
-import { createRoot } from 'react-dom/client';
 import { AlertCircle, ArrowRight, Check, CheckCircle2, Clock3, Mail, Search } from 'lucide-react';
-import { RegistrationTracking, trackRegistration } from '../src/services/registration';
-import { PortalFooterBottom } from '../src/components/customer/PortalFooterBottom';
-import { PortalHeader } from '../src/components/customer/PortalHeader';
-import portBackground from '../media/home-port-background.avif';
-import '../src/index.css';
-import '../src/components/customer/HomePage.css';
-import './track-status.css';
+import { RegistrationTracking, trackRegistration } from '../../services/registration';
+import { PortalFooterBottom } from './PortalFooterBottom';
+import { PortalHeader } from './PortalHeader';
+import portBackground from '../../../media/home-port-background-fast.webp';
+import './HomePage.css';
+import './TrackStatusPage.css';
 
 const registrationLabels = { COMPANY: 'Company', DRIVER: 'Driver', VEHICLE: 'Vehicle', TRAILER: 'Trailer' };
 const portLabels = { PORT_KLANG: 'Port Klang', JOHOR: 'Johor', OTHER: 'Other port' };
@@ -17,17 +16,13 @@ function formatDate(value: string) {
   return Number.isNaN(date.getTime()) ? '—' : new Intl.DateTimeFormat('en-MY', { day: 'numeric', month: 'long', year: 'numeric' }).format(date);
 }
 
-function TrackStatusPage() {
-  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
-    try { return window.localStorage.getItem('cargomove-home-theme') === 'light' ? 'light' : 'dark'; }
-    catch { return 'dark'; }
-  });
+export function TrackStatusPage({ onNavigate }: PortalPageProps) {
+  const { theme, toggleTheme } = usePortalTheme();
   const [reference, setReference] = useState(() => new URLSearchParams(window.location.search).get('reference_no') ?? '');
   const [searchedReference, setSearchedReference] = useState('');
   const [tracking, setTracking] = useState<RegistrationTracking | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [previewMessage, setPreviewMessage] = useState('');
   const resultRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -41,13 +36,6 @@ function TrackStatusPage() {
     });
     return () => window.cancelAnimationFrame(frame);
   }, [tracking]);
-
-  const toggleTheme = () => {
-    const next = theme === 'dark' ? 'light' : 'dark';
-    setTheme(next);
-    try { window.localStorage.setItem('cargomove-home-theme', next); }
-    catch { /* Theme still changes when storage is unavailable. */ }
-  };
 
   const handleSearch = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -74,7 +62,7 @@ function TrackStatusPage() {
   return (
     <div className="cm-home cm-track" data-theme={theme}>
       <a className="cm-home-skip" href="#track-main">Skip to content</a>
-      <PortalHeader theme={theme} onToggleTheme={toggleTheme} homeHref="./home.html" currentPage="track" onRegister={() => { window.location.href = './register.html'; }} onTrackStatus={() => document.getElementById('track-reference')?.focus()} onGuideline={() => { window.location.href = './guideline.html'; }} onLogin={() => setPreviewMessage('Login is not connected in this preview.')} />
+      <PortalHeader theme={theme} onToggleTheme={toggleTheme} {...portalHeaderNavigation(onNavigate)} currentPage="track" />
 
       <main id="track-main">
         <section className="cm-track-hero" aria-labelledby="track-heading">
@@ -109,9 +97,7 @@ function TrackStatusPage() {
         </section>
       </main>
       <footer className="cm-track-footer"><PortalFooterBottom /></footer>
-      <div className="cm-home-preview-message" role="status" aria-live="polite">{previewMessage && <><span>{previewMessage}</span><button type="button" onClick={() => setPreviewMessage('')} aria-label="Dismiss preview message">×</button></>}</div>
     </div>
   );
 }
 
-createRoot(document.getElementById('root')!).render(<React.StrictMode><TrackStatusPage /></React.StrictMode>);

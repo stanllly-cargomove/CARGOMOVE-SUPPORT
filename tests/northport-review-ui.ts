@@ -42,6 +42,8 @@ try {
     };
     await openReview();
     const editor=page.getByRole('dialog',{name:'Container file editor',exact:true});
+    const reprocessLabel=width<640?'Reprocess':'Reprocess & Run Scheduler';
+    const waitForReprocess=async()=>page.waitForFunction(label=>Array.from(document.querySelectorAll<HTMLButtonElement>('.northport-dialog-footer button')).some(button=>button.innerText.trim().startsWith(label)&&!button.disabled),reprocessLabel);
     assert.equal(await editor.getByRole('button',{name:'Close file editor',exact:true}).count(),0);
     const approve=editor.getByRole('button',{name:width<640?'Approve CSV':'Approve & Generate Recovery CSV',exact:true});
     await editor.locator('.northport-dialog-footer').scrollIntoViewIfNeeded();
@@ -53,7 +55,7 @@ try {
     assert.equal(approvals,0,'Cancel approval must not make a request');
     await approve.click();
     await confirmation.getByRole('button',{name:'Approve',exact:true}).click();
-    await editor.getByText('Approved · Ready to reprocess',{exact:true}).waitFor();
+    await editor.getByText(/Approved · (Ready to reprocess|Ready in \d+s)/).waitFor();
     await editor.getByRole('heading',{name:`Reprocess File — ${values[0]}`,exact:true}).waitFor();
     const approvedSize=await editor.boundingBox();
     assert.ok(reviewSize&&approvedSize&&Math.abs(reviewSize.height-approvedSize.height)<1&&Math.abs(reviewSize.y-approvedSize.y)<1,'Approval must preserve the review size and position');
@@ -65,7 +67,10 @@ try {
       await page.screenshot({path:join(tmpdir(),'northport-reprocess-compact.png')});
     }
     assert.equal(await editor.locator('pre').count(),0,'Raw CSV preview must be removed');
-    const reprocess=editor.getByRole('button',{name:width<640?'Reprocess':'Reprocess & Run Scheduler',exact:true});
+    const reprocess=editor.getByRole('button',{name:new RegExp(`^${reprocessLabel}`)});
+    assert.equal(await reprocess.isDisabled(),true,'Reprocess observes the server cooldown after approval');
+    assert.match(await reprocess.innerText(),/\(\d+s\)$/,'The disabled button shows the remaining cooldown');
+    await waitForReprocess();
     const color=await reprocess.evaluate(button=>getComputedStyle(button).backgroundColor);
     const cancelColor=await editor.getByRole('button',{name:'Cancel',exact:true}).evaluate(button=>getComputedStyle(button).color);
     assert.notEqual(color,cancelColor,'Reprocess and cancel must have distinct styling');
@@ -81,7 +86,8 @@ try {
     // A failed scheduler request must preserve the dialog and block another upload.
     failScheduler=true;
     await openReview();await approve.click();await confirmation.getByRole('button',{name:'Approve',exact:true}).click();
-    await editor.getByText('Approved · Ready to reprocess',{exact:true}).waitFor();
+    await editor.getByText(/Approved · (Ready to reprocess|Ready in \d+s)/).waitFor();
+    await waitForReprocess();
     await reprocess.click();await confirmation.getByRole('button',{name:'Reprocess',exact:true}).click();
     await page.getByText(/Recovery File Uploaded, but the Northport scheduler was not confirmed:/).waitFor();
     assert.equal(await editor.isVisible(),true);

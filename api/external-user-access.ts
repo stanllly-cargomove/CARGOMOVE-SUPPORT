@@ -150,6 +150,34 @@ export default async function externalUserAccess(request: any, response: any) {
         response.status(400).json({ error: 'A user id and at least one valid change are required.' });
         return;
       }
+      if (changes.status === 'DONE') {
+        const userQuery = new URLSearchParams({ select: 'company_id', id: `eq.${id}`, limit: '1' });
+        const userResult = await fetch(`${url}/rest/v1/external_user_access?${userQuery}`, { headers });
+        const users = await userResult.json().catch(() => null);
+        if (!userResult.ok || !Array.isArray(users)) {
+          response.status(502).json({ error: 'Unable to verify the linked company. Please try again.' });
+          return;
+        }
+        if (!users.length) {
+          response.status(404).json({ error: 'User registration not found.' });
+          return;
+        }
+        let registered = false;
+        if (users[0].company_id) {
+          const companyQuery = new URLSearchParams({ select: 'id', company_id: `eq.${users[0].company_id}`, registration_type: 'eq.COMPANY', status: 'eq.DONE', limit: '1' });
+          const companyResult = await fetch(`${url}/rest/v1/registration_submissions?${companyQuery}`, { headers });
+          const companies = await companyResult.json().catch(() => null);
+          if (!companyResult.ok || !Array.isArray(companies)) {
+            response.status(502).json({ error: 'Unable to verify company registration. Please try again.' });
+            return;
+          }
+          registered = companies.length > 0;
+        }
+        if (!registered) {
+          response.status(409).json({ error: 'Cannot mark this user as Done because the company is not registered. Please complete the company registration first.', code: 'COMPANY_NOT_REGISTERED' });
+          return;
+        }
+      }
       const result = await fetch(`${url}/rest/v1/external_user_access?id=eq.${encodeURIComponent(id)}`, {
         method: 'PATCH',
         headers: { ...headers, Prefer: 'return=representation' },
@@ -176,6 +204,10 @@ export default async function externalUserAccess(request: any, response: any) {
     }
 
     const body = typeof request.body === 'string' ? JSON.parse(request.body) : request.body || {};
+    if (body.status === 'DONE') {
+      response.status(400).json({ error: 'New user registrations must start as Pending. Complete company registration before marking the user as Done.' });
+      return;
+    }
     const username = String(body.username || '').trim().toLowerCase();
     const email = String(body.email || '').trim().toLowerCase();
     const password = String(body.password || '');

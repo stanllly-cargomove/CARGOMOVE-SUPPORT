@@ -8,9 +8,8 @@ import {
   DriverData,
   TrailerData,
   VehicleData,
-  PortConfig,
 } from '../../types';
-import { cacheSavedRegistration, getPorts, getCompanyById, getAutoAssignedPorts } from '../../services/storage';
+import { cacheSavedRegistration, getPorts, getAutoAssignedPorts } from '../../services/storage';
 import { submitRegistration } from '../../services/registration';
 import { PortSelection } from './PortSelection';
 import { TypeSelection } from './TypeSelection';
@@ -20,17 +19,16 @@ import { DriverForm } from './forms/DriverForm';
 import { TrailerForm } from './forms/TrailerForm';
 import { VehicleForm } from './forms/VehicleForm';
 import { ReviewScreen, SuccessScreen } from './ConfirmationScreen';
-import { StatusTrackerModal } from './StatusTrackerModal';
-import { Logo } from '../common/Logo';
-import { Check, Search } from 'lucide-react';
-import { HaulierGuidelinePage } from './HaulierGuidelinePage';
+
+import { Check } from 'lucide-react';
+
 import { UserAccessForm, UserAccessFormData } from './forms/UserAccessForm';
 
 interface RegistrationWizardProps {
-  onSwitchToAdmin: () => void;
+  onTrackStatus: (reference?: string) => void;
 }
 
-export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps) {
+export function RegistrationWizard({ onTrackStatus }: RegistrationWizardProps) {
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [selectedLocation, setSelectedLocation] = useState<PortLocation | null>(null);
   const [selectedType, setSelectedType] = useState<RegistrationType | null>(null);
@@ -44,8 +42,6 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
   const [vehicleFormDataList, setVehicleFormDataList] = useState<VehicleData[]>([]);
 
   const [submittedRefNo, setSubmittedRefNo] = useState<string>('');
-  const [showTrackerModal, setShowTrackerModal] = useState<boolean>(false);
-  const [showGuideline, setShowGuideline] = useState<boolean>(false);
 
   const ports = getPorts();
   const currentPort = ports.find((p) => p.location === selectedLocation) || ports[0];
@@ -82,6 +78,14 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
   // 6: Success
 
   const handlePortSelect = (loc: PortLocation) => {
+    if (loc !== selectedLocation) {
+      setCompanyFormData(undefined);
+      setUserAccessFormData(undefined);
+      setSelectedCompany(null);
+      setDriverFormDataList([]);
+      setTrailerFormDataList([]);
+      setVehicleFormDataList([]);
+    }
     setSelectedLocation(loc);
     // If switching to Port Klang, force type to COMPANY as other types are forbidden
     if (loc === 'PORT_KLANG') {
@@ -92,12 +96,13 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
   };
 
   const handleAutoOpenPortKlang = () => {
-    setSelectedLocation('PORT_KLANG');
+    handlePortSelect('PORT_KLANG');
     setSelectedType('COMPANY');
     setCurrentStep(4);
   };
 
   const handleTypeSelect = (type: RegistrationType) => {
+    if (type === 'COMPANY') setSelectedCompany(null);
     setSelectedType(type);
   };
 
@@ -186,13 +191,13 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
         : undefined,
       user_access: selectedType === 'COMPANY' ? userAccessFormData : undefined,
       data: {
-        company: companyFormData,
-        driver: driverFormDataList[0],
-        drivers: driverFormDataList,
-        trailer: trailerFormDataList[0],
-        trailers: trailerFormDataList,
-        vehicle: vehicleFormDataList[0],
-        vehicles: vehicleFormDataList,
+        company: selectedType === 'COMPANY' ? companyFormData : undefined,
+        driver: selectedType === 'DRIVER' ? driverFormDataList[0] : undefined,
+        drivers: selectedType === 'DRIVER' ? driverFormDataList : [],
+        trailer: selectedType === 'TRAILER' ? trailerFormDataList[0] : undefined,
+        trailers: selectedType === 'TRAILER' ? trailerFormDataList : [],
+        vehicle: selectedType === 'VEHICLE' ? vehicleFormDataList[0] : undefined,
+        vehicles: selectedType === 'VEHICLE' ? vehicleFormDataList : [],
       },
     });
 
@@ -217,56 +222,6 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
 
   return (
     <div className={`customer-theme min-h-screen flex flex-col ${isLandingStep ? 'bg-white' : 'bg-[#f8fafc]'}`}>
-      {showGuideline ? (
-        <HaulierGuidelinePage onBack={() => setShowGuideline(false)} />
-      ) : (
-        <>
-      {/* Top Navbar */}
-      <header className="sticky top-0 z-40 border-b border-slate-800 bg-[#0b1930] text-white">
-        <div className="mx-auto flex h-[54px] max-w-[1320px] items-center justify-between gap-2 px-3 sm:px-8 lg:px-[44px]">
-          <div className="flex min-w-0 items-center gap-3">
-            <button
-              type="button"
-              onClick={handleReset}
-              aria-label="Go to main registration page"
-              className="shrink-0 rounded-sm transition-opacity hover:opacity-85 focus:outline-none focus:ring-0 focus:ring-offset-0 sm:hidden"
-            >
-              <Logo size="sm" light />
-            </button>
-            <button
-              type="button"
-              onClick={handleReset}
-              aria-label="Go to main registration page"
-              className="hidden shrink-0 rounded-sm transition-opacity hover:opacity-85 focus:outline-none focus:ring-0 focus:ring-offset-0 sm:block"
-            >
-              <Logo size="md" light />
-            </button>
-            <div className="hidden h-6 items-center gap-4 border-l border-slate-500/70 pl-5 sm:flex">
-              <span className="whitespace-nowrap text-sm font-semibold text-white sm:text-base">Customer Registration</span>
-            </div>
-          </div>
-
-          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-            <button
-              type="button"
-              onClick={() => setShowTrackerModal(true)}
-              className="inline-flex h-[30px] items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-sky-500/80 bg-transparent px-2 text-[11px] font-semibold text-slate-100 transition-colors hover:bg-white/10 sm:gap-2 sm:px-3 sm:text-xs"
-            >
-              <Search className="h-3.5 w-3.5 text-[#0095e8]" />
-              <span className="sm:hidden">Track</span>
-              <span className="hidden sm:inline">Track registration</span>
-            </button>
-            <button
-              type="button"
-              onClick={onSwitchToAdmin}
-              className="inline-flex h-[30px] items-center justify-center whitespace-nowrap rounded-md border border-[#0095e8] bg-[#0095e8] px-3 text-[11px] font-semibold text-white transition-colors hover:bg-[#0078c8] sm:px-4 sm:text-xs"
-            >
-              Login
-            </button>
-          </div>
-        </div>
-      </header>
-
       <div className={`${isLandingStep ? 'bg-[#f8fafc]' : ''} flex flex-1 flex-col`}>
       {/* Progress Bar (visible through the Review screen) */}
       {currentStep <= reviewStep && (
@@ -299,8 +254,8 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
       )}
 
       {/* Main Content Area */}
-      <main
-        className={`${isLandingStep ? 'max-w-none flex items-center py-6 sm:py-7' : `max-w-[1080px] px-4 sm:px-6 lg:px-8 ${isReviewScreen ? 'py-3 sm:py-4' : 'py-6 sm:py-7'}`} flex-1 mx-auto w-full`}
+      <div
+        className={`cm-wizard-content ${isLandingStep ? 'max-w-none flex items-center py-6 sm:py-7' : `max-w-[1080px] px-4 sm:px-6 lg:px-8 ${isReviewScreen ? 'py-3 sm:py-4' : 'py-6 sm:py-7'}`} flex-1 mx-auto w-full`}
       >
         <div key={currentStep} className={`${isLandingStep ? 'mx-auto w-full max-w-[1080px] -translate-y-5 px-4 sm:-translate-y-7 sm:px-6 lg:px-8 ' : ''}wizard-step-enter`}>
         {/* Step 1: Port Selection */}
@@ -335,7 +290,14 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
         {currentStep === 3 && selectedType && selectedType !== 'COMPANY' && (
           <CompanyLookup
             selectedCompany={selectedCompany}
-            onSelectCompany={(comp) => setSelectedCompany(comp)}
+            onSelectCompany={(comp) => {
+              if (comp && comp.id !== selectedCompany?.id) {
+                setDriverFormDataList([]);
+                setTrailerFormDataList([]);
+                setVehicleFormDataList([]);
+              }
+              setSelectedCompany(comp);
+            }}
             onBack={() => setCurrentStep(2)}
             onNext={() => setCurrentStep(4)}
             onRegisterNewCompany={() => {
@@ -374,6 +336,7 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
 
         {currentStep === 4 && selectedType === 'DRIVER' && selectedCompany && currentPort && (
           <DriverForm
+            initialData={driverFormDataList}
             company={selectedCompany}
             port={currentPort}
             onSubmit={handleDriverSubmit}
@@ -383,6 +346,7 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
 
         {currentStep === 4 && selectedType === 'TRAILER' && selectedCompany && currentPort && (
           <TrailerForm
+            initialData={trailerFormDataList}
             company={selectedCompany}
             port={currentPort}
             onSubmit={handleTrailerSubmit}
@@ -392,6 +356,7 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
 
         {currentStep === 4 && selectedType === 'VEHICLE' && selectedCompany && currentPort && (
           <VehicleForm
+            initialData={vehicleFormDataList}
             company={selectedCompany}
             port={currentPort}
             onSubmit={handleVehicleSubmit}
@@ -409,12 +374,12 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
             formData={{
               company: companyFormData,
               userAccess: userAccessFormData,
-              driver: driverFormDataList[0],
-              drivers: driverFormDataList,
-              trailer: trailerFormDataList[0],
-              trailers: trailerFormDataList,
-              vehicle: vehicleFormDataList[0],
-              vehicles: vehicleFormDataList,
+              driver: selectedType === 'DRIVER' ? driverFormDataList[0] : undefined,
+              drivers: selectedType === 'DRIVER' ? driverFormDataList : [],
+              trailer: selectedType === 'TRAILER' ? trailerFormDataList[0] : undefined,
+              trailers: selectedType === 'TRAILER' ? trailerFormDataList : [],
+              vehicle: selectedType === 'VEHICLE' ? vehicleFormDataList[0] : undefined,
+              vehicles: selectedType === 'VEHICLE' ? vehicleFormDataList : [],
             }}
             onBack={() => setCurrentStep(selectedType === 'COMPANY' ? 5 : 4)}
             onSubmitSuccess={handleFinalConfirm}
@@ -427,40 +392,20 @@ export function RegistrationWizard({ onSwitchToAdmin }: RegistrationWizardProps)
             referenceNo={submittedRefNo}
             type={selectedType}
             onReset={handleReset}
-            onViewTracker={() => setShowTrackerModal(true)}
+            onViewTracker={() => onTrackStatus(submittedRefNo)}
           />
         )}
         </div>
-      </main>
+      </div>
       </div>
 
-      {/* Footer */}
-      <footer className="h-12 shrink-0 border-t border-slate-200 bg-white">
-        <div className="h-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-wrap items-center justify-center gap-x-3 gap-y-0.5 text-[11px] leading-4 text-slate-500">
-          <span className="font-semibold text-slate-700">Contact for help</span>
-          <span className="hidden sm:inline text-slate-300">|</span>
-          <span>+60 3277 12765</span>
-          <span className="hidden sm:inline text-slate-300">|</span>
-          <span>support@cargomove.com.my</span>
-          <span className="hidden sm:inline text-slate-300">|</span>
-          <span className="font-semibold text-emerald-700">WHATSAPP: +6018 266 0085 (FASTER RESPONSE)</span>
-        </div>
-      </footer>
-
-      {/* Tracker Modal */}
-      <StatusTrackerModal
-        isOpen={showTrackerModal}
-        onClose={() => setShowTrackerModal(false)}
-        initialRef={submittedRefNo}
-      />
       <Toaster
         position="top-center"
         gutter={10}
         containerStyle={{ top: 16 }}
         toastOptions={{ duration: 4000 }}
       />
-        </>
-      )}
+
     </div>
   );
 }

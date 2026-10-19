@@ -13,6 +13,7 @@ import emailAttachments from './server-handlers/email/attachments.js';
 import companyRegistration from './server-handlers/registration/submit.js';
 import companyLookup from './server-handlers/registration/lookup.js';
 import registrationStatus from './server-handlers/registration/status.js';
+import registrationConfig from './server-handlers/registration/config.js';
 import runScheduler from './server-handlers/scheduler/handler.js';
 import schedulerCatalog from './server-handlers/scheduler/catalog.js';
 import northportRecovery from './server-handlers/northport/handler.js';
@@ -417,6 +418,7 @@ app.post('/api/email/attachments', emailAttachments);
 app.post('/api/company-registration', companyRegistration);
 app.get('/api/company-lookup', companyLookup);
 app.get('/api/registration-status', registrationStatus);
+app.get('/api/registration-config', registrationConfig);
 
 app.get('/api/snapshot', requireSession, async (request, response) => {
   response.setHeader('Cache-Control', 'no-store, max-age=0');

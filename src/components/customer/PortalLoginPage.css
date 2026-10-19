@@ -1,0 +1,19 @@
+.cm-login { position: relative; min-height: 100vh; display: flex; flex-direction: column; }
+.cm-login[data-theme] > .cm-home-header { position: absolute; top: 0; left: 0; max-width: none; margin: 0; isolation: isolate; background: transparent; box-shadow: none; clip-path: none; }
+.cm-login > .cm-home-header::before { content: ''; position: absolute; z-index: -1; inset: 0 0 -48px; pointer-events: none; background: linear-gradient(180deg, #fffffff2, #ffffffb3 45%, #ffffff00); backdrop-filter: blur(12px); mask-image: linear-gradient(#000 0%, #000b 50%, transparent 100%); }
+.cm-login[data-theme='dark'] > .cm-home-header::before { background: linear-gradient(180deg, #081320f2, #081320b3 45%, #08132000); }
+.cm-login .cm-login-main { flex: 1; min-height: max(680px, 100vh); min-height: max(680px, 100svh); padding-top: 106px; padding-bottom: 48px; }
+.cm-login > footer { flex-shrink: 0; }
+
+/* Keep the original form typography within the shared portal shell. */
+.cm-login .login-page h1 { margin: 0; font-size: 24px; line-height: 32px; font-weight: 700; letter-spacing: normal; }
+.cm-login .login-page h2 { margin: 0; font-size: 20px; line-height: 28px; font-weight: 700; letter-spacing: normal; }
+.cm-login .login-page button[type='submit'] { font-size: 14px; font-weight: 700; }
+
+@media (min-width: 640px) {
+  .cm-login .login-page h2 { font-size: 24px; line-height: 32px; }
+}
+
+@media (max-width: 600px) {
+  .cm-login .cm-login-main { padding-top: 124px; padding-bottom: 32px; }
+}

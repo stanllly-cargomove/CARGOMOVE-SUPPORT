@@ -1,17 +1,18 @@
-import React, { useState } from 'react';
-import { ArrowDown, ArrowRight, ArrowUp, Bell, Building2, Caravan, ChevronRight, Headphones, Mail, MailOpen, MapPin, MessageCircle, MousePointer2, Phone, Truck, UserRound } from 'lucide-react';
-import cargoMoveLogo from '../../../media/image-removebg-preview.png';
-import portBackground from '../../../media/home-port-background.avif';
+import React from 'react';
+import { ArrowDown, ArrowRight, ArrowUp, Bell, Building2, Caravan, ChevronRight, Mail, MailOpen, MapPin, MessageCircle, MousePointer2, Phone, Truck, UserRound } from 'lucide-react';
+import cargoMoveLogo from '../../../media/image-removebg-preview.webp';
+import portBackground from '../../../media/home-port-background-fast.webp';
 import { PORTAL_VERSION } from '../../constants/versions';
 import { PortalFooterBottom } from './PortalFooterBottom';
 import { PortalHeader } from './PortalHeader';
 import './HomePage.css';
+import { usePortalTheme } from './portalNavigation';
 
 interface HomePageProps {
-  onRegister?: () => void;
-  onTrackStatus?: () => void;
-  onGuideline?: () => void;
-  onLogin?: () => void;
+  onRegister: () => void;
+  onTrackStatus: () => void;
+  onGuideline: () => void;
+  onLogin: () => void;
   onContactUs?: () => void;
 }
 
@@ -31,41 +32,24 @@ function WhatsAppMark() {
   return <span className="cm-home-whatsapp-mark" aria-hidden="true"><MessageCircle /><Phone /></span>;
 }
 
-/** Standalone concept. Deliberately not imported by App or connected to navigation. */
+
 export function HomePage({ onRegister, onTrackStatus, onGuideline, onLogin, onContactUs }: HomePageProps) {
-  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
-    try {
-      return window.localStorage.getItem('cargomove-home-theme') === 'light' ? 'light' : 'dark';
-    } catch {
-      return 'dark';
-    }
-  });
-  const [previewMessage, setPreviewMessage] = useState('');
-  const toggleTheme = () => {
-    const nextTheme = theme === 'dark' ? 'light' : 'dark';
-    setTheme(nextTheme);
-    try {
-      window.localStorage.setItem('cargomove-home-theme', nextTheme);
-    } catch {
-      // The switch still works when browser storage is unavailable.
-    }
-  };
-  const runAction = (label: string, action?: () => void) => {
-    if (action) action();
-    else setPreviewMessage(`${label} is not connected in this preview.`);
+  const { theme, toggleTheme } = usePortalTheme();
+  const scrollToContact = () => {
+    window.scrollTo({
+      top: document.documentElement.scrollHeight,
+      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+    });
   };
   const scrollToBottom = (event: React.MouseEvent<HTMLAnchorElement>) => {
     event.preventDefault();
-    document.getElementById('home-contact')?.scrollIntoView({
-      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
-      block: 'end',
-    });
+    scrollToContact();
   };
 
   return (
-    <div className="cm-home" data-theme={theme}>
+    <div className="cm-home cm-home-landing" data-theme={theme}>
       <a className="cm-home-skip" href="#home-content">Skip to content</a>
-      <PortalHeader theme={theme} onToggleTheme={toggleTheme} onRegister={() => runAction('Register', onRegister)} onTrackStatus={() => runAction('Track status', onTrackStatus)} onGuideline={() => runAction('Guideline', onGuideline)} onLogin={() => runAction('Login', onLogin)} />
+      <PortalHeader theme={theme} onToggleTheme={toggleTheme} onRegister={onRegister} onTrackStatus={onTrackStatus} onGuideline={onGuideline} onLogin={onLogin} />
 
       <main id="home-content">
         <section className="cm-home-hero" aria-labelledby="home-heading">
@@ -80,8 +64,8 @@ export function HomePage({ onRegister, onTrackStatus, onGuideline, onLogin, onCo
             <h1 id="home-heading">Your next move.<br /><span>Starts with registration.</span></h1>
             <p className="cm-home-intro">Take the first step towards your port operations. Register your company, drivers and fleet with CargoMove, all in one place.</p>
             <div className="cm-home-actions">
-              <button className="cm-home-button cm-home-button-primary" type="button" onClick={() => runAction('Register', onRegister)}>Register <ArrowRight size={18} aria-hidden="true" /></button>
-              {onContactUs ? <button className="cm-home-button cm-home-button-secondary" type="button" onClick={onContactUs}><Headphones size={18} aria-hidden="true" /> Contact us</button> : <a className="cm-home-button cm-home-button-secondary" href="#home-contact"><Headphones size={18} aria-hidden="true" /> Contact us</a>}
+              <button className="cm-home-button cm-home-button-primary" type="button" onClick={onRegister}>Register <ArrowRight size={18} aria-hidden="true" /></button>
+              {onContactUs ? <button className="cm-home-button cm-home-button-secondary" type="button" onClick={() => { onContactUs(); scrollToContact(); }}><MessageCircle size={18} aria-hidden="true" /> Contact us</button> : <a className="cm-home-button cm-home-button-secondary" href="#home-contact" onClick={scrollToBottom}><MessageCircle size={18} aria-hidden="true" /> Contact us</a>}
             </div>
             <p className="cm-home-help">Have a question before you begin? We’re here to help.</p>
             <div className="cm-home-locations"><MapPin size={14} aria-hidden="true" /><span>Port Klang</span><span className="cm-home-location-divider" /><span>Johor · Pasir Gudang</span></div>
@@ -124,7 +108,6 @@ export function HomePage({ onRegister, onTrackStatus, onGuideline, onLogin, onCo
         </div>
       </footer>
       <PortalFooterBottom />
-      <div className="cm-home-preview-message" role="status" aria-live="polite">{previewMessage && <><span>{previewMessage}</span><button type="button" onClick={() => setPreviewMessage('')} aria-label="Dismiss preview message">×</button></>}</div>
     </div>
   );
 }

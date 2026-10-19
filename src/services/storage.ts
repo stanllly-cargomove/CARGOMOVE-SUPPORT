@@ -11,6 +11,7 @@ import {
   UserRegistration,
 } from '../types';
 import { normalizeCompanyType, normalizeRegNo } from './companyHelper';
+import { getCustomerConfiguration } from './customerConfiguration';
 import { deleteSupabaseRow, fetchSupabaseSnapshot, isSupabaseConfigured, upsertSupabaseRow } from './supabase';
 import { clearExternalUserAccessCache, getExternalUserAccess, refreshExternalUserAccess, saveExternalUserAccess, updateExternalUserAccess } from './auth';
 
@@ -716,6 +717,7 @@ export function clearProtectedStorage(): void {
 // ==================== PORTS & DEPOTS ====================
 
 export function getPorts(): PortConfig[] {
+  if (!protectedDataEnabled && getCustomerConfiguration()) return getCustomerConfiguration()!.ports;
   initStorage();
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.PORTS);
@@ -774,44 +776,13 @@ export function getAutoAssignedPorts(location: PortLocation): {
   backendIdsString: string;
   ports: PortConfig[];
 } {
-  const allPorts = getPorts();
-  if (location === 'PORT_KLANG') {
-    const wp = allPorts.find((p) => p.code === 'WESTPORT' || p.id === 'pk-westport') || {
-      id: 'pk-westport',
-      location: 'PORT_KLANG' as PortLocation,
-      display_name: 'WESTPORT',
-      code: 'WESTPORT',
-      backend_port_id: '5ad78eeb458efa4c5a1fc007',
-      active: true,
-    };
-    const np = allPorts.find((p) => p.code === 'NORTHPORT' || p.id === 'pk-northport') || {
-      id: 'pk-northport',
-      location: 'PORT_KLANG' as PortLocation,
-      display_name: 'NORTHPORT',
-      code: 'NORTHPORT',
-      backend_port_id: '5adc9dd77753d26fb07d6f26',
-      active: true,
-    };
-    const ids = [wp.backend_port_id, np.backend_port_id].filter(Boolean);
-    return {
-      location,
-      portNames: ['WESTPORT', 'NORTHPORT'],
-      backendIdsString: ids.join(','),
-      ports: [wp, np] as PortConfig[],
-    };
-  } else {
-    const jhPorts = allPorts.filter((p) => p.location === 'JOHOR');
-    const ids = jhPorts.map((p) => p.backend_port_id).filter(Boolean);
-    return {
-      location,
-      portNames: jhPorts.map((p) => p.display_name),
-      backendIdsString: ids.join(','),
-      ports: jhPorts,
-    };
-  }
+  const ports = getPorts().filter(port => port.active && port.location === location);
+  if (location === 'PORT_KLANG') ports.sort((a, b) => (a.code === 'WESTPORT' ? 0 : 1) - (b.code === 'WESTPORT' ? 0 : 1));
+  return { location, portNames: ports.map(port => port.display_name), backendIdsString: ports.map(port => port.backend_port_id).filter(Boolean).join(','), ports };
 }
 
 export function getDepots(): DepotConfig[] {
+  if (!protectedDataEnabled && getCustomerConfiguration()) return getCustomerConfiguration()!.depots;
   initStorage();
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.DEPOTS);

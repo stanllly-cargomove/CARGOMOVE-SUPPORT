@@ -15,6 +15,8 @@
     "set:admin-password": "tsx scripts/set-admin-password.ts",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
+    "test:portal": "tsx --test tests/registration-config.test.ts",
+    "test:portal:ui": "npm run build && tsx tests/portal-ui.ts",
     "test:scheduler": "tsx --test tests/scheduler.test.ts tests/scheduler-db.test.ts",
     "test:scheduler:ui": "tsx tests/scheduler-ui.ts",
     "test:northport": "tsx --test tests/northport.test.ts tests/northport-db.test.ts tests/northport-scan.test.ts tests/northport-reprocess.test.ts tests/dev-tools-router.test.ts",

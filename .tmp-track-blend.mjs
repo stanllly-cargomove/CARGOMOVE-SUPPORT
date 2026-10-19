@@ -4,7 +4,7 @@ for (const theme of ['dark', 'light']) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   await context.addInitScript((value) => localStorage.setItem('cargomove-home-theme', value), theme);
   const page = await context.newPage();
-  await page.goto('http://127.0.0.1:3000/previews/track-status.html');
+  await page.goto('http://127.0.0.1:3000/track-status');
   await page.evaluate(() => document.fonts.ready);
   await page.screenshot({ path: `.tmp-track-blend-${theme}.png` });
   console.log(theme, await page.evaluate(() => ({ overflow: document.documentElement.scrollWidth > innerWidth, gradient: getComputedStyle(document.querySelector('.cm-track-hero'), '::before').backgroundImage })));

@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Download, Info, Mail, Pencil, Save, Search, UsersRound, X } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { AlertTriangle, Download, Info, Mail, Pencil, Save, Search, UsersRound, X } from 'lucide-react';
 import { getExternalUserAccess, ExternalUserAccess, updateExternalUserAccess } from '../../services/auth';
 import { EmailPreview, EmailTemplate, EmailTemplatePort, generateWelcomeEmailPreview, getEmailTemplateCatalog, sendWelcomeEmail } from '../../services/email';
 import { RichTextEmailEditor } from './RichTextEmailEditor';
@@ -84,6 +84,26 @@ function CopyableValue({ value, label, className = '' }: CopyableValueProps) {
   );
 }
 
+function CompanyRegistrationWarning({ user, onClose }: {
+  user: ExternalUserAccess; onClose: () => void;
+}) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    dialog?.showModal();
+    return () => dialog?.close();
+  }, []);
+  return <dialog ref={dialogRef} role="alertdialog" aria-labelledby="company-registration-warning-title" aria-describedby="company-registration-warning-description" onCancel={event => { event.preventDefault(); onClose(); }} className="m-auto w-[calc(100vw-2rem)] max-w-lg rounded-2xl border border-slate-200 bg-white p-5 text-slate-900 shadow-2xl backdrop:bg-slate-900/55">
+    <div className="flex items-center gap-2"><AlertTriangle aria-hidden="true" className="h-5 w-5 shrink-0 text-amber-700" /><h3 id="company-registration-warning-title" className="text-base font-bold">Company registration not completed</h3></div>
+    <div id="company-registration-warning-description" className="mt-3 space-y-3 text-sm leading-6 text-slate-700">
+      <p>Cannot mark <strong>{user.username}</strong> as Done because <strong>{user.company_name || 'the linked company'}</strong> is not registered. Please complete the company registration first.</p>
+      <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-800">Marking the user as Done before the company is registered may cause login, company access, or registration issues in CargoMove. An acceptance email cannot be prepared until the linked company registration is completed.</p>
+      <p>After the company registration is completed, return here to mark the user as Done and prepare the acceptance email.</p>
+    </div>
+    <div className="mt-5 flex justify-start"><button type="button" autoFocus onClick={onClose} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100">Close</button></div>
+  </dialog>;
+}
+
 export function UserRegistration() {
   const [users, setUsers] = useState<ExternalUserAccess[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -102,6 +122,7 @@ export function UserRegistration() {
   const [sending, setSending] = useState(false);
   const [editingUser, setEditingUser] = useState<ExternalUserAccess | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
+  const [blockedUser, setBlockedUser] = useState<ExternalUserAccess | null>(null);
   const [pageSize] = useState(20);
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -229,41 +250,50 @@ export function UserRegistration() {
   };
 
   const changeStatus = async (user: ExternalUserAccess, status: ExternalUserAccess['status']) => {
+    if (status === 'DONE' && !companyPortIdsFor(user, true).length) {
+      setBlockedUser(user);
+      return;
+    }
     if (status === 'REJECTED') {
       await startUserCodeFlow(user, 'REJECTED', true);
       return;
     }
     const saved = await updateUser(user, { status });
-    if (saved?.status === 'DONE') await openPreview(saved);
+    if (saved?.status === 'DONE' && companyPortIdsFor(saved, true).length) await openPreview(saved);
   };
 
   const saveUserDetails = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!editingUser) return;
-    const requiredValues = [editingUser.username, editingUser.email, editingUser.password, editingUser.full_name, editingUser.mobile_number];
+    const user = editingUser;
+    if (!user) return;
+    const requiredValues = [user.username, user.email, user.password, user.full_name, user.mobile_number];
     if (requiredValues.some((value) => !value.trim())) {
       notifyError('Username, email, password, full name, and mobile number are required.');
       return;
     }
 
-    const previousStatus = users.find((user) => user.id === editingUser.id)?.status;
+    const previousStatus = users.find((record) => record.id === user.id)?.status;
+    if (user.status === 'DONE' && !companyPortIdsFor(user, true).length) {
+      setBlockedUser(user);
+      return;
+    }
     setSavingEdit(true);
     try {
-      const saved = await updateExternalUserAccess(editingUser.id, {
-        username: editingUser.username,
-        email: editingUser.email,
-        password: editingUser.password,
-        company_name: editingUser.company_name.trim().toUpperCase(),
-        full_name: editingUser.full_name,
-        mobile_number: editingUser.mobile_number,
-        status: editingUser.status,
-        rejection_reason: editingUser.status === 'REJECTED' ? editingUser.rejection_reason : undefined,
-        rejection_detail: editingUser.status === 'REJECTED' ? editingUser.rejection_detail : undefined,
+      const saved = await updateExternalUserAccess(user.id, {
+        username: user.username,
+        email: user.email,
+        password: user.password,
+        company_name: user.company_name.trim().toUpperCase(),
+        full_name: user.full_name,
+        mobile_number: user.mobile_number,
+        status: user.status,
+        rejection_reason: user.status === 'REJECTED' ? user.rejection_reason : undefined,
+        rejection_detail: user.status === 'REJECTED' ? user.rejection_detail : undefined,
       });
       setUsers((current) => current.map((user) => user.id === saved.id ? { ...user, ...saved } : user));
       setEditingUser(null);
       notifySuccess('User details updated in the database.');
-      if (previousStatus !== 'DONE' && saved.status === 'DONE') await openPreview(saved);
+      if (previousStatus !== 'DONE' && saved.status === 'DONE' && companyPortIdsFor(saved, true).length) await openPreview(saved);
     } catch (error) {
       notifyError(error instanceof Error ? error.message : 'Unable to update user details.');
     } finally {
@@ -442,7 +472,7 @@ export function UserRegistration() {
                 aria-selected={registrationStatusFilter === value}
                 aria-label={`${label}: ${statusCount} registration${statusCount === 1 ? '' : 's'}`}
                 onClick={() => setRegistrationStatusFilter(value)}
-                className={`relative -mr-px flex h-10 w-[132px] min-w-[132px] items-center justify-center rounded-t-lg border px-3 text-xs font-bold uppercase tracking-wider transition-colors ${
+                className={`admin-registration-tab relative -mr-px flex h-10 w-[132px] min-w-[132px] items-center justify-center rounded-t-lg border px-3 text-xs font-bold uppercase tracking-wider transition-colors ${
                   registrationStatusFilter === value
                     ? `z-10 border-slate-400 border-b-transparent bg-[#CBD5E1] ${statusTabColors[value]}`
                     : 'border-slate-300 bg-[#F1F5F9] text-slate-500 hover:bg-slate-200 hover:text-slate-900'
@@ -478,7 +508,7 @@ export function UserRegistration() {
               <col className="w-[13%]" />
             </colgroup>
             <thead>
-              <tr className="whitespace-nowrap border border-slate-400 bg-[#CBD5E1] text-[9px] font-bold uppercase tracking-wide text-slate-700 xl:text-[10px]">
+              <tr className="admin-registration-table-header whitespace-nowrap border border-slate-400 bg-[#CBD5E1] text-[9px] font-bold uppercase tracking-wide text-slate-700 xl:text-[10px]">
                 <th className="px-2 py-2.5">Username</th>
                 <th className="px-2 py-2.5">Email address</th>
                 <th className="px-2 py-2.5">Password</th>
@@ -699,6 +729,7 @@ export function UserRegistration() {
           </div>
         </div>
       )}
+      {blockedUser && <CompanyRegistrationWarning user={blockedUser} onClose={() => setBlockedUser(null)} />}
     </div>
   );
 }

@@ -6,15 +6,16 @@ import { CompanyContextCard } from '../CompanyContextCard';
 
 interface VehicleFormProps {
   company: Company;
+  initialData?: VehicleData[];
   port: PortConfig;
   onSubmit: (data: VehicleData[]) => void;
   onBack: () => void;
 }
 
-export function VehicleForm({ company, onSubmit, onBack }: VehicleFormProps) {
+export function VehicleForm({ company, initialData, onSubmit, onBack }: VehicleFormProps) {
   const autoPorts = getAutoAssignedPorts('JOHOR');
 
-  const [vehicles, setVehicles] = useState<VehicleData[]>([
+  const [vehicles, setVehicles] = useState<VehicleData[]>(initialData?.length ? initialData : [
     {
       registration_number: '',
       head: '',

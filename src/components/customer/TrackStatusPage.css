@@ -70,6 +70,10 @@
 .cm-track[data-theme='dark'] .cm-track-back:hover { color: #fff; }
 .cm-track[data-theme='dark'] .cm-track-hero-inner > p { color: #cfdeeb; }
 .cm-track[data-theme='dark'] .cm-track-search-card, .cm-track[data-theme='dark'] .cm-track-result { background: #f9fbfd; }
+@media (min-width: 601px) {
+  .cm-track-hero::before { background: linear-gradient(180deg, #fff 0px, #fff 24px, #ffffff00 24%, #ffffff00 60%, #ffffff0d 70%, #ffffff26 80%, #ffffff59 90%, #ffffffa6 96%, #fff 100%), linear-gradient(90deg, #ffffffe0 0%, #ffffffb3 50%, #ffffff4d 100%); }
+  .cm-track[data-theme='dark'] .cm-track-hero::before { background: linear-gradient(180deg, #081320 0px, #081320 24px, #08132000 24%, #08132000 60%, #eef0f20d 70%, #eef0f226 80%, #eef0f259 90%, #eef0f2a6 96%, #eef0f2 100%), linear-gradient(90deg, #081320f5 0%, #081320ce 50%, #08132070 100%); }
+}
 @media (max-width: 980px) {
   .cm-track-summary { grid-template-columns: max-content minmax(0, 1fr); gap: 18px 24px; }
 }

@@ -20,18 +20,19 @@ const toStoredMobileNumber = (value: string, countryCode: CountryCode) => {
 
 interface DriverFormProps {
   company: Company;
+  initialData?: DriverData[];
   port: PortConfig;
   onSubmit: (data: DriverData[]) => void;
   onBack: () => void;
 }
 
-export function DriverForm({ company, onSubmit, onBack }: DriverFormProps) {
+export function DriverForm({ company, initialData, onSubmit, onBack }: DriverFormProps) {
   const autoPorts = getAutoAssignedPorts('JOHOR');
 
-  const [drivers, setDrivers] = useState<DriverData[]>([
+  const [drivers, setDrivers] = useState<DriverData[]>(initialData?.length ? initialData.map(driver => ({ ...driver, mobile_no: driver.mobile_no.replace(/^\+(62|65)/, '') })) : [
     { driving_license: '', name: '', mobile_no: '' },
   ]);
-  const [mobileCountryCodes, setMobileCountryCodes] = useState<CountryCode[]>(['+60']);
+  const [mobileCountryCodes, setMobileCountryCodes] = useState<CountryCode[]>(initialData?.length ? initialData.map(driver => driver.mobile_no.startsWith('+62') ? '+62' : driver.mobile_no.startsWith('+65') ? '+65' : '+60') : ['+60']);
   const [openCountryIndex, setOpenCountryIndex] = useState<number | null>(null);
   const countryDropdownRef = useRef<HTMLDivElement>(null);
 

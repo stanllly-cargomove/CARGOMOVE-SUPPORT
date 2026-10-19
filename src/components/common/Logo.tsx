@@ -1,5 +1,5 @@
 import React from 'react';
-import cargoMoveLogo from '../../../media/image-removebg-preview.png';
+import cargoMoveLogo from '../../../media/image-removebg-preview.webp';
 
 interface LogoProps {
   className?: string;

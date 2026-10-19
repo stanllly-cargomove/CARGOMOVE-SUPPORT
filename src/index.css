@@ -248,6 +248,7 @@ code, kbd, samp, pre {
 }
 
 .admin-theme-dark {
+  color-scheme: dark;
   background-color: #0f172a !important;
   color: #e2e8f0 !important;
 }
@@ -409,6 +410,82 @@ code, kbd, samp, pre {
 .admin-theme-dark .admin-registration-copy-text:hover > span {
   color: #60a5fa !important;
 }
+
+/* Shared admin surfaces, including striped tables and disabled controls. */
+.admin-theme-dark :is([class~='bg-slate-50/50'], [class~='bg-slate-100/70'], [class~='disabled:bg-slate-100']:disabled) {
+  background-color: #243247 !important;
+}
+.admin-theme-dark [class~='hover:bg-slate-100/70']:hover {
+  background-color: #334155 !important;
+}
+.admin-theme-dark :is(.border-slate-400, .border-slate-50) {
+  border-color: #475569 !important;
+}
+.admin-theme-dark :is(input, select, textarea):disabled {
+  color: #94a3b8 !important;
+}
+.admin-theme-dark :is(select option, select optgroup) {
+  background-color: #1e293b;
+  color: #f1f5f9;
+}
+
+/* Keep status colours readable on cards, badges, icons and table selections. */
+.admin-theme-dark :is(.bg-blue-50, .bg-blue-100, .bg-sky-50, .bg-sky-100,
+  [class~='bg-blue-50/40'], [class~='bg-blue-50/50'], [class~='bg-blue-50/60'], [class~='bg-blue-50/70'],
+  [class~='bg-blue-200/30'], [class~='bg-sky-50/80'], [class~='bg-sky-100/70']) {
+  background-color: #173554 !important;
+}
+.admin-theme-dark :is(.text-blue-600, .text-blue-700, .text-blue-800, .text-blue-900,
+  .text-sky-600, .text-sky-700, .text-sky-800, .text-sky-900) { color: #7dd3fc !important; }
+.admin-theme-dark :is(.border-blue-100, .border-blue-200, .border-blue-300,
+  .border-sky-50, .border-sky-100, .border-sky-200) { border-color: #315578 !important; }
+.admin-theme-dark :is([class~='hover:bg-blue-50'], [class~='hover:bg-blue-100'], [class~='hover:bg-sky-50']):hover {
+  background-color: #21496e !important;
+}
+
+.admin-theme-dark :is(.bg-amber-50, .bg-amber-100, .bg-orange-50,
+  [class~='bg-amber-50/50'], [class~='bg-amber-50/80']) { background-color: #42321d !important; }
+.admin-theme-dark :is(.text-amber-600, .text-amber-700, .text-amber-800, .text-amber-900,
+  .text-orange-500, .text-orange-600, .text-orange-700, .text-orange-800) { color: #fcd34d !important; }
+.admin-theme-dark :is(.border-amber-100, .border-amber-200, .border-amber-300, .border-orange-200) { border-color: #78582b !important; }
+.admin-theme-dark :is([class~='hover:bg-amber-50'], [class~='hover:bg-amber-100']):hover { background-color: #594124 !important; }
+
+.admin-theme-dark :is(.bg-emerald-50, .bg-emerald-100,
+  [class~='bg-emerald-50/40'], [class~='bg-emerald-50/50'], [class~='bg-emerald-50/80'],
+  [class~='bg-emerald-200/30']) { background-color: #163d36 !important; }
+.admin-theme-dark :is(.text-emerald-500, .text-emerald-600, .text-emerald-700, .text-emerald-800, .text-emerald-900,
+  .text-green-600, .text-green-700, .text-green-800) { color: #6ee7b7 !important; }
+.admin-theme-dark :is(.border-emerald-100, .border-emerald-200, .border-emerald-300) { border-color: #2c6655 !important; }
+.admin-theme-dark :is([class~='hover:bg-emerald-50'], [class~='hover:bg-emerald-100']):hover { background-color: #205347 !important; }
+
+.admin-theme-dark :is(.bg-red-50, .bg-rose-50) { background-color: #482635 !important; }
+.admin-theme-dark :is(.text-red-500, .text-red-600, .text-red-700, .text-red-800,
+  .text-rose-500, .text-rose-600, .text-rose-700, .text-rose-800) { color: #fda4af !important; }
+.admin-theme-dark :is(.border-red-100, .border-red-200, .border-red-300,
+  .border-rose-100, .border-rose-200, .border-rose-300) { border-color: #803e51 !important; }
+.admin-theme-dark [class~='hover:bg-rose-50']:hover { background-color: #603044 !important; }
+
+.admin-theme-dark :is(.bg-cyan-100, [class~='bg-cyan-200/30']) { background-color: #16404c !important; }
+.admin-theme-dark :is(.text-cyan-600, .text-cyan-700, .text-cyan-800) { color: #67e8f9 !important; }
+.admin-theme-dark :is(.border-cyan-100, .border-cyan-200) { border-color: #2b6471 !important; }
+.admin-theme-dark :is(.bg-violet-50, .bg-violet-100, .bg-purple-50, [class~='bg-violet-200/30']) { background-color: #352b53 !important; }
+.admin-theme-dark :is(.text-violet-600, .text-violet-700, .text-violet-800,
+  .text-purple-600, .text-purple-700, .text-purple-800) { color: #c4b5fd !important; }
+.admin-theme-dark :is(.border-violet-100, .border-violet-200, .border-purple-200) { border-color: #615184 !important; }
+.admin-theme-dark :is(.bg-fuchsia-100, [class~='bg-fuchsia-200/30']) { background-color: #462c4e !important; }
+.admin-theme-dark :is(.text-fuchsia-600, .text-fuchsia-700, .text-fuchsia-800) { color: #f0abfc !important; }
+.admin-theme-dark :is(.border-fuchsia-100, .border-fuchsia-200) { border-color: #75517f !important; }
+
+.admin-theme-dark [role='tab'] {
+  background-color: #1e293b !important;
+  border-color: #334155 !important;
+}
+.admin-theme-dark [role='tab'][aria-selected='true'] {
+  background-color: #334155 !important;
+  border-color: #475569 !important;
+  border-bottom-color: #334155 !important;
+}
+.admin-theme-dark [role='tab']:hover { background-color: #2c3e56 !important; }
 
 @media (prefers-reduced-motion: reduce) {
   .page-slide-forward,

@@ -1,8 +1,8 @@
 import React from 'react';
 import { PortLocation, PortConfig } from '../../types';
 import { Anchor, Truck, Check, ArrowRight } from 'lucide-react';
-import portHeroImage from '../../../media/registration-port-hero.png';
-import depotCardImage from '../../../media/registration-depot-card.png';
+import portHeroImage from '../../../media/registration-port-hero-fast.webp';
+import depotCardImage from '../../../media/registration-depot-card-fast.webp';
 import { Logo } from '../common/Logo';
 
 interface PortSelectionProps {
@@ -15,10 +15,13 @@ interface PortSelectionProps {
 
 export function PortSelection({
   selectedLocation,
+  ports,
   onSelectLocation,
   onNext,
   onSelectPortKlangDirect,
 }: PortSelectionProps) {
+  const portKlangAvailable = ports.some(port => port.active && port.location === 'PORT_KLANG');
+  const johorAvailable = ports.some(port => port.active && port.location === 'JOHOR');
   const handlePortKlangClick = () => {
     onSelectLocation('PORT_KLANG');
   };
@@ -41,7 +44,7 @@ export function PortSelection({
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {/* Port Klang Card: PORT KLANG - CONVENTIONAL USER REGISTRATION */}
         <div
-          onClick={handlePortKlangClick}
+          onClick={portKlangAvailable ? handlePortKlangClick : undefined}
           className="group relative min-h-[300px] cursor-pointer overflow-hidden rounded-lg border border-[#d9e3ef] bg-white/92 p-5 shadow-[0_2px_8px_rgba(15,23,42,0.04)] backdrop-blur transition duration-200 hover:-translate-y-0.5 sm:p-6"
         >
           <div className="pointer-events-none absolute right-0 top-0 hidden h-[140px] w-[190px] overflow-hidden rounded-bl-[64px] rounded-tl-[96px] rounded-tr-[7px] bg-sky-50 sm:block">
@@ -77,6 +80,7 @@ export function PortSelection({
 
             <button
               type="button"
+              disabled={!portKlangAvailable}
               onClick={(e) => {
                 e.stopPropagation();
                 handlePortKlangClick();
@@ -91,7 +95,7 @@ export function PortSelection({
 
         {/* Johor Card: JOHOR DEPOT - CONTAINER AND CONVENTIONAL REGISTRATION */}
         <div
-          onClick={handleJohorClick}
+          onClick={johorAvailable ? handleJohorClick : undefined}
           className="group relative min-h-[300px] cursor-pointer overflow-hidden rounded-lg border border-[#d9e3ef] bg-white/92 p-5 shadow-[0_2px_8px_rgba(15,23,42,0.04)] backdrop-blur transition duration-200 hover:-translate-y-0.5 sm:p-6"
         >
           <div className="pointer-events-none absolute right-0 top-0 hidden h-[140px] w-[190px] overflow-hidden rounded-bl-[64px] rounded-tl-[96px] rounded-tr-[7px] bg-violet-50 sm:block">
@@ -127,6 +131,7 @@ export function PortSelection({
 
             <button
               type="button"
+              disabled={!johorAvailable}
               onClick={(e) => {
                 e.stopPropagation();
                 handleJohorClick();
@@ -140,6 +145,7 @@ export function PortSelection({
         </div>
       </div>
 
+      {(!portKlangAvailable || !johorAvailable) && <p role="status" className="text-center text-sm text-slate-500">Registration for some facilities is currently unavailable. Contact support for assistance.</p>}
     </div>
   );
 }
