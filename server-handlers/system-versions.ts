@@ -1,6 +1,6 @@
 import { adminClient, readSession } from '../api/_runtime.js';
 import { allowedOrigin, schedulerAdmin } from './scheduler/access.js';
-import manifest from '../src/generated/system-versions.json';
+import manifest from '../src/generated/system-versions.json' with { type: 'json' };
 
 export function createSystemVersionHandler(deps = { adminClient, readSession }) {
   return async function systemVersions(request: any, response: any) {
