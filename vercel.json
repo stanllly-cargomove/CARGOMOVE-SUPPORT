@@ -15,6 +15,10 @@
   },
   "rewrites": [
     {
+      "source": "/api/dev-tools/system-versions",
+      "destination": "/api/dev-tools?route=system-versions"
+    },
+    {
       "source": "/api/dev-tools/schedulers",
       "destination": "/api/dev-tools?route=schedulers"
     },

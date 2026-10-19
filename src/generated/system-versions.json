@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "version": "1.3.0",
-  "updatedAt": "2026-10-19T10:26:54.699Z",
+  "version": "1.3.13",
+  "updatedAt": "2026-10-19T11:12:47.432Z",
   "entries": [
     {
       "id": "account-settings",
@@ -11,9 +11,9 @@
         "src/components/admin/AdminLayout.tsx"
       ],
       "kind": "page",
-      "version": "1.0.0",
-      "updatedAt": "2026-10-19T10:26:54.699Z",
-      "fingerprint": "4cc62fb868ca716941f6f574a5b58ffbbc8d246a3d63bc06bceba0525dc95a4f"
+      "version": "1.0.6",
+      "updatedAt": "2026-10-19T11:12:47.432Z",
+      "fingerprint": "98309530e8a213a28aa0087a337db03354413706d3979215422f27457d08a339"
     },
     {
       "id": "admin",
@@ -23,9 +23,9 @@
         "src/components/admin/AdminLayout.tsx"
       ],
       "kind": "page",
-      "version": "1.0.0",
-      "updatedAt": "2026-10-19T10:26:54.699Z",
-      "fingerprint": "92d2d52157e3a8cb41f83688b9ec7db93ea62d088515409b4d7d1d0cb72c5266"
+      "version": "1.0.6",
+      "updatedAt": "2026-10-19T11:12:47.432Z",
+      "fingerprint": "8a7c71de665e271323987c730baf2b77a1787f53778875d0b2274ec93d5852b5"
     },
     {
       "id": "auto-email",
@@ -54,9 +54,9 @@
         "src/components/admin/AdminLayout.tsx"
       ],
       "kind": "page",
-      "version": "1.0.0",
-      "updatedAt": "2026-10-19T10:26:54.699Z",
-      "fingerprint": "e575d26d2d8c8dd251b7e6e1d7bdb73887e500e4e5487f46adc3d537973758e7"
+      "version": "1.0.6",
+      "updatedAt": "2026-10-19T11:12:47.432Z",
+      "fingerprint": "c883db5188dc408cffd9cffa93a6a9a07413c0f2a01c1c04ac9b09c3ef76cc2e"
     },
     {
       "id": "northport",
@@ -298,9 +298,9 @@
         "src/components/admin/GuidelineManager.tsx"
       ],
       "kind": "page",
-      "version": "1.0.0",
-      "updatedAt": "2026-10-19T10:26:54.699Z",
-      "fingerprint": "728575156588a8bb966925b0f70e290afb89206b83fae170318a1539f375f8aa"
+      "version": "1.0.1",
+      "updatedAt": "2026-10-19T11:12:47.432Z",
+      "fingerprint": "ebc02755d9d1cb40b849c2a5343cb29ababaf733a3dc111ad23d476ee9e3c452"
     },
     {
       "id": "src/components/admin/NorthportRecovery.tsx",
@@ -346,9 +346,9 @@
         "src/components/admin/SystemVersion.tsx"
       ],
       "kind": "page",
-      "version": "1.0.0",
-      "updatedAt": "2026-10-19T10:26:54.699Z",
-      "fingerprint": "84da0e5cfd9fa9fce35e62c5b86489072d4d970bdd5bb2612cc29a90f9e99205"
+      "version": "1.0.5",
+      "updatedAt": "2026-10-19T10:59:45.835Z",
+      "fingerprint": "1b73e478961fe4145d7344f24782ac44bba1bdd1a033caf92e28764cf83a1ee1"
     },
     {
       "id": "src/components/admin/UserRegistration.tsx",
@@ -394,8 +394,8 @@
         "src/components/customer/GuidelinePage.tsx"
       ],
       "kind": "page",
-      "version": "1.0.0",
-      "updatedAt": "2026-10-19T10:26:54.699Z",
+      "version": "1.0.3",
+      "updatedAt": "2026-10-19T11:12:41.570Z",
       "fingerprint": "5b453862bfa9106c0b03c9fba2d8a7c096b9659fd22a0210ef9051a85e142afe"
     },
     {
@@ -448,14 +448,14 @@
     }
   ],
   "sourceFiles": {
-    "api/_runtime.ts": "665678e5a2e595f08dff6111d77073f3d509911011e06bbfa83fdf2c000ae21f",
+    "api/_runtime.ts": "85fbaf7657252cb9302580b82be311d178efba01755538107d6caa58729a7c91",
     "api/auth/login.ts": "b9ca37e15306678b28cad3646b66ca59e0a5d888e47ca88a9b91a521573610ca",
     "api/auth/logout.ts": "b9b0a8d91f7a8e2df747e72105e1c75d0b7a8f276cd16a81ca2087769cadbe55",
     "api/auth/session.ts": "b558da6ab3889ec7b6eea64efd7d62c312575a41032e974f5e72c9da40d3f807",
     "api/auth/users.ts": "64b48a48aa0c16b1369ad7b16859554ab59d93c58358385728c19fd5b5777f09",
     "api/data/[table].ts": "f78331d45ccb6b2fd47c08b7bcb8a3206828fe5e2e3424060640c5a497b81ac5",
     "api/data/[table]/[id].ts": "0d7de1f24e8a4b0e3e329254e829273771898ce34627327816edd902cd07a297",
-    "api/dev-tools.ts": "3c0ac0d3d0421568251b044e99d1491145a6da77dbe5898b8ed7e135a5d67c73",
+    "api/dev-tools.ts": "33dba3ffa27c0bd6dce92fdf4f7af113d50f1004c0761578d149749d7fecb0a5",
     "api/external-user-access.ts": "3b2184020b94da4d7d96e065ed7acab54887e5ed624e356b471be3b83b31c940",
     "api/health.ts": "bd85c6a0ce4c58094322532e63cdfada9114c66bf81ce294b7ee7014399ff049",
     "api/mail.ts": "39c43982e49553146b2972fde01ac9cb699f802f56caf19a95f9163129a8d86f",
@@ -510,7 +510,8 @@
     "server-handlers/scheduler/catalog.ts": "4833774bf6056f24159c3ba39cc6b3750cee4cc5cf6ae476cb03beaa340fcc2a",
     "server-handlers/scheduler/handler.ts": "8be0097f92654127dd09a93053032f66c50a30882bfeb8b22327f1a32a239814",
     "server-handlers/scheduler/targets.ts": "be6109d1121d6f850ac15675564c71cd463dbc93f3e848ff5f7cbe24d9ed9c55",
-    "server.ts": "95d959c7c87330561fa9f32b87da3a8b09297bbbb45ce184b3ea447f9198047b",
+    "server-handlers/system-versions.ts": "7f6adbf7f09142d39055c28b4d249761b03536e769f3d3c191fc63b0c3970f6f",
+    "server.ts": "a1cb6825f5052ad478dbca43abfce7539eb45284deeac6a41eee18420412d4fb",
     "src/App.tsx": "ba8d10a8ed7ee6ed98cec81bb89311361d1bd7ab600bbfd729dced469ca665c0",
     "src/components/admin/AdminDashboard.tsx": "39c2f7dcaaef4f91fa034feb9041bc3cb46d456d3a0d1cfbfc8a034d86c2a419",
     "src/components/admin/AdminLayout.tsx": "2f5addab6b30a94bd72f50db3c5b0d7869a2a21e504f1433d2e58fd27d61eb3d",
@@ -522,7 +523,7 @@
     "src/components/admin/DeveloperSettings.tsx": "555d26000a784a8e880ab033a6149ed610010ce03bca50efc34dc4124ac1bd0d",
     "src/components/admin/EmailTemplateManager.tsx": "482a5243a97618f09760e7d7dd7662598cdce5b7f93614bda9b999a0b54f8e46",
     "src/components/admin/ExcelExportCenter.tsx": "7c809f9d537cc2db7d91eb5bbb119ba6d234ff0d77086b7bf9330bbb8a9c14d2",
-    "src/components/admin/GuidelineManager.tsx": "dd3582ea92a51f2b8649348b503585c5acffe373ae6fa454272923eadbef5ef3",
+    "src/components/admin/GuidelineManager.tsx": "612391e3048b8681230ec8b91c623aa9c0d79ac30872affcd92546c37d2abcc4",
     "src/components/admin/NorthportRecovery.tsx": "898921b16eeec4985a718873bc83f384c741d693cf0a6a4f3c99a0954114612e",
     "src/components/admin/PdfAttachmentIcon.tsx": "4b65ea388a582c838e1782957115244f628de17b2f056cbae9ba39ef41afcc7d",
     "src/components/admin/PortDepotConfig.tsx": "0e0fb6700ba437b0709f80b51eb49e95337d6030a5fefef2bccdff66efed8bf6",
@@ -530,7 +531,7 @@
     "src/components/admin/SchemaMappingInspector.tsx": "b15f2621134ebf78526030f0bd91e8c0aa4c17c2e49836564223155c5f09e91d",
     "src/components/admin/SubmissionDetailModal.tsx": "857a67b206c63cb0c66203a6c1ffe571f2d2c9f12651da31d1736497267992ac",
     "src/components/admin/SubmissionsList.tsx": "c01564a3625065cc3420feebeaf93643b5f5369492c33420e6897c2fca0d68ea",
-    "src/components/admin/SystemVersion.tsx": "211cb6038dd1593aceb1f74f834763a732fecc40cf2a3b2da7ee73ae37f6615d",
+    "src/components/admin/SystemVersion.tsx": "d340e7d0c3da0aabe3d08d8cb29978cf6da731fb61f3e7245661b8ce6c47476f",
     "src/components/admin/UserRegistration.tsx": "5ba3333d1c142ca95aff806731f34d4b57a7891d15e089faf29fbf02ab74dce0",
     "src/components/auth/LoginPage.tsx": "b3a80fb8dbca5fe5e3ac078cc7ad97bef6f255d99cfa470bd89e85050c28e009",
     "src/components/auth/PasswordResetPage.tsx": "2d7b0bea5510275f8aa16eb7980ae9cbfa2c841e761b50f1572195e9a96e3b16",
@@ -623,9 +624,367 @@
     "supabase/migrations/20261017000000_cargomove_scheduler_gallery.sql": "1d9410826dca2af2fd46654f620791fae11222f609a045ff8ecc6d018f79db12",
     "supabase/migrations/20261017010000_northport_recovery.sql": "a658c056bfa45841eefcfd51e4f93a97ff57c64d0af91eeb8eaa3e03753ec80f",
     "supabase/migrations/20261017020000_scheduler_cooldown_45_seconds.sql": "b246e6c45847d039810e3f94075d99eba8cd21339b15bb0ca385a9935d4bf28c",
+    "supabase/migrations/20261019000000_system_version_history.sql": "e09c97cf4872efec25bb3c19ff264ac84c39f96a19cf60c22cbdeda4037ab9ba",
     "vite.config.ts": "053b10dfb740e02783233b0383c990904f912bb4cedf7ee1fd6bf3c5b0802e82"
   },
   "history": [
+    {
+      "version": "1.3.13",
+      "previousVersion": "1.3.12",
+      "date": "2026-10-19T11:12:47.432Z",
+      "summary": "Updated existing pages, tools or shared system files",
+      "files": [
+        "src/components/admin/GuidelineManager.tsx"
+      ],
+      "changes": [
+        {
+          "id": "account-settings",
+          "name": "Account Settings",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.5",
+          "to": "1.0.6"
+        },
+        {
+          "id": "admin",
+          "name": "Admin Page",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.5",
+          "to": "1.0.6"
+        },
+        {
+          "id": "developer",
+          "name": "Dev Page",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.5",
+          "to": "1.0.6"
+        },
+        {
+          "id": "src/components/admin/GuidelineManager.tsx",
+          "name": "Haulier Guidelines",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.0",
+          "to": "1.0.1"
+        }
+      ]
+    },
+    {
+      "version": "1.3.12",
+      "previousVersion": "1.3.11",
+      "date": "2026-10-19T11:12:41.570Z",
+      "summary": "Updated existing pages, tools or shared system files",
+      "files": [
+        "src/components/customer/GuidelinePage.css",
+        "src/components/customer/GuidelinePage.tsx"
+      ],
+      "changes": [
+        {
+          "id": "src/components/customer/GuidelinePage.tsx",
+          "name": "Haulier Guideline",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.2",
+          "to": "1.0.3"
+        }
+      ]
+    },
+    {
+      "version": "1.3.11",
+      "previousVersion": "1.3.10",
+      "date": "2026-10-19T11:08:53.086Z",
+      "summary": "Updated existing pages, tools or shared system files",
+      "files": [
+        "src/components/customer/GuidelinePage.css"
+      ],
+      "changes": [
+        {
+          "id": "src/components/customer/GuidelinePage.tsx",
+          "name": "Haulier Guideline",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.1",
+          "to": "1.0.2"
+        }
+      ]
+    },
+    {
+      "version": "1.3.10",
+      "previousVersion": "1.3.9",
+      "date": "2026-10-19T11:08:46.264Z",
+      "summary": "Updated existing pages, tools or shared system files",
+      "files": [
+        "src/components/customer/GuidelinePage.tsx"
+      ],
+      "changes": [
+        {
+          "id": "src/components/customer/GuidelinePage.tsx",
+          "name": "Haulier Guideline",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.0",
+          "to": "1.0.1"
+        }
+      ]
+    },
+    {
+      "version": "1.3.9",
+      "previousVersion": "1.3.8",
+      "date": "2026-10-19T10:59:45.835Z",
+      "summary": "Updated existing pages, tools or shared system files",
+      "files": [
+        "src/components/admin/SystemVersion.tsx"
+      ],
+      "changes": [
+        {
+          "id": "account-settings",
+          "name": "Account Settings",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.4",
+          "to": "1.0.5"
+        },
+        {
+          "id": "admin",
+          "name": "Admin Page",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.4",
+          "to": "1.0.5"
+        },
+        {
+          "id": "developer",
+          "name": "Dev Page",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.4",
+          "to": "1.0.5"
+        },
+        {
+          "id": "src/components/admin/SystemVersion.tsx",
+          "name": "System Version",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.4",
+          "to": "1.0.5"
+        }
+      ]
+    },
+    {
+      "version": "1.3.8",
+      "previousVersion": "1.3.7",
+      "date": "2026-10-19T10:59:32.537Z",
+      "summary": "Updated existing pages, tools or shared system files",
+      "files": [
+        "src/components/admin/SystemVersion.tsx"
+      ],
+      "changes": [
+        {
+          "id": "account-settings",
+          "name": "Account Settings",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.3",
+          "to": "1.0.4"
+        },
+        {
+          "id": "admin",
+          "name": "Admin Page",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.3",
+          "to": "1.0.4"
+        },
+        {
+          "id": "developer",
+          "name": "Dev Page",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.3",
+          "to": "1.0.4"
+        },
+        {
+          "id": "src/components/admin/SystemVersion.tsx",
+          "name": "System Version",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.3",
+          "to": "1.0.4"
+        }
+      ]
+    },
+    {
+      "version": "1.3.7",
+      "previousVersion": "1.3.6",
+      "date": "2026-10-19T10:49:43.923Z",
+      "summary": "Updated existing pages, tools or shared system files",
+      "files": [
+        "src/components/admin/SystemVersion.tsx"
+      ],
+      "changes": [
+        {
+          "id": "account-settings",
+          "name": "Account Settings",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.2",
+          "to": "1.0.3"
+        },
+        {
+          "id": "admin",
+          "name": "Admin Page",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.2",
+          "to": "1.0.3"
+        },
+        {
+          "id": "developer",
+          "name": "Dev Page",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.2",
+          "to": "1.0.3"
+        },
+        {
+          "id": "src/components/admin/SystemVersion.tsx",
+          "name": "System Version",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.2",
+          "to": "1.0.3"
+        }
+      ]
+    },
+    {
+      "version": "1.3.6",
+      "previousVersion": "1.3.5",
+      "date": "2026-10-19T10:49:07.157Z",
+      "summary": "Updated existing pages, tools or shared system files",
+      "files": [
+        "src/components/admin/SystemVersion.tsx"
+      ],
+      "changes": [
+        {
+          "id": "account-settings",
+          "name": "Account Settings",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.1",
+          "to": "1.0.2"
+        },
+        {
+          "id": "admin",
+          "name": "Admin Page",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.1",
+          "to": "1.0.2"
+        },
+        {
+          "id": "developer",
+          "name": "Dev Page",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.1",
+          "to": "1.0.2"
+        },
+        {
+          "id": "src/components/admin/SystemVersion.tsx",
+          "name": "System Version",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.1",
+          "to": "1.0.2"
+        }
+      ]
+    },
+    {
+      "version": "1.3.5",
+      "previousVersion": "1.3.4",
+      "date": "2026-10-19T10:48:40.557Z",
+      "summary": "Updated existing pages, tools or shared system files",
+      "files": [
+        "api/_runtime.ts"
+      ],
+      "changes": []
+    },
+    {
+      "version": "1.3.4",
+      "previousVersion": "1.3.3",
+      "date": "2026-10-19T10:48:15.235Z",
+      "summary": "Updated existing pages, tools or shared system files",
+      "files": [
+        "src/components/admin/SystemVersion.tsx"
+      ],
+      "changes": [
+        {
+          "id": "account-settings",
+          "name": "Account Settings",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.0",
+          "to": "1.0.1"
+        },
+        {
+          "id": "admin",
+          "name": "Admin Page",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.0",
+          "to": "1.0.1"
+        },
+        {
+          "id": "developer",
+          "name": "Dev Page",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.0",
+          "to": "1.0.1"
+        },
+        {
+          "id": "src/components/admin/SystemVersion.tsx",
+          "name": "System Version",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.0",
+          "to": "1.0.1"
+        }
+      ]
+    },
+    {
+      "version": "1.3.3",
+      "previousVersion": "1.3.2",
+      "date": "2026-10-19T10:47:56.946Z",
+      "summary": "Updated existing pages, tools or shared system files",
+      "files": [
+        "server.ts"
+      ],
+      "changes": []
+    },
+    {
+      "version": "1.3.2",
+      "previousVersion": "1.3.1",
+      "date": "2026-10-19T10:47:51.177Z",
+      "summary": "Updated existing pages, tools or shared system files",
+      "files": [
+        "api/dev-tools.ts",
+        "server-handlers/system-versions.ts"
+      ],
+      "changes": []
+    },
+    {
+      "version": "1.3.1",
+      "previousVersion": "1.3.0",
+      "date": "2026-10-19T10:47:45.824Z",
+      "summary": "Updated existing pages, tools or shared system files",
+      "files": [
+        "supabase/migrations/20261019000000_system_version_history.sql"
+      ],
+      "changes": []
+    },
     {
       "version": "1.3.0",
       "previousVersion": "1.2.1",

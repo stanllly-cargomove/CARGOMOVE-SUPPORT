@@ -1,6 +1,7 @@
 import schedulerCatalog from '../server-handlers/scheduler/catalog.js';
 import runScheduler from '../server-handlers/scheduler/handler.js';
 import northportRecovery from '../server-handlers/northport/handler.js';
+import systemVersions from '../server-handlers/system-versions.js';
 
 type Handler = (request:any,response:any)=>unknown;
 // Public URLs are preserved by explicit Vercel rewrites. Each handler retains
@@ -9,6 +10,7 @@ export function createDevToolsRouter(handlers:Record<string,Handler>={
   schedulers:schedulerCatalog,
   'run-scheduler':runScheduler,
   'northport-recovery':northportRecovery,
+  'system-versions':systemVersions,
 }) {
   return async function devTools(request:any,response:any) {
     response.setHeader('Cache-Control','no-store');

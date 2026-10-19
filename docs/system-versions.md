@@ -38,4 +38,17 @@ Use a single release branch and resolve this manifest together with source when
 merging concurrent releases. No database, customer requests or browser storage
 are used for version counters.
 
-Validation: `npm run test:versions`, `npm run lint`, `npm run build`.
+## Database history
+
+Apply `supabase/migrations/20261019000000_system_version_history.sql` before
+deploying the history feature. When an administrator opens System Version, the
+server saves missing releases from its deployed manifest to
+`public.system_version_history` and returns saved history, newest first.
+Existing release records are preserved when the page is reopened or an older
+deployment is used. Only the server can read and insert records; browser-supplied
+history is ignored. If saving fails, the page shows release-file history with a
+retry option. Database records include the date, summary, old and new versions,
+individual page/tool changes and changed files. The manifest still controls
+version generation and customer-facing version labels.
+
+Validation: `npm run test:versions`, `npx tsx --test tests/system-version-history.test.ts tests/dev-tools-router.test.ts`, `npm run lint`, `npm run build`, then `npx tsx tests/system-version-ui.ts`.
