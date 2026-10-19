@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Clock3 } from 'lucide-react';
+import { Clock3 } from 'lucide-react';
 import { createRoot } from 'react-dom/client';
 import guidelineBackground from '../media/guideline-background.avif';
 import { PortalFooterBottom } from '../src/components/customer/PortalFooterBottom';
@@ -30,7 +30,7 @@ function GuidelinePage() {
         onToggleTheme={toggleTheme}
         homeHref="./home.html"
         currentPage="guideline"
-        onRegister={() => setPreviewMessage('Register is not connected in this preview.')}
+        onRegister={() => { window.location.href = './register.html'; }}
         onTrackStatus={() => { window.location.href = './track-status.html'; }}
         onGuideline={() => document.getElementById('guideline-main')?.scrollIntoView({ block: 'start' })}
         onLogin={() => setPreviewMessage('Login is not connected in this preview.')}
@@ -40,7 +40,6 @@ function GuidelinePage() {
           <div className="cm-guideline-background" style={{ backgroundImage: `url(${guidelineBackground})` }} aria-hidden="true" />
           <div className="cm-guideline-overlay" aria-hidden="true" />
           <div className="cm-guideline-shell">
-            <a className="cm-guideline-back" href="./home.html"><ArrowLeft size={16} aria-hidden="true" /> Back to home</a>
             <div className="cm-guideline-content">
               <span className="cm-home-section-label">GUIDELINE</span>
               <h1 id="guideline-heading">Coming <span>soon.</span></h1>

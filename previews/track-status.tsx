@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { AlertCircle, ArrowLeft, ArrowRight, Check, CheckCircle2, Clock3, Mail, Search } from 'lucide-react';
+import { AlertCircle, ArrowRight, Check, CheckCircle2, Clock3, Mail, Search } from 'lucide-react';
 import { RegistrationTracking, trackRegistration } from '../src/services/registration';
 import { PortalFooterBottom } from '../src/components/customer/PortalFooterBottom';
 import { PortalHeader } from '../src/components/customer/PortalHeader';
@@ -74,13 +74,12 @@ function TrackStatusPage() {
   return (
     <div className="cm-home cm-track" data-theme={theme}>
       <a className="cm-home-skip" href="#track-main">Skip to content</a>
-      <PortalHeader theme={theme} onToggleTheme={toggleTheme} homeHref="./home.html" currentPage="track" onRegister={() => setPreviewMessage('Register is not connected in this preview.')} onTrackStatus={() => document.getElementById('track-reference')?.focus()} onGuideline={() => { window.location.href = './guideline.html'; }} onLogin={() => setPreviewMessage('Login is not connected in this preview.')} />
+      <PortalHeader theme={theme} onToggleTheme={toggleTheme} homeHref="./home.html" currentPage="track" onRegister={() => { window.location.href = './register.html'; }} onTrackStatus={() => document.getElementById('track-reference')?.focus()} onGuideline={() => { window.location.href = './guideline.html'; }} onLogin={() => setPreviewMessage('Login is not connected in this preview.')} />
 
       <main id="track-main">
         <section className="cm-track-hero" aria-labelledby="track-heading">
           <div className="cm-track-port" style={{ backgroundImage: `url(${portBackground})` }} aria-hidden="true" />
           <div className="cm-track-hero-inner">
-            <a className="cm-track-back" href="./home.html"><ArrowLeft size={16} aria-hidden="true" /> Back to home</a>
             <h1 id="track-heading">Check your<br /><span>registration status.</span></h1>
             <p>Enter your submission reference number to check the latest status.</p>
           </div>

@@ -2,13 +2,13 @@
 .cm-guideline-screen { display: flex; flex-direction: column; min-height: 100vh; min-height: 100svh; background: #fff; }
 .cm-guideline-screen > .cm-home-header { flex-shrink: 0; margin: 0 auto; }
 .cm-guideline-screen > main { display: flex; flex: 1 0 auto; }
-.cm-guideline-hero { position: relative; isolation: isolate; flex: 1; min-width: 0; min-height: 465px; overflow: hidden; color: #0b1930; }
+.cm-guideline-hero { position: relative; isolation: isolate; display: flex; align-items: center; justify-content: center; flex: 1; min-width: 0; min-height: 465px; overflow: hidden; color: #0b1930; }
 .cm-guideline-background { position: absolute; z-index: -2; inset: 0; background-size: cover; background-position: center 55%; }
 .cm-guideline-overlay { position: absolute; z-index: -1; inset: 0; background: linear-gradient(180deg, #fff 0%, #ffffffe6 16%, #ffffffb3 40%, #ffffff66 75%, #ffffff33 100%); }
-.cm-guideline-shell { width: 100%; max-width: 1440px; margin: auto; padding: 30px 5% 100px; }
+.cm-guideline-shell { width: 100%; max-width: 1440px; margin: auto; padding: 30px 5%; }
 .cm-guideline-back { display: inline-flex; align-items: center; gap: 9px; color: #425d74; font-size: 12px; font-weight: 600; }
 .cm-guideline-back:hover { color: #0078c8; }
-.cm-guideline-content { max-width: 750px; margin: 49px auto 0; text-align: center; }
+.cm-guideline-content { max-width: 750px; margin: 0 auto; text-align: center; }
 .cm-guideline h1 { margin: 12px 0 18px; font-size: clamp(46px, 5.4vw, 72px); line-height: 1.06; letter-spacing: -.055em; font-weight: 600; }
 .cm-guideline h1 span { color: #008bd7; }
 .cm-guideline-content > p { margin: 0 auto; color: #425970; font-size: 14px; line-height: 1.85; text-wrap: pretty; }
@@ -28,7 +28,7 @@
 @media (max-width: 600px) {
   .cm-guideline-hero { min-height: 350px; }
   .cm-guideline-shell { padding: 20px 6% 82px; }
-  .cm-guideline-content { margin-top: 35px; }
+  .cm-guideline-content { margin-top: 0; }
   .cm-guideline h1 { margin: 12px 0 16px; font-size: clamp(40px, 11vw, 56px); }
   .cm-guideline-content > p { font-size: 12px; line-height: 1.7; }
   .cm-guideline-status { margin-top: 19px; }

@@ -9,7 +9,7 @@ interface PortalHeaderProps {
   onTrackStatus: () => void;
   onGuideline: () => void;
   onLogin: () => void;
-  currentPage?: 'track' | 'guideline';
+  currentPage?: 'register' | 'track' | 'guideline';
   homeHref?: string;
 }
 
@@ -20,7 +20,7 @@ export function PortalHeader({ theme, onToggleTheme, onRegister, onTrackStatus, 
     <header className="cm-home-header">
       {homeHref ? <a href={homeHref} aria-label="CargoMove home">{logo}</a> : logo}
       <nav className="cm-home-nav" aria-label="Main navigation">
-        <button type="button" onClick={onRegister}>REGISTER</button>
+        <button type="button" onClick={onRegister} aria-current={currentPage === 'register' ? 'page' : undefined}>REGISTER</button>
         <button type="button" onClick={onTrackStatus} aria-current={currentPage === 'track' ? 'page' : undefined}>TRACK STATUS</button>
         <button type="button" onClick={onGuideline} aria-current={currentPage === 'guideline' ? 'page' : undefined}>GUIDELINE</button>
       </nav>

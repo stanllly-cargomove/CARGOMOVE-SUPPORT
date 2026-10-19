@@ -8,7 +8,7 @@
 .cm-home .cm-home-theme-toggle:focus-visible .cm-home-theme-track { border-color: #98a4b0; box-shadow: inset 0 0 0 1px #98a4b0; }
 .cm-home-skip { position: fixed; left: 16px; top: -80px; z-index: 20; padding: 12px 20px; background: #fff; border-radius: 8px; }
 .cm-home-skip:focus { top: 12px; }
-.cm-home-header { width: 100%; max-width: 1440px; margin: auto; min-height: 68px; padding: 10px 5%; display: flex; align-items: center; justify-content: space-between; gap: 32px; position: relative; z-index: 2; }
+.cm-home-header { width: 100%; max-width: 1440px; margin: auto; min-height: 58px; padding: 6px 5%; display: flex; align-items: center; justify-content: space-between; gap: 32px; position: relative; z-index: 2; }
 .cm-home-logo { width: 156px; height: auto; object-fit: contain; }
 .cm-home-header-actions { display: flex; align-items: center; gap: 12px; }
 .cm-home-theme-toggle { display: grid; place-items: center; width: 58px; height: 44px; padding: 0; flex-shrink: 0; border: 0; border-radius: 50px; background: transparent; }
@@ -18,9 +18,10 @@
 .cm-home-theme-toggle:hover .cm-home-theme-track { border-color: #8793a0; }
 @keyframes cm-home-theme-icon { from { opacity: .3; transform: rotate(-65deg) scale(.7); } to { opacity: 1; transform: rotate(0) scale(1); } }
 .cm-home-nav { display: flex; align-items: center; gap: 38px; }
-.cm-home-nav button { color: #425066; border: 0; background: transparent; padding: 10px 0; font-size: 13px; font-weight: 600; transition: color .2s; }
+.cm-home-nav button { position: relative; color: #425066; border: 0; background: transparent; padding: 7px 0; font-size: 13px; font-weight: 600; transition: color .2s; }
 .cm-home-nav button:hover { color: #0078c8; }
 .cm-home-nav button[aria-current='page'] { color: #008bd7; }
+.cm-home-nav button[aria-current='page']::after { content: ''; position: absolute; left: 0; right: 0; bottom: 2px; height: 2px; border-radius: 99px; background: currentColor; }
 .cm-home-login { display: inline-flex; align-items: center; justify-content: center; gap: 12px; height: 29px; padding: 0 17px; border: 1px solid #dce5ec; background: #fff; border-radius: 50px; font-size: 12px !important; font-weight: 600 !important; box-shadow: 0 3px 6px #0b193005; transition: border-color .2s, background .2s; }
 .cm-home-login:hover { border-color: #0095e8; background: #f2faff; }
 .cm-home-hero { isolation: isolate; min-height: 720px; position: relative; overflow: hidden; display: flex; justify-content: center; text-align: center; }
@@ -101,7 +102,7 @@
   .cm-home-login svg { display: none; }
   .cm-home-nav { position: relative; order: 3; width: 100%; justify-content: center; gap: 34px; margin-top: 4px; padding: 0; }
   .cm-home-nav::before { position: absolute; top: 0; left: -6.8182%; right: -6.8182%; border-top: 1px solid #edf2f6; content: ''; }
-  .cm-home-nav button { font-size: 12px; min-height: 44px; }
+  .cm-home-nav button { font-size: 12px; min-height: 38px; }
   .cm-home-hero { min-height: 650px; }
   .cm-home-hero-copy { width: 90%; padding-top: 50px; }
   .cm-home h1 { font-size: clamp(33px, 8.7vw, 49px); margin-top: 25px; line-height: 1.14; letter-spacing: -.05em; }
