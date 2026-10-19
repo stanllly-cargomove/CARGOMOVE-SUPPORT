@@ -16,6 +16,7 @@ import {
 import { notifyError, notifySuccess } from '../common/notifications';
 import { RichTextEmailEditor } from './RichTextEmailEditor';
 import { formatAdminDate, formatAdminDateTime } from '../../utils/date';
+import { emailTemplateRegistrationType } from '../../utils/registrationEmailTemplates';
 
 type EmailTemplateManagerProps = { onViewChange?: (view: 'list' | 'design') => void };
 
@@ -232,6 +233,7 @@ export function EmailTemplateManager({ onViewChange }: EmailTemplateManagerProps
         <p className="text-xs font-semibold uppercase tracking-wider text-blue-600">{isCreating ? 'New template' : 'Edit template'}</p>
         <h2 className="mt-1 text-xl font-bold tracking-tight text-slate-900">{editing.template_code !== null && editing.template_code !== undefined ? `${editing.template_code} — ${editing.trigger_status === 'DONE' ? 'ACCEPT' : 'REJECT'}` : 'Design Template'}</h2>
         <p className="mt-1 text-xs text-slate-500">Design the message recipients will receive for this registration outcome.</p>
+        {emailTemplateRegistrationType(editing.id) && <p className="mt-2 text-xs text-slate-600">Applies to: {emailTemplateRegistrationType(editing.id)} registrations.{emailTemplateRegistrationType(editing.id) !== 'COMPANY' && ' The registration details PDF is attached automatically when previewing and sending.'}</p>}
       </div>
       <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="grid gap-4 md:grid-cols-12">

@@ -15,6 +15,7 @@ import {
   verifyPreviewToken,
 } from '../_email.js';
 import { serviceRoleKey, supabaseUrl } from '../../api/_runtime.js';
+import { isEmailTemplateForRegistration } from '../../src/utils/registrationEmailTemplates.js';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -61,6 +62,7 @@ export default async function sendEmail(request: any, response: any) {
     if (!token.portId || !companyPortIds.includes(token.portId)) return response.status(409).json({ error: user.status === 'DONE' ? 'The registered company ports changed. Generate a new acceptance preview.' : 'The linked company ports changed. Generate a new rejection preview.' });
   }
   if (!template?.active || template.version !== token.templateVersion) return response.status(409).json({ error: 'The email template changed. Generate a new preview.' });
+  if (!isEmailTemplateForRegistration(template, 'COMPANY')) return response.status(409).json({ error: 'Select a company acceptance or rejection code for User Registration.' });
   if (template.trigger_status !== user.status || (user.status === 'REJECTED' && template.rejection_reason && template.rejection_reason !== user.rejection_reason)) {
     return response.status(409).json({ error: 'The registration status or rejection reason changed. Generate a new preview.' });
   }

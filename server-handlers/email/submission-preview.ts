@@ -1,5 +1,6 @@
 import { bodyOf, configuredClient, createSubmissionPreviewToken, noStore, renderWelcomeTemplate, requireAdmin } from '../_email.js';
 import { assetRegistrationPdfName } from './submission-asset-pdf.js';
+import { isEmailTemplateForRegistration } from '../../src/utils/registrationEmailTemplates.js';
 
 function validEmail(value: unknown) {
   const email = String(value || '').trim().toLowerCase();
@@ -52,6 +53,7 @@ export default async function submissionPreview(request: any, response: any) {
   ]);
   if (templateResult.error || assignmentResult.error) return response.status(502).json({ error: templateResult.error?.message || assignmentResult.error?.message });
   if (!templateResult.data || !assignmentResult.data) return response.status(409).json({ error: 'This email code is not active for the submission port.' });
+  if (!isEmailTemplateForRegistration(templateResult.data, submission.registration_type)) return response.status(409).json({ error: 'This email code does not match the registration type.' });
   const companyResult = submission.company_id
     ? await client.from('companies').select('contact_email,details').eq('id', submission.company_id).maybeSingle()
     : { data: null, error: null };

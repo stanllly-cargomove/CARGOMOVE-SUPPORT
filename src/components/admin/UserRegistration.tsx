@@ -5,6 +5,7 @@ import { EmailPreview, EmailTemplate, EmailTemplatePort, generateWelcomeEmailPre
 import { RichTextEmailEditor } from './RichTextEmailEditor';
 import { notifyError, notifySuccess } from '../common/notifications';
 import { getSubmissions, subscribeToStorage } from '../../services/storage';
+import { isEmailTemplateForRegistration } from '../../utils/registrationEmailTemplates';
 
 const statuses: ExternalUserAccess['status'][] = ['PENDING', 'DONE', 'REJECTED'];
 const emailStatuses: ExternalUserAccess['email_status'][] = ['NOT_READY', 'READY', 'SENDING', 'SENT', 'FAILED'];
@@ -209,7 +210,7 @@ export function UserRegistration() {
         ? 'Register the linked company before previewing or sending its acceptance email.'
         : 'This user has no linked Company Registration port for a rejection code.');
       const choices = portIds.flatMap((portId) => catalog.templates
-        .filter((template) => template.active && template.template_code && template.trigger_status === outcome && template.port_ids?.includes(portId)
+        .filter((template) => template.active && template.template_code && template.trigger_status === outcome && template.port_ids?.includes(portId) && isEmailTemplateForRegistration(template, 'COMPANY')
           && (rejectUser || outcome !== 'REJECTED' || !template.rejection_reason || template.rejection_reason === user.rejection_reason))
         .map((template) => ({ template, portId })));
       if (!choices.length) throw new Error(`No active ${outcome === 'DONE' ? 'acceptance' : 'rejection'} code is assigned to the linked company port. Assign one in Registration Templates.`);
@@ -682,7 +683,7 @@ export function UserRegistration() {
             <select autoFocus value={selectedTemplateId} onChange={(event) => setSelectedTemplateId(event.target.value)} className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal">
               <option value="__choose__" disabled>Choose a code...</option>
               {codePorts.map((port) => <optgroup key={port.id} label={port.display_name}>
-                {codeTemplates.filter((template) => template.active && template.template_code && template.port_ids?.includes(port.id) && template.trigger_status === codeUser.status && (codeAction === 'REJECT' || codeUser.status !== 'REJECTED' || !template.rejection_reason || template.rejection_reason === codeUser.rejection_reason)).map((template) => <option key={template.id} value={`${template.id}::${port.id}`}>{template.template_code} — {template.name}</option>)}
+                {codeTemplates.filter((template) => template.active && template.template_code && template.port_ids?.includes(port.id) && template.trigger_status === codeUser.status && isEmailTemplateForRegistration(template, 'COMPANY') && (codeAction === 'REJECT' || codeUser.status !== 'REJECTED' || !template.rejection_reason || template.rejection_reason === codeUser.rejection_reason)).map((template) => <option key={template.id} value={`${template.id}::${port.id}`}>{template.template_code} — {template.name}</option>)}
               </optgroup>)}
             </select>
           </label>

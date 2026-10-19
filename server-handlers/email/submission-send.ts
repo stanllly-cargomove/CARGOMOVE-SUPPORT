@@ -1,6 +1,7 @@
 import { bodyOf, configuredClient, createRawMessage, decryptRefreshToken, EMAIL_ATTACHMENT_BUCKET, emailHtmlToText, exchangeRefreshToken, noStore, publicError, requireAdmin, sanitizeEmailHtml, validateTemplateAttachments, verifySubmissionPreviewToken } from '../_email.js';
 import { assetRegistrationPdfName, buildAssetRegistrationPdf } from './submission-asset-pdf.js';
 import { serviceRoleKey, supabaseUrl } from '../../api/_runtime.js';
+import { isEmailTemplateForRegistration } from '../../src/utils/registrationEmailTemplates.js';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -57,6 +58,7 @@ export default async function submissionSend(request: any, response: any) {
   if (!template?.active || !template.template_code || template.version !== token.templateVersion || template.trigger_status !== token.status) {
     return response.status(409).json({ error: 'The email code changed. Generate a new preview.' });
   }
+  if (!isEmailTemplateForRegistration(template, submissionResult.data.registration_type)) return response.status(409).json({ error: 'This email code does not match the registration type. Generate a new preview.' });
   const { data: assignment, error: assignmentError } = await client.from('email_template_ports').select('port_id').eq('template_id', template.id).eq('port_id', token.portId).maybeSingle();
   if (assignmentError) return response.status(502).json({ error: assignmentError.message });
   if (!assignment) return response.status(409).json({ error: 'This code is no longer assigned to the submission port.' });

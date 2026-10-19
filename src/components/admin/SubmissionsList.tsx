@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import { notifyError, notifySuccess, notifyWarning, summarizeError } from '../common/notifications';
 import { formatAdminDate } from '../../utils/date';
+import { isEmailTemplateForRegistration } from '../../utils/registrationEmailTemplates';
 
 interface SubmissionsListProps {
   status: SubmissionStatus;
@@ -387,7 +388,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
       const port = catalog.ports.find((item) => item.id === portId);
       if (!portId || !port) throw new Error('This registration has no configured port. Assign its port before selecting an email code.');
       const templates = catalog.templates
-        .filter((template) => template.active && template.template_code && template.trigger_status === nextStatus && template.port_ids?.includes(portId))
+        .filter((template) => template.active && template.template_code && template.trigger_status === nextStatus && template.port_ids?.includes(portId) && isEmailTemplateForRegistration(template, submission.registration_type))
         .sort((left, right) => (left.template_code || '').localeCompare(right.template_code || ''));
       if (!templates.length) throw new Error(`No active ${nextStatus === 'DONE' ? 'acceptance' : 'rejection'} code is assigned to ${port.display_name}. Assign a code in Registration Templates first.`);
       const selection: CodeSelection = {
@@ -418,8 +419,9 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
       const catalog = await getEmailTemplateCatalog();
       const choices = selected.map((submission) => {
         const portId = ['jh-pg-ics', 'jh-pg-depot'].includes(submission.port_id) ? 'johor-port' : submission.port_id;
-        const templates = catalog.templates.filter((template) => template.active && template.template_code && template.trigger_status === 'DONE' && template.port_ids?.includes(portId));
-        if (templates.length !== 1) throw new Error(`${submission.reference_no} has ${templates.length} acceptance codes for its port. Use Preview Email on that row to select the code.`);
+        const templates = catalog.templates.filter((template) => template.active && template.template_code && template.trigger_status === 'DONE' && template.port_ids?.includes(portId) && isEmailTemplateForRegistration(template, submission.registration_type));
+        if (!templates.length) throw new Error(`Excel exported. ${submission.reference_no} has no active acceptance code for its registration type and port. Assign a code in Registration Templates, then use Preview Email on that row.`);
+        if (templates.length > 1) throw new Error(`Excel exported. ${submission.reference_no} has ${templates.length} acceptance codes for its port. Use Preview Email on that row to select the code.`);
         return { submission, template: templates[0], portId };
       });
       const previews: EmailPreview[] = [];

@@ -1,5 +1,6 @@
 // Routed through the single Express Vercel function.
 import { bodyOf, configuredClient, createPreviewToken, noStore, renderWelcomeTemplate, requireAdmin } from '../_email.js';
+import { isEmailTemplateForRegistration } from '../../src/utils/registrationEmailTemplates.js';
 
 export default async function preview(request: any, response: any) {
   noStore(response);
@@ -43,6 +44,7 @@ export default async function preview(request: any, response: any) {
   const templateResult = await templateQuery.order('updated_at', { ascending: false }).limit(1).maybeSingle();
   if (templateResult.error) return response.status(502).json({ error: templateResult.error.message });
   if (!templateResult.data) return response.status(409).json({ error: `No active ${userResult.data.status.toLowerCase()} email template is configured for this selection.` });
+  if (!isEmailTemplateForRegistration(templateResult.data, 'COMPANY')) return response.status(409).json({ error: 'Select a company acceptance or rejection code for User Registration.' });
   if (userResult.data.status === 'REJECTED' && templateResult.data.rejection_reason && templateResult.data.rejection_reason !== userResult.data.rejection_reason) {
     return response.status(409).json({ error: 'This rejection code does not match the selected rejection reason.' });
   }
