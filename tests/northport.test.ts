@@ -1,11 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { unzipSync } from 'fflate';
 import { NORTHPORT_COLUMNS } from '../src/types/northport.js';
-import { filenameInfo, malaysiaTime, localTime, searchInput, parseCsv, generateCsv, validateValues, MAX_FILE, RecoveryError } from '../server-handlers/northport/format.js';
+import { filenameInfo, malaysiaTime, localTime, searchInput, parseCsv, generateCsv, prepareReprocessFile, validateValues, MAX_FILE, RecoveryError } from '../server-handlers/northport/format.js';
 import { ftpConfig, withFtp, safeUpload, download } from '../server-handlers/northport/ftp.js';
 import { createNorthportHandler } from '../server-handlers/northport/handler.js';
 import { searchFiles, PARTIAL_LISTING_WARNING } from '../server-handlers/northport/listing.js';
+import { containsContainerText, signFileSource } from '../server-handlers/northport/inspection.js';
 
 const gpName='CM_CONTAINER_20261017012016_GP.csv';
 const exName='CM_CONTAINER_20261017012014_EX.csv';
@@ -52,15 +54,64 @@ function harness() {
   process.env.SESSION_SECRET='northport-tests-only';process.env.SCHEDULER_PORTAL_URL='https://portal.example.test';process.env.NORTHPORT_RECOVERY_UPLOAD_ENABLED='false';
   let session:any={id:'admin',email:'admin@example.test',type:'ADMIN'};let profile:any={id:'profile'};
   let entries=[{name:gpName,isFile:true,size:gp.length},{name:exName,isFile:true,size:ex.length},{name:'CM_CONTAINER_20261015012016_GP.csv',isFile:true,size:999999}];
-  const downloads:string[]=[];const updates:any[]=[];let approve:any=null;let claim:any=null;let schedulerClaim=true;let rate=true;let ftpError=false;let source=gp;let schedulerFailure=false;let schedulerCalls=0;let uploaded=false;
+  const directories:string[]=[];const downloads:string[]=[];const updates:any[]=[];const rpcCalls:{name:string;args:any}[]=[];let approve:any=null;let claim:any=null;let claimError=false;let uploadFailure=false;let uploadedBytes:Buffer|null=null;let uploadedName='';let schedulerClaim=true;let rate=true;let ftpError=false;let source=gp;let schedulerFailure=false;let schedulerCalls=0;let uploaded=false;
   const listingRequests:(string|undefined)[]=[];
   let sizeLookup=async(_name:string)=>1;
-  const ftp={pwd:async()=>'/account',cd:async()=>{},list:async(pattern?:string)=>{listingRequests.push(pattern);return entries;},downloadTo:async(stream:any,name:string)=>{downloads.push(name);stream.end(name===exName?ex:source);},uploadFrom:async()=>{uploaded=true;},size:async(name:string)=>sizeLookup(name),rename:async()=>{}};
-  const client={from(){const query:any={select(){return this;},eq(){return this;},order(){return this;},limit(){return this;},timeout(){return this;},update(value:any){updates.push(value);return this;},async maybeSingle(){return {data:profile,error:null};},then(resolve:any){return Promise.resolve({data:[],error:null}).then(resolve);}};return query;},async rpc(name:string){return {error:null,data:name==='northport_admit_request'?rate:name==='northport_approve'?approve:name==='northport_claim_upload'?claim:name==='northport_claim_scheduler'?schedulerClaim:null};}};
+  const ftp={pwd:async()=>'/account',cd:async(path:string)=>{directories.push(path);},list:async(pattern?:string)=>{listingRequests.push(pattern);return entries;},downloadTo:async(stream:any,name:string)=>{downloads.push(name);stream.end(name===exName?ex:source);},uploadFrom:async(stream:any)=>{uploaded=true;if(uploadFailure)throw new RecoveryError('Transfer interrupted',502);const chunks:Buffer[]=[];for await(const chunk of stream)chunks.push(Buffer.from(chunk));uploadedBytes=Buffer.concat(chunks);},size:async(name:string)=>name.endsWith('.part')&&uploadedBytes?uploadedBytes.length:sizeLookup(name),rename:async(_from:string,to:string)=>{uploadedName=to;}};
+  const client={from(){const query:any={select(){return this;},eq(){return this;},order(){return this;},limit(){return this;},timeout(){return this;},update(value:any){updates.push(value);return this;},async maybeSingle(){return {data:profile,error:null};},then(resolve:any){return Promise.resolve({data:[],error:null}).then(resolve);}};return query;},async rpc(name:string,args:any){rpcCalls.push({name,args});return {error:name==='northport_claim_file_upload'&&claimError?{message:'Missing function'}:null,data:name==='northport_admit_request'?rate:name==='northport_approve'?approve:name==='northport_claim_file_upload'?claim:name==='northport_claim_scheduler'?schedulerClaim:null};}};
   const handler=createNorthportHandler({adminClient:()=>client as any,readSession:()=>session,withFtp:async(operation:any)=>{if(ftpError)throw new RecoveryError('FTP operation failed',502);return operation(ftp,{base:'/incoming',success:'/incoming/SUCCESS',access:{secure:true}});},runScheduler:async(_req:any,res:any)=>{schedulerCalls++;res.status(schedulerFailure?502:200).json({status:schedulerFailure?'failed':'trigger_requested',message:'Test result',executionId:'run-test'});}} as any);
   const call=async(payload:any,overrides:any={})=>{const response:any={code:200,body:null,headers:{} as Record<string,string>,setHeader(name:string,value:string){this.headers[name]=value;},status(code:number){this.code=code;return this;},json(body:any){this.body=body;return this;},send(body:any){this.body=body;return this;}};await handler({method:'POST',headers:{origin:'https://portal.example.test','x-cargomove-confirm':'northport-recovery'},body:payload,...overrides},response);return response;};
-  return {call,downloads,updates,listingRequests,setSize:(fn:typeof sizeLookup)=>sizeLookup=fn,get uploaded(){return uploaded;},get schedulerCalls(){return schedulerCalls;},setSession:(v:any)=>session=v,setProfile:(v:any)=>profile=v,setEntries:(v:any)=>entries=v,setRate:(v:boolean)=>rate=v,setFtpError:()=>ftpError=true,setSource:(v:Buffer)=>source=v,setApprove:(v:any)=>approve=v,setClaim:(v:any)=>claim=v,setSchedulerFailure:()=>schedulerFailure=true,setSchedulerClaim:(v:boolean)=>schedulerClaim=v};
+  return {call,directories,downloads,updates,rpcCalls,listingRequests,setSize:(fn:typeof sizeLookup)=>sizeLookup=fn,get uploaded(){return uploaded;},get uploadedBytes(){return uploadedBytes;},get uploadedName(){return uploadedName;},get schedulerCalls(){return schedulerCalls;},setSession:(v:any)=>session=v,setProfile:(v:any)=>profile=v,setEntries:(v:any)=>entries=v,setRate:(v:boolean)=>rate=v,setFtpError:()=>ftpError=true,setSource:(v:Buffer)=>source=v,setApprove:(v:any)=>approve=v,setClaim:(v:any)=>claim=v,setClaimError:()=>claimError=true,setUploadFailure:()=>uploadFailure=true,setSchedulerFailure:()=>schedulerFailure=true,setSchedulerClaim:(v:boolean)=>schedulerClaim=v};
 }
+
+test('search modes default to Basic Scan and never search incoming or silently change type and time',async()=>{
+  assert.equal(searchInput(search).mode,'standard');
+  for(const mode of [null,'deep',{},1]) assert.throws(()=>searchInput({...search,mode}),/search mode/);
+  for(const mode of ['standard','files','content']) {
+    const h=harness();const result=await h.call({action:'search',...search,type:'GP',sourceFilename:gpName,mode});
+    assert.equal(result.code,200);assert.equal(result.body.mode,mode);assert.equal(result.body.start,'2026-10-17T01:15:00');assert.equal(result.body.end,'2026-10-17T01:50:00');
+    assert.deepEqual(h.directories,['/incoming/SUCCESS']);assert.deepEqual(h.downloads,[gpName]);
+    assert.equal(result.body.scannedFiles.length,mode==='standard'?0:1);
+    assert.equal(h.uploaded,false);assert.equal(h.schedulerCalls,0);
+  }
+});
+
+test('Advanced Scan lists matches and nonmatches and bypasses incomplete listings across batches',async()=>{
+  const h=harness();process.env.NORTHPORT_FTP_LISTING_MODE='date-pattern';
+  const lastName='CM_CONTAINER_20261017012500_GP.csv';
+  h.setSize(async name=>{if([gpName,lastName].includes(name))return gp.length;throw Object.assign(new Error('550 No such file or directory'),{code:550});});
+  const input={action:'search',...search,type:'GP',timestamp:'2026-10-17T01:15:00',before:0,after:10,mode:'files'};
+  try {
+    const first=await h.call(input);assert.equal(first.code,200);assert.ok(first.body.nextCursor);assert.equal(first.body.scannedFiles[0].status,'match');assert.equal(first.body.scannedFiles[0].matches,1);
+    assert.equal((await h.call({...input,mode:'content',cursor:first.body.nextCursor})).code,400);
+    const last=await h.call({...input,cursor:first.body.nextCursor});assert.equal(last.body.complete,true);assert.equal(last.body.nextCursor,null);assert.equal(last.body.scannedFiles[0].filename,lastName);assert.equal(last.body.progress.files,2);
+    assert.deepEqual(h.listingRequests,[]);assert.deepEqual(h.directories,['/incoming/SUCCESS','/incoming/SUCCESS']);
+    const noMatch=await h.call({...input,sourceFilename:gpName,unit:'OTHER123'});assert.equal(noMatch.body.scannedFiles[0].status,'no-match');assert.equal(noMatch.body.scannedFiles[0].records,3);
+  } finally {process.env.NORTHPORT_FTP_LISTING_MODE='full';}
+});
+
+test('Deep Scan finds invalid-file text and non-UNIT occurrences without issuing recovery tokens',async()=>{
+  const h=harness();const input={action:'search',...search,type:'GP',sourceFilename:gpName};
+  const invalid=Buffer.from('UNIT,WRONG\r\nmsbu4179350,"broken');h.setSource(invalid);
+  const deep=await h.call({...input,mode:'files'});assert.equal(deep.body.scannedFiles[0].status,'invalid');
+  const ultra=await h.call({...input,mode:'content'});assert.equal(ultra.body.complete,false);assert.equal(ultra.body.errors.length,1);assert.deepEqual(ultra.body.matches,[]);assert.equal(ultra.body.scannedFiles[0].status,'content-match');
+  const token=ultra.body.scannedFiles[0].token;
+  const downloaded=await h.call({action:'download-file',token});assert.equal(downloaded.code,200);assert.deepEqual(downloaded.body,invalid);assert.equal(downloaded.headers['Content-Type'],'application/octet-stream');
+  assert.equal((await h.call({action:'approve',token,values:parseCsv(gp).rows[0],approved:true})).code,400);
+  assert.equal((await h.call({action:'download-source',token})).code,400);
+  assert.equal((await h.call({action:'download-file',token:token+'x'})).code,400);
+  h.setSession({id:'other',email:'other@example.test',type:'ADMIN'});assert.equal((await h.call({action:'download-file',token})).code,400);
+  h.setSession({id:'admin',email:'admin@example.test',type:'ADMIN'});h.setSource(gp);assert.equal((await h.call({action:'download-file',token})).code,409);
+  const values=parseCsv(gp).rows[0];values[0]='OTHER123';values[3]='MSBU4179350';h.setSource(generateCsv(values,{bom:false,newline:'\r\n',quoteAll:false}));
+  const contentOnly=await h.call({...input,mode:'content'});assert.equal(contentOnly.body.complete,true);assert.deepEqual(contentOnly.body.matches,[]);assert.equal(contentOnly.body.scannedFiles[0].status,'content-match');assert.equal(contentOnly.body.scannedFiles[0].error,undefined);
+  assert.equal(h.uploaded,false);assert.equal(h.schedulerCalls,0);
+});
+
+test('raw text checks respect container boundaries, case and BOM-marked UTF-16',()=>{
+  for(const bytes of [Buffer.from('"msbu4179350",data'),Buffer.from('\ufeffUNIT\r\nMSBU4179350','utf16le')])assert.equal(containsContainerText(bytes,'MSBU4179350'),true);
+  const be=Buffer.from('\ufeffUNIT\r\nMSBU4179350','utf16le');be.swap16();assert.equal(containsContainerText(be,'MSBU4179350'),true);
+  for(const text of ['MSBU41793500','XMSBU4179350','MSBU417935','MSBU 4179350'])assert.equal(containsContainerText(Buffer.from(text),'MSBU4179350'),false);
+});
 test('time-window scan discovers a file omitted from listings and matches its second container row without a filename',async()=>{
   const h=harness();process.env.NORTHPORT_FTP_LISTING_MODE='timestamp-scan';h.setEntries([]);
   h.setSize(async name=>{if(name===gpName)return gp.length;throw Object.assign(new Error('550 No such file or directory'),{code:550});});
@@ -153,12 +204,67 @@ test('signed source, explicit approval, identity confirmation, and duplicate app
   assert.equal((await h.call({action:'approve',...p,token:p.token+'x'})).code,400);
   assert.equal((await h.call({action:'approve',...p,approved:false})).code,400);
   const edited=[...p.values];edited[0]='OTHER123';assert.equal((await h.call({action:'approve',...p,values:edited})).code,400);
-  h.setApprove({id:'approval',status:'Approved'});const res=await h.call({action:'approve',...p});assert.equal(res.code,200);assert.equal(parseCsv(Buffer.from(res.body.preview)).rows.length,1);assert.equal(h.uploaded,false);
+  h.setApprove({id:'approval',status:'Approved'});const res=await h.call({action:'approve',...p});assert.equal(res.code,200);assert.equal(parseCsv(Buffer.from(res.body.preview)).rows.length,3);assert.equal(h.uploaded,false);
   h.setApprove(null);assert.equal((await h.call({action:'approve',...p})).code,409);
   h.setSession({id:'other',email:'other',type:'ADMIN'});assert.equal((await h.call({action:'approve',...p})).code,400);
 });
 test('production uploads disabled, even after approval; no FTP write attempted',async()=>{
   const h=harness();const p=await approval(h);const res=await h.call({action:'upload',...p,id:'00000000-0000-4000-8000-000000000001'});assert.equal(res.code,403);assert.equal(h.uploaded,false);
+});
+
+test('whole-file export and upload retain every other record and apply only selected-row edits',async()=>{
+  const h=harness();
+  const found=await h.call({action:'search',...search,unit:'TXGU4841312'});const match=found.body.matches[0];
+  assert.equal(match.record,2);assert.equal(match.totalRecords,3);
+  const values=[...match.values];values[3]='REVIEWED,"BL"';
+  const payload={token:match.token,values,approved:true,identityConfirmed:true};
+  const exported=await h.call({action:'download-reprocess',...payload});assert.equal(exported.code,200);assert.equal(exported.headers['Content-Disposition'],'attachment; filename="REPROCESS_TXGU4841312.csv"');
+  const expected=parseCsv(gp).rows;expected[1]=values;assert.deepEqual(parseCsv(exported.body).rows,expected);
+  const before=gp.toString('utf8').split('\r\r\n');const after=exported.body.toString('utf8').split('\r\r\n');
+  assert.equal(after[0],before[0]);assert.equal(after[1],before[1]);assert.equal(after[3],before[3]);
+  assert.equal(h.rpcCalls.filter(call=>call.name!=='northport_admit_request').length,0,'Export must not create approvals or claims');
+  const id='00000000-0000-4000-8000-000000000001';h.setApprove({id,status:'Approved'});
+  const approved=await h.call({action:'approve',...payload});assert.equal(approved.code,200);assert.equal(approved.body.records,3);assert.equal(approved.body.filename,'REPROCESS_TXGU4841312.csv');assert.equal(approved.body.preview,exported.body.toString('utf8'));
+  const approvalCall=h.rpcCalls.find(call=>call.name==='northport_approve')!;
+  const sibling=await approval(h);await h.call({action:'approve',...sibling});
+  const siblingCall=h.rpcCalls.filter(call=>call.name==='northport_approve').at(-1)!;
+  assert.equal(approvalCall.args.p_source_key,siblingCall.args.p_source_key,'All selected records in one source share a whole-file deduplication key');
+  const gates=['READONLY_VERIFIED','SINGLE_RECORD_VERIFIED','FILENAME_VERIFIED','SERIALIZATION_VERIFIED','NON_NORTHPORT_VERIFIED','DUPLICATES_VERIFIED','RENAME_NO_REPLACE_VERIFIED','TIMEZONE_VERIFIED'];
+  process.env.NORTHPORT_RECOVERY_UPLOAD_ENABLED='true';for(const gate of gates)process.env['NORTHPORT_'+gate]='true';
+  try {
+    h.setClaim({recovery_filename:approved.body.filename});
+    const uploaded=await h.call({action:'upload',...payload,id});assert.equal(uploaded.code,200);assert.deepEqual(h.uploadedBytes,exported.body);assert.equal(h.uploadedName,'REPROCESS_TXGU4841312.csv');
+    const claimed=h.rpcCalls.find(call=>call.name==='northport_claim_file_upload')!;assert.equal(claimed.args.p_hash,approvalCall.args.p_hash);assert.equal(claimed.args.p_source_key,approvalCall.args.p_source_key);
+    assert.equal(h.schedulerCalls,0,'Upload alone does not dispatch a scheduler');
+    const missing=harness();const source=await approval(missing);missing.setClaimError();process.env.NORTHPORT_RECOVERY_UPLOAD_ENABLED='true';
+    const unavailable=await missing.call({action:'upload',...source,id});assert.equal(unavailable.code,503);assert.match(unavailable.body.error,/migration/);assert.equal(missing.uploaded,false);
+  } finally {process.env.NORTHPORT_RECOVERY_UPLOAD_ENABLED='false';for(const gate of gates)delete process.env['NORTHPORT_'+gate];}
+});
+
+test('whole-file editing preserves source bytes without changes and sibling quoting, BOM and blank lines with edits',()=>{
+  for(const format of [{bom:false,newline:'\r\n',quoteAll:false},{bom:true,newline:'\n',quoteAll:true},{bom:false,newline:'\r\r\n',quoteAll:false}]) {
+    const original=parseCsv(gp).rows;const header=generateCsv(original[0],format).toString('utf8').split(format.newline)[0];
+    const row=(values:string[])=>generateCsv(values,{...format,bom:false}).toString('utf8').split(format.newline)[1];
+    const bytes=Buffer.from([header,'',...original.map(row),'',''].join(format.newline));
+    assert.deepEqual(prepareReprocessFile(bytes,2,original[1],original[1]).bytes,bytes);
+    const edited=[...original[1]];edited[3]='comma,"quote"';const result=prepareReprocessFile(bytes,2,original[1],edited);
+    const lines=bytes.toString('utf8').split(format.newline);lines[3]=row(edited);assert.deepEqual(result.bytes,Buffer.from(lines.join(format.newline)));assert.equal(result.records,3);
+    assert.throws(()=>prepareReprocessFile(bytes,1,original[1],edited),/changed/);assert.throws(()=>prepareReprocessFile(bytes,0,original[0],edited),/changed/);
+  }
+});
+
+test('Download all returns exact original files once, and rejects expired, changed or unauthorized selections',async()=>{
+  const h=harness();const found=await h.call({action:'search',...search});const match=found.body.matches[0];
+  const fileSearch=await h.call({action:'search',...search,sourceFilename:exName,mode:'files'});
+  const files=[{kind:'record',token:match.token},{kind:'file',token:match.fileToken},{kind:'file',token:fileSearch.body.scannedFiles[0].token}];
+  const archived=await h.call({action:'download-all',files});assert.equal(archived.code,200);assert.equal(archived.headers['Content-Type'],'application/zip');
+  const extracted=unzipSync(archived.body);assert.deepEqual(Object.keys(extracted),[gpName,exName]);assert.deepEqual(Buffer.from(extracted[gpName]),gp);assert.deepEqual(Buffer.from(extracted[exName]),ex);
+  assert.deepEqual(h.downloads.slice(-2),[gpName,exName]);
+  const count=h.downloads.length;
+  const expired=signFileSource({actor:'admin',filename:gpName,digest:'a'.repeat(64),expires:1});
+  for(const selection of [[],Array(41).fill(files[0]),[{kind:'file',token:'tampered'}],[{kind:'file',token:expired}],[files[0],{kind:'unknown',token:match.token}]])assert.equal((await h.call({action:'download-all',files:selection})).code,400);
+  h.setSession({id:'other',email:'other@example.test',type:'ADMIN'});assert.equal((await h.call({action:'download-all',files})).code,400);assert.equal(h.downloads.length,count);
+  h.setSession({id:'admin',email:'admin@example.test',type:'ADMIN'});h.setSource(ex);assert.equal((await h.call({action:'download-all',files})).code,409);assert.equal(h.uploaded,false);assert.equal(h.schedulerCalls,0);
 });
 test('source mutation, duplicate claims and interrupted upload never yield success or retry',async()=>{
   const h=harness();const p=await approval(h);
@@ -168,7 +274,7 @@ test('source mutation, duplicate claims and interrupted upload never yield succe
     const req={action:'upload',...p,id:'00000000-0000-4000-8000-000000000001'};
     h.setSource(ex);assert.equal((await h.call(req)).code,409);assert.equal(h.uploaded,false);
     h.setSource(gp);assert.equal((await h.call(req)).code,409);
-    h.setClaim({recovery_filename:'CM_CONTAINER_20261017012100_GP.csv'});
+    h.setClaim({recovery_filename:'REPROCESS_MSBU4179350.csv'});h.setUploadFailure();
     const failed=await h.call(req);assert.equal(failed.code,502);assert.equal(h.updates.at(-1).status,'Failed');
   } finally {process.env.NORTHPORT_RECOVERY_UPLOAD_ENABLED='false';for(const gate of gates)delete process.env['NORTHPORT_'+gate];}
 });

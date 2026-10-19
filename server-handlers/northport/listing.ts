@@ -9,6 +9,9 @@ export function listingMode() {
   if (mode !== 'full' && mode !== 'date-pattern' && mode !== 'timestamp-scan') throw new RecoveryError('Invalid Northport listing mode. Use full, date-pattern or timestamp-scan.',503);
   return mode;
 }
+export function usesTimestampScan(filter: ReturnType<typeof searchInput>) {
+  return !filter.sourceFilename && (filter.mode !== 'standard' || listingMode() === 'timestamp-scan');
+}
 // Date patterns are a server-specific, explicitly incomplete discovery mode.
 // Exact lookups bypass directory enumeration and do not assert whole-window coverage.
 export async function searchFiles(ftp: Pick<Client,'list'|'size'>, filter: ReturnType<typeof searchInput>, options:{offset?:number;signal?:AbortSignal}={}) {
@@ -16,7 +19,7 @@ export async function searchFiles(ftp: Pick<Client,'list'|'size'>, filter: Retur
     const size = await ftp.size(filter.sourceFilename);
     return { files: [{name:filter.sourceFilename,size,isFile:true}] as Entry[], scope:'file' as const, listingMode:'exact' as const, coverageWarning:null as string|null,scan:null };
   }
-  if (listingMode() === 'timestamp-scan') return probeFilenameBatch(ftp,filter,options.offset||0,options.signal);
+  if (usesTimestampScan(filter)) return probeFilenameBatch(ftp,filter,options.offset||0,options.signal);
   if (listingMode() === 'full') return {files:await ftp.list(),scope:'window' as const,listingMode:'full' as const,coverageWarning:null as string|null,scan:null};
   const files = new Map<string,Entry>();
   // Malaysia has no DST. Input bounds allow at most three calendar dates.

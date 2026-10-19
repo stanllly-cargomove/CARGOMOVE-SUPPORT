@@ -1,17 +1,19 @@
 import crypto from 'node:crypto';
+import { zipSync } from 'fflate';
 import { adminClient, readSession } from '../../api/_runtime.js';
 import { schedulerAdmin, allowedOrigin } from '../scheduler/access.js';
 import runScheduler from '../scheduler/handler.js';
 import { withFtp, download, safeUpload } from './ftp.js';
-import { RecoveryError, searchInput, filenameInfo, parseCsv, generateCsv, validateValues, localTime, MAX_FILE } from './format.js';
-import { NORTHPORT_COLUMNS, type Match } from '../../src/types/northport.js';
-import { searchFiles, listingMode } from './listing.js';
+import { RecoveryError, searchInput, filenameInfo, parseCsv, prepareReprocessFile, reprocessFilename, validateValues, localTime, MAX_FILE } from './format.js';
+import { NORTHPORT_COLUMNS, type Match, type ScannedFile } from '../../src/types/northport.js';
+import { containsContainerText, signFileSource, verifyFileSource } from './inspection.js';
+import { searchFiles, usesTimestampScan } from './listing.js';
 import { readScanCursor, signScanCursor } from './scan.js';
 import { NORTHPORT_UPLOAD_GATES as GATES, uploadsEnabled } from './configuration.js';
 export { uploadsEnabled } from './configuration.js';
 
 const hash = (v: string | Buffer) => crypto.createHash('sha256').update(v).digest('hex');
-type Source = Omit<Match,'token'> & { actor: string; digest: string; expires: number; format: ReturnType<typeof parseCsv>['format'] };
+type Source = Omit<Match,'token'|'fileToken'> & { actor: string; digest: string; expires: number; format: ReturnType<typeof parseCsv>['format'] };
 function sign(source: Source) {
   const encoded = Buffer.from(JSON.stringify(source)).toString('base64url');
   return encoded + '.' + crypto.createHmac('sha256', process.env.SESSION_SECRET!).update('northport:' + encoded).digest('base64url');
@@ -62,7 +64,7 @@ export function createNorthportHandler(deps = { adminClient, readSession, withFt
       }
       if (input.action === 'search' || input.action === 'check') {
         const filter = input.action === 'search' ? searchInput(input) : null;
-        const scanState=filter&&!filter.sourceFilename&&listingMode()==='timestamp-scan' ? readScanCursor(input.cursor,session.id,filter) : null;
+        const scanState=filter&&usesTimestampScan(filter) ? readScanCursor(input.cursor,session.id,filter) : null;
         if(input.cursor&&!scanState) throw new RecoveryError('Search mode changed. Start a new search.');
         const controller = new AbortController();
         const cancel = () => controller.abort();
@@ -72,10 +74,11 @@ export function createNorthportHandler(deps = { adminClient, readSession, withFt
         try {
           const result = await deps.withFtp(async (ftp, config) => {
             const root = await ftp.pwd();
-            await ftp.cd(config.base); const incoming = await ftp.pwd();
+            let incoming: string | undefined;
+            if (!filter) { await ftp.cd(config.base); incoming = await ftp.pwd(); }
             await ftp.cd(config.success); const success = await ftp.pwd();
             const now=Math.floor(Date.now()/1000)*1000;
-            const discovery = await searchFiles(ftp,filter || {unit:'',start:now,end:now,type:'ALL',sourceFilename:''},{offset:scanState?.offset,signal:controller.signal});
+            const discovery = await searchFiles(ftp,filter || {unit:'',start:now,end:now,type:'GP',sourceFilename:'',mode:'standard'},{offset:scanState?.offset,signal:controller.signal});
             const { files } = discovery;
             if (!filter) return { checked: true, root, incoming, success, listed: files.length, secure: config.access.secure, listingMode:discovery.listingMode, coverageWarning:discovery.coverageWarning, message: discovery.scan ? 'Login, paths and timestamp filename checks succeeded. Container searches download discovered CSVs.' : discovery.coverageWarning ? 'Login, paths and a bounded date listing succeeded. Directory completeness is not verified.' : 'Read-only login, paths and passive listing succeeded. Verify Malaysia filename timestamps against the port separately.' };
             const candidates = files.flatMap(file => {
@@ -84,66 +87,121 @@ export function createNorthportHandler(deps = { adminClient, readSession, withFt
             });
             if (candidates.length+(scanState?.files||0) > 40) throw new RecoveryError('More than 40 candidate files. Narrow the search window.');
             if (candidates.some(c => c.file.size > MAX_FILE) || candidates.reduce((sum,c)=>sum+c.file.size,scanState?.bytes||0) > 16*1024*1024) throw new RecoveryError('Candidate files exceed the search memory budget. Narrow the window.');
-            const matches: Match[] = []; const errors: { filename: string; message: string }[] = []; let downloaded = 0; let responseBytes = 0; let parsedRecords=0;
+            const matches: Match[] = []; const scannedFiles: ScannedFile[] = []; const errors: { filename: string; message: string }[] = []; let downloaded = 0; let responseBytes = 0; let parsedRecords=0;
             for (const {file,info} of candidates) {
               if (controller.signal.aborted) throw new RecoveryError('Search cancelled.',499);
               const bytes = await download(ftp,file.name); downloaded += bytes.length;
               if (downloaded+(scanState?.bytes||0) > 16*1024*1024) throw new RecoveryError('Search exceeded the 16 MiB download budget.');
+              const fileToken = signFileSource({actor:session.id,filename:file.name,digest:hash(bytes),expires:Date.now()+30*60000});
+              const inspection: ScannedFile | null = filter.mode === 'standard' ? null : {filename:file.name,timestamp:info.timestamp,type:info.type,bytes:bytes.length,records:0,matches:0,status:'no-match',token:fileToken};
+              const textFound = filter.mode === 'content' && containsContainerText(bytes,filter.unit);
+              const saveInspection = () => {
+                if (!inspection) return;
+                scannedFiles.push(inspection); responseBytes += Buffer.byteLength(JSON.stringify(inspection));
+                if (responseBytes+(scanState?.resultBytes||0) > 1024*1024) throw new RecoveryError('File scan results exceed the response budget. Narrow the search window.');
+              };
               let csv: ReturnType<typeof parseCsv>;
-              try { csv = parseCsv(bytes); } catch (e) { errors.push({filename:file.name,message:(e as Error).message}); continue; }
+              try { csv = parseCsv(bytes); } catch (e) {
+                const message = (e as Error).message; errors.push({filename:file.name,message});
+                if (inspection) { inspection.status = textFound ? 'content-match' : 'invalid'; inspection.error = message; }
+                saveInspection(); continue;
+              }
               parsedRecords+=csv.rows.length;
               csv.rows.forEach((values,i) => {
                 if (values[0].trim().toUpperCase() !== filter.unit) return;
                 if (matches.length+(scanState?.matches||0) >= 100) throw new RecoveryError('More than 100 matches. Narrow the search window.');
-                const source: Source = { filename:file.name, timestamp:info.timestamp,type:info.type,record:i+1,values,actor:session.id,digest:hash(bytes),expires:Date.now()+30*60000,format:csv.format };
-                const match = {filename:source.filename,timestamp:source.timestamp,type:source.type,record:source.record,values,token:sign(source)};
+                const source: Source = { filename:file.name, timestamp:info.timestamp,type:info.type,record:i+1,totalRecords:csv.rows.length,values,actor:session.id,digest:hash(bytes),expires:Date.now()+30*60000,format:csv.format };
+                const match = {filename:source.filename,timestamp:source.timestamp,type:source.type,record:source.record,totalRecords:source.totalRecords,fileToken,values,token:sign(source)};
                 responseBytes += Buffer.byteLength(JSON.stringify(match));
                 if (responseBytes+(scanState?.resultBytes||0) > 1024*1024) throw new RecoveryError('Matching records exceed the response budget. Narrow the search window.');
                 matches.push(match);
+                if (inspection) inspection.matches++;
               });
+              if (inspection) { inspection.records = csv.rows.length; inspection.status = inspection.matches ? 'match' : textFound ? 'content-match' : 'no-match'; }
+              saveInspection();
             }
             const next=scanState&&discovery.scan ? {...scanState,offset:discovery.scan.nextOffset,files:scanState.files+candidates.length,bytes:scanState.bytes+downloaded,records:scanState.records+parsedRecords,matches:scanState.matches+matches.length,resultBytes:scanState.resultBytes+responseBytes,errors:scanState.errors+errors.length} : null;
             const more=Boolean(next&&discovery.scan&&next.offset<discovery.scan.total);
-            return { matches, errors, listed:discovery.scan||discovery.listingMode==='exact'?0:files.length, candidates:candidates.length, complete:!more&&(next?.errors??errors.length)===0&&!discovery.coverageWarning, scope:discovery.scope, listingMode:discovery.listingMode, sourceFilename:filter.sourceFilename||null, coverageWarning:discovery.coverageWarning, nextCursor:more?signScanCursor(next!):null, progress:next&&discovery.scan?{checked:next.offset,total:discovery.scan.total,files:next.files,bytes:next.bytes,records:next.records}:null, start:localTime(filter.start),end:localTime(filter.end) };
+            return { matches, scannedFiles, mode:filter.mode, errors, listed:discovery.scan||discovery.listingMode==='exact'?0:files.length, candidates:candidates.length, complete:!more&&(next?.errors??errors.length)===0&&!discovery.coverageWarning, scope:discovery.scope, listingMode:discovery.listingMode, sourceFilename:filter.sourceFilename||null, coverageWarning:discovery.coverageWarning, nextCursor:more?signScanCursor(next!):null, progress:next&&discovery.scan?{checked:next.offset,total:discovery.scan.total,files:next.files,bytes:next.bytes,records:next.records}:null, start:localTime(filter.start),end:localTime(filter.end) };
           },controller.signal);
           return response.json(result);
         } finally { request.removeListener?.('aborted',cancel); response.removeListener?.('close',disconnected); }
       }
-      if (input.action === 'download-source') {
-        const source = verify(input.token,session.id);
+      if (input.action === 'download-all') {
+        if (!Array.isArray(input.files) || !input.files.length || input.files.length > 40) throw new RecoveryError('Select between 1 and 40 scanned files.');
+        // Verify every actor-bound token before opening FTP. Multiple matched rows
+        // in a source file must still produce only one archive entry.
+        const sources = new Map<string,{filename:string;digest:string}>();
+        for (const file of input.files) {
+          const source = file?.kind === 'record' ? verify(file.token,session.id) : file?.kind === 'file' ? verifyFileSource(file.token,session.id) : null;
+          if (!source) throw new RecoveryError('Invalid scanned file selection.');
+          const existing = sources.get(source.filename);
+          if (existing && existing.digest !== source.digest) throw new RecoveryError('Conflicting versions of a source file. Search again.',409);
+          sources.set(source.filename,source);
+        }
+        const files:Record<string,Uint8Array> = {}; let total=0;
+        await deps.withFtp(async (ftp,config) => {
+          await ftp.cd(config.success);
+          for (const source of sources.values()) {
+            const bytes = await download(ftp,source.filename); total+=bytes.length;
+            if (total>16*1024*1024) throw new RecoveryError('Archive exceeds the 16 MiB download budget.');
+            if (hash(bytes)!==source.digest) throw new RecoveryError('A source file changed since the search. Search again before downloading.',409);
+            files[source.filename]=bytes;
+          }
+        });
+        const archive = Buffer.from(zipSync(files,{level:6}));
+        if (archive.length>4*1024*1024) throw new RecoveryError('ZIP exceeds the 4 MiB archive limit. Download the files individually.');
+        response.setHeader('Content-Type','application/zip');
+        response.setHeader('Content-Disposition','attachment; filename="NORTHPORT_SCANNED_FILES.zip"');
+        return response.send(archive);
+      }
+      if (input.action === 'download-source' || input.action === 'download-file') {
+        const source = input.action === 'download-file' ? verifyFileSource(input.token,session.id) : verify(input.token,session.id);
         const bytes = await deps.withFtp(async (ftp,config) => {
           await ftp.cd(config.success);
           return download(ftp,source.filename);
         });
         if (hash(bytes) !== source.digest) throw new RecoveryError('Source file changed since the search. Search again before downloading.',409);
-        response.setHeader('Content-Type','text/csv; charset=utf-8');
+        response.setHeader('Content-Type',input.action === 'download-file' ? 'application/octet-stream' : 'text/csv; charset=utf-8');
         response.setHeader('Content-Disposition',`attachment; filename="${source.filename}"`);
         return response.send(bytes);
       }
-      if (input.action === 'approve' || input.action === 'upload') {
+      if (input.action === 'approve' || input.action === 'upload' || input.action === 'download-reprocess') {
         const source = verify(input.token,session.id); validateValues(input.values);
         const values = input.values as string[];
         const changed = NORTHPORT_COLUMNS.filter((_,i)=>values[i]!==source.values[i]);
-        if (input.approved !== true || (changed.some(c=>['UNIT','GPNO','EXPNO','BLNO'].includes(c)) && input.identityConfirmed !== true)) throw new RecoveryError('Explicit approval and confirmation of identifying-field changes are required.');
-        // Formula-looking values are preserved for the worker and rendered as plain React text, never opened as a spreadsheet.
-        const bytes = generateCsv(values,source.format);
-        const sourceKey = hash(source.filename + ':' + source.record);
-        const approvedHash = hash(source.digest + ':' + hash(bytes));
+        if (input.action !== 'download-reprocess' && (input.approved !== true || (changed.some(c=>['UNIT','GPNO','EXPNO','BLNO'].includes(c)) && input.identityConfirmed !== true))) throw new RecoveryError('Explicit approval and confirmation of identifying-field changes are required.');
+        if (input.action === 'upload') {
+          if (!uploadsEnabled()) throw new RecoveryError('Production uploads are disabled until all preproduction verification gates are confirmed.',403);
+          if (typeof input.id !== 'string' || !/^[a-f0-9-]{36}$/i.test(input.id)) throw new RecoveryError('Invalid recovery ID.');
+        }
+        const filename = reprocessFilename(values[0]);
+        // Rebuild from a fresh, hash-verified original for download, approval AND
+        // upload. The browser submits only the selected row, never sibling rows.
+        const prepared = await deps.withFtp(async (ftp,config) => {
+          await ftp.cd(config.success);
+          const original = await download(ftp,source.filename);
+          if (hash(original) !== source.digest) throw new RecoveryError('Source file changed. Search again before reprocessing.',409);
+          return prepareReprocessFile(original,source.record,source.values,values);
+        });
+        const {bytes,records} = prepared;
+        if (input.action === 'download-reprocess') {
+          response.setHeader('Content-Type','text/csv; charset=utf-8');
+          response.setHeader('Content-Disposition',`attachment; filename="${filename}"`);
+          return response.send(bytes);
+        }
+        const sourceKey = hash('northport-file:' + source.filename + ':' + source.digest);
+        const approvedHash = hash('northport-whole-file:' + source.digest + ':' + filename + ':' + hash(bytes));
         if (input.action === 'approve') {
           const saved = await client.rpc<any>('northport_approve',{p_actor:session.id,p_email:session.email,p_container:values[0],p_type:source.type,p_source:source.filename,p_record:source.record,p_source_key:sourceKey,p_hash:approvedHash,p_changed:changed});
           if (saved.error || !saved.data) throw new RecoveryError('This source record or container already has a recovery, or approval audit is unavailable. Review history before proceeding.',409);
-          return response.json({ recovery:saved.data, preview:bytes.toString('utf8'), uploadsEnabled:uploadsEnabled() });
+          return response.json({ recovery:saved.data, preview:bytes.toString('utf8'), filename, records, uploadsEnabled:uploadsEnabled() });
         }
-        if (!uploadsEnabled()) throw new RecoveryError('Production uploads are disabled until all preproduction verification gates are confirmed.',403);
-        if (typeof input.id !== 'string' || !/^[a-f0-9-]{36}$/i.test(input.id)) throw new RecoveryError('Invalid recovery ID.');
-        // Read-only revalidation finishes BEFORE the upload is claimed or any FTP write happens.
-        await deps.withFtp(async (ftp,config)=>{
-          await ftp.cd(config.success);
-          if (hash(await download(ftp,source.filename)) !== source.digest) throw new RecoveryError('Source file changed. Recovery stopped; operator review required.',409);
-        });
-        const claimed = await client.rpc<any>('northport_claim_upload',{p_actor:session.id,p_id:input.id,p_hash:approvedHash,p_source_key:sourceKey});
-        if (claimed.error || !claimed.data) throw new RecoveryError('Recovery is already submitted, does not match approval, or is owned by another administrator.',409);
+        const claimed = await client.rpc<any>('northport_claim_file_upload',{p_actor:session.id,p_id:input.id,p_hash:approvedHash,p_source_key:sourceKey});
+        if (claimed.error) throw new RecoveryError('Whole-file recovery is unavailable. Apply the Northport whole-file recovery migration.',503);
+        if (!claimed.data) throw new RecoveryError('Recovery is already submitted, does not match approval, or is owned by another administrator.',409);
         try {
+          if (claimed.data.recovery_filename !== filename) throw new RecoveryError('Unexpected reprocess filename. Check the whole-file recovery migration.',503);
           await deps.withFtp(async (ftp,config)=>{ await ftp.cd(config.base); await safeUpload(ftp,claimed.data.recovery_filename,input.id,bytes); });
           const saved = await client.from('northport_recoveries').update({status:'Uploaded',processing_result:'Verification Unavailable'}).eq('id',input.id).timeout(8000);
           if (saved.error) throw new RecoveryError('File may be uploaded but audit update failed. Check FTP and history; do not retry.',502);

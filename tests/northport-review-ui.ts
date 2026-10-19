@@ -5,6 +5,8 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { build } from 'esbuild';
 import { chromium } from 'playwright-core';
+import { NORTHPORT_COLUMNS } from '../src/types/northport.js';
+import { prepareReprocessFile } from '../server-handlers/northport/format.js';
 
 const bundle=await build({stdin:{contents:`import React from 'react';import {createRoot} from 'react-dom/client';import {NorthportRecovery} from './src/components/admin/NorthportRecovery';createRoot(document.getElementById('root')).render(<NorthportRecovery onBack={()=>{}}/>);`,resolveDir:process.cwd(),loader:'tsx'},bundle:true,write:false,format:'iife',platform:'browser',define:{'process.env.NODE_ENV':'"test"'}});
 const css=(await Promise.all((await readdir('dist/assets')).filter(file=>file.endsWith('.css')).map(file=>readFile(join('dist/assets',file),'utf8')))).join('\n');
@@ -16,6 +18,11 @@ try {
     const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
     page.on('dialog',()=>{throw new Error('Native browser confirmations are forbidden');});
     const values=Array(20).fill('');values[0]='TIIU6785282';
+    const sibling=Array(20).fill('');sibling[0]='OTHER123';sibling[1]='000123';
+    const original=Buffer.from(NORTHPORT_COLUMNS.join(',')+'\r\n'+sibling.join(',')+'\r\n'+values.join(',')+'\r\n');
+    const edited=[...values];edited[4]='EDITED';
+    const expected=prepareReprocessFile(original,2,values,edited).bytes;
+    let draftDownloads=0;
     let approvals=0,uploads=0,schedulers=0,failScheduler=false;
     const order:string[]=[];
     await page.route('**/*',async route=>{
@@ -23,8 +30,9 @@ try {
       if(url.pathname==='/api/dev-tools/northport-recovery') {
         if(route.request().method()==='GET')return route.fulfill({json:{history:[],uploadsEnabled:true,missingGates:[]}});
         const body=route.request().postDataJSON();
-        if(body.action==='search')return route.fulfill({json:{matches:[{filename:'CM_CONTAINER_20261018005309_GP.csv',type:'GP',timestamp:'2026-10-18T00:53:09',record:2,values,token:'test-token'}],errors:[],complete:true,candidates:1,listed:1}});
-        if(body.action==='approve'){approvals++;assert.equal(body.approved,true);return route.fulfill({json:{recovery:{id:'approved-'+approvals},preview:'UNIT,GPNO\r\nTIIU6785282,26101766773',uploadsEnabled:true}});}
+        if(body.action==='search')return route.fulfill({json:{matches:[{filename:'CM_CONTAINER_20261018005309_GP.csv',type:'GP',timestamp:'2026-10-18T00:53:09',record:2,totalRecords:2,values,token:'test-token'}],errors:[],complete:true,candidates:1,listed:1}});
+        if(body.action==='download-reprocess'){draftDownloads++;assert.deepEqual(body.values,edited);return route.fulfill({contentType:'text/csv',body:prepareReprocessFile(original,2,values,body.values).bytes});}
+        if(body.action==='approve'){approvals++;assert.equal(body.approved,true);assert.deepEqual(body.values,edited);return route.fulfill({json:{recovery:{id:'approved-'+approvals},preview:expected.toString('utf8'),filename:'REPROCESS_TIIU6785282.csv',records:2,uploadsEnabled:true}});}
         if(body.action==='upload'){uploads++;order.push('upload');return route.fulfill({json:{status:'Uploaded'}});}
         if(body.action==='scheduler'){schedulers++;order.push('scheduler');return failScheduler?route.fulfill({status:502,json:{message:'Scheduler request failed.'}}):route.fulfill({json:{status:'Scheduler Triggered',message:'Scheduler request sent successfully. Completion has not been verified.',executionId:'hidden-execution-id',processingResult:'Verification Unavailable'}});}
         throw new Error('Unexpected action '+body.action);
@@ -36,26 +44,33 @@ try {
     await page.getByLabel('Container No.',{exact:true}).fill(values[0]);
     await page.getByLabel('EIR time (Malaysia)',{exact:true}).fill('2026-10-18T00:53');
     await page.getByRole('button',{name:'Search FTP',exact:true}).click();
+    await page.getByRole('button',{name:'Record actions',exact:true}).click();await page.getByRole('button',{name:'View/Edit File',exact:true}).click();
+    const draftEditor=page.getByRole('dialog',{name:'Container file editor',exact:true});await draftEditor.getByLabel('SRV',{exact:true}).fill('EDITED');
+    const draft=page.waitForEvent('download');await draftEditor.getByRole('button',{name:width<640?'Download':'Download CSV',exact:true}).click();const drafted=await draft;
+    assert.equal(drafted.suggestedFilename(),'REPROCESS_TIIU6785282.csv');assert.deepEqual(await readFile((await drafted.path())!),expected);assert.equal(draftDownloads,1);assert.equal(approvals,0);assert.equal(uploads,0);
+    await draftEditor.getByRole('button',{name:width<640?'Save':'Save Changes',exact:true}).click();await draftEditor.getByRole('button',{name:'Cancel',exact:true}).click();
     const openReview=async()=>{
-      if(width<768)await page.getByRole('button',{name:'Reprocess',exact:true}).click();
-      else {await page.getByRole('button',{name:'Record actions',exact:true}).click();await page.getByRole('button',{name:'Reprocess',exact:true}).click();}
+      await page.getByRole('button',{name:'Record actions',exact:true}).click();await page.getByRole('button',{name:'Reprocess',exact:true}).click();
     };
     await openReview();
     const editor=page.getByRole('dialog',{name:'Container file editor',exact:true});
     const reprocessLabel=width<640?'Reprocess':'Reprocess & Run Scheduler';
-    const waitForReprocess=async()=>page.waitForFunction(label=>Array.from(document.querySelectorAll<HTMLButtonElement>('.northport-dialog-footer button')).some(button=>button.innerText.trim().startsWith(label)&&!button.disabled),reprocessLabel);
+    const waitForReprocess=async()=>page.waitForFunction(label=>Array.from(document.querySelectorAll<HTMLButtonElement>('.northport-dialog-footer button')).some(button=>button.innerText.trim().toLowerCase().startsWith(label.toLowerCase())&&!button.disabled),reprocessLabel);
     assert.equal(await editor.getByRole('button',{name:'Close file editor',exact:true}).count(),0);
-    const approve=editor.getByRole('button',{name:width<640?'Approve CSV':'Approve & Generate Recovery CSV',exact:true});
+    const approve=editor.getByRole('button',{name:width<640?'Approve CSV':'Approve Reprocess File',exact:true});
     await editor.locator('.northport-dialog-footer').scrollIntoViewIfNeeded();
     const reviewSize=await editor.boundingBox();
     const cancelBefore=await editor.getByRole('button',{name:'Cancel',exact:true}).boundingBox();
     await approve.click();
     const confirmation=page.getByRole('alertdialog');
+    await confirmation.getByText(/All 2 records are included/).waitFor();
     await confirmation.getByRole('button',{name:'Cancel',exact:true}).click();
     assert.equal(approvals,0,'Cancel approval must not make a request');
     await approve.click();
     await confirmation.getByRole('button',{name:'Approve',exact:true}).click();
     await editor.getByText(/Approved · (Ready to reprocess|Ready in \d+s)/).waitFor();
+    const approvedExport=page.waitForEvent('download');await editor.getByRole('button',{name:'Export CSV',exact:true}).click();const exported=await approvedExport;
+    assert.equal(exported.suggestedFilename(),'REPROCESS_TIIU6785282.csv');assert.deepEqual(await readFile((await exported.path())!),expected);assert.equal(uploads,0);
     await editor.getByRole('heading',{name:`Reprocess File — ${values[0]}`,exact:true}).waitFor();
     const approvedSize=await editor.boundingBox();
     assert.ok(reviewSize&&approvedSize&&Math.abs(reviewSize.height-approvedSize.height)<1&&Math.abs(reviewSize.y-approvedSize.y)<1,'Approval must preserve the review size and position');
@@ -69,7 +84,7 @@ try {
     assert.equal(await editor.locator('pre').count(),0,'Raw CSV preview must be removed');
     const reprocess=editor.getByRole('button',{name:new RegExp(`^${reprocessLabel}`)});
     assert.equal(await reprocess.isDisabled(),true,'Reprocess observes the server cooldown after approval');
-    assert.match(await reprocess.innerText(),/\(\d+s\)$/,'The disabled button shows the remaining cooldown');
+    assert.match(await reprocess.innerText(),/\(\d+s\)$/i,'The disabled button shows the remaining cooldown');
     await waitForReprocess();
     const color=await reprocess.evaluate(button=>getComputedStyle(button).backgroundColor);
     const cancelColor=await editor.getByRole('button',{name:'Cancel',exact:true}).evaluate(button=>getComputedStyle(button).color);

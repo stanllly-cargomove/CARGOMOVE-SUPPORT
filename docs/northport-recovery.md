@@ -4,6 +4,30 @@ Integrated location: **Admin Portal → Tools → NP Container**. Only the exist
 
 ## Deployment and configuration
 
+### Unified table and whole-file reprocessing (local update, 19 October 2026)
+
+Results now use one **Scanned File** table. Validated container matches appear first, followed by text-only candidates, invalid CSVs and files without a match. A matched file is not repeated as a separate file-only row; multiple matching records remain individually selectable. The same table scrolls horizontally on narrow screens. **Download all**, beside the table title, downloads one `NORTHPORT_SCANNED_FILES.zip` containing each displayed source file once, with its original filename and bytes. Every archive selection is authorized with the existing signed, actor-bound record or inspection token. A changed source fails the entire archive. Existing 40-file / 16 MiB input limits apply; ZIP output is additionally capped at 4 MiB for hosted responses.
+
+The editor still exposes only the selected record. **Download CSV**, approval, approved **Export CSV**, and FTP reprocessing now include every record from that source file. With no edits the source bytes are reused exactly. With edits only the selected physical record is replaced; sibling records, original header, BOM, line endings, quoting and empty lines are preserved. Source hashes are rechecked before download, approval and upload. The result is named `REPROCESS_<container number>.csv` for both downloads and FTP uploads. The source in SUCCESS is kept unchanged. Archive and per-source downloads retain original filenames; the REPROCESS name applies to the edited/reprocessed copy.
+
+Apply `supabase/migrations/20261019010000_northport_whole_file_recovery.sql` after the existing recovery migration before using whole-file uploads. The new `northport_claim_file_upload` RPC atomically reserves the REPROCESS filename; a missing migration fails explicitly without falling back to timestamp naming. The source deduplication key now covers the whole source filename and digest, so different selected rows from the same source cannot create separate whole-file recoveries. A destination already present on FTP is rejected rather than overwritten. Existing approvals created for single-record recovery do not authorize a changed whole-file payload.
+
+This change is local and has not applied a production migration, uploaded to live FTP, invoked a scheduler or deployed the site. Confirm that the external worker accepts `REPROCESS_<container>.csv` and the intended whole-file duplicate behaviour before rollout. Earlier single-record and timestamp-filename notes below describe the previous implementation.
+
+Validation: 39 mocked backend/database tests; `npm run test:northport:search:ui` covers the unified table, match ordering and archive download; `npm run test:northport:review:ui` covers selected-row editing and full-file draft/approved exports. Both browser suites run offline on desktop and mobile after `npm run build`.
+
+### Search modes (local enhancement, 19 October 2026)
+
+The **Search mode** button beside **Search Container** offers **Basic Scan (Fast)** (default), **Advanced Scan (Enhanced)**, and **Deep Scan (Maximum)**. All searches read only the configured SUCCESS folder and keep the chosen GP/EX filter and filename time window. The initial type and Clear reset remain GP. Incoming is checked only by the existing connection diagnostic, never scanned for recovery.
+
+- **Basic Scan (Fast)** retains the existing validated UNIT-record search and configured discovery mode.
+- **Advanced Scan (Enhanced)** uses direct timestamp filename checks and lists every downloaded candidate, including valid files with no match and files rejected by CSV validation. It highlights validated record matches and provides original-file downloads.
+- **Deep Scan (Maximum)** adds a case-insensitive, whole-container text check, including malformed UTF-8 CSVs and BOM-marked UTF-16 files. Text may occur outside UNIT or in an invalid CSV; these hits are explicitly unverified inspection candidates. The strict CSV parser and recovery approval rules still apply. Inspection download tokens cannot authorize record recovery.
+
+Both additional modes bypass legacy wildcard discovery and use the canonical uppercase Northport filename convention, or the explicitly entered exact filename. They do not discover arbitrary/nonstandard filenames or silently widen the range or change the selected type. Existing scan/file/byte limits remain in force and limit failures stop the search. File metadata and status arrive with each completed batch; downloads and scanning continue while the page remains open. Invalid CSVs keep record-search coverage incomplete even if their raw text was inspected. Cancellation preserves completed batches, and a new search clears the earlier file list. No background worker, production deployment, FTP write, or scheduler run is part of this enhancement.
+
+Offline validation: `npm run test:northport` covers mode scoping, raw matching and inspection download authorization. After `npm run build`, `npm run test:northport:search:ui` exercises desktop/mobile mode selection, multiple batches, file inspection downloads, cancellation and default reset with mocked API responses.
+
 ### Current activation and CSV export, 17 October 2026
 
 Deployment checks must use the running API: `GET /api/health` now returns the non-secret aggregate `northportRecovery.uploadsEnabled`, using the same strict gate function as recovery uploads. No passwords, gate values or container data are exposed by this aggregate. `vercel env run` merges local settings over remote settings, so its output must not be used as proof of the deployed environment. Individual Vercel API reads of the nine non-secret recovery flags confirmed their saved values without exporting unrelated credentials. Upload permission is also refreshed from the authenticated approval response, so an unavailable history request does not leave an approved record incorrectly disabled. History requests bypass browser cache; backend authorization and gate checks remain mandatory.

@@ -97,7 +97,7 @@ if (process.argv.includes('--probe-tls')) {
         return;
       }
       console.log(`SUCCESS directory is accessible. Testing ${listingMode()} listing (45-second total session limit).`);
-      const discovery=await searchFiles(client,{unit:'',start:Date.now(),end:Date.now(),type:'ALL',sourceFilename:''});
+      const discovery=await searchFiles(client,{unit:'',start:Date.now(),end:Date.now(),type:'GP',sourceFilename:'',mode:'standard'});
       console.log(JSON.stringify({root,incoming,success,entries:discovery.files.length,listingMode:discovery.listingMode,coverageWarning:discovery.coverageWarning,secure:config.access.secure,readOnly:true}));
     });
   } catch(e) {console.error((e as Error).message);process.exitCode=1;}

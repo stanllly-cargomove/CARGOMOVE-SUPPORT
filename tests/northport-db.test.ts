@@ -16,6 +16,7 @@ test('PostgreSQL migration enforces RLS, administrator admission, durable dedupl
       insert into auth.users values('${actor}','ADMIN@EXAMPLE.TEST'),('${other}','other@example.test'),('${revoked}','revoked@example.test');
       insert into public.user_registrations values('${actor}','admin@example.test','ADMIN'),('${other}','other@example.test','ADMIN'),('${revoked}','revoked@example.test','COMPANY_ADMIN');`);
     await db.exec(readFileSync(new URL('../supabase/migrations/20261017010000_northport_recovery.sql',import.meta.url),'utf8'));
+    await db.exec(readFileSync(new URL('../supabase/migrations/20261019010000_northport_whole_file_recovery.sql',import.meta.url),'utf8'));
     const scalar=async(sql:string,params:any[]=[])=>Object.values((await db.query<any>(sql,params)).rows[0])[0] as any;
     assert.equal(await scalar('select northport_admit_request($1)',[actor]),true);
     assert.equal(await scalar('select northport_admit_request($1)',[actor]),false);
@@ -43,9 +44,17 @@ test('PostgreSQL migration enforces RLS, administrator admission, durable dedupl
     assert.equal(await scalar('select northport_claim_scheduler($1,$2)',[second.id,other]),false,'Concurrent/repeated dispatch is denied');
     const rows=await db.query<any>('select * from northport_recoveries');assert.equal(rows.rows.length,2);
     assert.ok(!Object.keys(rows.rows[0]).some(k=>['csv','values','original_values','edited_values'].includes(k)));
+    const fullFile=await approve(actor,'WHSU5195154','whole-source-key','whole-file-hash');
+    const claimFile=(who=actor,digest='whole-file-hash',key='whole-source-key')=>scalar('select northport_claim_file_upload($1,$2,$3,$4)',[who,fullFile.id,digest,key]);
+    assert.equal(await claimFile(other),null);assert.equal(await claimFile(actor,'tampered'),null);assert.equal(await claimFile(actor,'whole-file-hash','record-key'),null);
+    await assert.rejects(()=>claimFile(revoked),/Administrator required/);
+    assert.equal((await claimFile()).recovery_filename,'REPROCESS_WHSU5195154.csv');
+    assert.equal(await claimFile(),null,'Whole-file claims cannot be repeated');
+    const saved=await db.query<any>('select recovery_filename,status from northport_recoveries where id=$1',[fullFile.id]);assert.equal(saved.rows[0].status,'Uploading');assert.equal(saved.rows[0].recovery_filename,'REPROCESS_WHSU5195154.csv');
     await db.exec('set role authenticated');
     await assert.rejects(()=>db.query('select * from northport_recoveries'),/permission denied/);
     await assert.rejects(()=>db.query('select northport_admit_request($1)',[actor]),/permission denied/);
+    await assert.rejects(()=>claimFile(),/permission denied/);
     await db.exec('reset role;set role anon');
     await assert.rejects(()=>db.query('select * from northport_recoveries'),/permission denied/);
     await db.exec('reset role');

@@ -41,7 +41,7 @@ export async function download(client: Client, filename: string) {
   return Buffer.concat(chunks);
 }
 export async function safeUpload(client: Client, filename: string, id: string, bytes: Buffer) {
-  if (!/^CM_CONTAINER_\d{14}_(GP|EX)\.csv$/.test(filename) || !/^[a-f0-9-]{36}$/i.test(id)) throw new RecoveryError('Invalid recovery destination.');
+  if (!/^(?:CM_CONTAINER_\d{14}_(GP|EX)|REPROCESS_[A-Z0-9]{1,32})\.csv$/.test(filename) || !/^[a-f0-9-]{36}$/i.test(id)) throw new RecoveryError('Invalid recovery destination.');
   // This must also be verified on the real server: RNTO must refuse an existing target.
   const temporary = `.northport-${id}.part`;
   const files = await client.list();

@@ -1,6 +1,6 @@
 import { parse } from 'csv-parse/sync';
 import { stringify } from 'csv-stringify/sync';
-import { NORTHPORT_COLUMNS } from '../../src/types/northport.js';
+import { NORTHPORT_COLUMNS, NORTHPORT_SEARCH_MODES, type SearchMode } from '../../src/types/northport.js';
 export class RecoveryError extends Error { constructor(message: string, public code = 400) { super(message); } }
 export const MAX_FILE = 2 * 1024 * 1024;
 export function malaysiaTime(value: unknown): number {
@@ -23,6 +23,8 @@ export function containerNumber(value: unknown) {
 }
 export function searchInput(body: any) {
   const unit = containerNumber(body.unit); const time = malaysiaTime(body.timestamp);
+  const mode: SearchMode = body.mode === undefined ? 'standard' : body.mode;
+  if (!NORTHPORT_SEARCH_MODES.some(option => option.value === mode)) throw new RecoveryError('Select a valid search mode.');
   if (!['ALL','GP','EX'].includes(body.type)) throw new RecoveryError('Select All, GP or EX.');
   for (const n of [body.before, body.after]) if (!Number.isInteger(n) || n < 0 || n > 1440) throw new RecoveryError('Search windows must be whole minutes between 0 and 1440.');
   const start = time - body.before * 60000; const end = time + body.after * 60000;
@@ -34,7 +36,7 @@ export function searchInput(body: any) {
     if (info.time < start || info.time > end) throw new RecoveryError('The source filename timestamp is outside the selected search window.');
     if (body.type !== 'ALL' && body.type !== info.type) throw new RecoveryError('The source filename does not match the selected GP/EX filter.');
   }
-  return { unit, start, end, type: body.type, sourceFilename };
+  return { unit, start, end, type: body.type, sourceFilename, mode };
 }
 export function validateValues(values: unknown): asserts values is string[] {
   if (!Array.isArray(values) || values.length !== 20 || values.some(v => typeof v !== 'string' || v.length > 1000 || /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f\r\n]/.test(v))) throw new RecoveryError('The record must contain exactly 20 text fields without control characters; each field is limited to 1000 characters.');
@@ -57,4 +59,21 @@ export function parseCsv(bytes: Buffer) {
 export function generateCsv(values: string[], format: ReturnType<typeof parseCsv>['format']) {
   validateValues(values);
   return Buffer.from(stringify([NORTHPORT_COLUMNS, values], { bom: format.bom, record_delimiter: format.newline, quoted: format.quoteAll }));
+}
+export function reprocessFilename(unit: string) {
+  return `REPROCESS_${containerNumber(unit)}.csv`;
+}
+export function prepareReprocessFile(bytes: Buffer, record: number, original: string[], edited: string[]) {
+  validateValues(edited);
+  const csv = parseCsv(bytes);
+  if (!Number.isSafeInteger(record) || record < 1 || record > csv.rows.length || JSON.stringify(csv.rows[record-1]) !== JSON.stringify(original)) throw new RecoveryError('The selected source record changed. Search again.',409);
+  if (JSON.stringify(original) === JSON.stringify(edited)) return {bytes,records:csv.rows.length};
+  // Accepted Northport values cannot contain newlines. Replace just this physical
+  // record, preserving every other byte, including quoting, BOM and empty lines.
+  const lines = bytes.toString('utf8').split(csv.format.newline);
+  const indexes = lines.flatMap((line,index) => line.length ? [index] : []);
+  lines[indexes[record]] = stringify([edited], {record_delimiter:csv.format.newline,quoted:csv.format.quoteAll}).slice(0,-csv.format.newline.length);
+  const result = Buffer.from(lines.join(csv.format.newline));
+  if (result.length > MAX_FILE) throw new RecoveryError('Edited CSV exceeds the 2 MiB file limit.');
+  return {bytes:result,records:csv.rows.length};
 }

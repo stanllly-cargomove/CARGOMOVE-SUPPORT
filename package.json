@@ -23,6 +23,8 @@
     "test:scheduler:ui": "tsx tests/scheduler-ui.ts",
     "test:northport": "tsx --test tests/northport.test.ts tests/northport-db.test.ts tests/northport-scan.test.ts tests/northport-reprocess.test.ts tests/dev-tools-router.test.ts",
     "test:northport:ui": "tsx tests/northport-ui.ts",
+    "test:northport:search:ui": "tsx tests/northport-search-ui.ts",
+    "test:northport:review:ui": "tsx tests/northport-review-ui.ts",
     "northport:check": "tsx scripts/check-northport-ftp.ts",
     "api": "tsx server.ts"
   },
@@ -37,6 +39,7 @@
     "csv-stringify": "^6.9.0",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
+    "fflate": "^0.8.3",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
     "playwright-core": "1.63.0",
