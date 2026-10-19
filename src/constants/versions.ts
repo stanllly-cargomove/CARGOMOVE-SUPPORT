@@ -1,3 +1,6 @@
-// Display versions for the public registration portal.
-// Add a separate tracking version here when tracking has its own release cycle.
-export const PORTAL_VERSION = 'V1.2.1';
+import systemVersions from '../generated/system-versions.json';
+
+export const SYSTEM_VERSIONS = systemVersions;
+export const GENERAL_VERSION = systemVersions.version;
+// Every customer page uses the same General Version, including the Home hero.
+export const PORTAL_VERSION = `V${GENERAL_VERSION}`;
