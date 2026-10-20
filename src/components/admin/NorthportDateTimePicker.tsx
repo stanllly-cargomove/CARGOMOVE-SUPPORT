@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useId, useRef, useState } from 'react';
 import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from 'lucide-react';
 
 const control = 'flex min-h-11 w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60';
@@ -21,15 +21,27 @@ function PickerPopover({ label, disabled, display, children, onOpen, wide = fals
   const [open, setOpen] = useState(false);
   useEffect(() => { if (disabled) panel.current?.hidePopover(); }, [disabled]);
   useEffect(() => {
+    const onScroll = (event: Event) => {
+      // Install before opening so an immediate page scroll also dismisses it.
+      if (event.target instanceof Node && panel.current?.contains(event.target)) return;
+      if (panel.current?.matches(':popover-open')) panel.current.hidePopover();
+    };
+    window.addEventListener('scroll', onScroll, true);
+    return () => window.removeEventListener('scroll', onScroll, true);
+  }, []);
+  useLayoutEffect(() => {
     if (!open) return;
     const position = () => {
       const rect = trigger.current?.getBoundingClientRect(); const menu = panel.current;
       if (!rect || !menu) return;
+      if (rect.bottom < 48 || rect.top >= window.innerHeight) { menu.hidePopover(); return; }
       menu.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth-menu.offsetWidth-8))}px`;
-      menu.style.top = `${Math.max(8, Math.min(rect.bottom+6, window.innerHeight-menu.offsetHeight-8))}px`;
+      const below = window.innerHeight - rect.bottom - 8;
+      const top = below >= menu.offsetHeight || rect.top < menu.offsetHeight + 8 ? rect.bottom + 6 : rect.top - menu.offsetHeight - 6;
+      menu.style.top = `${Math.max(8, Math.min(top, window.innerHeight-menu.offsetHeight-8))}px`;
     };
-    position(); window.addEventListener('resize', position); window.addEventListener('scroll', position, true);
-    return () => { window.removeEventListener('resize', position); window.removeEventListener('scroll', position, true); };
+    position(); window.addEventListener('resize', position);
+    return () => window.removeEventListener('resize', position);
   }, [open]);
   const close = () => { panel.current?.hidePopover(); trigger.current?.focus(); };
   return <>
@@ -58,6 +70,7 @@ function ScrollColumn({ label, value, min = 0, max, step = 1, loop = true, onCha
   const choose = (next: number) => {
     clearTimeout(timer.current); scrolling.current=false;
     const wrapped=min+wrap(Math.round((next-min)/step))*step;
+    currentValue.current=wrapped;
     if(list.current)list.current.scrollTop=(offset+(wrapped-min)/step)*rowHeight;
     onChange(wrapped);
   };
@@ -93,7 +106,9 @@ function ScrollColumn({ label, value, min = 0, max, step = 1, loop = true, onCha
           if(loop&&index<count)element.scrollTop+=count*rowHeight;
           else if(loop&&index>=2*count)element.scrollTop-=count*rowHeight;
           if(next!==currentValue.current){currentValue.current=next;onChange(next);}
-          timer.current=setTimeout(() => { scrolling.current=false;element.scrollTop=(offset+(currentValue.current-min)/step)*rowHeight; },120);
+          // Let native snapping settle instead of forcing scrollTop back while
+          // the browser is still handling the wheel gesture.
+          timer.current=setTimeout(() => { scrolling.current=false; },160);
         }}>
           <div data-wheel-spacer aria-hidden="true"/>
           {Array.from({length:count*(loop?3:1)}, (_, index) => {

@@ -7,7 +7,7 @@ import { filenameInfo, malaysiaTime, localTime, searchInput, parseCsv, generateC
 import { ftpConfig, withFtp, safeUpload, download } from '../server-handlers/northport/ftp.js';
 import { createNorthportHandler } from '../server-handlers/northport/handler.js';
 import { searchFiles, PARTIAL_LISTING_WARNING } from '../server-handlers/northport/listing.js';
-import { containsContainerText, signFileSource } from '../server-handlers/northport/inspection.js';
+import { containsContainerText, signFileSource, signEditorSource, verifyEditorSource } from '../server-handlers/northport/inspection.js';
 
 const gpName='CM_CONTAINER_20261017012016_GP.csv';
 const exName='CM_CONTAINER_20261017012014_EX.csv';
@@ -178,6 +178,64 @@ test('whole-file download returns the exact original CSV and rejects changed or 
   assert.equal((await h.call({action:'download-source',token})).code,400);
   assert.equal((await h.call({action:'download-source',token:token+'x'})).code,400);
 });
+test('container browsing lists every source record and enforces source integrity and ownership',async()=>{
+  const h=harness();
+  const found=await h.call({action:'search',...search});
+  const match=found.body.matches[0];
+  const expected=parseCsv(gp).rows.map((row,index)=>({container:row[0],record:index+1,number:row[1],fullEmpty:row[7]}));
+  for(const [kind,token] of [['record',match.token],['file',match.fileToken]]) {
+    const result=await h.call({action:'list-containers',kind,token});
+    assert.equal(result.code,200);assert.deepEqual(result.body,{filename:gpName,containers:expected});
+    assert.equal((await h.call({action:'list-containers',kind,token:token+'x'})).code,400);
+  }
+  const exportResult=await h.call({action:'search',...search,type:'EX',sourceFilename:exName,unit:parseCsv(ex).rows[0][0]});
+  const exportContainers=await h.call({action:'list-containers',kind:'file',token:exportResult.body.matches[0].fileToken});
+  assert.equal(exportContainers.code,200);
+  assert.deepEqual(exportContainers.body.containers,parseCsv(ex).rows.map((row,index)=>({container:row[0],record:index+1,number:row[2],fullEmpty:row[7]})));
+  h.setRate(false);assert.equal((await h.call({action:'list-containers',kind:'record',token:match.token})).code,429);h.setRate(true);
+  h.setSource(ex);assert.equal((await h.call({action:'list-containers',kind:'record',token:match.token})).code,409);
+  h.setSession({id:'other',email:'other@example.test',type:'ADMIN'});
+  assert.equal((await h.call({action:'list-containers',kind:'file',token:match.fileToken})).code,400);
+  h.setSession({id:'admin',email:'admin@example.test',type:'ADMIN'});
+  h.setSource(Buffer.from('invalid csv'));
+  const invalid=await h.call({action:'search',...search,type:'GP',sourceFilename:gpName,mode:'files'});
+  assert.equal((await h.call({action:'list-containers',kind:'file',token:invalid.body.scannedFiles[0].token})).code,400);
+  assert.equal(h.uploaded,false);assert.equal(h.schedulerCalls,0);assert.equal(h.updates.length,0);
+});
+
+test('editor pagination exposes validated rows and binds exports and approvals to the selected source record',async()=>{
+  const h=harness();
+  const found=await h.call({action:'search',...search,unit:'TXGU4841312'});
+  const match=found.body.matches[0];
+  const original=parseCsv(gp).rows;
+  const loaded=await h.call({action:'editor-records',kind:'record',token:match.token});
+  assert.equal(loaded.code,200);assert.deepEqual(loaded.body.rows,original);
+  assert.equal((await h.call({action:'editor-records',kind:'file',token:match.fileToken})).code,200);
+  const token=loaded.body.editorToken;
+  const values=[...original[2]];values[4]='EDITED';
+  const payload={sourceKind:'editor',record:3,token,values,approved:true,identityConfirmed:false};
+  const exported=await h.call({action:'download-reprocess',...payload});
+  assert.equal(exported.code,200);
+  assert.deepEqual(parseCsv(exported.body).rows,[original[0],original[1],values]);
+  assert.equal(exported.headers['Content-Disposition'],`attachment; filename="REPROCESS_${values[0]}.csv"`);
+  h.setApprove({id:'approval',status:'Approved'});
+  assert.equal((await h.call({action:'approve',...payload})).code,200);
+  const saved=h.rpcCalls.find(call=>call.name==='northport_approve')!;
+  assert.equal(saved.args.p_record,3);assert.equal(saved.args.p_container,values[0]);assert.deepEqual(saved.args.p_changed,['SRV']);
+  const identity=[...values];identity[1]='CHANGED';
+  assert.equal((await h.call({action:'approve',...payload,values:identity})).code,400,'Other identity changes still require confirmation');
+  for(const record of [0,-1,1.5,4,'1'])assert.equal((await h.call({action:'download-reprocess',...payload,record})).code,400);
+  assert.equal((await h.call({action:'download-reprocess',...payload,token:match.fileToken})).code,400,'Inspection tokens cannot authorize editing');
+  assert.equal((await h.call({action:'download-reprocess',...payload,token:token+'x'})).code,400);
+  const expired=signEditorSource({...verifyEditorSource(token,'admin'),expires:Date.now()-1});
+  assert.equal((await h.call({action:'download-reprocess',...payload,token:expired})).code,400);
+  h.setSession({id:'other',email:'other@example.test',type:'ADMIN'});
+  assert.equal((await h.call({action:'download-reprocess',...payload})).code,400);
+  h.setSession({id:'admin',email:'admin@example.test',type:'ADMIN'});
+  h.setSource(ex);assert.equal((await h.call({action:'download-reprocess',...payload})).code,409);
+  assert.equal(h.uploaded,false);assert.equal(h.schedulerCalls,0);
+});
+
 test('multiple exact matches are all returned, malformed source blocks recovery for that file',async()=>{
   const h=harness();const csv=parseCsv(gp);h.setSource(Buffer.from(NORTHPORT_COLUMNS.join(',')+'\r\n'+csv.rows[0].join(',')+'\r\n'+csv.rows[0].join(',')+'\r\n'));
   assert.equal((await h.call({action:'search',...search})).body.matches.length,2);

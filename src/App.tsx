@@ -16,6 +16,8 @@ export default function App() {
   const [routeKey, setRouteKey] = useState(() => window.location.pathname + window.location.search);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<ApplicationUser | null>(null);
+  const [hasOpenedAdmin, setHasOpenedAdmin] = useState(false);
+  useEffect(() => { if (page === 'admin' && currentUser) setHasOpenedAdmin(true); }, [page, currentUser]);
 
   const navigate = useCallback((next: PortalPage, reference?: string) => {
     const url = portalPaths[next] + (reference ? `?reference_no=${encodeURIComponent(reference)}` : '');
@@ -62,13 +64,17 @@ export default function App() {
   if (isPasswordRecovery) return <PasswordResetPage onDone={() => { setIsPasswordRecovery(false); navigate('login'); }} />;
 
   return (
-    <div className="min-h-screen text-slate-800 antialiased font-sans" key={routeKey}>
+    <div className="min-h-screen text-slate-800 antialiased font-sans">
+      <React.Fragment key={routeKey}>
       {page === 'home' && <HomePage onRegister={() => navigate('register')} onTrackStatus={() => navigate('track')} onGuideline={() => navigate('guideline')} onLogin={() => navigate(currentUser ? 'admin' : 'login')} />}
       {page === 'register' && <RegistrationPage onNavigate={navigate} />}
       {page === 'track' && <TrackStatusPage onNavigate={navigate} />}
       {page === 'guideline' && <GuidelinePage onNavigate={navigate} />}
       {(page === 'login' || (page === 'admin' && !currentUser)) && <PortalLoginPage onNavigate={navigate} onSuccess={user => { setCurrentUser(user); navigate('admin'); }} />}
-      {page === 'admin' && currentUser && <AdminLayout
+      </React.Fragment>
+      {(page === 'admin' || hasOpenedAdmin) && currentUser && <AdminLayout
+        key={currentUser.id}
+        active={page === 'admin'}
         user={currentUser}
         onSwitchToCustomer={() => navigate('home')}
         onRefreshData={() => refreshProtectedStorage()}

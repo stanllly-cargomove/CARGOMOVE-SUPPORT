@@ -18,6 +18,7 @@ import runScheduler from './server-handlers/scheduler/handler.js';
 import schedulerCatalog from './server-handlers/scheduler/catalog.js';
 import northportRecovery from './server-handlers/northport/handler.js';
 import systemVersions from './server-handlers/system-versions.js';
+import profile from './server-handlers/profile.js';
 import { uploadsEnabled } from './server-handlers/northport/configuration.js';
 
 config({ path: '.env.local' });
@@ -111,6 +112,7 @@ async function fetchSupabaseTable(table: string, params: URLSearchParams) {
 }
 
 app.use(express.json({ limit: '1mb' }));
+app.all('/api/auth/profile', profile);
 app.post('/api/dev-tools/run-scheduler', runScheduler);
 app.post('/api/dev-tools/system-versions', systemVersions);
 app.get('/api/dev-tools/schedulers', schedulerCatalog);

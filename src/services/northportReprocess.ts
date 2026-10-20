@@ -1,6 +1,8 @@
 export type ReprocessSubmission = {
   id:string;
   token:string;
+  sourceKind?:'editor';
+  record?:number;
   values:string[];
   approved:true;
   identityConfirmed:boolean;

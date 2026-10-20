@@ -7,5 +7,5 @@ export const NORTHPORT_SEARCH_MODES = [
 ] as const;
 export type SearchMode = typeof NORTHPORT_SEARCH_MODES[number]['value'];
 export type ScannedFile = { filename: string; timestamp: string; type: ContainerType; bytes: number; records: number; matches: number; status: 'match' | 'no-match' | 'invalid' | 'content-match'; error?: string; token: string };
-export type Match = { filename: string; timestamp: string; type: ContainerType; record: number; totalRecords?: number; fileToken?: string; values: string[]; token: string };
+export type Match = { filename: string; timestamp: string; type: ContainerType; record: number; totalRecords?: number; fileToken?: string; values: string[]; token: string; sourceKind?: 'editor' };
 export type Recovery = { id: string; container: string; container_type: ContainerType; source_filename: string; recovery_filename: string; submitted_by: string; created_at: string; changed_fields: string[]; status: string; scheduler_run_id?: string; scheduler_status?: string; processing_result?: string };

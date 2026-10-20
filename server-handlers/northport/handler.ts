@@ -6,7 +6,7 @@ import runScheduler from '../scheduler/handler.js';
 import { withFtp, download, safeUpload } from './ftp.js';
 import { RecoveryError, searchInput, filenameInfo, parseCsv, prepareReprocessFile, reprocessFilename, validateValues, localTime, MAX_FILE } from './format.js';
 import { NORTHPORT_COLUMNS, type Match, type ScannedFile } from '../../src/types/northport.js';
-import { containsContainerText, signFileSource, verifyFileSource } from './inspection.js';
+import { containsContainerText, signFileSource, verifyFileSource, signEditorSource, verifyEditorSource } from './inspection.js';
 import { searchFiles, usesTimestampScan } from './listing.js';
 import { readScanCursor, signScanCursor } from './scan.js';
 import { NORTHPORT_UPLOAD_GATES as GATES, uploadsEnabled } from './configuration.js';
@@ -155,19 +155,41 @@ export function createNorthportHandler(deps = { adminClient, readSession, withFt
         response.setHeader('Content-Disposition','attachment; filename="NORTHPORT_SCANNED_FILES.zip"');
         return response.send(archive);
       }
-      if (input.action === 'download-source' || input.action === 'download-file') {
-        const source = input.action === 'download-file' ? verifyFileSource(input.token,session.id) : verify(input.token,session.id);
+      if (input.action === 'download-source' || input.action === 'download-file' || input.action === 'list-containers' || input.action === 'editor-records') {
+        const source = input.action === 'download-file' || (['list-containers','editor-records'].includes(input.action) && input.kind === 'file') ? verifyFileSource(input.token,session.id) : verify(input.token,session.id);
         const bytes = await deps.withFtp(async (ftp,config) => {
           await ftp.cd(config.success);
           return download(ftp,source.filename);
         });
-        if (hash(bytes) !== source.digest) throw new RecoveryError('Source file changed since the search. Search again before downloading.',409);
+        if (hash(bytes) !== source.digest) throw new RecoveryError('Source file changed since the search. Search again before viewing or downloading.',409);
+        if (input.action === 'editor-records') {
+          const csv = parseCsv(bytes);
+          const editorToken = signEditorSource({actor:session.id,filename:source.filename,digest:source.digest,expires:source.expires});
+          return response.json({filename:source.filename,rows:csv.rows,editorToken});
+        }
+        if (input.action === 'list-containers') {
+          const csv = parseCsv(bytes);
+          const numberColumn = filenameInfo(source.filename)!.type === 'GP' ? 1 : 2;
+          return response.json({ filename: source.filename, containers: csv.rows.map((row,index) => ({ container: row[0], record: index+1, number: row[numberColumn], fullEmpty: row[7] })) });
+        }
         response.setHeader('Content-Type',input.action === 'download-file' ? 'application/octet-stream' : 'text/csv; charset=utf-8');
         response.setHeader('Content-Disposition',`attachment; filename="${source.filename}"`);
         return response.send(bytes);
       }
       if (input.action === 'approve' || input.action === 'upload' || input.action === 'download-reprocess') {
-        const source = verify(input.token,session.id); validateValues(input.values);
+        validateValues(input.values);
+        let originalBytes: Buffer | undefined;
+        let source: Source;
+        if (input.sourceKind === 'editor') {
+          const file = verifyEditorSource(input.token,session.id);
+          if (!Number.isSafeInteger(input.record) || input.record < 1) throw new RecoveryError('Select a valid container page.');
+          originalBytes = await deps.withFtp(async (ftp,config) => { await ftp.cd(config.success); return download(ftp,file.filename); });
+          if (hash(originalBytes) !== file.digest) throw new RecoveryError('Source file changed. Search again before reprocessing.',409);
+          const csv = parseCsv(originalBytes);
+          const row = csv.rows[input.record-1];
+          if (!row) throw new RecoveryError('Container page is outside this source file.');
+          source = {...file,...filenameInfo(file.filename)!,record:input.record,totalRecords:csv.rows.length,values:row,format:csv.format};
+        } else source = verify(input.token,session.id);
         const values = input.values as string[];
         const changed = NORTHPORT_COLUMNS.filter((_,i)=>values[i]!==source.values[i]);
         if (input.action !== 'download-reprocess' && (input.approved !== true || (changed.some(c=>['UNIT','GPNO','EXPNO','BLNO'].includes(c)) && input.identityConfirmed !== true))) throw new RecoveryError('Explicit approval and confirmation of identifying-field changes are required.');
@@ -178,7 +200,7 @@ export function createNorthportHandler(deps = { adminClient, readSession, withFt
         const filename = reprocessFilename(values[0]);
         // Rebuild from a fresh, hash-verified original for download, approval AND
         // upload. The browser submits only the selected row, never sibling rows.
-        const prepared = await deps.withFtp(async (ftp,config) => {
+        const prepared = originalBytes ? prepareReprocessFile(originalBytes,source.record,source.values,values) : await deps.withFtp(async (ftp,config) => {
           await ftp.cd(config.success);
           const original = await download(ftp,source.filename);
           if (hash(original) !== source.digest) throw new RecoveryError('Source file changed. Search again before reprocessing.',409);

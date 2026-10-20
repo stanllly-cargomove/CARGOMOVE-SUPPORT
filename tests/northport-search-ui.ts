@@ -29,6 +29,12 @@ try {
       if(url.pathname==='/api/dev-tools/northport-recovery') {
         if(route.request().method()==='GET')return route.fulfill({json:{history:[],uploadsEnabled:false,missingGates:[]}});
         const body=route.request().postDataJSON();bodies.push(body);
+        if(body.action==='list-containers') {
+          assert.equal(body.kind,'file');
+          assert.ok([file.token,matchedFile.token].includes(body.token));
+          if(body.token===file.token)return route.fulfill({status:400,json:{error:'Unexpected CSV headers.'}});
+          return route.fulfill({json:{filename:matchedFile.filename,containers:[{container:unit,record:1,number:'26101455766',fullEmpty:'F'},{container:'ABCU1234567',record:2,number:'26101561854',fullEmpty:'E'},{container:'XYZU7654321',record:3,number:'26101561855',fullEmpty:''},...Array.from({length:10},(_,index)=>({container:`TEST${index.toString().padStart(7,'0')}`,record:index+4,number:`261015618${index}`,fullEmpty:'E'}))]}});
+        }
         if(body.action==='download-file') {downloads++;assert.equal(body.token,file.token);return route.fulfill({contentType:'application/octet-stream',body:raw});}
         if(body.action==='download-all') {
           archives++;assert.deepEqual(body.files,[{kind:'file',token:file.token},{kind:'file',token:matchedFile.token}]);
@@ -133,6 +139,17 @@ try {
     await page.getByRole('button',{name:'Clear',exact:true}).waitFor();
     assert.equal(await page.getByRole('table',{name:'Scanned File',exact:true}).locator('tbody tr').count(),1);
     assert.equal(await page.getByRole('button',{name:'Download all',exact:true}).count(),0,'Basic Scan hides the bulk download control');
+    const openContainers=async(filename:string)=>{
+      await page.getByRole('button',{name:filename,exact:true}).click();
+      const dialog=page.getByRole('dialog',{name:'Containers in source file',exact:true});
+      await dialog.waitFor();return dialog;
+    };
+    // Basic results use the full-file token even without a scanned-file row.
+    // The mock match initially uses file.token; verify the parser error state.
+    let containerDialog=await openContainers(file.filename);
+    await containerDialog.getByRole('alert').waitFor();
+    assert.match(await containerDialog.getByRole('alert').innerText(),/Unexpected CSV headers/);
+    await containerDialog.getByRole('button',{name:'Close container list'}).click();
     await modeButton().click();
     const options=page.getByRole('dialog',{name:'Search mode options',exact:true});await options.waitFor();
     assert.equal(await options.getByRole('radio').count(),3);
@@ -150,10 +167,39 @@ try {
     assert.equal(await files.getByRole('button',{name:`Download ${file.filename}`,exact:true}).isDisabled(),true);
     await page.getByRole('button',{name:'Cancel Search',exact:true}).waitFor({state:'hidden'});
     const rows=files.locator('tbody tr');assert.equal(await rows.count(),2,'File results from both batches remain visible');
+    assert.equal(await files.getByRole('columnheader',{name:'No. of Record',exact:true}).count(),1);
+    assert.equal(await rows.first().locator('td').nth(4).innerText(),'3','Shows total containers, not the matched record position');
+    assert.equal(await files.getByText(/records? in file/).count(),0,'Filename has no record-count subtitle');
     assert.match(await rows.first().innerText(),/WHSU5195154/);assert.match(await rows.first().innerText(),/MATCH/);assert.match(await rows.last().innerText(),/NO MATCH/);
     assert.match(await rows.last().locator('td').first().getAttribute('class')??'',/text-center/,'Empty container values are centered');
     assert.equal(await page.getByRole('table',{name:'Scanned File',exact:true}).count(),1,'File and match results share one table');
     assert.equal(await page.getByRole('heading',{name:'Matching container records',exact:true}).count(),0);
+    containerDialog=await openContainers(matchedFile.filename);
+    await containerDialog.getByText('ABCU1234567',{exact:true}).waitFor();
+    assert.equal(await containerDialog.getByRole('columnheader',{name:'GP Number',exact:true}).count(),1);
+    assert.equal(await containerDialog.getByRole('columnheader',{name:'F/E',exact:true}).count(),1);
+    assert.equal(await containerDialog.getByRole('columnheader',{name:'Record No.',exact:true}).count(),0);
+    assert.match(await containerDialog.locator('tbody tr').first().innerText(),/26101455766\s+FULL/);
+    assert.match(await containerDialog.locator('tbody tr').nth(1).innerText(),/26101561854\s+EMPTY/);
+    assert.equal(await containerDialog.locator('tbody tr').count(),13,'Includes containers other than the searched unit');
+    const reservedBounds=await containerDialog.boundingBox();
+    assert.ok(reservedBounds&&Math.abs(reservedBounds.height-546)<=2,'Popup has a fixed height with ten rows of reserved space');
+    const listViewport=containerDialog.locator('table').locator('..');
+    assert.equal(await listViewport.evaluate(element=>element.scrollHeight>element.clientHeight),true,'More than ten containers scroll within the list');
+    await containerDialog.getByLabel('Search container number',{exact:true}).fill('abcu');
+    assert.equal(await containerDialog.locator('tbody tr').count(),1,'Partial searches ignore case');
+    assert.equal((await containerDialog.boundingBox())?.height,reservedBounds?.height,'One container keeps the same reserved popup height');
+    assert.match(await containerDialog.locator('tbody tr').innerText(),/ABCU1234567/);
+    await containerDialog.getByLabel('Search container number',{exact:true}).fill('NOTFOUND');
+    await containerDialog.getByText('No containers match your search.',{exact:true}).waitFor();
+    assert.equal((await containerDialog.boundingBox())?.height,reservedBounds?.height,'An empty search keeps the same reserved popup height');
+    await containerDialog.getByLabel('Search container number',{exact:true}).fill('');
+    assert.equal(await containerDialog.locator('tbody tr').count(),13);
+    const containerBounds=await containerDialog.boundingBox();
+    assert.ok(containerBounds&&containerBounds.x>=0&&containerBounds.x+containerBounds.width<=width,'Container popup fits the viewport');
+    await page.keyboard.press('Escape');await containerDialog.waitFor({state:'hidden'});
+    assert.equal(await page.getByRole('button',{name:matchedFile.filename,exact:true}).evaluate(element=>element===document.activeElement),true,'Closing restores filename focus');
+    assert.equal(await page.getByText(/â€¦|&#xA0;/).count(),0,'Recovery screen contains no garbled progress text');
     assert.equal(await page.getByText(/SUCCESS folder · filenames use MYT/).count(),0,'Result mode summary is hidden');
     const archive=page.waitForEvent('download');await files.getByRole('button',{name:'Download all',exact:true}).click();
     const zip=await archive;assert.equal(zip.suggestedFilename(),'NORTHPORT_SCANNED_FILES.zip');

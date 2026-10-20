@@ -27,11 +27,13 @@
 .northport-file-dialog button,
 .northport-confirm-dialog button { text-transform: uppercase; }
 .northport-dialog-footer > button:first-child { margin-right: auto; }
+.northport-dialog-actions > .northport-process-button { width: 280px; height: 44px; flex: none; }
 .northport-file-dialog[open] { display: flex; flex-direction: column; }
-.northport-standard-dialog { height: fit-content; min-height: 0; }
-.northport-standard-dialog .northport-dialog-body { display: flex; flex: 0 1 auto; flex-direction: column; }
+.northport-standard-dialog { height: min(760px, 92dvh); min-height: 0; }
+.northport-standard-dialog .northport-dialog-body { display: flex; flex: 1 1 auto; flex-direction: column; }
 .northport-dialog-body > * { flex-shrink: 0; }
 .northport-dialog-body > .northport-dialog-footer { margin-top: 16px; }
+.northport-standard-dialog .northport-dialog-body > .northport-dialog-footer { margin-top: auto; }
 .northport-stage-note { height: 64px; }
 .northport-dialog-footer { position: relative; border-top-width: 0; }
 .northport-dialog-footer::before { position: absolute; top: 0; right: -12px; left: -12px; border-top: 1px solid #e2e8f0; content: ''; }
@@ -41,9 +43,11 @@
 }
 
 @media (min-width: 768px) {
+  .northport-standard-dialog { height: min(640px, 92dvh); }
   .northport-parameter-grid { grid-template-columns: var(--parameter-columns-5); }
 }
 @media (min-width: 1280px) {
+  .northport-standard-dialog { height: min(520px, 92dvh); }
   .northport-parameter-grid { grid-template-columns: var(--parameter-columns-10); }
 }
 
@@ -117,6 +121,7 @@
   .northport-header h2 { font-size: 18px; line-height: 1.4; }
   .northport-dialog-actions > button { flex: 1 1 0; min-width: 0; min-height: 44px; padding-inline: 4px; font-size: 10px; white-space: nowrap; }
   .northport-dialog-actions > button > svg { display: none; }
+  .northport-dialog-actions > .northport-process-button { width: 132px; white-space: normal; }
 }
 
 :root {

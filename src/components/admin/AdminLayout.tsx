@@ -41,6 +41,7 @@ import { DeveloperSettings } from './DeveloperSettings';
 import { SystemVersion } from './SystemVersion';
 import { CargoMoveScheduler } from './CargoMoveScheduler';
 import { NorthportRecovery } from './NorthportRecovery';
+import { AccountSettings, ProfileAvatar, profileRequest } from './AccountSettings';
 import { notifyError, notifySuccess } from '../common/notifications';
 import { RegistrationType } from '../../types';
 import { getSubmissions, subscribeToStorage } from '../../services/storage';
@@ -48,14 +49,17 @@ import { ApplicationUser, getExternalUserAccess, subscribeToExternalUserAccess }
 import { browserSupabaseAuth } from '../../services/supabaseAuth';
 
 interface AdminLayoutProps {
+  active?: boolean;
   user: ApplicationUser | null;
   onSwitchToCustomer: () => void;
   onRefreshData: () => Promise<void>;
   onLogout: () => void;
 }
 
-export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout }: AdminLayoutProps) {
+export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout, active = true }: AdminLayoutProps) {
   const [activeTab, setActiveTab] = useState<string>('dashboard');
+  const [hasOpenedNorthport, setHasOpenedNorthport] = useState(false);
+  useEffect(() => { if (activeTab === 'northport-recovery') setHasOpenedNorthport(true); }, [activeTab]);
   const [portalMode, setPortalMode] = useState<'admin' | 'developer'>('admin');
   const [isRegistrationQueueExpanded, setIsRegistrationQueueExpanded] = useState(false);
   const [queueRegistrationType, setQueueRegistrationType] = useState<RegistrationType>('COMPANY');
@@ -68,6 +72,13 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout 
   const [pendingUserCount, setPendingUserCount] = useState(0);
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
   const [isSendingReset, setIsSendingReset] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    setAvatarUrl(null);
+    void profileRequest().then(url => { if (active) setAvatarUrl(url); }).catch(() => {});
+    return () => { active = false; };
+  }, [user?.email]);
   const accountMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -184,10 +195,10 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout 
 
   const isDevSettingsPage = activeTab === 'schema' || activeTab === 'scheduler' || activeTab === 'ports';
   const activePageLabel = activeTab === 'system-version' ? 'System Version' : activeTab === 'ports' ? 'Ports & Depots' : activeTab === 'schema' ? 'Excel Mapping' : activeTab === 'scheduler' ? 'Scheduler' : activeTab === 'northport-recovery' ? 'Tools / NP Container' : [...navItems, ...registrationQueueItems, ...devToolItems]
-    .find((item) => item.id === activeTab)?.label ?? (activeTab === 'account-settings' ? 'Settings' : 'Dashboard');
+    .find((item) => item.id === activeTab)?.label ?? (activeTab === 'account-settings' ? 'Account & Setting' : 'Dashboard');
 
   return (
-    <div className={`admin-theme min-h-screen bg-[#f6f8fb] flex flex-col md:flex-row ${isDarkMode ? 'admin-theme-dark' : ''}`}>
+    <div hidden={!active} style={active ? undefined : { display: 'none' }} className={`admin-theme min-h-screen bg-[#f6f8fb] flex flex-col md:flex-row ${isDarkMode ? 'admin-theme-dark' : ''}`}>
       {/* Sidebar */}
       <aside
         className={`fixed inset-y-0 left-0 z-50 flex w-64 -translate-x-full flex-col shrink-0 overflow-visible border-r border-[#17263d] bg-[#0b1930] text-slate-300 shadow-2xl transition-[width,transform] duration-300 ease-out md:relative md:inset-auto md:h-screen md:translate-x-0 md:shadow-none md:sticky md:top-0 md:self-start ${
@@ -198,7 +209,7 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout 
       >
         <div ref={accountMenuRef} className={`relative flex h-12 shrink-0 items-center border-b border-white/10 px-2 ${isSidebarCollapsed ? 'md:justify-center md:px-2' : ''}`}>
           <div className={`flex min-w-0 flex-1 items-center gap-2 ${isSidebarCollapsed ? 'md:hidden' : ''}`}>
-            <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-sky-300 bg-[#0095e8] text-sm font-semibold text-[#0b1930]">C</span>
+            <ProfileAvatar url={avatarUrl} name={user?.full_name || user?.username || user?.email || 'Admin'} className="h-8 w-8 border border-sky-300 text-xs" />
             <div className="min-w-0 flex-1 select-none">
               <p className="truncate text-xs font-medium leading-4 text-white">CargoMove</p>
               <p className="truncate text-[10px] leading-3.5 text-sky-200">{portalMode === 'admin' ? 'Admin portal' : 'Developer tools'}</p>
@@ -221,14 +232,14 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout 
             <div id="admin-account-menu" className="absolute left-0 top-[calc(100%-1px)] z-50 w-[min(15rem,calc(100vw-1rem))] overflow-hidden rounded-xl border border-white/10 bg-[#111d35] p-2 text-slate-200 shadow-[0_18px_35px_rgba(2,6,23,0.3)]">
               <div className="border-b border-white/10 px-2 pb-2 pt-1">
                 <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">Account</p>
-                <p className="mt-1 truncate text-xs font-normal text-slate-200" title={user?.email}>{user?.email || 'Signed-in admin'}</p>
+                <div className="mt-2 flex items-center gap-2"><ProfileAvatar url={avatarUrl} name={user?.full_name || user?.email || 'Admin'} className="h-8 w-8 text-xs" /><p className="truncate text-xs font-normal text-slate-200" title={user?.email}>{user?.email || 'Signed-in admin'}</p></div>
               </div>
               <div className="space-y-0.5 pt-1.5">
                 <button type="button" onClick={() => void handlePasswordReset()} disabled={!user?.email || isSendingReset} className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs font-normal hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">
                   <KeyRound className="h-4 w-4 shrink-0" />{isSendingReset ? 'Sending...' : 'Reset password'}
                 </button>
                 <button type="button" onClick={() => { setActiveTab('account-settings'); setIsAccountMenuOpen(false); setIsMobileSidebarOpen(false); }} className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs font-normal hover:bg-white/10">
-                  <Settings className="h-4 w-4 shrink-0" />Settings
+                  <Settings className="h-4 w-4 shrink-0" />Account &amp; Setting
                 </button>
                 <button type="button" onClick={() => { setIsAccountMenuOpen(false); onLogout(); }} className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs font-normal text-rose-300 hover:bg-rose-400/10">
                   <LogOut className="h-4 w-4 shrink-0" />Logout
@@ -545,31 +556,8 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout 
           {activeTab === 'developer-settings' && <DeveloperSettings onOpenScheduler={() => setActiveTab('scheduler')} onOpenExcelMapping={() => setActiveTab('schema')} onOpenPortDepotConfig={() => setActiveTab('ports')} />}
           {activeTab === 'system-version' && <SystemVersion />}
           {activeTab === 'scheduler' && <div className="space-y-6"><div><h2 className="text-xl font-bold tracking-tight text-slate-900">Scheduler</h2><p className="mt-1 text-xs text-slate-500">Manage saved schedulers and request a run when needed.</p></div><CargoMoveScheduler /></div>}
-          {activeTab === 'northport-recovery' && portalMode === 'admin' && user?.type === 'ADMIN' && <NorthportRecovery onBack={goToPortalHome} />}
-          {activeTab === 'account-settings' && (
-            <div className="max-w-3xl space-y-6">
-              <div>
-                <h2 className="text-xl font-bold tracking-tight text-slate-900">Settings</h2>
-                <p className="mt-1 text-xs text-slate-500">Manage your account and appearance.</p>
-              </div>
-              <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                <h3 className="text-sm font-bold text-slate-900">Account</h3>
-                <p className="mt-1 text-xs text-slate-500">Signed in as {user?.email || 'Admin'}</p>
-                <button type="button" onClick={() => void handlePasswordReset()} disabled={!user?.email || isSendingReset} className="mt-4 inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50">
-                  <KeyRound className="h-4 w-4" />{isSendingReset ? 'Sending reset link...' : 'Email me a password reset link'}
-                </button>
-              </section>
-              <section className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900">Dark appearance</h3>
-                  <p className="mt-1 text-xs text-slate-500">Use the dark theme for admin pages.</p>
-                </div>
-                <button type="button" role="switch" aria-checked={isDarkMode} aria-label="Dark appearance" onClick={() => setIsDarkMode((darkMode) => !darkMode)} className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${isDarkMode ? 'bg-[#0095e8]' : 'bg-slate-300'}`}>
-                  <span className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${isDarkMode ? 'translate-x-6' : 'translate-x-1'}`} />
-                </button>
-              </section>
-            </div>
-          )}
+          {(hasOpenedNorthport || activeTab === 'northport-recovery') && user?.type === 'ADMIN' && <NorthportRecovery key={user.email} active={active && activeTab === 'northport-recovery' && portalMode === 'admin'} onBack={goToPortalHome} />}
+          {activeTab === 'account-settings' && <AccountSettings user={user} avatarUrl={avatarUrl} onAvatarChange={setAvatarUrl} onReset={() => void handlePasswordReset()} sendingReset={isSendingReset} />}
         </main>
       </div>
 
