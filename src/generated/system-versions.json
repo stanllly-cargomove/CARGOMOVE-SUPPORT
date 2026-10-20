@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "version": "1.6.0",
-  "updatedAt": "2026-10-20T10:41:43.177Z",
+  "version": "1.6.1",
+  "updatedAt": "2026-10-20T10:50:14.512Z",
   "entries": [
     {
       "id": "account-settings",
@@ -512,12 +512,11 @@
     "api/_runtime.ts": "85fbaf7657252cb9302580b82be311d178efba01755538107d6caa58729a7c91",
     "api/auth/login.ts": "b9ca37e15306678b28cad3646b66ca59e0a5d888e47ca88a9b91a521573610ca",
     "api/auth/logout.ts": "b9b0a8d91f7a8e2df747e72105e1c75d0b7a8f276cd16a81ca2087769cadbe55",
-    "api/auth/profile.ts": "f280503d8c70308a5e54aa8de67697a01f9047545da2f9e0fd62d54692a771d0",
     "api/auth/session.ts": "b558da6ab3889ec7b6eea64efd7d62c312575a41032e974f5e72c9da40d3f807",
     "api/auth/users.ts": "64b48a48aa0c16b1369ad7b16859554ab59d93c58358385728c19fd5b5777f09",
     "api/data/[table].ts": "f78331d45ccb6b2fd47c08b7bcb8a3206828fe5e2e3424060640c5a497b81ac5",
     "api/data/[table]/[id].ts": "0d7de1f24e8a4b0e3e329254e829273771898ce34627327816edd902cd07a297",
-    "api/dev-tools.ts": "33dba3ffa27c0bd6dce92fdf4f7af113d50f1004c0761578d149749d7fecb0a5",
+    "api/dev-tools.ts": "af3c0baed92a52dd67bd3b724a4c08add1ac16eae53dd0d7e48957da8712ac5a",
     "api/external-user-access.ts": "3b2184020b94da4d7d96e065ed7acab54887e5ed624e356b471be3b83b31c940",
     "api/health.ts": "bd85c6a0ce4c58094322532e63cdfada9114c66bf81ce294b7ee7014399ff049",
     "api/mail.ts": "39c43982e49553146b2972fde01ac9cb699f802f56caf19a95f9163129a8d86f",
@@ -699,6 +698,29 @@
     "vite.config.ts": "167e03f4e2c3298d4e3cbe61c5c1f8712073bf15d56c63d992827e99d3b7601b"
   },
   "history": [
+    {
+      "sourceCommit": "be0a03676b259c2353dd40c7f929e72d283e307f",
+      "pushedBy": "lumoratechent-beep",
+      "commits": [
+        {
+          "sha": "9b09c4ba30f47675557c09e48de20a5c697f9a1b",
+          "author": "cargomovemy",
+          "subject": "reduce number of serverless"
+        }
+      ],
+      "authors": [
+        "cargomovemy"
+      ],
+      "version": "1.6.1",
+      "previousVersion": "1.6.0",
+      "date": "2026-10-20T10:50:14.512Z",
+      "summary": "Updated existing pages, tools or shared system files",
+      "files": [
+        "api/auth/profile.ts",
+        "api/dev-tools.ts"
+      ],
+      "changes": []
+    },
     {
       "sourceCommit": "974ee7a183e41aa3aaf2dfc5f0dd4b30935cf2d6",
       "pushedBy": "lumoratechent-beep",
