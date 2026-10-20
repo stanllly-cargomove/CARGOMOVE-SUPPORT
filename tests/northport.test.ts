@@ -60,7 +60,7 @@ function harness() {
   const listingRequests:(string|undefined)[]=[];
   let sizeLookup=async(_name:string)=>1;
   const ftp={pwd:async()=>'/account',cd:async(path:string)=>{directories.push(path);},list:async(pattern?:string)=>{listingRequests.push(pattern);return entries;},downloadTo:async(stream:any,name:string)=>{downloads.push(name);stream.end(name===exName?ex:source);},uploadFrom:async(stream:any)=>{uploaded=true;if(uploadFailure)throw new RecoveryError('Transfer interrupted',502);const chunks:Buffer[]=[];for await(const chunk of stream)chunks.push(Buffer.from(chunk));uploadedBytes=Buffer.concat(chunks);},size:async(name:string)=>name.endsWith('.part')&&uploadedBytes?uploadedBytes.length:sizeLookup(name),rename:async(_from:string,to:string)=>{uploadedName=to;}};
-  const client={from(){const query:any={select(){return this;},eq(){return this;},order(){return this;},limit(){return this;},timeout(){return this;},update(value:any){updates.push(value);return this;},async maybeSingle(){return {data:profile,error:null};},then(resolve:any){return Promise.resolve({data:[],error:null}).then(resolve);}};return query;},async rpc(name:string,args:any){rpcCalls.push({name,args});return {error:name==='northport_claim_file_upload'&&claimError?{message:'Missing function'}:null,data:name==='northport_admit_request'?rate:name==='northport_approve'?approve:name==='northport_claim_file_upload'?claim:name==='northport_claim_scheduler'?schedulerClaim:null};}};
+  const client={from(){const query:any={select(){return this;},eq(){return this;},order(){return this;},limit(){return this;},timeout(){return this;},update(value:any){updates.push(value);return this;},async maybeSingle(){return {data:profile,error:null};},then(resolve:any){return Promise.resolve({data:[],error:null}).then(resolve);}};return query;},async rpc(name:string,args:any){rpcCalls.push({name,args});return {error:name==='northport_claim_file_upload'&&claimError?{message:'Missing function'}:null,data:name==='northport_admit_request'?rate:name==='northport_approve'?approve:name==='northport_claim_file_upload'?claim:name==='northport_claim_scheduler'||name==='northport_cancel_approved'?schedulerClaim:name==='northport_record_cancelled'?{id:'cancelled-attempt',status:'Cancelled'}:null};}};
   const handler=createNorthportHandler({adminClient:()=>client as any,readSession:()=>session,withFtp:async(operation:any)=>{if(ftpError)throw new RecoveryError('FTP operation failed',502);return operation(ftp,{base:'/incoming',success:'/incoming/SUCCESS',access:{secure:true}});},runScheduler:async(_req:any,res:any)=>{schedulerCalls++;res.status(schedulerFailure?502:200).json({status:schedulerFailure?'failed':'trigger_requested',message:'Test result',executionId:'run-test'});}} as any);
   const call=async(payload:any,overrides:any={})=>{const response:any={code:200,body:null,headers:{} as Record<string,string>,setHeader(name:string,value:string){this.headers[name]=value;},status(code:number){this.code=code;return this;},json(body:any){this.body=body;return this;},send(body:any){this.body=body;return this;}};await handler({method:'POST',headers:{origin:'https://portal.example.test','x-cargomove-confirm':'northport-recovery'},body:payload,...overrides},response);return response;};
   return {call,directories,downloads,updates,rpcCalls,listingRequests,setSize:(fn:typeof sizeLookup)=>sizeLookup=fn,get uploaded(){return uploaded;},get uploadedBytes(){return uploadedBytes;},get uploadedName(){return uploadedName;},get schedulerCalls(){return schedulerCalls;},setSession:(v:any)=>session=v,setProfile:(v:any)=>profile=v,setEntries:(v:any)=>entries=v,setRate:(v:boolean)=>rate=v,setFtpError:()=>ftpError=true,setSource:(v:Buffer)=>source=v,setApprove:(v:any)=>approve=v,setClaim:(v:any)=>claim=v,setClaimError:()=>claimError=true,setUploadFailure:()=>uploadFailure=true,setSchedulerFailure:()=>schedulerFailure=true,setSchedulerClaim:(v:boolean)=>schedulerClaim=v};
@@ -259,6 +259,20 @@ async function approval(h:ReturnType<typeof harness>) {
   const searchResult=await h.call({action:'search',...search});const match=searchResult.body.matches[0];
   return {token:match.token,values:match.values,approved:true,identityConfirmed:false};
 }
+test('cancellation records the signed source without approval, upload or scheduler dispatch',async()=>{
+  const h=harness();const source=await approval(h);
+  const changed=[...source.values];changed[0]='UNTRUSTED123';
+  const result=await h.call({action:'cancel',...source,values:changed,approved:false});
+  assert.equal(result.body.status,'Cancelled');
+  assert.equal(h.rpcCalls.find(call=>call.name==='northport_record_cancelled')?.args.p_container,source.values[0]);
+  assert.equal(h.uploaded,false);assert.equal(h.schedulerCalls,0);
+  assert.equal(h.rpcCalls.some(call=>call.name==='northport_approve'||call.name==='northport_claim_file_upload'),false);
+  assert.equal((await h.call({action:'cancel',...source,token:source.token+'x'})).code,400);
+  const id='10000000-0000-4000-8000-000000000001';
+  assert.equal((await h.call({action:'cancel-approved',id})).body.status,'Cancelled');
+  h.setSchedulerClaim(false);
+  assert.equal((await h.call({action:'cancel-approved',id})).code,409);
+});
 test('signed source, explicit approval, identity confirmation, and duplicate approval protection',async()=>{
   const h=harness();const p=await approval(h);
   assert.equal((await h.call({action:'approve',...p,token:p.token+'x'})).code,400);
@@ -267,6 +281,16 @@ test('signed source, explicit approval, identity confirmation, and duplicate app
   h.setApprove({id:'approval',status:'Approved'});const res=await h.call({action:'approve',...p});assert.equal(res.code,200);assert.equal(parseCsv(Buffer.from(res.body.preview)).rows.length,3);assert.equal(h.uploaded,false);
   h.setApprove(null);assert.equal((await h.call({action:'approve',...p})).code,409);
   h.setSession({id:'other',email:'other',type:'ADMIN'});assert.equal((await h.call({action:'approve',...p})).code,400);
+});
+
+test('approval retains validated original search settings with the selected recovery type and container',async()=>{
+  const h=harness();const source=await approval(h);h.setApprove({id:'approval',status:'Approved'});
+  const setup={unit:'OTHER123',timestamp:search.timestamp,type:'ALL',before:5,after:30,sourceFilename:'',mode:'standard'};
+  assert.equal((await h.call({action:'approve',...source,searchSetup:setup})).code,200);
+  assert.deepEqual(h.updates.at(-1).search_setup,{...setup,unit:source.values[0],type:'GP'});
+  const before=h.rpcCalls.filter(call=>call.name==='northport_approve').length;
+  assert.equal((await h.call({action:'approve',...source,searchSetup:{...setup,before:-1}})).code,400);
+  assert.equal(h.rpcCalls.filter(call=>call.name==='northport_approve').length,before,'Invalid settings cannot create an approval');
 });
 test('production uploads disabled, even after approval; no FTP write attempted',async()=>{
   const h=harness();const p=await approval(h);const res=await h.call({action:'upload',...p,id:'00000000-0000-4000-8000-000000000001'});assert.equal(res.code,403);assert.equal(h.uploaded,false);
@@ -376,10 +400,32 @@ test('recovery flow distinguishes upload, request acceptance and uncertain outco
   assert.equal(recoveryFlow(base).step,1);
   assert.equal(recoveryFlow({...base,status:'Uploaded'}).step,2);
   const requested=recoveryFlow({...base,status:'Scheduler Triggered',scheduler_status:'trigger_requested'});
-  assert.equal(requested.step,3);assert.equal(requested.tone,'blue');assert.match(requested.description,/not yet verified/);
-  assert.equal(recoveryFlow({...base,status:'Failed'}).tone,'rose');
+  assert.equal(requested.step,3);assert.equal(requested.tone,'blue');assert.match(requested.description,/not verified yet/);
+  assert.equal(recoveryFlow({...base,status:'Failed'}).tone,'red');
   assert.equal(recoveryFlow({...base,status:'Verification Unavailable',scheduler_status:'failed'}).step,2);
   assert.equal(recoveryFlow({...base,status:'unexpected'}).step,0);
+});
+
+test('history labels distinguish GP results, EX scheduler evidence, active requests and cancellation',()=>{
+  const base={status:'Uploaded',container_type:'GP'} as Recovery;
+  const evidence={status:'VERIFIED',gatepass:'GP123',container:'MSBU4179350',updatedAt:null,updatedWithinTolerance:null,observedAt:new Date().toISOString(),toleranceSeconds:120} as const;
+  assert.equal(recoveryFlow({...base,gp_verification:evidence}).label,'SUCCESS');
+  assert.equal(recoveryFlow({...base,gp_verification:{...evidence,status:'NOT_FOUND'}}).label,'FAIL');
+  assert.equal(recoveryFlow({...base,gp_verification:{...evidence,status:'UNAVAILABLE'}}).label,'PROCESSING');
+  assert.equal(recoveryFlow({...base,status:'Cancelled'}).label,'CANCELLED');
+  assert.equal(recoveryFlow({...base,status:'Approved'}).label,'CANCELLED');
+  assert.equal(recoveryFlow({...base,status:'Approved',in_progress:true}).label,'PROCESSING');
+  const manual={id:'review-id',outcome:'SUCCESS',note:'Checked the exact pair in CargoMove.',reviewedBy:'admin@example.test',reviewedAt:new Date().toISOString()} as const;
+  assert.equal(recoveryFlow({...base,manual_review:manual,gp_verification:{...evidence,status:'NOT_FOUND'}}).label,'SUCCESS','Manual verification does not lose precedence to automatic evidence');
+  assert.equal(recoveryFlow({...base,manual_review:{...manual,outcome:'FAIL'}}).label,'FAIL');
+  assert.equal(recoveryFlow({...base,status:'Verification Unavailable',scheduler_status:'failed'}).label,'FAIL');
+  assert.equal(recoveryFlow({...base,container_type:'EX',scheduler_status:'trigger_requested'}).label,'FAIL','An accepted request alone is not a latest scheduler time');
+  assert.equal(recoveryFlow({...base,container_type:'EX',processing_result:'Scheduler run observed — container import not verified'}).label,'SUCCESS','Existing scheduler observations remain usable');
+  const scheduler={before:'Yesterday at 11:59 PM',after:'Today at 12:00 AM',observedAt:new Date().toISOString()};
+  for(const status of ['ADVANCED','UNCHANGED','UNAVAILABLE'] as const) {
+    assert.equal(recoveryFlow({...base,container_type:'EX',scheduler_run:{last_run_verification:{...scheduler,status}}}).label,status==='ADVANCED'?'SUCCESS':'FAIL');
+    assert.equal(recoveryFlow({...base,scheduler_run:{last_run_verification:{...scheduler,status}}}).label,'PROCESSING','GP cannot be SUCCESS from scheduler evidence alone');
+  }
 });
 test('safe upload uses temporary transfer, size check, collision check and final rename only',async()=>{
   const events:string[]=[];const bytes=Buffer.from('approved');let collision=false;

@@ -23,7 +23,7 @@
     "test:portal:ui": "npm run build && tsx tests/portal-ui.ts",
     "test:scheduler": "tsx --test tests/scheduler.test.ts tests/scheduler-db.test.ts",
     "test:scheduler:ui": "tsx tests/scheduler-ui.ts",
-    "test:northport": "tsx --test tests/northport.test.ts tests/northport-db.test.ts tests/northport-scan.test.ts tests/northport-reprocess.test.ts tests/dev-tools-router.test.ts tests/dev-tools-runtime.test.ts",
+    "test:northport": "tsx --test tests/northport.test.ts tests/northport-db.test.ts tests/northport-scan.test.ts tests/northport-reprocess.test.ts tests/northport-gp-verification.test.ts tests/northport-history.test.ts tests/northport-retry.test.ts tests/dev-tools-router.test.ts tests/dev-tools-runtime.test.ts",
     "test:northport:ui": "tsx tests/northport-ui.ts",
     "test:northport:search:ui": "tsx tests/northport-search-ui.ts",
     "test:northport:navigation:ui": "tsx tests/northport-navigation-ui.ts",

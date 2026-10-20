@@ -51,6 +51,8 @@ try {
           schedulers++;order.push('scheduler');assert.deepEqual(Object.keys(body).sort(),['action','id']);
           return mode==='scheduler-failed'?route.fulfill({status:502,json:{message:'Scheduler request failed.'}}):route.fulfill({json:{status:'Scheduler Triggered',executionId:'hidden-execution-id'}});
         }
+        if(body.action==='verify-gp'){order.push('verify-gp');return route.fulfill({json:{status:'Pending Verification',message:'GP result not verified yet.'}});}
+        if(body.action==='cancel')return route.fulfill({json:{status:'Cancelled',message:'Container recovery cancelled. No file was uploaded.'}});
         throw new Error('Unexpected action '+body.action);
       }
       if(url.pathname==='/styles.css')return route.fulfill({contentType:'text/css',body:css});
@@ -121,67 +123,45 @@ try {
       await editor.getByRole('button',{name:'Save Changes',exact:true}).click();
       await editor.getByRole('button',{name:'Approve & Reprocess File',exact:true}).click();
     };
-    const waitForCountdown=async()=>editor.getByRole('button',{name:/^Approve & Reprocess File \([1-5]s\)$/}).waitFor();
-    await editor.getByRole('button',{name:'Save Changes',exact:true}).click();
-    const processButton=editor.locator('.northport-process-button');
-    const idleSize=await processButton.boundingBox();
-    await editor.getByRole('button',{name:'Back',exact:true}).click();
-    await saveAndApprove();await waitForCountdown();
+    const finishProcessing=async()=>{
+      for(let tick=0;tick<10;tick++) {
+        await new Promise(resolve=>setTimeout(resolve,80));
+        if(await page.getByRole('button',{name:'Refresh History',exact:true}).isEnabled())return;
+        await page.clock.fastForward(5500);
+      }
+      assert.fail('Recovery should complete its bounded requests');
+    };
+    await saveAndApprove();
+    await editor.waitFor({state:'hidden'});
+    await page.getByText(`${values[0]} recovery requested.`,{exact:true}).waitFor();
     assert.equal(await page.getByRole('alertdialog').count(),0,'No extra confirmation is needed');
-    const countdown=editor.getByRole('button',{name:/^Approve & Reprocess File \([1-5]s\)$/});
-    assert.equal(await countdown.isDisabled(),true);assert.equal(approvals,1);assert.equal(uploads,0);
-    assert.equal((await processButton.boundingBox())?.width,idleSize?.width);
-    assert.equal((await processButton.boundingBox())?.height,idleSize?.height);
-    await countdown.evaluate(button=>(button as HTMLButtonElement).click());assert.equal(approvals,1);
-    await page.clock.fastForward(3000);assert.equal(uploads,0,'Do not send before the countdown completes');
-    await page.clock.fastForward(2200);
-    await editor.getByRole('status').filter({hasText:'File uploaded. Preparing Northport processing...'}).waitFor();
-    assert.equal(uploads,1);assert.equal(schedulers,0);
-    const labels=new Set<string>();
-    for(let tick=0;tick<4;tick++) {
-      labels.add((await processButton.innerText()).trim());
-      assert.equal((await processButton.boundingBox())?.width,idleSize?.width,'Processing dots do not change button width');
-      assert.equal((await processButton.boundingBox())?.height,idleSize?.height,'Processing dots do not change button height');
-      await page.clock.fastForward(450);
-    }
-    assert.ok(labels.size>=2,'Different processing dot states are checked');
-    await page.clock.fastForward(5200);await editor.waitFor({state:'hidden'});
-    assert.deepEqual(order,['approve','upload','scheduler']);
+    const processingHistory=page.locator(width<768?'.northport-history-cards':'.northport-history-table');
+    await processingHistory.getByText('PROCESSING',{exact:true}).waitFor();
+    await finishProcessing();
+    assert.deepEqual(order,['approve','upload','scheduler','verify-gp']);
     assert.equal((await page.locator('body').innerText()).includes('hidden-execution-id'),false);
     for(const failure of ['approval-failed','upload-failed','scheduler-failed','disabled'] as const) {
       mode=failure;const beforeUploads=uploads,beforeSchedulers=schedulers;
-      await openEditor();await saveAndApprove();
-      if(failure==='approval-failed')await page.getByText('Approval outcome unavailable. Check history.',{exact:true}).waitFor();
-      else if(failure==='disabled')await page.getByText('The file was approved, but production uploads are disabled. No file was sent.',{exact:true}).waitFor();
-      else {
-        await waitForCountdown();await page.clock.fastForward(5200);
-        if(failure==='scheduler-failed') {
-          await editor.getByRole('status').filter({hasText:'File uploaded. Preparing Northport processing...'}).waitFor();
-          await page.clock.fastForward(5200);
-          await page.getByText(/Recovery File Uploaded, but the Northport scheduler was not confirmed:/).waitFor();
-        } else await page.getByText(/Reprocess stopped before upload could be confirmed:/).waitFor();
-      }
-      const blocked=editor.getByRole('button',{name:'Approve & Reprocess File',exact:true});
-      await page.waitForFunction(()=>Array.from(document.querySelectorAll<HTMLButtonElement>('.northport-dialog-footer button')).some(button=>button.textContent==='Back'&&!button.disabled));
-      assert.equal(await blocked.isDisabled(),true,'Uncertain outcomes cannot send a duplicate file');
-      const snapshots=[approvals,uploads,schedulers];await blocked.evaluate(button=>(button as HTMLButtonElement).click());
-      await page.clock.fastForward(12000);assert.deepEqual([approvals,uploads,schedulers],snapshots,'No automatic retries after a failed mutation');
+      await openEditor();await saveAndApprove();await editor.waitFor({state:'hidden'});
+      await finishProcessing();
+      const snapshots=[approvals,uploads,schedulers];
+      await page.clock.fastForward(12000);
+      assert.deepEqual([approvals,uploads,schedulers],snapshots,'No automatic retries after a failed mutation');
       assert.equal(uploads,beforeUploads+(failure==='upload-failed'||failure==='scheduler-failed'?1:0));
       assert.equal(schedulers,beforeSchedulers+(failure==='scheduler-failed'?1:0));
-      await editor.getByRole('button',{name:'Back',exact:true}).click();
-      await editor.getByRole('button',{name:'Cancel',exact:true}).click();
     }
     mode='rate-limit';const beforeApprovals=approvals;
-    await openEditor();await saveAndApprove();await waitForCountdown();
-    assert.equal(approvals,beforeApprovals);
-    const admitted=page.waitForResponse(response=>response.request().method()==='POST'&&response.request().postDataJSON()?.action==='approve'&&response.status()===200);
-    await page.clock.fastForward(5200);
-    await admitted;
-    await waitForCountdown();assert.equal(approvals,beforeApprovals+1);
-    await page.clock.fastForward(5200);await editor.getByRole('status').filter({hasText:'File uploaded. Preparing Northport processing...'}).waitFor();
-    await page.clock.fastForward(5200);await editor.waitFor({state:'hidden'});
+    await openEditor();await saveAndApprove();await editor.waitFor({state:'hidden'});
+    await finishProcessing();assert.equal(approvals,beforeApprovals+1,'An admission denial may be retried once');
+    mode='success';
+    const beforeCancel=[approvals,uploads,schedulers];
+    await openEditor();
+    await editor.getByRole('button',{name:'Cancel',exact:true}).click();
+    await editor.waitFor({state:'hidden'});
+    await page.getByText('Container recovery cancelled. No file was uploaded.',{exact:true}).waitFor();
+    assert.deepEqual([approvals,uploads,schedulers],beforeCancel,'Cancel never approves, uploads or dispatches');
     assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'Footer fits the viewport');
     assert.deepEqual(errors,[]);
-    await page.close();console.log(`Direct approval/reprocess and pagination workflow passed at ${width}px`);
+    await page.close();console.log(`Immediate popup close, requested notification, processing history, cancellation and failure safeguards passed at ${width}px`);
   }
 } finally {await browser.close();}

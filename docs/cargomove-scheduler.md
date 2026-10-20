@@ -33,7 +33,13 @@ left untouched.
 
 ## Deployment
 
-### 45-second scheduler cooldown
+### 30-second scheduler cooldown and Last run verification
+
+Apply [`20261021000000_scheduler_verification_30_seconds.sql`](../supabase/migrations/20261021000000_scheduler_verification_30_seconds.sql) after the existing scheduler migrations. It changes shared admission to **30 seconds**, returns `cooldown_seconds: 30` (the API displays **Please wait 30 seconds between scheduler requests.**), and adds the audit column for Last run observations. Running requests and unresolved UNKNOWN outcomes continue to block admission. The legacy Northport wrapper uses the same admission function. This migration is already in source control; its presence does not establish that it has been applied to a particular database.
+
+After the single trigger request, automation reads the selected task's **Last run** column before/after and records `ADVANCED`, `UNCHANGED`, or `UNAVAILABLE`. The comparison uses Malaysia dates and minute precision, including midnight rollover. An advancing timestamp is evidence that CargoMove recorded a scheduler run; it does not establish successful completion, container import, or attribution to this request rather than an overlapping scheduled run. Two runs within the same displayed minute cannot be distinguished. Missing, stale or unchanged observations do not cause another trigger.
+
+#### Previous 45-second migration
 
 Apply [`20261017020000_scheduler_cooldown_45_seconds.sql`](../supabase/migrations/20261017020000_scheduler_cooldown_45_seconds.sql) after the scheduler gallery migration to change the shared cooldown from five minutes to **45 seconds**. This replaces only the saved admission function, preserves audit rows, and also covers the legacy Northport wrapper. The cooldown is measured from the last admitted request and applies across all administrators and saved tasks. Running tasks and unresolved UNKNOWN outcomes still block admission. The recovery API's separate five-second per-administrator request limit is unchanged.
 
@@ -79,8 +85,17 @@ The matching API update is deployed as `dpl_9wGumkHU4dUruJ7i3RYuxgoCgvXm`, verif
 Local Windows development uses Playwright's managed Chromium browser: install it
 with `npx playwright-core install chromium` if it is not cached, set server-only
 credentials in `.env.local`, and start both `npm run dev` and `npm run dev:api`.
-Restart the API after backend changes; the current API command does not watch files.
+The API command watches backend files and `.env.local`; restart any older API process after updating the checkout.
 Vercel always uses the packaged Linux binary, never a local Chrome installation.
+
+### Windows browser startup investigation (21 October 2026)
+
+`The server browser could not start.` is a sanitized error before dispatch, also covering browser context setup. The original Windows launcher required a managed Playwright browser. Commit `17d0740` added Chrome/Edge fallback only when `playwright.executablePath()` did not exist. That check refers to full Chromium, while default headless launch requires the separate headless-shell installation. A partial cache could therefore pass the check, fail at launch, and skip both fallbacks. The launcher now explicitly selects full managed Chromium (`channel: 'chromium'`) and tries Chrome then Edge after launch failure. Each attempt is bounded to six seconds within the existing 25-second launch deadline. Production's Sparticuz path is unchanged.
+
+The reported failure could not be reproduced in this checkout: managed Chromium, default headless Chromium, Chrome and Edge all launched. `.env.local` did not force the Vercel path or an alternate browser cache. Installed versions match the pins (`playwright-core@1.63.0`, `@sparticuz/chromium@153.0.0`). The cache-selection defect is confirmed by code review and regression tests, but there is insufficient evidence to attribute the original incident to it or to recent changes. An older running API process or a different browser installation/environment remains unverified. Restart the local API after updating; if no browser is installed, use `npx.cmd playwright-core install chromium` on Windows. Do not retry a scheduler automatically to diagnose startup.
+
+Validation: 16 scheduler tests and 45 Northport tests passed, along with the offline scheduler UI, TypeScript checking, production build and a local browser/page smoke check. The build emitted its existing large-chunk warning. No live scheduler request or FTP recovery was submitted, and the production migration's applied state was not checked.
+
 If your Vercel plan cannot host
 the binary or allow 120 seconds, the smallest alternative is to move only the
 automation module into a private Linux worker with the same database admission
@@ -101,7 +116,7 @@ execution audit before automation. The authenticated external task page must
 contain the exact corresponding link before dispatch.
 
 An atomic transaction advisory lock serializes admission across instances. One
-run at a time and a global 45-second cooldown (after the cooldown migration) apply even to failed runs. This
+run at a time and a global 30-second cooldown (after the latest cooldown migration) apply even to failed runs. This
 limits all administrators and all saved schedulers together. RLS and revoked public function grants keep
 the audit and RPCs service-role-only. A dispatch marker is persisted before the
 single trigger request; redirects and network retries are disabled.
@@ -110,7 +125,7 @@ single trigger request; redirects and network retries are disabled.
 the job completed. `UNKNOWN` blocks further execution until manually resolved.
 Any RUNNING record left by a terminated function becomes UNKNOWN after its
 three-minute lease expires on the next admission attempt. A slow or failed remote
-task may outlive the trigger request; no job-completion tracking is available.
+task may outlive the trigger request; Last run observations do not provide job-completion tracking.
 
 Inspect `public.cargomove_scheduler_runs` in the Supabase SQL editor for the actor,
 request/start/dispatch/finish timestamps, status and sanitized error. After checking

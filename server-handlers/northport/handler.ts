@@ -10,6 +10,9 @@ import { containsContainerText, signFileSource, verifyFileSource, signEditorSour
 import { searchFiles, usesTimestampScan } from './listing.js';
 import { readScanCursor, signScanCursor } from './scan.js';
 import { NORTHPORT_UPLOAD_GATES as GATES, uploadsEnabled } from './configuration.js';
+import { verifyGatepass } from './gatepass-verification.js';
+import { verifySchedulerRun } from './scheduler-verification.js';
+import { recoveryFlow } from '../../src/services/northportRecoveryStatus.js';
 export { uploadsEnabled } from './configuration.js';
 
 const hash = (v: string | Buffer) => crypto.createHash('sha256').update(v).digest('hex');
@@ -38,8 +41,8 @@ async function body(request: any) {
   for await (const chunk of request) { length += chunk.length; if (length > 64000) throw new RecoveryError('Request exceeds 64 KiB.',413); chunks.push(Buffer.from(chunk)); }
   try { return JSON.parse(Buffer.concat(chunks).toString() || '{}'); } catch { throw new RecoveryError('Invalid JSON request.'); }
 }
-const fields = 'id,container,container_type,source_filename,recovery_filename,submitted_by,created_at,changed_fields,status,scheduler_run_id,scheduler_status,processing_result';
-export function createNorthportHandler(deps = { adminClient, readSession, withFtp, runScheduler }) {
+const fields = 'id,container,container_type,source_filename,recovery_filename,submitted_by,created_at,changed_fields,status,scheduler_run_id,scheduler_status,processing_result,gp_verification';
+export function createNorthportHandler(deps = { adminClient, readSession, withFtp, runScheduler, verifyGatepass, verifySchedulerRun }) {
   return async (request: any, response: any) => {
     response.setHeader('Cache-Control','no-store');
     const fail = (code: number, error: string) => response.status(code).json({ error });
@@ -49,9 +52,29 @@ export function createNorthportHandler(deps = { adminClient, readSession, withFt
     const { client, session } = access;
     try {
       if (request.method === 'GET') {
-        const history = await client.from('northport_recoveries').select(fields).order('created_at',{ascending:false}).limit(50).timeout(8000);
-        if (history.error) throw new RecoveryError('Recovery history unavailable. Apply the Northport migration.',503);
-        return response.json({ history: history.data || [], uploadsEnabled: uploadsEnabled(), missingGates: GATES.filter(g => process.env[`NORTHPORT_${g}`] !== 'true') });
+        const readHistory = (columns:string) => client.from('northport_recoveries').select(columns).order('created_at',{ascending:false}).limit(50).timeout(8000);
+        let columns=fields+',manual_review,search_setup,scheduler_run:cargomove_scheduler_runs(last_run_verification)';
+        let history = await readHistory(columns);
+        const missingMigrations:string[]=[];
+        let manualReviewEnabled=true;
+        for(let attempt=0;attempt<3&&history.error?.code==='42703';attempt++) {
+          if (/last_run_verification/.test(history.error.message || '')) {
+            columns=columns.replace(',scheduler_run:cargomove_scheduler_runs(last_run_verification)','');
+            missingMigrations.push('20261021000000_scheduler_verification_30_seconds.sql');
+          } else if (/manual_review/.test(history.error.message || '')) {
+            columns=columns.replace(',manual_review','');manualReviewEnabled=false;
+            missingMigrations.push('20261021030000_northport_manual_reviews.sql');
+          } else if (/search_setup/.test(history.error.message || '')) {
+            columns=columns.replace(',search_setup','');
+            missingMigrations.push('20261021040000_northport_retry_search_setup.sql');
+          } else break;
+          history=await readHistory(columns);
+        }
+        const historyWarning=missingMigrations.length?`Some recovery verification features are not configured. Apply ${missingMigrations.join(' and ')} and refresh.`:undefined;
+        if (history.error) throw new RecoveryError(/gp_verification/.test(history.error.message || '')
+          ? 'Recovery history requires 20261021010000_northport_gp_verification.sql. Apply it and refresh.'
+          : 'Recovery history could not be loaded. Check the database connection and Northport schema.',503);
+        return response.json({ history: history.data || [], manualReviewEnabled, ...(historyWarning?{historyWarning}:{}), uploadsEnabled: uploadsEnabled(), missingGates: GATES.filter(g => process.env[`NORTHPORT_${g}`] !== 'true') });
       }
       if (!allowedOrigin(request.headers.origin) || request.headers['sec-fetch-site'] === 'cross-site' || request.headers['x-cargomove-confirm'] !== 'northport-recovery') return fail(403,'Invalid request origin or confirmation.');
       const input = await body(request);
@@ -198,9 +221,27 @@ export function createNorthportHandler(deps = { adminClient, readSession, withFt
         const prepared = prepareReprocessFile(original,recovery.source_record,row,values);
         if (hash('northport-whole-file:' + digest + ':' + filename + ':' + hash(prepared.bytes)) !== recovery.approved_hash) throw new RecoveryError('Saved file does not match the approved recovery. No upload was started.',409);
         const source: Source = {actor:session.id,filename:recovery.source_filename,digest,expires:Date.now()+30*60000,...info,record:recovery.source_record,totalRecords:csv.rows.length,values:row,format:csv.format};
-        return response.json({id:recovery.id,token:sign(source),values,approved:true,identityConfirmed:true});
+        return response.json({id:recovery.id,token:sign(source),values,containerType:recovery.container_type,approved:true,identityConfirmed:true});
       }
-      if (input.action === 'approve' || input.action === 'upload' || input.action === 'download-reprocess') {
+      if (input.action === 'manual-review') {
+        if (typeof input.id!=='string'||!/^[a-f0-9-]{36}$/i.test(input.id)||!['SUCCESS','FAIL'].includes(input.outcome)||typeof input.note!=='string'||input.note.trim().length<5||input.note.trim().length>1000
+          ||(input.expectedReviewId!=null&&(typeof input.expectedReviewId!=='string'||!/^[a-f0-9-]{36}$/i.test(input.expectedReviewId)))) throw new RecoveryError('Choose SUCCESS or FAIL and enter a verification note (5–1000 characters).');
+        const loaded=await client.from('northport_recoveries').select(fields+',manual_review').eq('id',input.id).timeout(8000).maybeSingle();
+        if(loaded.error)throw new RecoveryError('Manual status updates require 20261021030000_northport_manual_reviews.sql.',503);
+        if(!loaded.data||(!loaded.data.manual_review&&recoveryFlow(loaded.data).label!=='PROCESSING'))throw new RecoveryError('Only a processing recovery or an existing manual decision can be updated here. Refresh history.',409);
+        const reviewed=await client.rpc<any>('northport_review_recovery',{p_actor:session.id,p_id:input.id,p_outcome:input.outcome,p_note:input.note.trim(),p_expected_review_id:input.expectedReviewId??null});
+        if(reviewed.error||!reviewed.data)throw new RecoveryError('Manual verification could not be saved. Check the manual review migration and refresh history.',503);
+        if(reviewed.data.reason)throw new RecoveryError(reviewed.data.reason==='changed'?'Another administrator changed this review. Refresh before saving.':'The recovery is not ready for manual verification. Wait until upload and scheduler dispatch have finished.',409);
+        return response.json({status:reviewed.data.outcome,manualReview:reviewed.data,message:`Recovery marked ${reviewed.data.outcome}. Your verification note was saved.`});
+      }
+      if (input.action === 'cancel-approved') {
+        if (typeof input.id !== 'string' || !/^[a-f0-9-]{36}$/i.test(input.id)) throw new RecoveryError('Invalid recovery ID.');
+        const cancelled = await client.rpc<boolean>('northport_cancel_approved',{p_actor:session.id,p_id:input.id});
+        if (cancelled.error) throw new RecoveryError('Cancellation unavailable. Apply the recovery cancellation migration.',503);
+        if (cancelled.data !== true) throw new RecoveryError('Only your recovery that has not started uploading can be cancelled. Refresh history.',409);
+        return response.json({status:'Cancelled',message:'Container recovery cancelled. No file was uploaded.'});
+      }
+      if (input.action === 'approve' || input.action === 'upload' || input.action === 'download-reprocess' || input.action === 'cancel') {
         validateValues(input.values);
         let originalBytes: Buffer | undefined;
         let source: Source;
@@ -214,6 +255,11 @@ export function createNorthportHandler(deps = { adminClient, readSession, withFt
           if (!row) throw new RecoveryError('Container page is outside this source file.');
           source = {...file,...filenameInfo(file.filename)!,record:input.record,totalRecords:csv.rows.length,values:row,format:csv.format};
         } else source = verify(input.token,session.id);
+        if (input.action === 'cancel') {
+          const cancelled = await client.rpc<any>('northport_record_cancelled',{p_actor:session.id,p_email:session.email,p_container:source.values[0],p_type:source.type,p_source:source.filename,p_record:source.record,p_source_key:hash('northport-file:' + source.filename + ':' + source.digest)});
+          if (cancelled.error || !cancelled.data) throw new RecoveryError('Cancellation could not be saved. Apply the recovery cancellation migration. No file was uploaded.',503);
+          return response.json({status:'Cancelled',recovery:cancelled.data,message:'Container recovery cancelled. No file was uploaded.'});
+        }
         const values = input.values as string[];
         const changed = NORTHPORT_COLUMNS.filter((_,i)=>values[i]!==source.values[i]);
         if (input.action !== 'download-reprocess' && (input.approved !== true || (changed.some(c=>['UNIT','GPNO','EXPNO','BLNO'].includes(c)) && input.identityConfirmed !== true))) throw new RecoveryError('Explicit approval and confirmation of identifying-field changes are required.');
@@ -239,10 +285,16 @@ export function createNorthportHandler(deps = { adminClient, readSession, withFt
         const sourceKey = hash('northport-file:' + source.filename + ':' + source.digest);
         const approvedHash = hash('northport-whole-file:' + source.digest + ':' + filename + ':' + hash(bytes));
         if (input.action === 'approve') {
+          let searchSetup;
+          if(input.searchSetup!=null) {
+            const setup=input.searchSetup;
+            const validated=searchInput({...setup,unit:values[0],type:source.type});
+            searchSetup={unit:validated.unit,timestamp:setup.timestamp,type:source.type,before:setup.before,after:setup.after,sourceFilename:validated.sourceFilename,mode:validated.mode};
+          }
           const saved = await client.rpc<any>('northport_approve',{p_actor:session.id,p_email:session.email,p_container:values[0],p_type:source.type,p_source:source.filename,p_record:source.record,p_source_key:sourceKey,p_hash:approvedHash,p_changed:changed});
           if (saved.error || !saved.data) throw new RecoveryError('This source record or container already has a recovery, or approval audit is unavailable. Review history before proceeding.',409);
-          const retained = await client.from('northport_recoveries').update({approved_values:values}).eq('id',saved.data.id).eq('actor',session.id).eq('status','Approved').timeout(8000);
-          if (retained.error) throw new RecoveryError('Approval was recorded, but approved values could not be saved. Apply the Northport resume migration before continuing. No file was uploaded.',503);
+          const retained = await client.from('northport_recoveries').update({approved_values:values,...(searchSetup?{search_setup:searchSetup}:{})}).eq('id',saved.data.id).eq('actor',session.id).eq('status','Approved').timeout(8000);
+          if (retained.error) throw new RecoveryError(searchSetup?'Approval was recorded, but search settings could not be saved. Apply 20261021040000_northport_retry_search_setup.sql before continuing. No file was uploaded.':'Approval was recorded, but approved values could not be saved. Apply the Northport resume migration before continuing. No file was uploaded.',503);
           return response.json({ recovery:saved.data, preview:bytes.toString('utf8'), filename, records, uploadsEnabled:uploadsEnabled() });
         }
         const claimed = await client.rpc<any>('northport_claim_file_upload',{p_actor:session.id,p_id:input.id,p_hash:approvedHash,p_source_key:sourceKey});
@@ -258,6 +310,43 @@ export function createNorthportHandler(deps = { adminClient, readSession, withFt
           await client.from('northport_recoveries').update({status:'Failed',processing_result:'Upload outcome requires operator review. Do not resubmit automatically.'}).eq('id',input.id).timeout(8000);
           throw e;
         }
+      }
+      if (input.action === 'verify-gp'||input.action==='verify-result') {
+        if (typeof input.id !== 'string' || !/^[a-f0-9-]{36}$/i.test(input.id)) throw new RecoveryError('Invalid recovery ID.');
+        const loaded = await client.from('northport_recoveries').select('container,container_type,status,approved_values,scheduler_run_id,gp_verification').eq('id',input.id).timeout(8000).maybeSingle();
+        if (loaded.error || !loaded.data) throw new RecoveryError('Recovery verification unavailable. Apply the GP verification migration.',503);
+        const recovery = loaded.data;
+        if (!['Uploaded','Scheduler Triggered','Processing','Verification Unavailable','Import Verified'].includes(recovery.status)) throw new RecoveryError('Upload must be confirmed before checking CargoMove.',409);
+        if(recovery.container_type==='EX'&&input.action==='verify-result') {
+          if(!recovery.scheduler_run_id)throw new RecoveryError('No associated scheduler request is recorded. Check CargoMove manually before updating the result.',409);
+          const run=await client.from('cargomove_scheduler_runs').select('dispatch_at,last_run_verification,task_id,scheduler').eq('id',recovery.scheduler_run_id).timeout(8000).maybeSingle();
+          if(run.error||!run.data?.dispatch_at)throw new RecoveryError('Scheduler verification details are unavailable. Check the scheduler audit and verification migration.',503);
+          const evidence=await deps.verifySchedulerRun({taskId:run.data.task_id,workerName:run.data.scheduler,before:run.data.last_run_verification?.before||null,dispatchAt:Date.parse(run.data.dispatch_at)});
+          const saved=await client.from('cargomove_scheduler_runs').update({last_run_verification:evidence}).eq('id',recovery.scheduler_run_id).timeout(8000);
+          if(saved.error)throw new RecoveryError('Scheduler was checked but its observation could not be saved.',503);
+          return response.json({status:evidence.status==='ADVANCED'?'Import Verified':evidence.status==='UNCHANGED'?'Verification Failed':'Pending Verification',lastRunVerification:evidence,message:evidence.status==='ADVANCED'?'Export recovery verified: CargoMove recorded a newer scheduler run.':evidence.status==='UNCHANGED'?'Export verification failed: no newer scheduler run was observed.':'Scheduler verification is unavailable. Check CargoMove manually.'});
+        }
+        if (recovery.container_type !== 'GP') return response.json({status:'Not Applicable',message:'Gatepass verification applies only to GP recoveries.'});
+        if (recovery.gp_verification?.status === 'VERIFIED') return response.json({status:'Import Verified',message:'Verified — GP found in CargoMove.',gpVerification:recovery.gp_verification});
+        if (!Array.isArray(recovery.approved_values)) throw new RecoveryError('This older recovery has no saved approved gatepass. Operator verification is required.',409);
+        validateValues(recovery.approved_values);
+        const gatepass = recovery.approved_values[1].trim();
+        const container = recovery.approved_values[0].trim();
+        if (!gatepass || container.toUpperCase() !== recovery.container.trim().toUpperCase()) throw new RecoveryError('Approved gatepass and container identity are unavailable.',409);
+        let dispatchAt:number|null = null;
+        if (recovery.scheduler_run_id) {
+          const run = await client.from('cargomove_scheduler_runs').select('dispatch_at').eq('id',recovery.scheduler_run_id).timeout(8000).maybeSingle();
+          const parsed = run.data?.dispatch_at ? Date.parse(run.data.dispatch_at) : NaN;
+          if (!run.error && Number.isFinite(parsed)) dispatchAt=parsed;
+        }
+        const evidence = await deps.verifyGatepass({gatepass,container,dispatchAt});
+        const verified = evidence.status === 'VERIFIED';
+        const message = verified ? 'Verified — GP found in CargoMove.' : evidence.status === 'NOT_FOUND' ? 'GP verification failed — the exact gatepass and container pair was not found after processing. Check GP again later; do not upload or run the scheduler again.' : 'GP verification unavailable. Check again later; do not upload or run the scheduler again.';
+        let update = client.from('northport_recoveries').update({gp_verification:evidence,...(verified?{status:'Import Verified',processing_result:'Verified — GP found in CargoMove'}:{})}).eq('id',input.id);
+        if (!verified) update=update.neq('status','Import Verified'); // Preserve a concurrent positive observation.
+        const saved = await update.timeout(8000);
+        if (saved.error) throw new RecoveryError('GP lookup completed but evidence could not be saved. Apply the GP verification migration; do not reprocess the file.',503);
+        return response.json({status:verified?'Import Verified':evidence.status==='NOT_FOUND'?'Verification Failed':'Pending Verification',message,gpVerification:evidence});
       }
       if (input.action === 'scheduler') {
         const claim = await client.rpc<any>('northport_claim_scheduler',{p_id:input.id,p_actor:session.id});

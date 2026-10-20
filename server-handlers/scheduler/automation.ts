@@ -1,4 +1,4 @@
-import type { Browser } from 'playwright-core';
+import type { Browser, BrowserType } from 'playwright-core';
 import { existsSync } from 'node:fs';
 import { NORTHPORT_TARGET, schedulerUrl, type SchedulerTarget } from './targets.js';
 
@@ -60,14 +60,24 @@ export function classifySchedulerResponse(status: number, location: string | und
   return { status: 'TRIGGER_REQUESTED', message: 'Scheduler request sent successfully. Completion has not been verified.' };
 }
 
+export async function launchWindowsBrowser(playwright: Pick<BrowserType, 'executablePath' | 'launch'>, exists = existsSync): Promise<Browser> {
+  // The managed executablePath is full Chromium, not the separate headless shell.
+  // Explicitly select it, and still try installed browsers if its launch fails.
+  const channels = exists(playwright.executablePath()) ? ['chromium', 'chrome', 'msedge'] : ['chrome', 'msedge'];
+  let failure: unknown;
+  for (const channel of channels) {
+    try { return await playwright.launch({ channel, headless: true, timeout: 6000 }); }
+    catch (error) { failure = error; }
+  }
+  throw failure;
+}
+
 export async function launchBrowser(): Promise<Browser> {
   const { chromium: playwright } = await import('playwright-core');
   // Prefer managed Chromium locally; use installed browsers when it is absent.
   // Vercel continues to use the packaged Linux binary.
   if (process.platform === 'win32' && !process.env.VERCEL) {
-    if (existsSync(playwright.executablePath())) return playwright.launch({ headless: true, timeout: 20000 });
-    try { return await playwright.launch({channel:'chrome',headless:true,timeout:10000}); }
-    catch { return playwright.launch({channel:'msedge',headless:true,timeout:10000}); }
+    return launchWindowsBrowser(playwright);
   }
   const { default: chromium } = await import('@sparticuz/chromium');
   return playwright.launch({ args: chromium.args, executablePath: await chromium.executablePath(), headless: true, timeout: 20000 });

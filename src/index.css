@@ -29,6 +29,8 @@
 .northport-dialog-footer > button:first-child { margin-right: auto; }
 .northport-dialog-actions > .northport-process-button { width: 280px; height: 44px; flex: none; }
 .northport-file-dialog[open] { display: flex; flex-direction: column; }
+.northport-recovery-details-dialog { height: min(92dvh, 640px); }
+.northport-recovery-details-dialog > .northport-dialog-footer { padding-block: 8px; }
 .northport-standard-dialog { height: min(760px, 92dvh); min-height: 0; }
 .northport-standard-dialog .northport-dialog-body { display: flex; flex: 1 1 auto; flex-direction: column; }
 .northport-dialog-body > * { flex-shrink: 0; }
@@ -37,6 +39,7 @@
 .northport-stage-note { height: 64px; }
 .northport-dialog-footer { position: relative; border-top-width: 0; }
 .northport-dialog-footer::before { position: absolute; top: 0; right: -12px; left: -12px; border-top: 1px solid #e2e8f0; content: ''; }
+.northport-recovery-details-dialog > .northport-dialog-footer::before { right: 0; left: 0; }
 @media (min-width: 640px) {
   .northport-stage-note { height: 44px; }
   .northport-dialog-footer::before { right: -20px; left: -20px; }
@@ -51,10 +54,26 @@
   .northport-parameter-grid { grid-template-columns: var(--parameter-columns-10); }
 }
 
-.northport-history-table { width: 100%; table-layout: auto; }
+.northport-history-status { display: inline-flex; align-items: center; justify-content: flex-start; gap: 10px; width: 148px; height: 36px; flex-shrink: 0; padding: 0 12px; border-radius: 999px; white-space: nowrap; font-size: 11px; font-weight: 700; line-height: 1; vertical-align: middle; }
+.northport-history-status-icon { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; flex-shrink: 0; border-radius: 50%; color: white; }
+.northport-history-status-icon svg { width: 15px; height: 15px; stroke-width: 2.5; }
+.northport-history-status-spinner { width: 22px; height: 22px; flex-shrink: 0; }
+.northport-history-status--editable { gap: 5px; padding: 0 6px; }
+.northport-history-status--success { background: #ecfdf5; color: #047857; }
+.northport-history-status--success .northport-history-status-icon { background: #10b981; }
+.northport-history-status--processing { background: #eff6ff; color: #2563eb; }
+.northport-history-status--cancelled { background: #f3f4f6; color: #374151; }
+.northport-history-status--cancelled .northport-history-status-icon { background: #6b7280; }
+.northport-history-status--fail { background: #fef2f2; color: #dc2626; }
+.northport-history-status--fail .northport-history-status-icon { background: #ef4444; }
+.northport-history-table { width: 100%; table-layout: auto; background: white; }
 .northport-history-table th,
-.northport-history-table td { padding: 8px; white-space: normal; overflow-wrap: anywhere; }
-.northport-history-table th { font-size: 10px; letter-spacing: 0; }
+.northport-history-table td { padding: 7px 12px; white-space: normal; overflow-wrap: anywhere; }
+.northport-history-table th { height: 40px; background: #f8fafc; font-size: 10px; letter-spacing: 0; }
+.northport-history-table td { height: 48px; color: #475569; border-bottom-color: #edf2f7; }
+.northport-history-table tbody tr:nth-child(even) { background: #fbfcfe; }
+.northport-history-table tbody tr:hover { background: #f8fafc; }
+.northport-history-table td:first-child button { color: #0057ff; }
 .northport-history-table th:first-child,
 .northport-history-table td:first-child,
 .northport-history-table th:nth-child(2),

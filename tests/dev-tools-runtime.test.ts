@@ -24,7 +24,7 @@ test('deployed Dev Tools module loads in native Node with an external JSON manif
         writeFileSync(target, compiled.code);
       }
     };
-    for (const directory of ['api', 'server-handlers', 'src/types']) await compile(directory);
+    for (const directory of ['api', 'server-handlers', 'src/types', 'src/services']) await compile(directory);
     mkdirSync(path.join(root, 'src/generated'), { recursive: true });
     copyFileSync('src/generated/system-versions.json', path.join(root, 'src/generated/system-versions.json'));
     const runner = path.join(root, 'check.mjs');

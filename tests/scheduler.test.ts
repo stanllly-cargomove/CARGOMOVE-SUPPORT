@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readSession, signSession } from '../api/_runtime.js';
 import { allowedOrigin, createSchedulerHandler } from '../server-handlers/scheduler/handler.js';
-import { classifySchedulerResponse, runAutomation, compareLastRun, lastRunTimestamp, RUN_URL, TASKS_URL } from '../server-handlers/scheduler/automation.js';
+import { classifySchedulerResponse, runAutomation, compareLastRun, lastRunTimestamp, launchWindowsBrowser, RUN_URL, TASKS_URL } from '../server-handlers/scheduler/automation.js';
 import { DEFAULT_SCHEDULER_ID, NORTHPORT_TARGET, parseSchedulerUrl, schedulerUrl } from '../server-handlers/scheduler/targets.js';
 import { createSchedulerCatalog } from '../server-handlers/scheduler/catalog.js';
 
@@ -18,6 +18,28 @@ test('signed sessions reject tampering and expiration', () => {
 function responseMock() {
   return { code: 200, body: null as any, setHeader() {}, status(code: number) { this.code = code; return this; }, json(body: any) { this.body = body; return this; } };
 }
+
+test('Windows launcher selects full managed Chromium and falls back after launch failures', async () => {
+  for (const managedExists of [true, false]) {
+    const attempts: string[] = [];
+    const browser = {} as any;
+    const result = await launchWindowsBrowser({
+      executablePath: () => 'managed-chromium',
+      launch: async options => {
+        assert.equal(options?.headless, true);
+        attempts.push(options!.channel!);
+        if (options?.channel !== 'msedge') throw new Error('Browser unavailable');
+        return browser;
+      },
+    }, () => managedExists);
+    assert.equal(result, browser);
+    assert.deepEqual(attempts, managedExists ? ['chromium', 'chrome', 'msedge'] : ['chrome', 'msedge']);
+  }
+  await assert.rejects(() => launchWindowsBrowser({
+    executablePath: () => 'missing',
+    launch: async () => { throw new Error('No installed browser'); },
+  }, () => false), /No installed browser/);
+});
 
 test('API authorization, origin, revoked roles, shared admission and audit failures', async () => {
   process.env.SCHEDULER_PORTAL_URL = 'https://portal.example.test';
