@@ -54,9 +54,10 @@ interface AdminLayoutProps {
   onSwitchToCustomer: () => void;
   onRefreshData: () => Promise<void>;
   onLogout: () => void;
+  onUserChange: (user: ApplicationUser) => void;
 }
 
-export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout, active = true }: AdminLayoutProps) {
+export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout, onUserChange, active = true }: AdminLayoutProps) {
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [hasOpenedNorthport, setHasOpenedNorthport] = useState(false);
   useEffect(() => { if (activeTab === 'northport-recovery') setHasOpenedNorthport(true); }, [activeTab]);
@@ -209,7 +210,7 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
       >
         <div ref={accountMenuRef} className={`relative flex h-12 shrink-0 items-center border-b border-white/10 px-2 ${isSidebarCollapsed ? 'md:justify-center md:px-2' : ''}`}>
           <div className={`flex min-w-0 flex-1 items-center gap-2 ${isSidebarCollapsed ? 'md:hidden' : ''}`}>
-            <ProfileAvatar url={avatarUrl} name={user?.full_name || user?.username || user?.email || 'Admin'} className="h-8 w-8 border border-sky-300 text-xs" />
+            <ProfileAvatar url={avatarUrl} name={user?.full_name || user?.username || user?.email || 'Admin'} className="h-8 w-8 text-xs" />
             <div className="min-w-0 flex-1 select-none">
               <p className="truncate text-xs font-medium leading-4 text-white">CargoMove</p>
               <p className="truncate text-[10px] leading-3.5 text-sky-200">{portalMode === 'admin' ? 'Admin portal' : 'Developer tools'}</p>
@@ -229,7 +230,7 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
             <MoreVertical className="h-5 w-5" />
           </button>
           {isAccountMenuOpen && (
-            <div id="admin-account-menu" className="absolute left-0 top-[calc(100%-1px)] z-50 w-[min(15rem,calc(100vw-1rem))] overflow-hidden rounded-xl border border-white/10 bg-[#111d35] p-2 text-slate-200 shadow-[0_18px_35px_rgba(2,6,23,0.3)]">
+            <div id="admin-account-menu" className="absolute left-[calc(100%+0.5rem)] top-2 z-50 w-[min(15rem,calc(100vw-1rem))] overflow-hidden rounded-xl border border-white/10 bg-[#111d35] p-2 text-slate-200 shadow-[0_18px_35px_rgba(2,6,23,0.3)]">
               <div className="border-b border-white/10 px-2 pb-2 pt-1">
                 <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">Account</p>
                 <div className="mt-2 flex items-center gap-2"><ProfileAvatar url={avatarUrl} name={user?.full_name || user?.email || 'Admin'} className="h-8 w-8 text-xs" /><p className="truncate text-xs font-normal text-slate-200" title={user?.email}>{user?.email || 'Signed-in admin'}</p></div>
@@ -557,7 +558,7 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
           {activeTab === 'system-version' && <SystemVersion />}
           {activeTab === 'scheduler' && <div className="space-y-6"><div><h2 className="text-xl font-bold tracking-tight text-slate-900">Scheduler</h2><p className="mt-1 text-xs text-slate-500">Manage saved schedulers and request a run when needed.</p></div><CargoMoveScheduler /></div>}
           {(hasOpenedNorthport || activeTab === 'northport-recovery') && user?.type === 'ADMIN' && <NorthportRecovery key={user.email} active={active && activeTab === 'northport-recovery' && portalMode === 'admin'} onBack={goToPortalHome} />}
-          {activeTab === 'account-settings' && <AccountSettings user={user} avatarUrl={avatarUrl} onAvatarChange={setAvatarUrl} onReset={() => void handlePasswordReset()} sendingReset={isSendingReset} />}
+          {activeTab === 'account-settings' && <AccountSettings user={user} avatarUrl={avatarUrl} onAvatarChange={setAvatarUrl} onUserChange={onUserChange} onReset={() => void handlePasswordReset()} sendingReset={isSendingReset} />}
         </main>
       </div>
 

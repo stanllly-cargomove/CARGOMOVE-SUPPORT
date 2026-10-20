@@ -24,6 +24,11 @@ function SearchModeIcon({ mode, className }: { mode: SearchMode; className: stri
   if (mode === 'files') return <FileSearch aria-hidden="true" className={className}/>;
   return <Search aria-hidden="true" className={className}/>;
 }
+const searchModeTone: Record<SearchMode, { row: string; selected: string; icon: string; check: string }> = {
+  standard: { row: 'bg-emerald-50/60 hover:bg-emerald-100/70', selected: 'bg-emerald-100 ring-1 ring-inset ring-emerald-200', icon: 'bg-emerald-100 text-emerald-700', check: 'text-emerald-600' },
+  files: { row: 'bg-amber-50/60 hover:bg-amber-100/70', selected: 'bg-amber-100 ring-1 ring-inset ring-amber-200', icon: 'bg-amber-100 text-amber-700', check: 'text-amber-600' },
+  content: { row: 'bg-rose-50/60 hover:bg-rose-100/70', selected: 'bg-rose-100 ring-1 ring-inset ring-rose-200', icon: 'bg-rose-100 text-rose-700', check: 'text-rose-600' },
+};
 function SearchModeButton({ mode, disabled, onChange }: { mode: SearchMode; disabled: boolean; onChange: (mode: SearchMode) => void }) {
   const menuRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -45,9 +50,9 @@ function SearchModeButton({ mode, disabled, onChange }: { mode: SearchMode; disa
         const index=NORTHPORT_SEARCH_MODES.findIndex(item=>item.value===mode);
         const next=event.key==='Home'?0:event.key==='End'?2:['ArrowDown','ArrowRight'].includes(event.key)?(index+1)%3:['ArrowUp','ArrowLeft'].includes(event.key)?(index+2)%3:null;
         if(next===null)return;event.preventDefault();onChange(NORTHPORT_SEARCH_MODES[next].value);event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]')[next]?.focus();
-      }}>{NORTHPORT_SEARCH_MODES.map(item => <button key={item.value} type="button" role="radio" tabIndex={mode===item.value?0:-1} aria-checked={mode===item.value} className={'flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left outline-none hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-blue-500 '+(mode===item.value?'bg-blue-50':'')} onClick={() => { onChange(item.value); menuRef.current?.hidePopover(); buttonRef.current?.focus(); }}>
-        <span className={'mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg '+(mode===item.value?'bg-blue-100 text-blue-700':'bg-slate-100 text-slate-500')}><SearchModeIcon mode={item.value} className="h-4 w-4"/></span><span className="min-w-0 flex-1"><span className="block font-semibold text-slate-900">{item.label}</span><span className="mt-1 block text-[11px] leading-4 text-slate-500">{item.description}</span></span>{mode===item.value&&<Check aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-blue-600"/>}
-      </button>)}</div>
+      }}>{NORTHPORT_SEARCH_MODES.map(item => { const tone=searchModeTone[item.value]; return <button key={item.value} type="button" role="radio" tabIndex={mode===item.value?0:-1} aria-checked={mode===item.value} className={'mb-1 flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left outline-none transition-colors last:mb-0 focus-visible:ring-2 focus-visible:ring-blue-500 '+(mode===item.value?tone.selected:tone.row)} onClick={() => { onChange(item.value); menuRef.current?.hidePopover(); buttonRef.current?.focus(); }}>
+        <span className={'mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg '+tone.icon}><SearchModeIcon mode={item.value} className="h-4 w-4"/></span><span className="min-w-0 flex-1"><span className="block font-semibold text-slate-900">{item.label}</span><span className="mt-1 block text-[11px] leading-4 text-slate-500">{item.description}</span></span>{mode===item.value&&<Check aria-hidden="true" className={'mt-0.5 h-4 w-4 shrink-0 '+tone.check}/>} 
+      </button>;})}</div>
     </div>
   </>;
 }

@@ -17,7 +17,7 @@ export function createProfileHandler(deps = {
 }) {
   return async function profile(request: any, response: any) {
     response.setHeader('Cache-Control', 'no-store, private');
-    if (!['GET', 'POST', 'DELETE'].includes(request.method)) return response.status(405).json({ error: 'Method not allowed.' });
+    if (!['GET', 'POST', 'PATCH', 'DELETE'].includes(request.method)) return response.status(405).json({ error: 'Method not allowed.' });
     if (request.method !== 'GET' && (request.headers['sec-fetch-site'] === 'cross-site' || !String(request.headers['content-type'] || '').startsWith('application/json'))) {
       return response.status(403).json({ error: 'Invalid profile request.' });
     }
@@ -29,6 +29,19 @@ export function createProfileHandler(deps = {
       if (error || !data.user) throw new Error('Unable to load your profile.');
       const oldUrl = data.user.user_metadata?.avatar_url as string | undefined;
       if (request.method === 'GET') return response.json({ avatar_url: oldUrl || null });
+      if (request.method === 'PATCH') {
+        const body = await requestBody(request);
+        const username = String(body?.username || '').trim().toLowerCase();
+        if (!/^[a-z0-9._-]{3,64}$/.test(username)) return response.status(400).json({ error: 'Use 3–64 lowercase letters, numbers, dots, underscores or hyphens.' });
+        const existing = await access.client.from('user_registrations').select('id').eq('username', username).neq('email', access.session.email).maybeSingle();
+        if (existing.error) throw new Error('Unable to check username availability.');
+        if (existing.data) return response.status(409).json({ error: 'That username is already in use.' });
+        const updated = await access.client.from('user_registrations').update({ username }).eq('email', access.session.email).eq('type', 'ADMIN').select('username').single();
+        if (updated.error || !updated.data) throw new Error('Unable to save your username.');
+        const savedUser = await client.auth.admin.updateUserById(access.session.id, { user_metadata: { ...data.user.user_metadata, username } });
+        if (savedUser.error) throw new Error('Your username was updated, but the account profile could not be synchronized.');
+        return response.json({ username });
+      }
       // The SDK handles the connected store's rotating Vercel OIDC credentials.
       // A read-write token also remains supported for local development.
       if (!process.env.BLOB_STORE_ID?.trim() && !process.env.BLOB_READ_WRITE_TOKEN?.trim()) return response.status(503).json({ error: 'Profile photos use Vercel Blob. Connect a public Blob store to this project and redeploy so BLOB_STORE_ID is available. For local development, configure BLOB_READ_WRITE_TOKEN.' });

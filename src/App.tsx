@@ -78,6 +78,7 @@ export default function App() {
         user={currentUser}
         onSwitchToCustomer={() => navigate('home')}
         onRefreshData={() => refreshProtectedStorage()}
+        onUserChange={setCurrentUser}
         onLogout={async () => {
           await logoutApplicationUser();
           clearProtectedStorage();
