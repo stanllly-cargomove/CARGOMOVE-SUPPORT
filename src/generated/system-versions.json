@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "version": "1.6.1",
-  "updatedAt": "2026-10-20T10:50:14.512Z",
+  "version": "1.6.2",
+  "updatedAt": "2026-10-20T11:23:06.427Z",
   "entries": [
     {
       "id": "account-settings",
@@ -11,9 +11,9 @@
         "src/components/admin/AdminLayout.tsx"
       ],
       "kind": "page",
-      "version": "1.1.6",
-      "updatedAt": "2026-10-20T10:41:43.177Z",
-      "fingerprint": "d4e23927b65f45dd749e3a183f16bd0893e1f22f44035f3610f59f2bcdf118e6"
+      "version": "1.1.7",
+      "updatedAt": "2026-10-20T11:23:06.427Z",
+      "fingerprint": "9361cff9ba32ffa9ddde4b0f8d4b2ecadb6e2561e3d5e709744062a9ca026874"
     },
     {
       "id": "admin",
@@ -23,9 +23,9 @@
         "src/components/admin/AdminLayout.tsx"
       ],
       "kind": "page",
-      "version": "1.1.6",
-      "updatedAt": "2026-10-20T10:41:43.177Z",
-      "fingerprint": "3c40a8a66ef054e46781e17b030785799551da92c8590cce43fe1480039cb89e"
+      "version": "1.1.7",
+      "updatedAt": "2026-10-20T11:23:06.427Z",
+      "fingerprint": "15d8947a765687ab1d213528c804a4c89d65bc15b8c7f6441de5eca6947788be"
     },
     {
       "id": "auto-email",
@@ -54,9 +54,9 @@
         "src/components/admin/AdminLayout.tsx"
       ],
       "kind": "page",
-      "version": "1.1.6",
-      "updatedAt": "2026-10-20T10:41:43.177Z",
-      "fingerprint": "ac08ae6eaaf1bf22c47b035db4204f7d30bea036bcd2ea0ff97d8cbeb87e9f39"
+      "version": "1.1.7",
+      "updatedAt": "2026-10-20T11:23:06.427Z",
+      "fingerprint": "0a93299655bc5a0fef57ecdb6fbc3993a22e47988cf8d6bb8729691ef7b1e41c"
     },
     {
       "id": "northport",
@@ -67,9 +67,9 @@
         "src/components/admin/NorthportRecovery.tsx",
         "server-handlers/northport"
       ],
-      "version": "1.1.6",
-      "updatedAt": "2026-10-20T10:41:43.177Z",
-      "fingerprint": "50ee475b151099609a82db3c36864413bdbafbff7b9e3e95a2b2f37ad623c02d"
+      "version": "1.1.7",
+      "updatedAt": "2026-10-20T11:23:06.427Z",
+      "fingerprint": "8879529e7e9c14eb8f6d4b242a3948bdb95d457ae79714b65f29ac49ef0100c9"
     },
     {
       "id": "queue-done",
@@ -202,9 +202,9 @@
         "src/components/admin/AccountSettings.tsx"
       ],
       "kind": "page",
-      "version": "1.0.0",
-      "updatedAt": "2026-10-20T10:41:43.177Z",
-      "fingerprint": "2d3659f837a90f71676c44e7852195d9e080e25ffdf4cc373250f82bdf7c2f79"
+      "version": "1.0.1",
+      "updatedAt": "2026-10-20T11:23:06.427Z",
+      "fingerprint": "ee14c1b1a5ce1810af414942103028a79fc8e56a1f1120c9ac0aaefa909caceb"
     },
     {
       "id": "src/components/admin/AdminDashboard.tsx",
@@ -358,9 +358,9 @@
         "src/components/admin/NorthportRecovery.tsx"
       ],
       "kind": "page",
-      "version": "1.1.5",
-      "updatedAt": "2026-10-20T10:41:43.177Z",
-      "fingerprint": "86319e363d671fbefe727e7ecab3ce229e3ad84356ee21fd30f4d44b559e8d8a"
+      "version": "1.1.6",
+      "updatedAt": "2026-10-20T11:23:06.427Z",
+      "fingerprint": "3818dda3079f34ef5f84737debc11892a336bc3944aba80893fdf3db54e3376d"
     },
     {
       "id": "src/components/admin/NorthportScannedFiles.tsx",
@@ -563,7 +563,7 @@
     "server-handlers/northport/inspection.ts": "7eb8c85005bbafbb0e526c321ae153c810ee045b3da3e574927b66f9108d36cb",
     "server-handlers/northport/listing.ts": "6ff0a9ff3651deedee665d81ee80025e8dce35d94fbddf643e171c984c919bcb",
     "server-handlers/northport/scan.ts": "d33d49f1ee7b6af5dfbce6b9dcec23b00d87a931c3031c70b767437514b919cd",
-    "server-handlers/profile.ts": "56e17e5c82403d4df7eb51645e57d6160754d932e2793712ad1e5b544b619e7a",
+    "server-handlers/profile.ts": "027947dfde3cd167cbdc3f5e8a4d51f8c83ef5056380132d0d5a0eb093c19032",
     "server-handlers/registration/config.ts": "6b7c4f2016d268e8235a7c2873d1875511c9c4a088abd9699feaabfd0e9e3539",
     "server-handlers/registration/lookup.ts": "a38ca555d30d80f738b4fba2e8bb31dcab89f08c4590327811af9c65724aab67",
     "server-handlers/registration/status.ts": "753814e9b0d2570a96028c09cbe2ffb235155f717fcb30c6fbb1350488b210cd",
@@ -575,10 +575,10 @@
     "server-handlers/scheduler/targets.ts": "be6109d1121d6f850ac15675564c71cd463dbc93f3e848ff5f7cbe24d9ed9c55",
     "server-handlers/system-versions.ts": "67576ad773da93c269b9e66efd6d72a9de02c8c1df0a1d986a17d564989ced9a",
     "server.ts": "bc169400ae4194b696c2288a3ca877ba07355e2d5f9da4b420396db36a5ff685",
-    "src/App.tsx": "cb2425785a4f55eab1fc430a8e74fb686e9a1e66c50f7b24bfca22b29d851e96",
-    "src/components/admin/AccountSettings.tsx": "58ac347aa2b312ec7fa539674381e9081655521c7505c45f92a7affbb92eb258",
+    "src/App.tsx": "2fa22eea7b66ca604103515fd6e20c3864993d281de5b1e0c20c8c04c51260d6",
+    "src/components/admin/AccountSettings.tsx": "31ed6c7098a383d841a96028c167731d4f8146f15ddae109417605f7574d8b41",
     "src/components/admin/AdminDashboard.tsx": "39c2f7dcaaef4f91fa034feb9041bc3cb46d456d3a0d1cfbfc8a034d86c2a419",
-    "src/components/admin/AdminLayout.tsx": "8d356dcc3c5c784590245ca32315d5848d3fbc5f324ff260534b68022fe36fa7",
+    "src/components/admin/AdminLayout.tsx": "1cd693a0ec64b22c5f9fda538b4958e6d0c2ad7f2c42235d4717fd4cc237ac10",
     "src/components/admin/AdminUser.tsx": "986108916bc8b26eb23ebd283bacba6b041871bb5d49688f9878b9a5e056d331",
     "src/components/admin/AdminUserCreate.tsx": "c3422282ca88edcc86ec8efc65a76402c6c35e983d18c762a0e095e09c71c97a",
     "src/components/admin/AssignIdModal.tsx": "d6e135717c66aa2ed343bc13dc6ca5fd3bddbceb01fe3ddab04124c32029b3c8",
@@ -591,7 +591,7 @@
     "src/components/admin/NorthportContainerPagination.tsx": "4e65be1bec3fe9b0b2619c489e15f0652930e8bd45e33dba620c9296c2c104a3",
     "src/components/admin/NorthportDateTimePicker.tsx": "18363b86911ca5fccc357fc997acc996b5b1b35b72a6914aae72669cdd58c722",
     "src/components/admin/NorthportFileContainers.tsx": "9803b88a214f92f3541d1d32bc3dc593203d3ba36d3c9d8368738ee8d76d781e",
-    "src/components/admin/NorthportRecovery.tsx": "80d083ab242a71892c852a3ef4686f0bd035a4f1c9deec5bf8e3e5076940d602",
+    "src/components/admin/NorthportRecovery.tsx": "d2e8ffbad593070a3bd79c2f2bf2deda36ff0c773577a1ca6250a410984dcafd",
     "src/components/admin/NorthportScannedFiles.tsx": "c50d61fc85a8ce616cf51ce082a3dc05063b0d531862ab5e98056c49dd4f5124",
     "src/components/admin/PdfAttachmentIcon.tsx": "4b65ea388a582c838e1782957115244f628de17b2f056cbae9ba39ef41afcc7d",
     "src/components/admin/PortDepotConfig.tsx": "0e0fb6700ba437b0709f80b51eb49e95337d6030a5fefef2bccdff66efed8bf6",
@@ -698,6 +698,81 @@
     "vite.config.ts": "167e03f4e2c3298d4e3cbe61c5c1f8712073bf15d56c63d992827e99d3b7601b"
   },
   "history": [
+    {
+      "sourceCommit": "1f78cef94708fbec560c1c1d3706e1b173f3e62b",
+      "pushedBy": "lumoratechent-beep",
+      "commits": [
+        {
+          "sha": "fd243fefd7a3d7133f3399dc59bc747a86b637bf",
+          "author": "cargomovemy",
+          "subject": "minor ui changes - admin"
+        }
+      ],
+      "authors": [
+        "cargomovemy"
+      ],
+      "version": "1.6.2",
+      "previousVersion": "1.6.1",
+      "date": "2026-10-20T11:23:06.427Z",
+      "summary": "Updated existing pages, tools or shared system files",
+      "files": [
+        "server-handlers/profile.ts",
+        "src/App.tsx",
+        "src/components/admin/AccountSettings.tsx",
+        "src/components/admin/AdminLayout.tsx",
+        "src/components/admin/NorthportRecovery.tsx"
+      ],
+      "changes": [
+        {
+          "id": "account-settings",
+          "name": "Account Settings",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.1.6",
+          "to": "1.1.7"
+        },
+        {
+          "id": "admin",
+          "name": "Admin Page",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.1.6",
+          "to": "1.1.7"
+        },
+        {
+          "id": "developer",
+          "name": "Dev Page",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.1.6",
+          "to": "1.1.7"
+        },
+        {
+          "id": "northport",
+          "name": "Northport Recovery",
+          "kind": "tool",
+          "action": "updated",
+          "from": "1.1.6",
+          "to": "1.1.7"
+        },
+        {
+          "id": "src/components/admin/AccountSettings.tsx",
+          "name": "Account Settings",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.0",
+          "to": "1.0.1"
+        },
+        {
+          "id": "src/components/admin/NorthportRecovery.tsx",
+          "name": "Northport Recovery",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.1.5",
+          "to": "1.1.6"
+        }
+      ]
+    },
     {
       "sourceCommit": "be0a03676b259c2353dd40c7f929e72d283e307f",
       "pushedBy": "lumoratechent-beep",
