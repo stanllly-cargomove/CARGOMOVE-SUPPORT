@@ -21,6 +21,12 @@ does not store the image file. There is no Supabase Storage fallback. If the
 Blob connection and read-write token are both missing, photo uploads fail without changing the profile
 or creating a bucket in another service.
 
+On Vercel, `/api/auth/profile` rewrites to the existing `api/dev-tools.ts`
+dispatcher with `route=profile`. Its handler remains in `server-handlers/profile.ts`
+and retains its own authentication and validation. Do not add an independent
+`api/auth/profile.ts` entry point: the existing 12 API functions already reach
+the Hobby plan's deployment limit. The local Express route stays `/api/auth/profile`.
+
 Account menu → Account & Setting → Upload photo opens the built-in crop editor. Users can
 drag the image or use the zoom and position sliders. Saving exports a 512 × 512
 JPEG; canceling makes no upload. The authenticated `/api/auth/profile` handler

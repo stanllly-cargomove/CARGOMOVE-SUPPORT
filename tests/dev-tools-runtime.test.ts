@@ -31,7 +31,7 @@ test('deployed Dev Tools module loads in native Node with an external JSON manif
     writeFileSync(runner, `
       import assert from 'node:assert/strict';
       const { default: handler } = await import(${JSON.stringify(pathToFileURL(entry).href)});
-      for (const route of ['northport-recovery', 'schedulers', 'run-scheduler', 'system-versions']) {
+      for (const route of ['northport-recovery', 'schedulers', 'run-scheduler', 'system-versions', 'profile']) {
         const response = { code: 200, setHeader() {}, status(code) { this.code = code; return this; }, json(body) { this.body = body; return this; } };
         await handler({ method: route === 'system-versions' || route === 'run-scheduler' ? 'POST' : 'GET', query: { route }, headers: {} }, response);
         assert.equal(response.code, 401, route + ' should reach its authentication check');
