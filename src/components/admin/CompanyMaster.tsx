@@ -34,6 +34,21 @@ type CompanySort = 'CREATED_DESC' | 'CREATED_ASC' | 'UPDATED_DESC' | 'NAME_ASC' 
 
 const PAGE_SIZE_OPTIONS = [20, 30, 50];
 
+const PORT_ABBREVIATIONS: Record<string, string> = {
+  WESTPORT: 'WP',
+  NORTHPORT: 'NP',
+  'KUANTAN PORT CONSORTIUM KP1': 'KP1',
+  'KUANTAN PORT CONSORTIUM KP2': 'KP2',
+  'LUMUT MARITIME TERMINAL': 'LP',
+  'PENANG PORT': 'PP',
+  'PORT KLANG FREE ZONE': 'PKFZ',
+  'JOHOR PORT': 'JP',
+};
+
+function abbreviatedPortName(name: string) {
+  return PORT_ABBREVIATIONS[name.trim().toUpperCase()] || name;
+}
+
 export function CompanyMaster() {
   const [companies, setCompanies] = useState<Company[]>(getCompanies());
   const [searchTerm, setSearchTerm] = useState('');
@@ -139,43 +154,46 @@ export function CompanyMaster() {
         </button>
       </div>
 
-      {/* Filter and Search Bar */}
-      <div className="flex min-w-0 flex-nowrap items-center gap-2 overflow-hidden rounded-xl border border-slate-200 bg-white p-3 shadow-sm md:gap-3 md:p-4">
-        <div className="relative w-36 min-w-0 shrink md:w-64">
+      {/* Company table and controls */}
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="flex min-w-0 flex-nowrap items-center gap-2 border-b border-slate-100 px-3 py-3 sm:gap-3 sm:px-5 sm:py-4">
+        <div className="relative min-w-[10rem] flex-1">
           <input
-            type="text"
+            type="search"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search by Registration No (AAAAAA-2) or Company Name..."
-            className="w-full px-3.5 py-2 pl-9 rounded-lg border border-slate-300 text-xs focus:border-slate-400 focus:outline-none"
+            placeholder="Search registration or company..."
+            className="h-8 w-full rounded-lg border border-slate-300 bg-white pl-9 pr-3 text-[11px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            aria-label="Search companies"
           />
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+          <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" aria-hidden="true" />
         </div>
 
         <div className="ml-auto flex shrink-0 flex-nowrap items-center gap-2">
-          <label className="hidden items-center gap-2 text-xs font-semibold text-slate-600 md:flex" htmlFor="company-sort">
-            <span className="whitespace-nowrap">Sort by</span>
+          <label className="shrink-0" htmlFor="company-sort">
             <select
               id="company-sort"
               value={sortBy}
               onChange={(event) => setSortBy(event.target.value as CompanySort)}
-              className="px-3 py-2 rounded-lg border border-slate-300 text-xs font-normal text-slate-700 bg-white focus:border-slate-400 focus:outline-none"
+              className="h-8 max-w-28 rounded-lg border border-slate-300 bg-slate-100 px-2 text-[10px] font-bold uppercase tracking-normal text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:max-w-none"
+              aria-label="Sort companies"
             >
-              <option value="CREATED_DESC">Latest added</option>
-              <option value="CREATED_ASC">Oldest added</option>
-              <option value="UPDATED_DESC">Recently updated</option>
-              <option value="NAME_ASC">Company name A-Z</option>
-              <option value="NAME_DESC">Company name Z-A</option>
+              <option value="CREATED_DESC">LATEST ADDED</option>
+              <option value="CREATED_ASC">OLDEST ADDED</option>
+              <option value="UPDATED_DESC">RECENTLY UPDATED</option>
+              <option value="NAME_ASC">COMPANY NAME A-Z</option>
+              <option value="NAME_DESC">COMPANY NAME Z-A</option>
             </select>
           </label>
 
           {/* Company Type Filter */}
           <select
             value={typeFilter}
+            aria-label="Filter companies by type"
             onChange={(e) => setTypeFilter(e.target.value)}
-            className="w-24 min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-2 text-xs focus:border-slate-400 focus:outline-none md:w-auto md:px-3"
+            className="h-8 w-20 shrink-0 rounded-lg border border-slate-300 bg-slate-100 px-2 text-[10px] font-bold uppercase text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:w-auto"
           >
-            <option value="ALL">All Types</option>
+            <option value="ALL">ALL TYPES</option>
             <option value="FORWARDER">FORWARDER</option>
             <option value="HAULAGE">HAULAGE</option>
             <option value="TRANSPORT">TRANSPORT</option>
@@ -184,10 +202,11 @@ export function CompanyMaster() {
           {/* Port Filter */}
           <select
             value={portFilter}
+            aria-label="Filter companies by port"
             onChange={(e) => setPortFilter(e.target.value)}
-            className="w-28 min-w-0 rounded-lg border border-slate-300 bg-white px-2 py-2 text-xs focus:border-slate-400 focus:outline-none md:w-auto md:px-3"
+            className="h-8 w-20 shrink-0 rounded-lg border border-slate-300 bg-slate-100 px-2 text-[10px] font-bold uppercase text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:w-auto"
           >
-            <option value="ALL">All Ports</option>
+            <option value="ALL">ALL PORTS</option>
             {ports.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.display_name}
@@ -205,25 +224,24 @@ export function CompanyMaster() {
             }}
             aria-label={missingIdOnly ? 'Disable Missing IDs Only filter' : 'Enable Missing IDs Only filter'}
             title={missingIdOnly ? 'Disable Missing IDs Only' : 'Enable Missing IDs Only'}
-            className={`inline-flex h-9 shrink-0 items-center justify-center rounded-lg border text-[0px] font-bold transition-colors focus:outline-none md:h-auto md:px-3 md:py-2 md:text-xs ${
+            aria-pressed={missingIdOnly}
+            className={`inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg border px-2 text-[10px] font-bold uppercase transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
               missingIdOnly
                 ? 'bg-amber-100 text-amber-800 border-amber-300'
                 : 'bg-slate-50 text-slate-600 border-slate-300 hover:bg-slate-100'
             }`}
           >
-            <Filter className="h-4 w-4 md:hidden" />
-            <span className="hidden">Missing IDs Only</span>
-            ⚠ Missing IDs Only
+            <Filter className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>Missing IDs Only</span>
           </button>
         </div>
       </div>
 
       {/* Companies Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
+          <table aria-label="Company list" className="company-list-table w-full table-auto border-collapse text-left text-[11px] font-normal">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider">
+              <tr className="border-b border-slate-200 bg-slate-100 font-bold uppercase tracking-wider text-slate-600">
                 <th className="py-3 px-4">Company Name</th>
                 <th className="py-3 px-3 text-center">Reg. Old</th>
                 <th className="py-3 px-3 text-center">Reg. New</th>
@@ -231,7 +249,7 @@ export function CompanyMaster() {
                 <th className="py-3 px-4">Cargomove ID</th>
                 <th className="py-3 px-3 text-center">Facility</th>
                 <th className="py-3 px-3 text-center">Last Updated</th>
-                <th className="py-3 px-4 text-right">Actions</th>
+                <th className="py-3 px-4 text-center">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -317,6 +335,7 @@ export function CompanyMaster() {
                         {(comp.assigned_port_ids?.length ? comp.assigned_port_ids : comp.port_id ? [comp.port_id] : [])
                           .map((portId) => ports.find((port) => port.id === portId)?.display_name)
                           .filter(Boolean)
+                          .map(abbreviatedPortName)
                           .join(', ') || 'Unassigned'}
                       </td>
 
@@ -324,7 +343,7 @@ export function CompanyMaster() {
                         {formatAdminDate(comp.updated_at)}
                       </td>
 
-                      <td className="py-3 px-4 text-right">
+                      <td className="py-3 px-4 text-center">
                         <CompanyActionMenu
                           companyName={comp.name}
                           isOpen={activeActionMenuId === comp.id}
@@ -348,7 +367,7 @@ export function CompanyMaster() {
             </tbody>
           </table>
         </div>
-        <div className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 border-t border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3 text-xs text-slate-500">
             <span>
               {sortedCompanies.length

@@ -1,5 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, Download, Info, Mail, Pencil, Save, Search, UsersRound, X } from 'lucide-react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { AlertTriangle, Download, EllipsisVertical, Info, Mail, Pencil, Save, Search, UsersRound, X } from 'lucide-react';
 import { getExternalUserAccess, ExternalUserAccess, updateExternalUserAccess } from '../../services/auth';
 import { EmailPreview, EmailTemplate, EmailTemplatePort, generateWelcomeEmailPreview, getEmailTemplateCatalog, sendWelcomeEmail } from '../../services/email';
 import { RichTextEmailEditor } from './RichTextEmailEditor';
@@ -9,7 +10,7 @@ import { isEmailTemplateForRegistration } from '../../utils/registrationEmailTem
 
 const statuses: ExternalUserAccess['status'][] = ['PENDING', 'DONE', 'REJECTED'];
 const emailStatuses: ExternalUserAccess['email_status'][] = ['NOT_READY', 'READY', 'SENDING', 'SENT', 'FAILED'];
-type EditableUserField = 'username' | 'email' | 'password' | 'company_name' | 'full_name' | 'mobile_number' | 'status';
+type EditableUserField = 'username' | 'email' | 'password' | 'company_name' | 'full_name' | 'mobile_number' | 'status' | 'email_status';
 const MINIMUM_VISIBLE_ROWS = 4;
 const USER_ROW_HEIGHT = 32;
 
@@ -24,6 +25,18 @@ const statusSelectClasses: Record<ExternalUserAccess['status'], string> = {
   DONE: 'border-emerald-300 bg-emerald-50 text-emerald-700',
   REJECTED: 'border-rose-300 bg-rose-50 text-rose-700',
 };
+
+function emailStatusLabel(status: ExternalUserAccess['email_status']) {
+  return status === 'SENT' ? 'DONE' : status;
+}
+
+function emailStatusClasses(status: ExternalUserAccess['email_status']) {
+  if (status === 'READY') return 'border-amber-300 bg-amber-50 text-amber-700';
+  if (status === 'SENT') return 'border-emerald-300 bg-emerald-50 text-emerald-700';
+  if (status === 'SENDING') return 'border-blue-300 bg-blue-50 text-blue-700';
+  if (status === 'FAILED') return 'border-rose-300 bg-rose-50 text-rose-700';
+  return 'border-slate-200 bg-slate-50 text-slate-600';
+}
 
 function getVisiblePageNumbers(currentPage: number, totalPages: number): number[] {
   const visibleCount = Math.min(5, totalPages);
@@ -83,6 +96,59 @@ function CopyableValue({ value, label, className = '' }: CopyableValueProps) {
       {value}
     </span>
   );
+}
+
+function UserActionMenu({ username, canResend, loading, onEdit, onResend }: {
+  username: string;
+  canResend: boolean;
+  loading: boolean;
+  onEdit: () => void;
+  onResend: () => void;
+}) {
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const [position, setPosition] = useState({ top: -9999, left: -9999 });
+
+  useLayoutEffect(() => {
+    if (!isOpen || !triggerRef.current || !menuRef.current) return;
+    const trigger = triggerRef.current.getBoundingClientRect();
+    const menu = menuRef.current.getBoundingClientRect();
+    const gap = 4;
+    const padding = 8;
+    const top = trigger.bottom + gap + menu.height <= window.innerHeight - padding
+      ? trigger.bottom + gap
+      : Math.max(padding, trigger.top - menu.height - gap);
+    const left = Math.min(Math.max(padding, trigger.right - menu.width), window.innerWidth - menu.width - padding);
+    setPosition({ top, left });
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const close = () => setIsOpen(false);
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') close(); };
+    window.addEventListener('resize', close);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('keydown', closeOnEscape);
+    return () => {
+      window.removeEventListener('resize', close);
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [isOpen]);
+
+  return <>
+    <button ref={triggerRef} type="button" onClick={() => setIsOpen((value) => !value)} aria-label={`Actions for ${username}`} aria-haspopup="menu" aria-expanded={isOpen} title={`Actions for ${username}`} className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700">
+      <EllipsisVertical className="h-4 w-4" aria-hidden="true" />
+    </button>
+    {isOpen && typeof document !== 'undefined' && createPortal(<>
+      <button type="button" tabIndex={-1} aria-label="Close actions" className="fixed inset-0 z-[70] h-full w-full cursor-default bg-transparent" onClick={() => setIsOpen(false)} />
+      <div ref={menuRef} role="menu" aria-label={`Actions for ${username}`} style={{ top: position.top, left: position.left }} className="fixed z-[80] w-36 rounded-lg border border-slate-200 bg-white p-1 shadow-lg">
+        <button type="button" role="menuitem" onClick={() => { setIsOpen(false); onEdit(); }} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-[11px] font-medium text-slate-700 hover:bg-slate-50"><Pencil className="h-3.5 w-3.5 text-slate-500" />Edit User</button>
+        <button type="button" role="menuitem" onClick={() => { setIsOpen(false); onResend(); }} disabled={!canResend || loading} title={canResend ? 'Preview and resend the registration email' : 'Close the registration before sending email'} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-[11px] font-medium text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:text-slate-400"><Mail className="h-3.5 w-3.5" />{loading ? 'Loading...' : 'Resend Email'}</button>
+      </div>
+    </>, document.body)}
+  </>;
 }
 
 function CompanyRegistrationWarning({ user, onClose }: {
@@ -288,6 +354,7 @@ export function UserRegistration() {
         full_name: user.full_name,
         mobile_number: user.mobile_number,
         status: user.status,
+        ...(['DONE', 'REJECTED'].includes(user.status) ? { email_status: user.email_status === 'SENT' ? 'SENT' : 'READY' } : {}),
         rejection_reason: user.status === 'REJECTED' ? user.rejection_reason : undefined,
         rejection_detail: user.status === 'REJECTED' ? user.rejection_detail : undefined,
       });
@@ -495,18 +562,18 @@ export function UserRegistration() {
           </div>
         </div>
         <div className="overflow-hidden rounded-b-xl rounded-tr-xl border-x border-b border-slate-200 bg-white shadow-sm">
-        <div className="w-full overflow-x-auto">
-          <table className="w-full min-w-[960px] table-fixed border-collapse text-left text-[11px] 2xl:min-w-[1120px]">
+        <div className="w-full overflow-hidden">
+          <table aria-label="User registrations" className="user-registration-table w-full table-fixed border-collapse text-left text-[11px]">
             <colgroup>
-              <col className="w-[9%]" />
-              <col className="w-[15%]" />
-              <col className="w-[9%]" />
-              <col className="w-[15%]" />
-              <col className="w-[15%]" />
-              <col className="w-[9%]" />
-              <col className="w-[8%]" />
-              <col className="w-[7%]" />
-              <col className="w-[13%]" />
+              <col style={{ width: 'calc((100% - 224px) * 0.14)' }} />
+              <col style={{ width: 'calc((100% - 224px) * 0.20)' }} />
+              <col style={{ width: 'calc((100% - 224px) * 0.11)' }} />
+              <col style={{ width: 'calc((100% - 224px) * 0.21)' }} />
+              <col style={{ width: 'calc((100% - 224px) * 0.20)' }} />
+              <col style={{ width: 'calc((100% - 224px) * 0.14)' }} />
+              <col className="user-registration-status-column" />
+              <col className="user-registration-status-column" />
+              <col className="user-registration-action-column" />
             </colgroup>
             <thead>
               <tr className="admin-registration-table-header whitespace-nowrap border border-slate-400 bg-[#CBD5E1] text-[9px] font-bold uppercase tracking-wide text-slate-700 xl:text-[10px]">
@@ -530,7 +597,10 @@ export function UserRegistration() {
                   </td>
                 </tr>
               ) : <>
-                {paginatedUsers.map((user, index) => (
+                {paginatedUsers.map((user, index) => {
+                  const resolvedEmailStatus = user.email_status || (['DONE', 'REJECTED'].includes(user.status) ? 'READY' : 'NOT_READY');
+                  const canResendEmail = ['DONE', 'REJECTED'].includes(user.status) && resolvedEmailStatus !== 'SENDING';
+                  return (
                 <tr key={user.id} className={`transition-colors hover:bg-slate-100/70 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-100/70'}`}>
                   <td className="px-2 py-2 font-semibold text-slate-900"><CopyableValue value={user.username} label="Username" /></td>
                   <td className="px-2 py-2 text-slate-700"><CopyableValue value={user.email} label="Email address" /></td>
@@ -544,48 +614,29 @@ export function UserRegistration() {
                       onChange={(event) => void changeStatus(user, event.target.value as ExternalUserAccess['status'])}
                       disabled={savingKeys.has(`${user.id}-status`)}
                       title={user.status === 'REJECTED' ? 'Reopen this User Registration independently from the company queue.' : undefined}
-                      className={`h-6 w-full max-w-[5rem] rounded-md border px-1 text-[9px] font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-wait disabled:opacity-60 ${statusSelectClasses[user.status || 'PENDING']}`}
+                      className={`h-6 w-20 rounded-md border px-1 text-[9px] font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-wait disabled:opacity-60 ${statusSelectClasses[user.status || 'PENDING']}`}
                       aria-label={`Status for ${user.username}`}
                     >
                       {statuses.map((status) => <option key={status} value={status}>{status}</option>)}
                     </select>
                   </td>
                   <td className="px-1 py-2 text-center">
-                    <CopyableValue
-                      value={user.email_status || (['DONE', 'REJECTED'].includes(user.status) ? 'READY' : 'NOT_READY')}
-                      label="Email status"
-                      className="mx-auto h-7 w-[4.25rem] whitespace-nowrap bg-slate-50 py-1.5 text-[9px] font-semibold text-slate-600"
-                    />
-                  </td>
-                  <td className="px-1 py-2 text-center">
-                    <div className="flex items-center justify-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => setEditingUser({ ...user })}
-                        aria-label={`Edit ${user.username}`}
-                        title={`Edit ${user.username}`}
-                        className="inline-flex h-7 w-7 items-center justify-center gap-1 whitespace-nowrap rounded-md border border-slate-300 bg-white text-[10px] font-bold text-slate-700 transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 2xl:w-auto 2xl:px-2"
-                      >
-                        <Pencil className="h-3 w-3 shrink-0" />
-                        <span className="hidden 2xl:inline">Edit</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void openPreview(user)}
-                        disabled={!['DONE', 'REJECTED'].includes(user.status) || openingPreview === user.id || user.email_status === 'SENDING'}
-                        aria-label={`${user.email_status === 'SENT' ? 'Resend email to' : ['DONE', 'REJECTED'].includes(user.status) ? 'Preview email for' : 'Set registration status for'} ${user.username}`}
-                        title={`${user.email_status === 'SENT' ? 'Resend email to' : ['DONE', 'REJECTED'].includes(user.status) ? 'Preview email for' : 'Set registration status for'} ${user.username}`}
-                        className="inline-flex h-7 w-20 shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-md border border-blue-200 bg-blue-50 px-1 text-[9px] font-bold text-blue-700 transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-500"
-                      >
-                        <Mail className="h-3 w-3 shrink-0" />
-                        <span>
-                          {openingPreview === user.id ? 'Loading...' : user.email_status === 'SENT' ? 'Resend' : ['DONE', 'REJECTED'].includes(user.status) ? 'Preview' : 'Set status'}
-                        </span>
-                      </button>
+                    <div className={`mx-auto flex h-6 w-20 items-center justify-center rounded-md border text-center text-[9px] font-semibold ${emailStatusClasses(resolvedEmailStatus)}`}>
+                      <CopyableValue value={emailStatusLabel(resolvedEmailStatus)} label="Email status" className="w-full text-center" />
                     </div>
                   </td>
+                  <td className="px-1 py-2 text-center">
+                    <UserActionMenu
+                      username={user.username}
+                      canResend={canResendEmail}
+                      loading={openingPreview === user.id}
+                      onEdit={() => setEditingUser({ ...user })}
+                      onResend={() => void openPreview(user)}
+                    />
+                  </td>
                 </tr>
-                ))}
+                  );
+                })}
                 {userSpacerHeight > 0 && (
                   <tr aria-hidden="true">
                     <td colSpan={9} className="p-0" style={{ height: userSpacerHeight }} />
@@ -662,11 +713,23 @@ export function UserRegistration() {
               <label className="text-xs font-semibold text-slate-700">Mobile number
                 <input type="tel" required value={editingUser.mobile_number} onChange={(event) => changeEditField('mobile_number', event.target.value)} className="mt-1.5 h-9 w-full rounded-lg border border-slate-300 px-3 font-normal focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </label>
-              <label className="text-xs font-semibold text-slate-700 sm:col-span-2">Registration status
+              <label className="text-xs font-semibold text-slate-700">Registration status
                 <select value={editingUser.status} title={editingUser.status === 'REJECTED' ? 'Reopen this User Registration independently from the company queue.' : undefined} onChange={(event) => changeEditField('status', event.target.value)} className={`mt-1.5 h-9 w-full rounded-lg border px-3 font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 ${statusSelectClasses[editingUser.status]}`}>
                   {statuses.map((status) => <option key={status} value={status} disabled={status === 'REJECTED' && editingUser.status !== 'REJECTED'}>{status}</option>)}
                 </select>
               </label>
+              {['DONE', 'REJECTED'].includes(editingUser.status) && (
+                <label className="text-xs font-semibold text-slate-700">Email status
+                  <select
+                    value={editingUser.email_status === 'SENT' ? 'DONE' : 'READY'}
+                    onChange={(event) => changeEditField('email_status', event.target.value === 'DONE' ? 'SENT' : 'READY')}
+                    className={`mt-1.5 h-9 w-full rounded-lg border px-3 font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 ${emailStatusClasses(editingUser.email_status === 'SENT' ? 'SENT' : 'READY')}`}
+                  >
+                    <option value="READY">READY</option>
+                    <option value="DONE">DONE</option>
+                  </select>
+                </label>
+              )}
             </div>
             <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-3.5">
               <button type="button" onClick={() => setEditingUser(null)} disabled={savingEdit} className="rounded-lg px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200 disabled:opacity-50">Cancel</button>

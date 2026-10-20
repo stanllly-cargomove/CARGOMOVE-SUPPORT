@@ -62,7 +62,24 @@ export default async function createAdminUser(request: any, response: any) {
       });
       const users = await result.json().catch(() => []);
       if (!result.ok) throw new Error('admin_user_lookup_failed');
-      response.json({ users });
+      const authResult = await fetch(`${url}/auth/v1/admin/users?page=1&per_page=1000`, {
+        headers: { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}` },
+      });
+      const authData = await authResult.json().catch(() => ({}));
+      if (!authResult.ok) throw new Error('admin_auth_user_lookup_failed');
+      const avatarsById = new Map<string, string | null>();
+      const avatarsByEmail = new Map<string, string | null>();
+      for (const user of authData.users || []) {
+        const avatarUrl = typeof user.user_metadata?.avatar_url === 'string' ? user.user_metadata.avatar_url : null;
+        avatarsById.set(user.id, avatarUrl);
+        if (user.email) avatarsByEmail.set(user.email.trim().toLowerCase(), avatarUrl);
+      }
+      response.json({
+        users: users.map((user: any) => ({
+          ...user,
+          avatar_url: avatarsById.get(user.id) || avatarsByEmail.get(user.email.trim().toLowerCase()) || null,
+        })),
+      });
     } catch (error) {
       console.error('Load admin users failed:', error);
       response.status(500).json({ error: 'Unable to load admin users.' });

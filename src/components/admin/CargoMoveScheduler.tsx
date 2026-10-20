@@ -3,7 +3,7 @@ import { Clock, Loader2, Play, Plus, X } from 'lucide-react';
 import { notifyError, notifySuccess } from '../common/notifications';
 import type { SavedScheduler } from '../../types/scheduler';
 
-type Result = { status: string; message: string; timestamp: string };
+type Result = { status: string; message: string; timestamp: string; lastRunVerification?: { status: 'ADVANCED' | 'UNCHANGED' | 'UNAVAILABLE'; before: string | null; after: string | null; observedAt: string } };
 
 export function CargoMoveScheduler() {
   const [schedulers, setSchedulers] = useState<SavedScheduler[]>([]);
@@ -129,6 +129,7 @@ export function CargoMoveScheduler() {
             <div aria-live="polite" className="mt-4 space-y-2 text-xs">
               <p className="font-semibold text-slate-700">Status: {!scheduler.enabled ? 'Disabled' : running ? 'Running' : result?.status === 'trigger_requested' ? 'Request Sent' : result?.status === 'unknown' ? 'Unknown - check CargoMove' : result ? 'Failed' : 'Ready'}</p>
               {result && <><p className={result.status === 'trigger_requested' ? 'text-emerald-700' : 'text-rose-700'}>{result.message}</p><p className="text-slate-500">Latest request: {new Date(result.timestamp).toLocaleString()}</p></>}
+              {result?.lastRunVerification && <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-slate-600"><p className="font-semibold text-slate-700">CargoMove Last run</p><p className="mt-1">Before: {result.lastRunVerification.before || 'Unavailable'}</p><p>After: {result.lastRunVerification.after || 'Unavailable'}</p><p className="mt-1 text-[11px]">Observed {new Date(result.lastRunVerification.observedAt).toLocaleString('en-GB',{timeZone:'Asia/Kuala_Lumpur'})} MYT. This does not verify individual container imports.</p></div>}
             </div>
             <button type="button" disabled={Boolean(runningId) || !scheduler.enabled} onClick={() => void run(scheduler)} className="mt-4 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
               {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}

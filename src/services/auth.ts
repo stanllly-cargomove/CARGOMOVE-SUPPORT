@@ -12,6 +12,7 @@ export interface AdminAccount {
   email: string;
   full_name: string;
   mobile_number: string;
+  avatar_url?: string | null;
 }
 
 export interface ExternalUserAccess {
@@ -44,7 +45,7 @@ export async function saveExternalUserAccess(input: Omit<ExternalUserAccess, 'id
 
 export async function updateExternalUserAccess(
   id: string,
-  changes: Partial<Pick<ExternalUserAccess, 'username' | 'email' | 'password' | 'company_name' | 'full_name' | 'mobile_number' | 'status' | 'rejection_reason' | 'rejection_detail'>>,
+  changes: Partial<Pick<ExternalUserAccess, 'username' | 'email' | 'password' | 'company_name' | 'full_name' | 'mobile_number' | 'status' | 'email_status' | 'rejection_reason' | 'rejection_detail'>>,
 ): Promise<ExternalUserAccess> {
   const response = await fetch('/api/external-user-access', {
     method: 'PATCH',

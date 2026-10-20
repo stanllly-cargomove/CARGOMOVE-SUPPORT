@@ -17,12 +17,17 @@ test('PostgreSQL migration enforces RLS, administrator admission, durable dedupl
       insert into public.user_registrations values('${actor}','admin@example.test','ADMIN'),('${other}','other@example.test','ADMIN'),('${revoked}','revoked@example.test','COMPANY_ADMIN');`);
     await db.exec(readFileSync(new URL('../supabase/migrations/20261017010000_northport_recovery.sql',import.meta.url),'utf8'));
     await db.exec(readFileSync(new URL('../supabase/migrations/20261019010000_northport_whole_file_recovery.sql',import.meta.url),'utf8'));
+    await db.exec(readFileSync(new URL('../supabase/migrations/20261020010000_northport_resume_approved.sql',import.meta.url),'utf8'));
     const scalar=async(sql:string,params:any[]=[])=>Object.values((await db.query<any>(sql,params)).rows[0])[0] as any;
     assert.equal(await scalar('select northport_admit_request($1)',[actor]),true);
     assert.equal(await scalar('select northport_admit_request($1)',[actor]),false);
     await assert.rejects(()=>db.query('select northport_admit_request($1)',[revoked]),/Administrator required/);
     const approve=async(who=actor,container='MSBU4179350',key='source-1',digest='hash-1')=>scalar(`select northport_approve($1,$2,$3,'GP','CM_CONTAINER_20261017012016_GP.csv',1,$4,$5,ARRAY['BLNO'])`,[who,'admin@example.test',container,key,digest]);
     const approved=await approve();assert.equal(approved.status,'Approved');
+    const approvedValues=['MSBU4179350',...Array(19).fill('')];
+    await db.query('update northport_recoveries set approved_values=$1::jsonb where id=$2',[JSON.stringify(approvedValues),approved.id]);
+    assert.deepEqual(await scalar('select approved_values from northport_recoveries where id=$1',[approved.id]),approvedValues);
+    await assert.rejects(()=>db.query('update northport_recoveries set approved_values=$1::jsonb where id=$2',[JSON.stringify(['incomplete']),approved.id]),/check constraint/);
     assert.equal((await approve()).id,approved.id,'Repeated identical approval is idempotent');
     await assert.rejects(()=>approve(other),/unique constraint/);
     await assert.rejects(()=>approve(actor,'DIFFERENT123'),/unique constraint/);

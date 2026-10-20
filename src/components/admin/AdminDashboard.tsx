@@ -343,8 +343,17 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-[11px] font-normal border-collapse">
+        <div className="overflow-hidden">
+          <table className="registration-queue-table overview-queue-table w-full table-fixed text-left text-[11px] font-normal border-collapse">
+            <colgroup>
+              <col style={{ width: '128px' }} />
+              <col style={{ width: '88px' }} />
+              <col />
+              <col style={{ width: '90px' }} />
+              <col style={{ width: '112px' }} />
+              <col style={{ width: '88px' }} />
+              <col style={{ width: '64px' }} />
+            </colgroup>
             <thead>
               <tr className="bg-slate-100 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider">
                 <th className="py-2 px-3">Reference</th>
@@ -353,7 +362,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                 <th className="py-2 px-3 text-center">Facility</th>
                 <th className="py-2 px-3">Cargomove ID</th>
                 <th className="py-2 px-3 text-center">Status</th>
-                <th className="py-2 px-3 text-right">Action</th>
+                <th className="py-2 px-3 text-center">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -376,7 +385,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                     <td className="py-2 px-3 text-center text-slate-700">
                       {item.type}
                     </td>
-                    <td className="py-2 px-3 text-slate-900">
+                    <td className="py-2 px-3 text-slate-900" title={item.companyName}>
                       {item.companyName.toUpperCase()}
                     </td>
                     <td className="py-2 px-3 text-center text-slate-700">
@@ -408,7 +417,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                         <StatusBadge status={item.status} />
                       </div>
                     </td>
-                    <td className="py-2 px-3 text-right">
+                    <td className="py-2 px-3 text-center">
                       <button
                         type="button"
                         onClick={() => item.type === 'USER' ? onNavigate('user-registration') : setActiveSubmission(sub)}

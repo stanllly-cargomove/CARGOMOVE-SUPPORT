@@ -3,15 +3,15 @@ import { RegistrationSubmission } from '../../types';
 import { getCompanyById, updateSubmissionStatus } from '../../services/storage';
 import { getCompanyExternalId } from '../../services/companyHelper';
 import { exportSubmissionsToExcel } from '../../services/excelExport';
-import { CargoMoveIdBadge, StatusBadge, TypeBadge, PortBadge } from '../common/Badge';
+import { CargoMoveIdBadge, StatusBadge } from '../common/Badge';
 import {
   X,
-  FileSpreadsheet,
   CheckCircle,
   AlertTriangle,
   Download,
-  Key,
   Calendar,
+  MoreVertical,
+  FileText,
 } from 'lucide-react';
 import { notifyError, notifySuccess, summarizeError } from '../common/notifications';
 import { formatAdminDateTime } from '../../utils/date';
@@ -38,9 +38,13 @@ export function SubmissionDetailModal({
   onReject,
 }: SubmissionDetailModalProps) {
   const [adminNotes, setAdminNotes] = useState('');
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [showExportRecord, setShowExportRecord] = useState(false);
 
   useEffect(() => {
     setAdminNotes(submission?.admin_notes || '');
+    setExportMenuOpen(false);
+    setShowExportRecord(false);
   }, [submission?.id, submission?.admin_notes]);
 
   useEffect(() => {
@@ -61,6 +65,13 @@ export function SubmissionDetailModal({
 
   const company = submission.company_id ? getCompanyById(submission.company_id) : undefined;
   const idInfo = getCompanyExternalId(company || { company_type: submission.company_type });
+  const reviewLabels = {
+    COMPANY: { title: 'Company registration', details: 'Company details', description: 'Check the company information, contact details and registered address.' },
+    DRIVER: { title: 'Driver registration', details: 'Drivers', description: 'Check each driver’s name, identification and mobile number.' },
+    TRAILER: { title: 'Trailer registration', details: 'Trailers', description: 'Check the trailer registration numbers, types and weights.' },
+    VEHICLE: { title: 'Vehicle registration', details: 'Vehicles', description: 'Check the vehicle registration numbers, head numbers and weights.' },
+  };
+  const review = reviewLabels[submission.registration_type];
 
   const handleUpdateStatus = (newStatus: 'PENDING' | 'DONE' | 'REJECTED') => {
     if (newStatus === 'DONE' || newStatus === 'REJECTED') {
@@ -99,22 +110,16 @@ export function SubmissionDetailModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="submission-review-title"
-        className="flex max-h-[94vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl"
+        className="submission-review flex max-h-[94dvh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
       >
         {/* Header */}
-        <div className="flex items-start justify-between gap-4 border-b border-slate-200 bg-white px-5 py-3 sm:px-6">
+        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-200 bg-white px-5 py-3 sm:px-6">
           <div className="flex min-w-0 items-start gap-3">
-            <div className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600 sm:flex">
-              <FileSpreadsheet className="h-5 w-5" />
-            </div>
             <div className="min-w-0">
-              <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Submission review</div>
-              <div className="mt-1 flex flex-wrap items-center gap-2">
-                <h2 id="submission-review-title" className="break-all text-base font-bold text-slate-900 sm:text-lg">
-                  {submission.reference_no}
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 id="submission-review-title" className="break-words text-sm font-semibold leading-6 text-slate-900 sm:text-base">
+                  {submission.reference_no} - {submission.registration_type === 'COMPANY' ? review.title : review.title.toUpperCase()}
                 </h2>
-                <TypeBadge type={submission.registration_type} />
-                <StatusBadge status={submission.status} />
               </div>
               <div className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-500">
                 <Calendar className="h-3.5 w-3.5" />
@@ -123,6 +128,8 @@ export function SubmissionDetailModal({
             </div>
           </div>
 
+          <div className="flex shrink-0 items-center gap-3">
+          <span className="inline-flex [&>span]:h-8 [&>span]:items-center [&>span]:rounded-lg [&>span]:px-3 [&>span]:py-0"><StatusBadge status={submission.status} /></span>
           <button
             type="button"
             onClick={onClose}
@@ -131,10 +138,11 @@ export function SubmissionDetailModal({
           >
             <X className="w-5 h-5" />
           </button>
+          </div>
         </div>
 
         {/* Content Body */}
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overflow-x-hidden p-4 sm:p-5">
+        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overflow-x-hidden bg-slate-50 p-4 sm:p-6">
           {/* Missing ID warning if applicable */}
           {!idInfo.has_required_id && (
             <div className="flex flex-col items-start justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900 sm:flex-row">
@@ -163,37 +171,38 @@ export function SubmissionDetailModal({
           )}
 
           {/* Company Context */}
-          <section className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs sm:p-4">
-            <div className="mb-3 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate-700">
-              Company verification
-            </div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="min-w-0">
-                <span className="text-slate-500 block">Company Name</span>
-                <span className="mt-1 block break-words font-bold leading-5 text-slate-900">{submission.company_name.toUpperCase()}</span>
-              </div>
+          <section className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs sm:px-5">
+            <div className="grid grid-cols-2 items-start gap-x-5 gap-y-2 lg:grid-cols-[minmax(0,2.2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.7fr)]">
+              <div className="col-span-2 min-w-0 lg:col-span-1"><p className="mb-1 text-slate-500">Company</p><h3 className="break-words font-bold leading-5 text-slate-900">{submission.company_name.toUpperCase()}</h3></div>
               <div className="min-w-0">
                 <span className="text-slate-500 block">Registration No</span>
-                <span className="mt-1 block break-all font-mono font-bold text-slate-900">{submission.company_reg_no}</span>
+                <span className="mt-1 block break-words font-semibold leading-5 text-slate-900">{submission.company_reg_no}</span>
               </div>
               <div className="min-w-0">
-                <span className="text-slate-500 block">Company Category</span>
-                <span className="mt-1 block font-semibold text-blue-700">{idInfo.category}</span>
+                <span className="text-slate-500 block">Company category</span>
+                <span className="mt-1 block break-words font-semibold leading-5 text-slate-900">{idInfo.category}</span>
               </div>
               <div className="min-w-0">
-                <span className="flex items-center gap-1.5 text-slate-500"><Key className="h-3.5 w-3.5" />Assigned Backend ID</span>
+                <span className="block text-slate-500">CargoMove ID</span>
                 <span className="mt-1 block">
                   {idInfo.active_id_value ? <CargoMoveIdBadge id={idInfo.active_id_value} /> : <span className="text-amber-600 italic">Not Assigned</span>}
                 </span>
               </div>
+              <div><span className="block text-slate-500">Facility</span><span className="mt-1 block font-semibold leading-5 text-slate-900">{submission.port_location === 'PORT_KLANG' ? 'Port Klang' : submission.port_location === 'JOHOR' ? 'Johor' : 'Other'}</span></div>
+            </div>
+            <div className="mt-2 grid grid-cols-1 gap-x-5 gap-y-2 border-t border-slate-100 pt-2 sm:grid-cols-[minmax(0,2.2fr)_minmax(0,2fr)_minmax(0,1.7fr)]">
+              <div className="min-w-0"><span className="block text-slate-500">Submitted by</span><span className="mt-1 block break-words font-semibold text-slate-900">{submission.submitted_by_name || 'Not provided'}</span></div>
+              <div className="min-w-0"><span className="block text-slate-500">Email</span><span className="mt-1 block break-all text-slate-800">{submission.submitted_by_email || 'Not provided'}</span></div>
+              <div className="min-w-0"><span className="block text-slate-500">Mobile</span><span className="mt-1 block break-words text-slate-800">{submission.submitted_by_mobile || 'Not provided'}</span></div>
             </div>
           </section>
 
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(300px,0.75fr)]">
+          <div className="space-y-4">
           {/* Form Specific Submitted Data */}
-          <section className="h-full min-w-0 space-y-3 rounded-lg border border-slate-200 p-4">
-            <div className="border-b border-slate-200 pb-2">
-              <h3 className="text-sm font-bold text-slate-900">Submitted details</h3>
+          <section className="min-w-0 space-y-3 rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+            <div className="border-b border-slate-100 pb-2">
+              <h3 className="text-sm font-bold text-slate-900">{review.details}</h3>
+              <p className="mt-0.5 text-xs leading-4 text-slate-500">{review.description}</p>
             </div>
 
             {submission.registration_type === 'COMPANY' && submission.data.company && (
@@ -216,13 +225,12 @@ export function SubmissionDetailModal({
                   </span>
                 </div>
                 <div className="min-w-0">
-                  <span className="text-slate-500 block">PIC Contact Info</span>
-                  <span className="mt-1 block break-words leading-5 text-slate-800">
-                    {submission.data.company.contact_email} / {submission.data.company.contact_mobile}
-                    {submission.data.company.office_phone ? ` / Office: ${submission.data.company.office_phone}` : ''}
-                    {submission.data.company.fax ? ` / Fax: ${submission.data.company.fax}` : ''}
-                  </span>
+                  <span className="text-slate-500 block">Contact email</span>
+                  <span className="mt-1 block break-all leading-5 text-slate-800">{submission.data.company.contact_email || 'Not provided'}</span>
                 </div>
+                <div><span className="block text-slate-500">Contact mobile</span><span className="mt-1 block break-words text-slate-800">{submission.data.company.contact_mobile || 'Not provided'}</span></div>
+                <div><span className="block text-slate-500">Office phone</span><span className="mt-1 block break-words text-slate-800">{submission.data.company.office_phone || 'Not provided'}</span></div>
+                {submission.data.company.fax && <div><span className="block text-slate-500">Fax</span><span className="mt-1 block break-words text-slate-800">{submission.data.company.fax}</span></div>}
                 <div className="min-w-0 sm:col-span-2">
                   <span className="text-slate-500 block">Registered Address</span>
                   <span className="mt-1 block break-words leading-5 text-slate-800">
@@ -239,13 +247,13 @@ export function SubmissionDetailModal({
                 <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                   Driver List ({submission.data.drivers?.length || (submission.data.driver ? 1 : 0)})
                 </div>
-                <div className="max-h-56 overflow-auto rounded-lg border border-slate-200">
+                <div className="overflow-hidden rounded-lg border border-slate-200">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead className="sticky top-0 z-10">
                       <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-600 uppercase">
                         <th className="py-2 px-2.5 w-8 text-center">#</th>
                         <th className="py-2 px-2.5">Driver Full Name</th>
-                        <th className="py-2 px-2.5">Licence / NRIC</th>
+                        <th className="py-2 px-2.5">Licence / identification</th>
                         <th className="py-2 px-2.5">Mobile Phone</th>
                       </tr>
                     </thead>
@@ -276,15 +284,15 @@ export function SubmissionDetailModal({
                 <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                   Trailer List ({submission.data.trailers?.length || (submission.data.trailer ? 1 : 0)})
                 </div>
-                <div className="max-h-56 overflow-auto rounded-lg border border-slate-200">
+                <div className="overflow-hidden rounded-lg border border-slate-200">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead className="sticky top-0 z-10">
                       <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-600 uppercase">
                         <th className="py-2 px-2.5 w-8 text-center">#</th>
                         <th className="py-2 px-2.5">Trailer Plate / Reg No</th>
                         <th className="py-2 px-2.5">Type</th>
-                        <th className="py-2 px-2.5">Unladen Wt</th>
-                        <th className="py-2 px-2.5">BDM Wt</th>
+                        <th className="py-2 px-2.5">Unladen (kg)</th>
+                        <th className="py-2 px-2.5">BDM (kg)</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -306,8 +314,8 @@ export function SubmissionDetailModal({
                               {trailer.trailer_type}
                             </span>
                           </td>
-                          <td className="py-1.5 px-2.5 font-mono text-slate-700">{trailer.weight} KG</td>
-                          <td className="py-1.5 px-2.5 font-mono text-slate-700">{trailer.bdm_weight} KG</td>
+                          <td className="py-1.5 px-2.5 font-mono text-slate-700">{trailer.weight || '—'}</td>
+                          <td className="py-1.5 px-2.5 font-mono text-slate-700">{trailer.bdm_weight || '—'}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -321,15 +329,15 @@ export function SubmissionDetailModal({
                 <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                   Vehicle List ({submission.data.vehicles?.length || (submission.data.vehicle ? 1 : 0)})
                 </div>
-                <div className="max-h-56 overflow-auto rounded-lg border border-slate-200">
+                <div className="overflow-hidden rounded-lg border border-slate-200">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead className="sticky top-0 z-10">
                       <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-600 uppercase">
                         <th className="py-2 px-2.5 w-8 text-center">#</th>
                         <th className="py-2 px-2.5">Vehicle Plate / Reg No</th>
                         <th className="py-2 px-2.5">Head Number</th>
-                        <th className="py-2 px-2.5">Unladen Wt</th>
-                        <th className="py-2 px-2.5">BGK Wt</th>
+                        <th className="py-2 px-2.5">Unladen (kg)</th>
+                        <th className="py-2 px-2.5">BGK (kg)</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -349,8 +357,8 @@ export function SubmissionDetailModal({
                           <td className="py-1.5 px-2.5 font-mono font-bold text-sky-700">
                             {vehicle.head}
                           </td>
-                          <td className="py-1.5 px-2.5 font-mono text-slate-700">{vehicle.weight} KG</td>
-                          <td className="py-1.5 px-2.5 font-mono text-slate-700">{vehicle.bgk_weight} KG</td>
+                          <td className="py-1.5 px-2.5 font-mono text-slate-700">{vehicle.weight || '—'}</td>
+                          <td className="py-1.5 px-2.5 font-mono text-slate-700">{vehicle.bgk_weight || '—'}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -360,54 +368,16 @@ export function SubmissionDetailModal({
             )}
           </section>
 
-          <div className="flex h-full min-w-0 flex-col gap-4">
-          <section className="space-y-3 rounded-lg border border-slate-200 p-4">
-            <div className="border-b border-slate-200 pb-2">
-              <h3 className="text-sm font-bold text-slate-900">Submission contact</h3>
-            </div>
-            <div className="grid grid-cols-1 gap-x-4 gap-y-3 text-xs sm:grid-cols-2">
-              <div className="min-w-0">
-                <span className="block text-slate-500">Submitted by</span>
-                <span className="mt-1 block break-words font-semibold text-slate-900">{submission.submitted_by_name || 'N/A'}</span>
-              </div>
-              <div className="min-w-0">
-                <span className="block text-slate-500">Email</span>
-                <span className="mt-1 block break-all text-slate-800">{submission.submitted_by_email || 'N/A'}</span>
-              </div>
-              <div className="min-w-0">
-                <span className="block text-slate-500">Mobile</span>
-                <span className="mt-1 block break-words text-slate-800">{submission.submitted_by_mobile || 'N/A'}</span>
-              </div>
-              <div className="min-w-0">
-                <span className="mb-1 block text-slate-500">Facility</span>
-                <PortBadge location={submission.port_location} />
-              </div>
-            </div>
-          </section>
-
-          {/* Export status banner if already exported */}
-          {submission.status === 'DONE' && (
-            <div className="flex flex-1 flex-col justify-center rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800">
-              <div className="flex items-center gap-1.5 font-bold">
-                <CheckCircle className="w-4 h-4 text-emerald-600" />
-                Exported to Excel backend
-              </div>
-              <div className="mt-1 break-all font-mono text-slate-700">{submission.export_filename || 'Filename unavailable'}</div>
-              <div className="text-[11px] text-emerald-700 mt-0.5">
-                Exported on {formatAdminDateTime(submission.exported_at)}
-              </div>
-            </div>
-          )}
-          </div>
           </div>
 
           {/* Admin Status Controls */}
-          <section className="grid gap-4 rounded-lg border border-slate-200 bg-slate-50 p-4 lg:grid-cols-2">
-            <div className="space-y-2.5">
+          <section className="grid gap-5 rounded-xl border border-slate-200 bg-white p-4 sm:p-5 lg:grid-cols-2">
+            <div className="flex h-full flex-col gap-2.5">
               <div>
-                <h3 className="text-sm font-bold text-slate-900">Registration status</h3>
+                <h3 className="text-sm font-bold text-slate-900">Review decision</h3>
+                <p className="mt-1 text-xs leading-5 text-slate-500">Choose a status after checking the submitted details.</p>
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex min-h-16 flex-1 flex-wrap items-center gap-2">
                 {(['PENDING', 'DONE', 'REJECTED'] as const).map((st) => (
                   <button
                     key={st}
@@ -416,7 +386,7 @@ export function SubmissionDetailModal({
                     aria-pressed={submission.status === st}
                     className={`rounded-lg border px-3 py-2 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
                       submission.status === st
-                        ? 'border-blue-600 bg-blue-600 text-white'
+                        ? st === 'DONE' ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : st === 'REJECTED' ? 'border-rose-300 bg-rose-50 text-rose-800' : 'border-amber-300 bg-amber-50 text-amber-800'
                         : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                     }`}
                   >
@@ -425,21 +395,22 @@ export function SubmissionDetailModal({
                 ))}
               </div>
             </div>
-            <label className="block min-w-0">
-              <span className="text-sm font-bold text-slate-900">Admin notes</span>
+            <label className="flex h-full min-w-0 flex-col">
+              <span className="text-sm font-bold text-slate-900">Internal review notes</span>
+              <span className="mt-1 block text-xs font-normal leading-5 text-slate-500">Saved when you update the registration status.</span>
               <textarea
                 value={adminNotes}
                 onChange={(event) => setAdminNotes(event.target.value)}
                 rows={2}
                 placeholder="Add an internal review note..."
-                className="mt-2 w-full resize-y rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800 outline-none placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                className="mt-2 min-h-16 w-full flex-1 resize-none rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800 outline-none placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
               />
             </label>
           </section>
         </div>
 
         {/* Footer */}
-        <div className="flex flex-col-reverse gap-3 border-t border-slate-200 bg-slate-50 px-5 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+        <div className="flex shrink-0 flex-col-reverse gap-3 border-t border-slate-200 bg-white px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <button
             type="button"
             onClick={onClose}
@@ -448,6 +419,7 @@ export function SubmissionDetailModal({
             Close
           </button>
 
+          <div className="flex items-center justify-end gap-2">
           <button
             type="button"
             onClick={handleExportSingle}
@@ -458,6 +430,20 @@ export function SubmissionDetailModal({
             <Download className="w-3.5 h-3.5 mr-1.5" />
             Export to Excel (.xlsx)
           </button>
+          <div className="relative">
+            <button type="button" aria-label="More export options" aria-haspopup="menu" aria-expanded={exportMenuOpen} onClick={() => setExportMenuOpen((value) => !value)} className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"><MoreVertical className="h-4 w-4" /></button>
+            {exportMenuOpen && <>
+              <button type="button" tabIndex={-1} aria-label="Close export options" onClick={() => setExportMenuOpen(false)} className="fixed inset-0 z-10 cursor-default" />
+              <div role="menu" className="absolute bottom-full right-0 z-20 mb-2 w-64 max-w-[80vw] rounded-lg border border-slate-200 bg-white p-1 shadow-lg">
+                <button type="button" role="menuitem" aria-expanded={showExportRecord} onClick={() => setShowExportRecord((value) => !value)} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"><CheckCircle className="h-4 w-4 shrink-0 text-emerald-600" />Excel Generated record</button>
+                {showExportRecord && <div className="mx-2 mb-2 rounded-md border border-slate-100 bg-slate-50 p-3 text-xs leading-5 text-slate-600">
+                  {submission.exported_at || submission.export_filename ? <><p className="break-words font-medium text-slate-800">{submission.export_filename || 'Filename not recorded'}</p><p className="mt-1">{submission.exported_at ? `Generated on ${formatAdminDateTime(submission.exported_at)}` : 'Generation date not recorded'}</p></> : <p>No Excel generation recorded.</p>}
+                </div>}
+                {submission.registration_type !== 'COMPANY' ? <a role="menuitem" href={`/api/email/submission-attachment?submissionIds=${encodeURIComponent(submission.id)}&download=1`} onClick={() => setExportMenuOpen(false)} className="flex items-center gap-2 rounded-md px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"><FileText className="h-4 w-4 text-blue-600" />Generate PDF Slip</a> : <button type="button" role="menuitem" disabled title="Company emails do not include an asset PDF slip" className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-slate-400"><FileText className="h-4 w-4" />PDF slip unavailable</button>}
+              </div>
+            </>}
+          </div>
+          </div>
         </div>
       </div>
     </div>

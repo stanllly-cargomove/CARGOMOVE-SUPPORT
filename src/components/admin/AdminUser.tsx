@@ -3,20 +3,10 @@ import { ChevronLeft, ChevronRight, Copy, Ellipsis, KeyRound, LoaderCircle, Mail
 import { AdminAccount, getAdminUsers } from '../../services/auth';
 import { browserSupabaseAuth } from '../../services/supabaseAuth';
 import { notifyError, notifySuccess } from '../common/notifications';
+import { ProfileAvatar } from './AccountSettings';
 import { AdminUserCreate } from './AdminUserCreate';
 
 const PAGE_SIZE = 10;
-
-function initials(username: string) {
-  const parts = username.split(/[._\-\s]+/).filter(Boolean);
-  return (parts.length > 1 ? `${parts[0][0]}${parts[1][0]}` : username.slice(0, 2)).toUpperCase();
-}
-
-function avatarColors(username: string) {
-  const palettes = ['bg-emerald-100 text-emerald-700', 'bg-violet-100 text-violet-700', 'bg-sky-100 text-sky-700', 'bg-amber-100 text-amber-700'];
-  const hash = [...username].reduce((value, character) => value + character.charCodeAt(0), 0);
-  return palettes[hash % palettes.length];
-}
 
 export function AdminUser() {
   const [users, setUsers] = useState<AdminAccount[]>([]);
@@ -121,10 +111,9 @@ export function AdminUser() {
 
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm" aria-label="Admin users table">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[900px] text-left text-sm">
+          <table className="w-full min-w-[840px] text-left text-sm">
             <thead className="admin-registration-table-header border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600">
               <tr>
-                <th scope="col" className="w-14 px-5 py-2.5">#</th>
                 <th scope="col" className="px-5 py-2.5">Username</th>
                 <th scope="col" className="px-5 py-2.5">Full Name</th>
                 <th scope="col" className="px-5 py-2.5">Email Address</th>
@@ -135,22 +124,21 @@ export function AdminUser() {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {isLoading ? (
-                <tr><td colSpan={7} className="px-5 py-8 text-center text-xs text-slate-500">Loading admin users...</td></tr>
+                <tr><td colSpan={6} className="px-5 py-8 text-center text-xs text-slate-500">Loading admin users...</td></tr>
               ) : loadError ? (
-                <tr><td colSpan={7} className="px-5 py-8 text-center text-xs text-rose-600">{loadError}</td></tr>
+                <tr><td colSpan={6} className="px-5 py-8 text-center text-xs text-rose-600">{loadError}</td></tr>
               ) : visibleUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-5 py-8 text-center text-xs text-slate-500">
+                  <td colSpan={6} className="px-5 py-8 text-center text-xs text-slate-500">
                     <UsersRound className="mx-auto mb-2 h-6 w-6 text-slate-300" />
                     No admin users found.
                   </td>
                 </tr>
-              ) : visibleUsers.map((user, index) => (
+              ) : visibleUsers.map((user) => (
                 <tr key={user.id} className="transition-colors hover:bg-slate-50/70">
-                  <td className="px-5 py-2.5 text-xs text-slate-500">{startIndex + index + 1}</td>
                   <td className="px-5 py-2.5">
                     <div className="flex items-center gap-3">
-                      <span aria-hidden="true" className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${avatarColors(user.username)}`}>{initials(user.username)}</span>
+                      <ProfileAvatar url={user.avatar_url} name={user.full_name || user.username} className="h-8 w-8 text-xs" />
                       <span className="font-semibold text-slate-900">{user.username}</span>
                     </div>
                   </td>

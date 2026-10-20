@@ -74,6 +74,55 @@
 .northport-results-table td:nth-child(5),
 .northport-results-table td:nth-child(6),
 .northport-results-table td:last-child { width: 1%; white-space: nowrap; }
+
+/* Company List follows the Northport tables: compact columns size to their
+   contents while descriptive values consume the remaining available width. */
+.company-list-table { min-width: 980px; table-layout: auto; }
+.company-list-table th,
+.company-list-table td { padding: 8px 12px; vertical-align: middle; }
+.company-list-table th { white-space: nowrap; }
+.company-list-table th:first-child,
+.company-list-table td:first-child { min-width: 300px; }
+.company-list-table td:first-child,
+.company-list-table td:nth-child(5) { overflow-wrap: anywhere; }
+.company-list-table th:nth-child(2),
+.company-list-table td:nth-child(2),
+.company-list-table th:nth-child(3),
+.company-list-table td:nth-child(3),
+.company-list-table th:nth-child(4),
+.company-list-table td:nth-child(4),
+.company-list-table th:nth-child(6),
+.company-list-table td:nth-child(6),
+.company-list-table th:nth-child(7),
+.company-list-table td:nth-child(7),
+.company-list-table th:last-child,
+.company-list-table td:last-child { width: 1%; white-space: nowrap; }
+.user-registration-table { table-layout: fixed; }
+.submission-review table { width: 100%; table-layout: fixed; }
+.submission-review table th { font-size: 10px; font-weight: 600; text-transform: none; }
+.submission-review table th,
+.submission-review table td { padding: 10px 8px; vertical-align: top; overflow-wrap: anywhere; }
+.submission-review table th:first-child { width: 32px; }
+.submission-review table tbody tr:nth-child(even) { background: #f8fafc; }
+.registration-queue-table { width: 100%; table-layout: fixed; }
+.registration-queue-table th,
+.registration-queue-table td { padding-left: 6px; padding-right: 6px; vertical-align: middle; }
+.registration-queue-table th { font-size: 10px; letter-spacing: 0.025em; }
+.registration-queue-table th,
+.registration-queue-table td:not([colspan]) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.registration-queue-table .admin-registration-copy-text { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.registration-queue-table td:nth-child(7) { text-align: center; }
+.registration-queue-table td:nth-child(7) > .admin-registration-copy-text { display: inline-flex; justify-content: center; }
+.registration-queue-table td:nth-child(7) .admin-registration-copy-text > span { width: 80px; justify-content: center; }
+.overview-queue-table td:nth-child(7) { text-align: center; }
+.user-registration-status-column { width: 88px; }
+.user-registration-action-column { width: 48px; }
+.user-registration-table th,
+.user-registration-table td { vertical-align: middle; }
+.user-registration-table th { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.user-registration-table td:nth-child(-n+6) > [role="button"] { max-width: 100%; }
+.user-registration-table th:nth-child(n+7),
+.user-registration-table td:nth-child(n+7) { white-space: nowrap; text-align: center; padding-left: 4px; padding-right: 4px; }
 .northport-results-container { container: northport-results / inline-size; min-height: 300px; padding-bottom: 32px; }
 .northport-results-empty { min-height: 190px; justify-content: center; }
 .northport-results-list { min-height: 190px; }

@@ -242,7 +242,24 @@ app.get('/api/auth/users', requireSession, async (_request, response) => {
     response.status(502).json({ error: error.message });
     return;
   }
-  response.json({ users: data || [] });
+  const { data: authData, error: authError } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  if (authError) {
+    response.status(502).json({ error: authError.message });
+    return;
+  }
+  const avatarsById = new Map<string, string | null>();
+  const avatarsByEmail = new Map<string, string | null>();
+  for (const user of authData.users) {
+    const avatarUrl = typeof user.user_metadata?.avatar_url === 'string' ? user.user_metadata.avatar_url : null;
+    avatarsById.set(user.id, avatarUrl);
+    if (user.email) avatarsByEmail.set(user.email.trim().toLowerCase(), avatarUrl);
+  }
+  response.json({
+    users: (data || []).map((user) => ({
+      ...user,
+      avatar_url: avatarsById.get(user.id) || avatarsByEmail.get(user.email.trim().toLowerCase()) || null,
+    })),
+  });
 });
 
 app.get('/api/external-user-access', requireSession, async (request, response) => {
@@ -312,6 +329,14 @@ app.patch('/api/external-user-access', requireSession, async (request, response)
       return;
     }
     changes.status = request.body.status;
+  }
+  if (request.body?.email_status !== undefined) {
+    if (!['NOT_READY', 'READY', 'SENDING', 'SENT', 'FAILED'].includes(request.body.email_status)) {
+      response.status(400).json({ error: 'Invalid email status.' });
+      return;
+    }
+    changes.email_status = request.body.email_status;
+    changes.email_sent = request.body.email_status === 'SENT' ? 1 : 0;
   }
   if (request.body?.rejection_reason !== undefined) {
     if (request.body.rejection_reason !== null && !['ALREADY_REGISTERED_BOTH', 'NORTHPORT_ADDED', 'OTHER'].includes(request.body.rejection_reason)) {

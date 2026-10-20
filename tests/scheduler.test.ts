@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readSession, signSession } from '../api/_runtime.js';
 import { allowedOrigin, createSchedulerHandler } from '../server-handlers/scheduler/handler.js';
-import { classifySchedulerResponse, runAutomation, RUN_URL, TASKS_URL } from '../server-handlers/scheduler/automation.js';
+import { classifySchedulerResponse, runAutomation, compareLastRun, lastRunTimestamp, RUN_URL, TASKS_URL } from '../server-handlers/scheduler/automation.js';
 import { DEFAULT_SCHEDULER_ID, NORTHPORT_TARGET, parseSchedulerUrl, schedulerUrl } from '../server-handlers/scheduler/targets.js';
 import { createSchedulerCatalog } from '../server-handlers/scheduler/catalog.js';
 
@@ -78,6 +78,8 @@ test('API authorization, origin, revoked roles, shared admission and audit failu
   assert.equal(executions, 0);
   reason='cooldown';cooldownSeconds=45;
   assert.equal((await call()).body.message,'Please wait 45 seconds between scheduler requests.');
+  cooldownSeconds=30;
+  assert.equal((await call()).body.message,'Please wait 30 seconds between scheduler requests.');
   cooldownSeconds=undefined;
   assert.equal((await call()).body.message,'Please wait five minutes between scheduler requests.','Old databases retain an accurate message until migration');
   reason = undefined;
@@ -95,7 +97,7 @@ test('API authorization, origin, revoked roles, shared admission and audit failu
   assert.equal((await call()).body.status, 'unknown');
 });
 
-function browserMock(options: { login?: boolean; tasks?: boolean; dispatchError?: boolean; status?: number; body?: string; location?: string; loginFormMissing?: boolean; taskLinkMissing?: boolean; taskListDelay?: boolean; target?: typeof NORTHPORT_TARGET } = {}) {
+function browserMock(options: { login?: boolean; tasks?: boolean; dispatchError?: boolean; status?: number; body?: string; location?: string; loginFormMissing?: boolean; taskLinkMissing?: boolean; taskListDelay?: boolean; target?: typeof NORTHPORT_TARGET; lastRuns?: [string,string] } = {}) {
   let url = '';
   let closed = 0;
   let sends = 0;
@@ -109,7 +111,8 @@ function browserMock(options: { login?: boolean; tasks?: boolean; dispatchError?
     async waitForNavigation() { url = 'https://www.cargomove.my/bookings'; },
     locator(selector: string) {
       return {
-        locator: () => child,
+        first() { return this; },
+        locator: (selector:string) => selector==='xpath=ancestor::tr[1]' ? {locator:()=>({nth:()=>({innerText:async()=>options.lastRuns?.[sends?1:0]||'Not available'})}),waitFor:async()=>{}} : child,
         async waitFor() {
           if (options.taskLinkMissing) throw new Error();
           if (options.taskListDelay) await new Promise(resolve => setTimeout(resolve, 20));
@@ -143,6 +146,30 @@ test('automation sends exactly once, does not claim completion, and closes the b
   assert.equal(mock.stats().closed, 1);
   assert.equal(mock.stats().requestOptions.maxRetries, 0);
   assert.equal(mock.stats().requestOptions.maxRedirects, 0);
+});
+
+test('Last run comparison handles Malaysia midnight, minute precision, missing values and future timestamps',()=>{
+  const before=Date.parse('2026-10-20T15:59:50Z');
+  const after=Date.parse('2026-10-20T16:00:20Z');
+  assert.equal(lastRunTimestamp('Today at 11:59 PM',before),Date.parse('2026-10-20T15:59:00Z'));
+  assert.equal(compareLastRun('Today at 11:59 PM','Yesterday at 11:59 PM',before,after,after).status,'UNCHANGED');
+  assert.equal(compareLastRun('Today at 11:59 PM','Today at 12:00 AM',before,after,after).status,'ADVANCED');
+  assert.equal(compareLastRun('Today at 12:00 AM','Today at 12:00 AM',after,after,after).status,'UNCHANGED');
+  assert.equal(compareLastRun(null,'Today at 12:00 AM',before,after,after).status,'UNAVAILABLE');
+  assert.equal(compareLastRun('Today at 11:59 PM','Today at 12:01 AM',before,after,after).status,'UNCHANGED');
+  for(const text of ['Never','Invalid','Today at 13:00 PM','Yesterday at 12:60 AM'])assert.equal(lastRunTimestamp(text,after),null);
+});
+
+test('automation observes Last run advancing after exactly one scheduler trigger',async()=>{
+  const display=(time:number)=>{const date=new Date(time+8*3600000);return `Today at ${date.getUTCHours()%12||12}:${String(date.getUTCMinutes()).padStart(2,'0')} ${date.getUTCHours()>=12?'PM':'AM'}`;};
+  const now=Date.now();
+  // Use yesterday for the baseline so this also works in the first minute of a day.
+  const mock=browserMock({lastRuns:[display(now).replace('Today','Yesterday'),display(now)]});
+  const result=await runAutomation({username:'test',password:'secret'},async()=>{},async()=>mock.browser as any);
+  assert.equal(result.status,'TRIGGER_REQUESTED');
+  assert.equal(result.lastRunVerification?.status,'ADVANCED');
+  assert.equal(mock.stats().sends,1);
+  assert.match(result.message,/Container import is not verified/);
 });
 
 test('login, missing form, access, timeout, upstream error and redirect failures are safe', async () => {

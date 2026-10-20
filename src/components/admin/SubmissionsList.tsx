@@ -613,18 +613,18 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
 
       {/* Submissions Table */}
         <div className="overflow-hidden rounded-b-xl rounded-tr-xl border-x border-b border-slate-200 bg-white shadow-sm">
-          <div className="overflow-x-auto">
-          <table className="w-full min-w-[1120px] table-fixed border-collapse text-left text-xs">
+          <div className="overflow-hidden">
+          <table className="registration-queue-table w-full table-fixed border-collapse text-left text-xs">
             <colgroup>
-              <col style={{ width: '4%' }} />
-              <col style={{ width: '15%' }} />
-              <col style={{ width: '24%' }} />
-              <col style={{ width: '10%' }} />
-              <col style={{ width: '10%' }} />
-              <col style={{ width: '14%' }} />
-              <col style={{ width: '8%' }} />
-              <col style={{ width: '8%' }} />
-              <col style={{ width: '7%' }} />
+              <col style={{ width: '32px' }} />
+              <col style={{ width: '128px' }} />
+              <col />
+              <col style={{ width: '96px' }} />
+              <col style={{ width: '90px' }} />
+              <col style={{ width: '112px' }} />
+              <col style={{ width: '88px' }} />
+              <col style={{ width: '96px' }} />
+              <col style={{ width: '56px' }} />
             </colgroup>
             <thead>
               <tr className="admin-registration-table-header whitespace-nowrap border border-slate-400 bg-[#CBD5E1] font-bold uppercase tracking-wider text-slate-700">
@@ -644,9 +644,9 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
                 <th className="py-3 px-3 text-center">Type</th>
                 <th className="py-3 px-3">Facility</th>
                 <th className="py-3 px-3">Cargomove ID</th>
-                <th className="py-3 px-3">Status</th>
+                <th className="py-3 px-3 text-center">Status</th>
                 <th className="py-3 px-3 text-center">Submitted</th>
-                <th className="py-3 px-4 text-right">Actions</th>
+                <th className="py-3 px-4 text-center">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -684,9 +684,9 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
                       </td>
 
                       <td
-                        className="cursor-copy select-none py-3 px-4 font-mono font-bold text-slate-900"
-                        onDoubleClick={() => void handleCopyQueueValue(sub.reference_no, 'Reference number')}
-                        title="Double-click to copy reference number"
+                        className="cursor-pointer select-none py-3 px-4 font-mono font-bold text-slate-900"
+                        onClick={() => setActiveSubmission(sub)}
+                        title="Click to review"
                       >
                         <span className="admin-registration-copy-text">
                           {sub.reference_no}
@@ -765,7 +765,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
                         </span>
                       </td>
 
-                      <td className="relative py-3 px-4 text-right">
+                      <td className="relative py-3 px-4 text-center">
                         <button
                           type="button"
                           onClick={(event) => {

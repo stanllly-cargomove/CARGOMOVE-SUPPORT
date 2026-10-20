@@ -36,7 +36,7 @@ export function createSchedulerHandler(deps = { adminClient, readSession, runAut
         const reason = acquired.data.reason;
         if (reason === 'unavailable') return reply(404, 'The saved scheduler is missing or disabled. Refresh the gallery.');
         return reply(reason === 'cooldown' ? 429 : 409, reason === 'cooldown'
-          ? acquired.data.cooldown_seconds === 45 ? 'Please wait 45 seconds between scheduler requests.' : 'Please wait five minutes between scheduler requests.'
+          ? acquired.data.cooldown_seconds ? `Please wait ${acquired.data.cooldown_seconds} seconds between scheduler requests.` : 'Please wait five minutes between scheduler requests.'
           : reason === 'unknown' ? 'A previous request has an uncertain outcome. An operator must check CargoMove and resolve the audit record before another run.'
           : 'Another scheduler request is already running.');
       }
@@ -50,7 +50,11 @@ export function createSchedulerHandler(deps = { adminClient, readSession, runAut
       }, undefined, undefined, target);
       const saved = await client.rpc<boolean>('finish_cargomove_scheduler', { p_id: runId, p_status: outcome.status, p_message: outcome.message });
       if (saved.error || saved.data !== true) return reply(502, 'Unable to save the final result. Check CargoMove and the execution audit before another run.', 'UNKNOWN', { executionId: runId });
-      return reply(outcome.status === 'TRIGGER_REQUESTED' ? 200 : 502, outcome.message, outcome.status, { executionId: runId });
+      if (outcome.lastRunVerification) {
+        const evidence = await client.from('cargomove_scheduler_runs').update({last_run_verification:outcome.lastRunVerification}).eq('id',runId).timeout(8000);
+        if(evidence.error) return reply(outcome.status === 'TRIGGER_REQUESTED' ? 200 : 502, `${outcome.message} Last run observations could not be saved to the audit; apply the scheduler verification migration.`,outcome.status,{executionId:runId,lastRunVerification:outcome.lastRunVerification});
+      }
+      return reply(outcome.status === 'TRIGGER_REQUESTED' ? 200 : 502, outcome.message, outcome.status, { executionId: runId, ...(outcome.lastRunVerification?{lastRunVerification:outcome.lastRunVerification}:{}) });
     } catch {
       // Leave an acquired lock in place; expiry becomes UNKNOWN, never an automatic retry.
       return reply(503, runId ? 'Execution outcome is uncertain. Check CargoMove and the audit history before another run.' : 'Scheduler service is temporarily unavailable.', runId ? 'UNKNOWN' : 'FAILED');

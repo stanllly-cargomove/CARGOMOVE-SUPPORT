@@ -110,6 +110,14 @@ export default async function externalUserAccess(request: any, response: any) {
         }
         changes.status = body.status;
       }
+      if (body.email_status !== undefined) {
+        if (!['NOT_READY', 'READY', 'SENDING', 'SENT', 'FAILED'].includes(body.email_status)) {
+          response.status(400).json({ error: 'Invalid email status.' });
+          return;
+        }
+        changes.email_status = body.email_status;
+        changes.email_sent = body.email_status === 'SENT' ? 1 : 0;
+      }
       if (body.rejection_reason !== undefined) {
         if (body.rejection_reason !== null && !['ALREADY_REGISTERED_BOTH', 'NORTHPORT_ADDED', 'NO_LEDGER_CODE', 'OTHER'].includes(body.rejection_reason)) {
           response.status(400).json({ error: 'Invalid rejection reason.' });

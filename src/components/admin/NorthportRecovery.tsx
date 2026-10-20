@@ -5,6 +5,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { ArrowLeft, Check, CheckCircle2, ChevronDown, Clock3, Container, Download, FileClock, FileSearch, History, Info, ListFilter, Loader2, MoreVertical, PlugZap, RefreshCw, Search, ShieldCheck, X, Zap } from 'lucide-react';
 import { NORTHPORT_COLUMNS, NORTHPORT_SEARCH_MODES, type Match, type Recovery, type ScannedFile, type SearchMode } from '../../types/northport';
 import { reprocessApprovedRecovery, type ReprocessSubmission } from '../../services/northportReprocess';
+import { recoveryFlow } from '../../services/northportRecoveryStatus';
 import { NorthportScannedFiles } from './NorthportScannedFiles';
 import { NorthportContainerPagination } from './NorthportContainerPagination';
 import { NorthportFileContainers, type ContainerFileSource } from './NorthportFileContainers';
@@ -78,19 +79,19 @@ function FileEditorDialog({ children, busy, onClose, label = 'Container file edi
   const ref=useRef<HTMLDialogElement>(null);
   useEffect(()=>{const dialog=ref.current;const previous=document.body.style.overflow;document.body.style.overflow='hidden';dialog?.showModal();return()=>{dialog?.close();document.body.style.overflow=previous;};},[]);
   return <dialog ref={ref} aria-label={label} onCancel={event=>{event.preventDefault();if(!busy)onClose();}} className={`northport-file-dialog m-auto max-h-[92dvh] w-[96vw] ${compact?'max-w-2xl':'northport-standard-dialog max-w-[1800px]'} overflow-hidden rounded-2xl border border-slate-200 bg-white p-0 text-slate-900 shadow-2xl backdrop:bg-slate-950/50`}>
-    <div className="flex shrink-0 items-start justify-between gap-2 px-3 pt-3 sm:px-5 sm:pt-5">{header&&<div className="min-w-0 flex-1">{header}</div>}{headerActions}{!hideClose&&<button type="button" aria-label={label==='Recovery details'?'Close recovery details':'Close file editor'} disabled={busy} onClick={onClose} className="ml-auto shrink-0 rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 disabled:opacity-50"><X aria-hidden="true" className="h-5 w-5"/></button>}</div>
+    <div className={'flex shrink-0 items-start justify-between gap-2 px-3 sm:px-5 '+(label==='Recovery details'?'border-b border-slate-200 py-3':'pt-3 sm:pt-5')}>{header&&<div className="min-w-0 flex-1">{header}</div>}{headerActions}{!hideClose&&<button type="button" aria-label={label==='Recovery details'?'Close recovery details':'Close file editor'} disabled={busy} onClick={onClose} className="ml-auto shrink-0 rounded-lg border border-slate-200 bg-slate-50 p-1.5 text-slate-500 hover:bg-slate-100 disabled:opacity-50"><X aria-hidden="true" className="h-5 w-5"/></button>}</div>
     <div className="northport-dialog-body min-h-0 min-w-0 overflow-y-auto overscroll-contain p-3 sm:p-5">{children}</div>
     {northportToaster}
   </dialog>;
 }
-type RecoveryConfirmation = { action: 'scheduler'; container: string; payload: Record<string,unknown> };
+type RecoveryConfirmation = { action: 'scheduler' | 'resume-reprocess'; container: string; payload: Record<string,unknown> };
 function RecoveryConfirmationDialog({ confirmation, onCancel, onConfirm }: { confirmation: RecoveryConfirmation; onCancel: () => void; onConfirm: () => void }) {
   const ref=useRef<HTMLDialogElement>(null);
   useEffect(()=>{const dialog=ref.current;dialog?.showModal();return()=>dialog?.close();},[]);
   return <dialog ref={ref} role="alertdialog" aria-labelledby="northport-confirm-title" aria-describedby="northport-confirm-description" onCancel={event=>{event.preventDefault();onCancel();}} className="northport-confirm-dialog m-auto w-[calc(100vw-2rem)] max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl backdrop:bg-slate-950/50">
-    <h3 id="northport-confirm-title" className="text-base font-bold text-slate-900">Run Northport scheduler?</h3>
-    <p id="northport-confirm-description" className="mt-2 text-sm leading-6 text-slate-600">Run the Northport scheduler for the uploaded recovery for {confirmation.container}?</p>
-    <div className="mt-5 grid grid-cols-2 gap-2"><button type="button" autoFocus className={cancelButtonClass} onClick={onCancel}>Cancel</button><button type="button" className={reprocessButtonClass} onClick={onConfirm}>Run scheduler</button></div>
+    <h3 id="northport-confirm-title" className="text-base font-bold text-slate-900">{confirmation.action==='resume-reprocess'?'Resume reprocessing?':'Run Northport scheduler?'}</h3>
+    <p id="northport-confirm-description" className="mt-2 text-sm leading-6 text-slate-600">{confirmation.action==='resume-reprocess'?`Upload the previously approved file for ${confirmation.container}, then request Northport processing? The saved approval and source file will be verified first.`:`Run the Northport scheduler for the uploaded recovery for ${confirmation.container}?`}</p>
+    <div className="mt-5 grid grid-cols-2 gap-2"><button type="button" autoFocus className={secondaryClass} onClick={onCancel}>Cancel</button><button type="button" className={reprocessButtonClass} onClick={onConfirm}>{confirmation.action==='resume-reprocess'?'Upload & Reprocess':'Run scheduler'}</button></div>
   </dialog>;
 }
 function FileZillaIcon() {
@@ -118,33 +119,35 @@ function parameterColumns(values: string[], count: number) {
   }).join(' ');
 }
 function historyStatusLabel(recovery: Recovery) {
-  if (recovery.scheduler_status === 'trigger_requested' || recovery.status === 'Scheduler Triggered') return 'SCHEDULER REQUESTED';
-  if (recovery.status === 'Approved') return 'APPROVED · NOT UPLOADED';
-  if (recovery.status === 'Uploaded') return 'UPLOADED · NOT VERIFIED';
-  if (recovery.status === 'Verification Unavailable') return 'STATUS UNVERIFIED';
-  return recovery.status.toUpperCase();
+  return recoveryFlow(recovery).label;
 }
 function HistoryStatus({ recovery }: { recovery: Recovery }) {
   const label = historyStatusLabel(recovery);
-  const color = label === 'FAILED' ? 'bg-red-50 text-red-700' : ['UPLOADING','APPROVED · NOT UPLOADED','UPLOADED · NOT VERIFIED','STATUS UNVERIFIED'].includes(label) ? 'bg-amber-50 text-amber-800' : label === 'SCHEDULER REQUESTED' ? 'bg-blue-50 text-blue-700' : 'bg-emerald-50 text-emerald-700';
-  return <span className={`inline-flex min-h-5 max-w-[220px] items-center justify-center rounded-md px-2 py-1 text-center text-[9px] font-semibold leading-tight ${color}`}>{label}</span>;
+  const tone = recoveryFlow(recovery).tone;
+  const color = tone === 'rose' ? 'border-rose-200 bg-rose-50 text-rose-700' : tone === 'blue' ? 'border-blue-200 bg-blue-50 text-blue-700' : 'border-amber-200 bg-amber-50 text-amber-800';
+  return <span className={`inline-flex min-h-8 max-w-[220px] items-center justify-center rounded-lg border px-2 py-1 text-center text-[9px] font-semibold leading-tight ${color}`}>{label}</span>;
 }
 function RecoveryDetailsContent({ recovery }: { recovery: Recovery }) {
+  const flow = recoveryFlow(recovery);
   const fields: { label: string; value: React.ReactNode; wide?: boolean }[] = [
     { label: 'Source file', value: recovery.source_filename, wide: true },
-    { label: 'Recovery file', value: recovery.recovery_filename || 'Not uploaded yet', wide: true },
-    { label: 'Submitted by', value: recovery.submitted_by, wide: true },
-    { label: 'Submitted at', value: `${new Date(recovery.created_at).toLocaleString('en-GB',{timeZone:'Asia/Kuala_Lumpur'})} MYT`, wide: true },
+    { label: 'Recovery file', value: recovery.recovery_filename || `REPROCESS_${recovery.container}.csv`, wide: true },
+    { label: 'Approved by', value: recovery.submitted_by },
+    { label: 'Approved at', value: `${new Date(recovery.created_at).toLocaleString('en-GB',{timeZone:'Asia/Kuala_Lumpur'})} MYT` },
     { label: 'Modification', value: recovery.changed_fields.join(', ') || 'None' },
-    { label: 'Status', value: <HistoryStatus recovery={recovery}/> },
   ];
-  if (recovery.status === 'Approved') fields.push({ label: 'Next step', value: 'Approved only. The recovery CSV has not been uploaded yet.', wide: true });
-  if (recovery.status === 'Uploaded') fields.push({ label: 'Next step', value: 'Recovery CSV uploaded. Scheduler request and container import are not confirmed.', wide: true });
-  if (recovery.status === 'Scheduler Triggered') fields.push({ label: 'Import status', value: 'Scheduler request was accepted. Container import is not verified.', wide: true });
   if (recovery.processing_result && recovery.processing_result !== 'Verification Unavailable') fields.push({ label: 'Processing', value: recovery.processing_result, wide: true });
-  if (recovery.scheduler_status && recovery.scheduler_status !== 'Verification Unavailable') fields.push({ label: 'Scheduler', value: recovery.scheduler_status === 'trigger_requested' ? 'Triggered' : recovery.scheduler_status, wide: true });
+  if (recovery.scheduler_status && recovery.scheduler_status !== 'Verification Unavailable') fields.push({ label: 'Scheduler response', value: recovery.scheduler_status === 'trigger_requested' ? 'Request accepted' : recovery.scheduler_status });
   if (recovery.scheduler_run_id) fields.push({ label: 'Scheduler execution ID', value: recovery.scheduler_run_id, wide: true });
-  return <dl className="grid grid-cols-2 gap-x-4 gap-y-3 border-t border-slate-100 pt-3">{fields.map(field=><div key={field.label} className={`min-w-0 ${field.wide?'col-span-2':''}`}><dt className="text-[11px] font-medium text-slate-500">{field.label}</dt><dd className="mt-1 text-xs leading-5 text-slate-900 [overflow-wrap:anywhere]">{field.value}</dd></div>)}</dl>;
+  return <div className="space-y-4">
+    <section className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+      <h4 className="text-xs font-semibold text-slate-900">Recovery progress</h4>
+      <ol className="mt-3 grid grid-cols-3 gap-2">{['Approved','File uploaded','Processing requested'].map((label,index)=><li key={label} className="min-w-0 text-[11px]"><span className={'mb-2 block h-1 rounded-full '+(flow.step>index?'bg-blue-500':'bg-slate-200')}/><span className={flow.step>index?'font-semibold text-slate-800':'text-slate-400'}>{label}</span></li>)}</ol>
+      <p className="mt-3 text-xs leading-5 text-slate-600">{flow.description}</p>
+    </section>
+    <section className="rounded-xl border border-slate-200 bg-white p-4"><h4 className="mb-3 text-xs font-semibold text-slate-900">Files & approval</h4><dl className="grid grid-cols-1 gap-x-5 gap-y-3 sm:grid-cols-2">{fields.map(field=><div key={field.label} className={`min-w-0 ${field.wide?'sm:col-span-2':''}`}><dt className="text-[11px] font-medium text-slate-500">{field.label}</dt><dd className="mt-1 text-xs leading-5 text-slate-900 [overflow-wrap:anywhere]">{field.value}</dd></div>)}</dl></section>
+    <p className="text-[11px] leading-5 text-slate-500">Container import is not verified by this tool. An accepted scheduler request does not confirm import.</p>
+  </div>;
 }
 async function recoveryResponse(response: Response) {
   const data = await response.json().catch(() => null);
@@ -199,6 +202,7 @@ export function NorthportRecovery({ onBack, active = true }: { onBack: () => voi
   const [cooldownClock,setCooldownClock] = useState(Date.now());
   const [processingDots,setProcessingDots] = useState(1);
   const [history,setHistory] = useState<Recovery[]>([]);
+  const [recoveryActionError,setRecoveryActionError] = useState('');
   const [historyDetail,setHistoryDetail] = useState<Recovery|null>(null);
   const [confirmation,setConfirmation] = useState<RecoveryConfirmation|null>(null);
   const [enabled,setEnabled] = useState(false);
@@ -217,6 +221,7 @@ export function NorthportRecovery({ onBack, active = true }: { onBack: () => voi
       const data = await recoveryResponse(response);
       if (!response.ok) throw new Error(data.error || 'Unable to load recovery history.');
       setHistory(data.history);setEnabled(data.uploadsEnabled);setGates(data.missingGates);setHistoryError('');
+      setHistoryDetail(current=>current?data.history.find((row:Recovery)=>row.id===current.id)||current:null);
     } catch(e) { if (!signal?.aborted) {setHistoryError((e as Error).message);if(!historyError)notifyError((e as Error).message,notificationOptions);} }
   }
   useEffect(()=> { const controller = new AbortController();void loadHistory(controller.signal);return ()=>{controller.abort();searchController.current?.abort();}; },[]);
@@ -276,7 +281,7 @@ export function NorthportRecovery({ onBack, active = true }: { onBack: () => voi
   },[]);
   async function action(name:string,payload:any={}) {
     if(pending.current) return;
-    pending.current=true;setBusy(name);setError('');setMessage('');
+    pending.current=true;setBusy(name);setError('');setMessage('');setRecoveryActionError('');
     const controller = new AbortController();if(name==='search') searchController.current=controller;
     try {
       if(['download-source','download-file','download-all','download-reprocess'].includes(name)) {
@@ -296,6 +301,27 @@ export function NorthportRecovery({ onBack, active = true }: { onBack: () => voi
         link.href=url;link.download=payload.filename;link.hidden=true;
         document.body.appendChild(link);link.click();link.remove();
         setTimeout(()=>URL.revokeObjectURL(url),1000);
+        return;
+      }
+      if(name==='resume-reprocess') {
+        if(!enabled)throw new Error('Reprocessing is disabled until production uploads are verified.');
+        const response=await fetch('/api/dev-tools/northport-recovery',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CargoMove-Confirm':'northport-recovery'},body:JSON.stringify({action:'resume-approved',id:payload.id}),signal:controller.signal});
+        const resumed=await recoveryResponse(response);
+        if(!response.ok)throw new Error(resumed.error||'Unable to resume this recovery.');
+        setBusy('reprocess-cooldown');
+        await batchPause(5100,controller.signal);
+        setBusy('reprocess-upload');
+        await reprocessApprovedRecovery(resumed as ReprocessSubmission,{
+          post:async(operation,body)=>{
+            const result=await fetch('/api/dev-tools/northport-recovery',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CargoMove-Confirm':'northport-recovery'},body:JSON.stringify({action:operation,...body}),signal:controller.signal});
+            const data=await recoveryResponse(result);
+            if(!result.ok)throw new Error(data.error||data.message||'Recovery operation was not confirmed.');
+            return data;
+          },
+          onUploaded:()=>{setBusy('reprocess-wait');void loadHistory();},
+          onScheduler:()=>setBusy('reprocess-scheduler'),
+        });
+        setMessage('Approved recovery uploaded. Northport processing requested.');
         return;
       }
       if(name==='approve-reprocess') {
@@ -356,6 +382,7 @@ export function NorthportRecovery({ onBack, active = true }: { onBack: () => voi
       if(name==='search')setSearchSummary(previous=>({listed:0,candidates:0,...previous,scanning:false,complete:false,interrupted:true}));
       if(controller.signal.aborted) setMessage('Search cancelled.'); else {
         setError((e as Error).message);
+        setRecoveryActionError((e as Error).message);
       }
     } finally {if(name==='search')setSearchSummary(previous=>previous?.scanning?{...previous,scanning:false,complete:false,interrupted:true}:previous);pending.current=false;setBusy('');searchController.current=null;void loadHistory();}
   }
@@ -511,6 +538,17 @@ export function NorthportRecovery({ onBack, active = true }: { onBack: () => voi
       {!history.length&&!historyError&&<div className="flex flex-col items-center gap-2 py-3 text-center text-xs text-slate-500"><span aria-hidden="true" className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-400"><FileClock className="h-5 w-5"/></span><p>No recovery approvals yet.</p></div>}
       </div>
     </section>
-    {historyDetail&&<FileEditorDialog label="Recovery details" compact busy={false} onClose={()=>setHistoryDetail(null)} header={<><h3 className="text-sm font-bold text-slate-900">Recovery details</h3><p className="mt-1 text-xs text-slate-500">{historyDetail.container} · {historyDetail.container_type==='GP'?'Import (GP)':'Export (EX)'}</p></>}><RecoveryDetailsContent recovery={historyDetail}/></FileEditorDialog>}
+    {historyDetail&&<FileEditorDialog label="Recovery details" compact busy={!!busy} onClose={()=>setHistoryDetail(null)} headerActions={<HistoryStatus recovery={historyDetail}/>} header={<><h3 className="text-sm font-semibold text-slate-900">{historyDetail.container} - Recovery details</h3><p className="mt-1 text-xs text-slate-500">{historyDetail.container_type==='GP'?'Import (GP)':'Export (EX)'}</p></>}>
+      <RecoveryDetailsContent recovery={historyDetail}/>
+      {recoveryActionError&&<p role="alert" className="mt-3 rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs leading-5 text-rose-700">{recoveryActionError}</p>}
+      {busy&&<p role="status" className="mt-3 flex items-center gap-2 text-xs text-blue-700"><Loader2 className="h-4 w-4 animate-spin"/>{busy==='reprocess-upload'?'Uploading approved file…':busy==='reprocess-scheduler'?'Requesting Northport processing…':busy==='reprocess-wait'?'File uploaded. Preparing processing request…':'Verifying approval and preparing reprocessing…'}</p>}
+      <div className="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 pt-4">
+        <button type="button" disabled={!!busy} className={secondaryClass} onClick={()=>void loadHistory()}>Refresh status</button>
+        <button type="button" disabled={!!busy} className={secondaryClass} onClick={()=>setHistoryDetail(null)}>Close</button>
+        {historyDetail.status==='Approved'&&<button type="button" disabled={!enabled||!!busy} className={reprocessButtonClass} onClick={()=>setConfirmation({action:'resume-reprocess',container:historyDetail.container,payload:{id:historyDetail.id}})}><RefreshCw className="h-4 w-4"/>Resume reprocessing</button>}
+        {historyDetail.status==='Uploaded'&&!historyDetail.scheduler_status&&<button type="button" disabled={!!busy} className={buttonClass} onClick={()=>setConfirmation({action:'scheduler',container:historyDetail.container,payload:{id:historyDetail.id}})}>Run scheduler</button>}
+      </div>
+      {historyDetail.status==='Approved'&&!enabled&&<p className="mt-2 text-xs text-amber-700">Production uploads are currently disabled.</p>}
+    </FileEditorDialog>}
   </div>;
 }

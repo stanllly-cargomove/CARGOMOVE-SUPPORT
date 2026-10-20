@@ -1,11 +1,30 @@
 import type { Browser } from 'playwright-core';
+import { existsSync } from 'node:fs';
 import { NORTHPORT_TARGET, schedulerUrl, type SchedulerTarget } from './targets.js';
 
 export const SCHEDULER = 'northport_containers';
 export const ORIGIN = 'https://www.cargomove.my';
 export const TASKS_URL = `${ORIGIN}/administration/scheduled_tasks`;
 export const RUN_URL = `${ORIGIN}/administration/run_scheduled_task?id=5ff7ea8633904c1dd1bd892b&name=${SCHEDULER}`;
-export type Outcome = { status: 'TRIGGER_REQUESTED' | 'FAILED' | 'UNKNOWN'; message: string };
+export type LastRunVerification = { status: 'ADVANCED' | 'UNCHANGED' | 'UNAVAILABLE'; before: string | null; after: string | null; observedAt: string };
+export type Outcome = { status: 'TRIGGER_REQUESTED' | 'FAILED' | 'UNKNOWN'; message: string; lastRunVerification?: LastRunVerification };
+
+// CargoMove displays relative dates in Malaysia time, with minute precision.
+export function lastRunTimestamp(text: string, observedAt = Date.now()): number | null {
+  const match = text.trim().match(/^(Today|Yesterday)\s+at\s+(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (!match) return null;
+  const hour=Number(match[2]),minute=Number(match[3]);
+  if (hour<1||hour>12||minute>59) return null;
+  const local = new Date(observedAt+8*3600000);
+  return Date.UTC(local.getUTCFullYear(),local.getUTCMonth(),local.getUTCDate()-(match[1].toLowerCase()==='yesterday'?1:0),hour%12+(match[4].toUpperCase()==='PM'?12:0),minute)-8*3600000;
+}
+
+export function compareLastRun(before: string | null, after: string | null, beforeObservedAt: number, afterObservedAt: number, dispatchedAt: number): LastRunVerification {
+  const previous=before?lastRunTimestamp(before,beforeObservedAt):null;
+  const current=after?lastRunTimestamp(after,afterObservedAt):null;
+  const status=previous===null||current===null?'UNAVAILABLE':current>previous&&current>=Math.floor(dispatchedAt/60000)*60000&&current<=afterObservedAt?'ADVANCED':'UNCHANGED';
+  return {status,before,after,observedAt:new Date(afterObservedAt).toISOString()};
+}
 
 export function classifySchedulerResponse(status: number, location: string | undefined, body: string): Outcome {
   if ([401, 403].includes(status) || /type\s*=\s*["']password|materialFormLoginPasswordEx|\/user\/login/i.test(body)
@@ -43,10 +62,12 @@ export function classifySchedulerResponse(status: number, location: string | und
 
 export async function launchBrowser(): Promise<Browser> {
   const { chromium: playwright } = await import('playwright-core');
-  // Local Windows development uses Playwright's managed test browser, never a
-  // system Chrome installation. Vercel always uses the packaged Linux binary.
+  // Prefer managed Chromium locally; use installed browsers when it is absent.
+  // Vercel continues to use the packaged Linux binary.
   if (process.platform === 'win32' && !process.env.VERCEL) {
-    return playwright.launch({ headless: true, timeout: 20000 });
+    if (existsSync(playwright.executablePath())) return playwright.launch({ headless: true, timeout: 20000 });
+    try { return await playwright.launch({channel:'chrome',headless:true,timeout:10000}); }
+    catch { return playwright.launch({channel:'msedge',headless:true,timeout:10000}); }
   }
   const { default: chromium } = await import('@sparticuz/chromium');
   return playwright.launch({ args: chromium.args, executablePath: await chromium.executablePath(), headless: true, timeout: 20000 });
@@ -127,17 +148,41 @@ export async function runAutomation(
       return url.origin === ORIGIN && url.pathname === '/administration/run_scheduled_task'
         && url.searchParams.get('id') === scheduler.taskId && url.searchParams.get('name') === scheduler.workerName;
     })) throw new Error();
+    const taskRow=page.locator(`#scheduled_tasks a[href*="run_scheduled_task?"][href*="id=${scheduler.taskId}"][href*="name=${scheduler.workerName}"]`).first().locator('xpath=ancestor::tr[1]');
+    const readLastRun=async()=>{
+      try { return (await taskRow.locator('td').nth(2).innerText({timeout:Math.min(2500,remaining())})).trim() || null; }
+      catch { return null; }
+    };
+    const before=await readLastRun();
+    const beforeObservedAt=Date.now();
     if (Date.now() >= deadline) throw new Error();
     message = 'Unable to record the scheduler dispatch. No scheduler request was sent.';
     await beforeDispatch();
     // Mark uncertain BEFORE the sole outbound trigger. Never retry, follow a
     // redirect, or navigate a browser to the mutating URL.
     dispatched = true;
+    const dispatchedAt=Date.now();
     const result = await context.request.get(runUrl, { maxRedirects: 0, maxRetries: 0, timeout: remaining() });
     const status = result.status();
     const location = result.headers().location;
     const body = await result.text();
-    return classifySchedulerResponse(status, location, body);
+    const outcome=classifySchedulerResponse(status, location, body);
+    if(outcome.status!=='TRIGGER_REQUESTED') return outcome;
+    let verification:LastRunVerification={status:'UNAVAILABLE',before,after:null,observedAt:new Date().toISOString()};
+    // Read-only observations after the single dispatch. Never repeat the run URL.
+    for(let attempt=0;attempt<2&&Date.now()+5000<deadline;attempt++) {
+      try {
+        const refreshed=await page.goto(TASKS_URL,{waitUntil:'domcontentloaded',timeout:Math.min(5000,remaining())});
+        if(!refreshed?.ok()||page.url().split('?')[0]!==TASKS_URL) break;
+        await taskRow.waitFor({state:'attached',timeout:Math.min(3000,remaining())});
+        verification=compareLastRun(before,await readLastRun(),beforeObservedAt,Date.now(),dispatchedAt);
+        if(verification.status==='ADVANCED') break;
+      } catch { break; }
+    }
+    return {...outcome,lastRunVerification:verification,message:verification.status==='ADVANCED'
+      ?'Scheduler request accepted. CargoMove Last run advanced; a scheduler run was observed. Container import is not verified.'
+      :verification.status==='UNCHANGED'?'Scheduler request accepted. CargoMove Last run has not advanced yet. Completion is not verified.'
+      :'Scheduler request accepted. CargoMove Last run could not be verified. Completion is not verified.'};
   } catch {
     return dispatched
       ? { status: 'UNKNOWN', message: 'The request may have been sent. Check CargoMove Scheduled Tasks before attempting another run.' }

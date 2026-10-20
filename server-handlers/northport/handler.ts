@@ -176,6 +176,30 @@ export function createNorthportHandler(deps = { adminClient, readSession, withFt
         response.setHeader('Content-Disposition',`attachment; filename="${source.filename}"`);
         return response.send(bytes);
       }
+      if (input.action === 'resume-approved') {
+        if (!uploadsEnabled()) throw new RecoveryError('Production uploads are disabled until all preproduction verification gates are confirmed.',403);
+        if (typeof input.id !== 'string' || !/^[a-f0-9-]{36}$/i.test(input.id)) throw new RecoveryError('Invalid recovery ID.');
+        const saved = await client.from('northport_recoveries').select('*').eq('id',input.id).eq('actor',session.id).eq('status','Approved').timeout(8000).maybeSingle();
+        if (saved.error) throw new RecoveryError('Unable to load the approved recovery.',503);
+        const recovery = saved.data;
+        if (!recovery || recovery.actor !== session.id || recovery.status !== 'Approved') throw new RecoveryError('Only your approved, not-yet-uploaded recovery can be resumed. Refresh history before continuing.',409);
+        const info = filenameInfo(recovery.source_filename);
+        if (!info) throw new RecoveryError('The approved source filename is invalid.',409);
+        const original = await deps.withFtp(async (ftp,config) => { await ftp.cd(config.success); return download(ftp,recovery.source_filename); });
+        const digest = hash(original);
+        if (hash('northport-file:' + recovery.source_filename + ':' + digest) !== recovery.source_key) throw new RecoveryError('Source file changed since approval. This recovery cannot be resumed.',409);
+        const csv = parseCsv(original);
+        const row = csv.rows[recovery.source_record-1];
+        if (!row) throw new RecoveryError('The approved source record no longer exists.',409);
+        if (!recovery.approved_values && recovery.changed_fields?.length) throw new RecoveryError('This older modified recovery has no saved approved values. Operator review is required; no file was uploaded.',409);
+        const values = recovery.approved_values || row;
+        validateValues(values);
+        const filename = reprocessFilename(values[0]);
+        const prepared = prepareReprocessFile(original,recovery.source_record,row,values);
+        if (hash('northport-whole-file:' + digest + ':' + filename + ':' + hash(prepared.bytes)) !== recovery.approved_hash) throw new RecoveryError('Saved file does not match the approved recovery. No upload was started.',409);
+        const source: Source = {actor:session.id,filename:recovery.source_filename,digest,expires:Date.now()+30*60000,...info,record:recovery.source_record,totalRecords:csv.rows.length,values:row,format:csv.format};
+        return response.json({id:recovery.id,token:sign(source),values,approved:true,identityConfirmed:true});
+      }
       if (input.action === 'approve' || input.action === 'upload' || input.action === 'download-reprocess') {
         validateValues(input.values);
         let originalBytes: Buffer | undefined;
@@ -217,6 +241,8 @@ export function createNorthportHandler(deps = { adminClient, readSession, withFt
         if (input.action === 'approve') {
           const saved = await client.rpc<any>('northport_approve',{p_actor:session.id,p_email:session.email,p_container:values[0],p_type:source.type,p_source:source.filename,p_record:source.record,p_source_key:sourceKey,p_hash:approvedHash,p_changed:changed});
           if (saved.error || !saved.data) throw new RecoveryError('This source record or container already has a recovery, or approval audit is unavailable. Review history before proceeding.',409);
+          const retained = await client.from('northport_recoveries').update({approved_values:values}).eq('id',saved.data.id).eq('actor',session.id).eq('status','Approved').timeout(8000);
+          if (retained.error) throw new RecoveryError('Approval was recorded, but approved values could not be saved. Apply the Northport resume migration before continuing. No file was uploaded.',503);
           return response.json({ recovery:saved.data, preview:bytes.toString('utf8'), filename, records, uploadsEnabled:uploadsEnabled() });
         }
         const claimed = await client.rpc<any>('northport_claim_file_upload',{p_actor:session.id,p_id:input.id,p_hash:approvedHash,p_source_key:sourceKey});
@@ -242,9 +268,10 @@ export function createNorthportHandler(deps = { adminClient, readSession, withFt
           await deps.runScheduler({method:'POST',headers:{...request.headers,'x-cargomove-confirm':'run-northport-containers'},body:{}},relay);
         } catch { result = {status:'unknown',message:'Scheduler outcome uncertain. Check existing scheduler audit.'}; }
         const success = result?.status === 'trigger_requested';
-        const saved = await client.from('northport_recoveries').update({status:success?'Scheduler Triggered':'Verification Unavailable',scheduler_status:result?.status || 'unknown',scheduler_run_id:result?.executionId || null,processing_result:'Verification Unavailable'}).eq('id',input.id).timeout(8000);
+        const processingResult=result?.lastRunVerification?.status==='ADVANCED'?'Scheduler run observed — container import not verified':'Verification Unavailable';
+        const saved = await client.from('northport_recoveries').update({status:success?'Scheduler Triggered':'Verification Unavailable',scheduler_status:result?.status || 'unknown',scheduler_run_id:result?.executionId || null,processing_result:processingResult}).eq('id',input.id).timeout(8000);
         if (saved.error) throw new RecoveryError('Scheduler outcome audit unavailable. Check scheduler history before another run.',502);
-        return response.status(code).json({ ...result, status:success?'Scheduler Triggered':'Verification Unavailable',processingResult:'Verification Unavailable' });
+        return response.status(code).json({ ...result, status:success?'Scheduler Triggered':'Verification Unavailable',processingResult });
       }
       throw new RecoveryError('Unknown recovery operation.');
     } catch (e) { return fail(e instanceof RecoveryError ? e.code : 503,e instanceof RecoveryError ? e.message : 'Northport recovery is temporarily unavailable. Check the migration and configuration.'); }

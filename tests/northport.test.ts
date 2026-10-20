@@ -6,6 +6,8 @@ import { NORTHPORT_COLUMNS } from '../src/types/northport.js';
 import { filenameInfo, malaysiaTime, localTime, searchInput, parseCsv, generateCsv, prepareReprocessFile, validateValues, MAX_FILE, RecoveryError } from '../server-handlers/northport/format.js';
 import { ftpConfig, withFtp, safeUpload, download } from '../server-handlers/northport/ftp.js';
 import { createNorthportHandler } from '../server-handlers/northport/handler.js';
+import { recoveryFlow } from '../src/services/northportRecoveryStatus.js';
+import type { Recovery } from '../src/types/northport.js';
 import { searchFiles, PARTIAL_LISTING_WARNING } from '../server-handlers/northport/listing.js';
 import { containsContainerText, signFileSource, signEditorSource, verifyEditorSource } from '../server-handlers/northport/inspection.js';
 
@@ -340,6 +342,44 @@ test('scheduler uses existing integration and records trigger separately from im
   const h=harness();const res=await h.call({action:'scheduler',id:'id'});assert.equal(res.body.status,'Scheduler Triggered');assert.equal(res.body.processingResult,'Verification Unavailable');assert.equal(h.schedulerCalls,1);
   h.setSchedulerFailure();assert.equal((await h.call({action:'scheduler',id:'other'})).code,502);assert.equal(h.updates.at(-1).scheduler_status,'failed');
   h.setSchedulerClaim(false);assert.equal((await h.call({action:'scheduler',id:'id'})).code,409);assert.equal(h.schedulerCalls,2);
+});
+test('resume restores approved edits, verifies the original whole file, and never uploads during preparation',async()=>{
+  const h=harness();
+  const payload=await approval(h);
+  payload.values[3]='APPROVED-EDIT';
+  payload.identityConfirmed=true;
+  const id='00000000-0000-4000-8000-000000000001';
+  h.setApprove({id,status:'Approved'});
+  assert.equal((await h.call({action:'approve',...payload})).code,200);
+  assert.deepEqual(h.updates.at(-1).approved_values,payload.values);
+  const audit=h.rpcCalls.find(call=>call.name==='northport_approve')!.args;
+  const recovery={id,actor:'admin',status:'Approved',source_filename:gpName,source_record:audit.p_record,source_key:audit.p_source_key,approved_hash:audit.p_hash,changed_fields:['BLNO'],approved_values:payload.values};
+  h.setProfile(recovery);
+  const gates=['READONLY_VERIFIED','SINGLE_RECORD_VERIFIED','FILENAME_VERIFIED','SERIALIZATION_VERIFIED','NON_NORTHPORT_VERIFIED','DUPLICATES_VERIFIED','RENAME_NO_REPLACE_VERIFIED','TIMEZONE_VERIFIED'];
+  assert.equal((await h.call({action:'resume-approved',id})).code,403);
+  process.env.NORTHPORT_RECOVERY_UPLOAD_ENABLED='true';for(const gate of gates)process.env['NORTHPORT_'+gate]='true';
+  try {
+    const resumed=await h.call({action:'resume-approved',id});assert.equal(resumed.code,200);assert.deepEqual(resumed.body.values,payload.values);assert.equal(resumed.body.id,id);assert.equal(resumed.body.approved,true);
+    h.setClaim({recovery_filename:'REPROCESS_MSBU4179350.csv'});
+    const uploaded=await h.call({action:'upload',...resumed.body});assert.equal(uploaded.code,200);
+    assert.equal(parseCsv(h.uploadedBytes!).rows[0][3],'APPROVED-EDIT');assert.equal(h.schedulerCalls,0);
+    for(const state of ['Uploading','Uploaded','Failed','Scheduler Triggered']) {h.setProfile({...recovery,status:state});assert.equal((await h.call({action:'resume-approved',id})).code,409);}
+    h.setProfile({...recovery,actor:'other'});assert.equal((await h.call({action:'resume-approved',id})).code,409);
+    h.setProfile({...recovery,approved_values:null});assert.equal((await h.call({action:'resume-approved',id})).code,409);
+    h.setProfile({...recovery,approved_hash:'tampered'});assert.equal((await h.call({action:'resume-approved',id})).code,409);
+    h.setProfile(recovery);h.setSource(ex);assert.equal((await h.call({action:'resume-approved',id})).code,409);
+    assert.equal(h.schedulerCalls,0);
+  } finally {process.env.NORTHPORT_RECOVERY_UPLOAD_ENABLED='false';for(const gate of gates)delete process.env['NORTHPORT_'+gate];}
+});
+test('recovery flow distinguishes upload, request acceptance and uncertain outcomes without claiming import',()=>{
+  const base={status:'Approved'} as Recovery;
+  assert.equal(recoveryFlow(base).step,1);
+  assert.equal(recoveryFlow({...base,status:'Uploaded'}).step,2);
+  const requested=recoveryFlow({...base,status:'Scheduler Triggered',scheduler_status:'trigger_requested'});
+  assert.equal(requested.step,3);assert.equal(requested.tone,'blue');assert.match(requested.description,/not yet verified/);
+  assert.equal(recoveryFlow({...base,status:'Failed'}).tone,'rose');
+  assert.equal(recoveryFlow({...base,status:'Verification Unavailable',scheduler_status:'failed'}).step,2);
+  assert.equal(recoveryFlow({...base,status:'unexpected'}).step,0);
 });
 test('safe upload uses temporary transfer, size check, collision check and final rename only',async()=>{
   const events:string[]=[];const bytes=Buffer.from('approved');let collision=false;
