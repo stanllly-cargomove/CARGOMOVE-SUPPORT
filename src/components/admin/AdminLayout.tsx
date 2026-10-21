@@ -284,13 +284,13 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
                   aria-expanded={isRegistrationQueue ? isRegistrationQueueExpanded : undefined}
                   aria-label={isSidebarCollapsed ? item.label : undefined}
                   title={isSidebarCollapsed ? item.label : undefined}
-                  className={`relative min-h-11 w-full flex items-center rounded-lg py-2 text-[14px] md:text-[11px] font-medium transition-all ${isRegistrationQueue ? 'gap-1 px-1.5' : 'gap-2 px-2'} ${isSidebarCollapsed ? 'md:justify-center md:px-2' : ''} ${
+                  className={`relative w-full flex items-center rounded-lg py-2 text-[11px] font-medium transition-all ${isRegistrationQueue ? 'gap-1 px-1.5' : 'gap-2 px-2'} ${isSidebarCollapsed ? 'md:justify-center md:px-2' : ''} ${
                     isActive
                       ? 'bg-[#0095e8] text-white shadow-sm font-semibold'
                       : 'text-slate-300 hover:text-white hover:bg-white/8'
                   }`}
                 >
-                  <Icon className="h-5 w-5 shrink-0 md:h-4 md:w-4" />
+                  <Icon className={`shrink-0 ${isRegistrationQueue ? 'h-3.5 w-3.5' : 'h-4 w-4'}`} />
                   <span className={`min-w-0 flex-1 text-left ${isRegistrationQueue ? 'whitespace-nowrap tracking-tight' : 'truncate'} ${isSidebarCollapsed ? 'md:hidden' : ''}`}>{item.navLabel || item.label}</span>
                   {notificationCount > 0 && (
                     <span
@@ -301,7 +301,7 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
                     </span>
                   )}
                   {isRegistrationQueue && (
-                    <ChevronDown className={`h-4 w-4 shrink-0 transition-transform duration-200 ease-out md:h-3 md:w-3 ${isSidebarCollapsed ? 'md:hidden' : ''} ${isRegistrationQueueExpanded ? 'rotate-180' : ''}`} />
+                    <ChevronDown className={`h-3 w-3 shrink-0 transition-transform duration-200 ease-out ${isSidebarCollapsed ? 'md:hidden' : ''} ${isRegistrationQueueExpanded ? 'rotate-180' : ''}`} />
                   )}
                 </button>
 
@@ -327,13 +327,13 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
                               setActiveTab(queueItem.id);
                               setIsMobileSidebarOpen(false);
                             }}
-                            className={`relative min-h-10 flex w-full items-center gap-2 rounded-lg px-2 py-2 text-[13px] md:min-h-0 md:py-1.5 md:text-[11px] font-medium transition-colors ${
+                            className={`relative flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-[11px] font-medium transition-colors ${
                               isQueueItemActive
                                 ? 'bg-slate-800 font-semibold text-white'
                                 : 'text-slate-400 hover:bg-slate-800/80 hover:text-slate-100'
                             }`}
                           >
-                            <QueueIcon className="h-4 w-4 shrink-0 md:h-3.5 md:w-3.5" />
+                            <QueueIcon className="h-3.5 w-3.5 shrink-0" />
                             <span className="flex-1 text-left">{queueItem.label}</span>
                             {queueItem.status === 'PENDING' && pendingSubmissionCount > 0 && (
                               <span
@@ -363,9 +363,9 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
                 aria-label="NP Container"
                 aria-current={activeTab === 'northport-recovery' ? 'page' : undefined}
                 title="NP Container"
-                className={`min-h-11 flex w-full items-center gap-2 rounded-lg px-2 py-2 text-[14px] md:min-h-0 md:text-[11px] font-medium transition-all ${isSidebarCollapsed ? 'md:justify-center md:px-2' : ''} ${activeTab === 'northport-recovery' ? 'bg-[#0095e8] font-semibold text-white shadow-sm' : 'text-slate-300 hover:bg-white/8 hover:text-white'}`}
+                className={`flex w-full items-center gap-2 rounded-lg px-2 py-2 text-[11px] font-medium transition-all ${isSidebarCollapsed ? 'md:justify-center md:px-2' : ''} ${activeTab === 'northport-recovery' ? 'bg-[#0095e8] font-semibold text-white shadow-sm' : 'text-slate-300 hover:bg-white/8 hover:text-white'}`}
               >
-                <Container className="h-5 w-5 shrink-0 md:h-4 md:w-4" />
+                <Container className="h-4 w-4 shrink-0" />
                 <span className={`min-w-0 flex-1 truncate text-left ${isSidebarCollapsed ? 'md:hidden' : ''}`}>NP Container</span>
               </button>
             </>
@@ -389,13 +389,13 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
                 }}
                 aria-label={isSidebarCollapsed ? item.label : undefined}
                 title={item.label}
-                className={`min-h-11 w-full flex items-center rounded-lg py-2 text-[14px] md:min-h-0 md:text-[11px] font-medium transition-all ${item.id === 'email-template' ? 'gap-1.5 px-1.5' : 'gap-2 px-2'} ${isSidebarCollapsed ? 'md:justify-center md:px-2' : ''} ${
+                className={`w-full flex items-center rounded-lg py-2 text-[11px] font-medium transition-all ${item.id === 'email-template' ? 'gap-1.5 px-1.5' : 'gap-2 px-2'} ${isSidebarCollapsed ? 'md:justify-center md:px-2' : ''} ${
                   isActive
                     ? 'bg-[#0095e8] text-white shadow-sm font-semibold'
                     : 'text-slate-300 hover:text-white hover:bg-white/8'
                 }`}
               >
-                <Icon className="h-5 w-5 shrink-0 md:h-3.5 md:w-3.5" />
+                <Icon className="h-3.5 w-3.5 shrink-0" />
                 <span className={`min-w-0 flex-1 text-left ${item.id === 'email-template' ? 'whitespace-nowrap tracking-tight' : 'truncate'} ${isSidebarCollapsed ? 'md:hidden' : ''}`}>{item.label}</span>
               </button>
               </React.Fragment>

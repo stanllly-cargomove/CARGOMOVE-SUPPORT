@@ -212,7 +212,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           ))}
         </div>
         <div className="hidden gap-2.5 sm:grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-        {registrationCategories.map(({ type, label, pendingCount, registeredCount, rejectedCount, destination, icon: Icon, iconClass, cardClass, accentClass }) => (
+        {registrationCategories.map(({ type, label, pendingCount, registeredCount, destination, icon: Icon, iconClass, cardClass, accentClass }) => (
           <button
             type="button"
             key={type}
@@ -236,22 +236,18 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                   <ChevronRight className="h-4 w-4 shrink-0 text-slate-500 transition-transform group-hover:translate-x-0.5" />
                 </div>
 
-                <div className="mt-2 grid grid-cols-3">
-                  <div className="min-w-0 pr-1">
+                <div className="mt-2 grid grid-cols-2">
+                  <div className="min-w-0 pr-2">
                     <div className="text-lg font-bold leading-none tabular-nums text-slate-900">
                       {pendingCount}
                     </div>
-                    <div className="mt-1 truncate text-[8px] font-bold text-amber-600">Pending</div>
+                    <div className="mt-1 text-[9px] font-bold text-amber-600">Pending</div>
                   </div>
-                  <div className="min-w-0 border-l border-slate-200 pl-1.5">
+                  <div className="min-w-0 border-l border-slate-200 pl-2.5">
                     <div className="text-lg font-bold leading-none tabular-nums text-slate-900">
                       {registeredCount}
                     </div>
-                    <div className="mt-1 truncate text-[8px] font-bold text-emerald-600">Done</div>
-                  </div>
-                  <div className="min-w-0 border-l border-slate-200 pl-1.5">
-                    <div className="text-lg font-bold leading-none tabular-nums text-slate-900">{rejectedCount}</div>
-                    <div className="mt-1 truncate text-[8px] font-bold text-rose-600">Rejected</div>
+                    <div className="mt-1 truncate text-[9px] font-bold text-emerald-600">Registered</div>
                   </div>
                 </div>
               </div>
@@ -287,6 +283,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           </div>
           <div className="overview-pending-controls ml-auto flex shrink-0 flex-nowrap items-center gap-2 sm:gap-3">
             <label className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.16em] text-slate-500">
+              <span className="hidden sm:inline">Reg. Type</span>
               <select
                 value={queueType}
                 onChange={(event) => setQueueType(event.target.value as RegistrationType | 'USER' | 'ALL')}
@@ -302,6 +299,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
               </select>
             </label>
             <label className="overview-pending-page-size-control hidden items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.16em] text-slate-500 sm:flex">
+              <span className="hidden sm:inline">Show</span>
               <select
                 value={queuePageSize}
                 onChange={(event) => setQueuePageSize(Number(event.target.value) as 20 | 30 | 50)}

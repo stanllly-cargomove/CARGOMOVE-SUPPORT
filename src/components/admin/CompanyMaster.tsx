@@ -67,7 +67,7 @@ export function CompanyMaster() {
   const [activeActionMenuId, setActiveActionMenuId] = useState<string | null>(null);
   const [selectedCompanyIds, setSelectedCompanyIds] = useState<string[]>([]);
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
-  const exportMenuRef = useRef<HTMLDivElement | null>(null);
+  const exportMenuRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   const ports = getPorts();
   const depots = getDepots();
@@ -182,7 +182,7 @@ export function CompanyMaster() {
   useEffect(() => {
     if (!isExportMenuOpen) return;
     const closeOnOutsideClick = (event: MouseEvent) => {
-      if (!exportMenuRef.current?.contains(event.target as Node)) setIsExportMenuOpen(false);
+      if (!exportMenuRefs.current.some((menu) => menu?.contains(event.target as Node))) setIsExportMenuOpen(false);
     };
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setIsExportMenuOpen(false);
@@ -215,7 +215,23 @@ export function CompanyMaster() {
             Find and manage registered companies, their contact details and port access information.
           </p>
         </div>
-
+        <div ref={(node) => { exportMenuRefs.current[0] = node; }} className="company-list-desktop-actions relative hidden shrink-0 items-center gap-1.5 sm:flex">
+          <button
+            type="button"
+            onClick={() => { setEditingCompany(null); setIsNewCompanyModalOpen(true); }}
+            className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-sm transition-colors hover:bg-blue-700"
+          >
+            <Plus className="mr-1.5 h-4 w-4 shrink-0" aria-hidden="true" />
+            Add Company
+          </button>
+          <button type="button" onClick={() => setIsExportMenuOpen((open) => !open)} aria-label="Company list options" aria-expanded={isExportMenuOpen} title="Company list options" className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-600 hover:bg-slate-50">
+            <MoreVertical className="h-4 w-4" aria-hidden="true" />
+          </button>
+          {isExportMenuOpen && <div role="menu" aria-label="Company export options" className="absolute right-0 top-full z-30 mt-1 w-max min-w-60 max-w-[calc(100vw-2rem)] rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
+            <button type="button" role="menuitem" disabled={!selectedCompanyIds.length} onClick={() => exportCompanies(companies.filter((company) => selectedCompanyIds.includes(company.id)))} className="flex w-full items-center gap-2 whitespace-nowrap px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-40"><FileSpreadsheet className="h-4 w-4 shrink-0" /> EXPORT SELECTED COMPANIES</button>
+            <button type="button" role="menuitem" onClick={() => exportCompanies(companies)} className="flex w-full items-center gap-2 whitespace-nowrap px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-blue-50"><FileSpreadsheet className="h-4 w-4 shrink-0" /> EXPORT ALL COMPANY</button>
+          </div>}
+        </div>
       </div>
 
       {/* Company table and controls */}
@@ -233,7 +249,7 @@ export function CompanyMaster() {
             />
             <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" aria-hidden="true" />
           </div>
-          <div ref={exportMenuRef} className="company-list-header-actions relative flex shrink-0 items-center gap-1.5">
+          <div ref={(node) => { exportMenuRefs.current[1] = node; }} className="company-list-header-actions relative flex shrink-0 items-center gap-1.5 sm:hidden">
             <button
               type="button"
               onClick={() => { setEditingCompany(null); setIsNewCompanyModalOpen(true); }}
