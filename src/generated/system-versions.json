@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "version": "1.6.8",
-  "updatedAt": "2026-10-21T09:04:41.818Z",
+  "version": "1.6.9",
+  "updatedAt": "2026-10-21T09:11:52.707Z",
   "entries": [
     {
       "id": "account-settings",
@@ -577,7 +577,7 @@
     "server-handlers/scheduler/targets.ts": "be6109d1121d6f850ac15675564c71cd463dbc93f3e848ff5f7cbe24d9ed9c55",
     "server-handlers/system-versions.ts": "67576ad773da93c269b9e66efd6d72a9de02c8c1df0a1d986a17d564989ced9a",
     "server.ts": "8474cd3c5e0327ead3d4ba0c185fe4452d5e21e14e3449fa266cb3327c55afd3",
-    "src/App.tsx": "11598aa29a529077e6a8a93169c0b86ff86d7d05cea5fa6bd3161755dc414bba",
+    "src/App.tsx": "ffe99f2241d2f63158452983bf6a6e123962241679a8ff003789eef69b2e18be",
     "src/components/admin/AccountSettings.tsx": "307eff35f85f7d44dac7be9d25dbb8d10ff8cacaf625bc1920439ddc9a9b0862",
     "src/components/admin/AdminDashboard.tsx": "cb10fe76c1247361a6ddb8b7853395651d5d7c098a9adeb7711d9e00f97ff9f5",
     "src/components/admin/AdminLayout.tsx": "2d8d9a8cc24c32bd32e4e4f6b50326963bd2a1d3efe37b88104ae36e32ae235f",
@@ -605,6 +605,7 @@
     "src/components/admin/UserRegistration.tsx": "6b627ea8e9631e9895a2930e6eceba2278c5587c90588bf74917f8c276b2d2b5",
     "src/components/auth/LoginPage.tsx": "b3a80fb8dbca5fe5e3ac078cc7ad97bef6f255d99cfa470bd89e85050c28e009",
     "src/components/auth/PasswordResetPage.tsx": "2d7b0bea5510275f8aa16eb7980ae9cbfa2c841e761b50f1572195e9a96e3b16",
+    "src/components/common/AccountLoadingScreen.tsx": "586d1cc4ff84a63deda4fdcc5a2fbd786495e8433bcb239f09d2740fcb36c069",
     "src/components/common/Badge.tsx": "2acfb2519973f5bd3ba8795fe36e013144705e5f53dd2882c5139a748486e34a",
     "src/components/common/Logo.tsx": "bbb8598a57ff447e56a8e162110350c51cfae5f4d583fc6e813a9e2d0117fb8c",
     "src/components/common/notifications.ts": "b02ba1a0fb4efeb4994b6d84a6e67ed754718730be0af382b066c6ebd37683a6",
@@ -709,6 +710,29 @@
     "vite.config.ts": "167e03f4e2c3298d4e3cbe61c5c1f8712073bf15d56c63d992827e99d3b7601b"
   },
   "history": [
+    {
+      "sourceCommit": "54f0b3e8f34bea9849e12a8682b47d0c77b9931c",
+      "pushedBy": "lumoratechent-beep",
+      "commits": [
+        {
+          "sha": "226636467ca86a632c09933d09f046fca7b8bf7d",
+          "author": "cargomovemy",
+          "subject": "refresh issue fix 2"
+        }
+      ],
+      "authors": [
+        "cargomovemy"
+      ],
+      "version": "1.6.9",
+      "previousVersion": "1.6.8",
+      "date": "2026-10-21T09:11:52.707Z",
+      "summary": "Updated existing pages, tools or shared system files",
+      "files": [
+        "src/App.tsx",
+        "src/components/common/AccountLoadingScreen.tsx"
+      ],
+      "changes": []
+    },
     {
       "sourceCommit": "e8a2d76a9df016b2b307a7eaed4cdeb9f8b8e3a9",
       "pushedBy": "lumoratechent-beep",
