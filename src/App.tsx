@@ -61,7 +61,6 @@ export default function App() {
     if (!isAuthLoading && page === 'admin' && !currentUser) navigate('login');
   }, [isAuthLoading, page, currentUser, navigate]);
 
-  if (isAuthLoading && page === 'admin' && !currentUser) return <AccountLoadingScreen />;
   if (isPasswordRecovery) return <PasswordResetPage onDone={() => { setIsPasswordRecovery(false); navigate('login'); }} />;
 
   return (
@@ -71,10 +70,11 @@ export default function App() {
       {page === 'register' && <RegistrationPage onNavigate={navigate} />}
       {page === 'track' && <TrackStatusPage onNavigate={navigate} />}
       {page === 'guideline' && <GuidelinePage onNavigate={navigate} />}
-      {(page === 'login' || (page === 'admin' && !currentUser)) && <PortalLoginPage onNavigate={navigate} onSuccess={user => { setCurrentUser(user); navigate('admin'); }} />}
+      {(page === 'login' || (page === 'admin' && !currentUser && !isAuthLoading)) && <PortalLoginPage onNavigate={navigate} onSuccess={user => { setCurrentUser(user); navigate('admin'); }} />}
       </React.Fragment>
-      {(page === 'admin' || hasOpenedAdmin) && currentUser && <AdminLayout
-        key={currentUser.id}
+      <div inert={isAuthLoading && page === 'admin'}>
+      {(page === 'admin' || hasOpenedAdmin) && (currentUser || isAuthLoading) && <AdminLayout
+        key={currentUser?.id || 'loading'}
         active={page === 'admin'}
         user={currentUser}
         onSwitchToCustomer={() => navigate('home')}
@@ -87,6 +87,8 @@ export default function App() {
           navigate('home');
         }}
       />}
+      </div>
+      {isAuthLoading && page === 'admin' && <AccountLoadingScreen />}
     </div>
   );
 }

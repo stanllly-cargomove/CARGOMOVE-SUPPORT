@@ -306,7 +306,6 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           </div>
           <div className="ml-auto flex shrink-0 flex-nowrap items-center gap-2 sm:gap-3">
             <label className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.16em] text-slate-500">
-              <span className="hidden sm:inline">Reg. Type</span>
               <select
                 value={queueType}
                 onChange={(event) => setQueueType(event.target.value as RegistrationType | 'USER' | 'ALL')}
@@ -322,7 +321,6 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
               </select>
             </label>
             <label className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.16em] text-slate-500">
-              <span className="hidden sm:inline">Show</span>
               <select
                 value={queuePageSize}
                 onChange={(event) => setQueuePageSize(Number(event.target.value) as 20 | 30 | 50)}
