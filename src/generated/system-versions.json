@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "version": "1.7.0",
-  "updatedAt": "2026-10-21T18:38:10.292Z",
+  "version": "1.7.1",
+  "updatedAt": "2026-10-21T18:52:35.823Z",
   "entries": [
     {
       "id": "account-settings",
@@ -11,9 +11,9 @@
         "src/components/admin/AdminLayout.tsx"
       ],
       "kind": "page",
-      "version": "1.2.8",
-      "updatedAt": "2026-10-21T18:38:10.292Z",
-      "fingerprint": "54ebf1ebe4f44eace9a0563fcf6a51f732cfa8b8fe0a4694eaa839457525fe60"
+      "version": "1.2.9",
+      "updatedAt": "2026-10-21T18:52:35.823Z",
+      "fingerprint": "f79a92315bb9e5a85ce77a92472fc14c44073706d10fa1638648ad950b64c84e"
     },
     {
       "id": "admin",
@@ -23,9 +23,9 @@
         "src/components/admin/AdminLayout.tsx"
       ],
       "kind": "page",
-      "version": "1.2.8",
-      "updatedAt": "2026-10-21T18:38:10.292Z",
-      "fingerprint": "33eed5214dce4e73f37d9f64e6dd942a8ff2f1c243415fceb244608c37300214"
+      "version": "1.2.9",
+      "updatedAt": "2026-10-21T18:52:35.823Z",
+      "fingerprint": "1f923047cb80a90721256bd18dca5dd33250acdfffe4411d4e807515b076fd43"
     },
     {
       "id": "auto-email",
@@ -61,9 +61,9 @@
         "supabase/auto-mail",
         "api/mail.ts"
       ],
-      "version": "1.0.0",
-      "updatedAt": "2026-10-21T18:38:10.292Z",
-      "fingerprint": "2663a4cc36bacd7ff50b8ba507d802e12abb0d511d941679e02f610e64567f05"
+      "version": "1.0.1",
+      "updatedAt": "2026-10-21T18:52:35.823Z",
+      "fingerprint": "004ca1cd5a8e252c14ce33a162722c9f4751be14f74282e8377f6abb9c5610b9"
     },
     {
       "id": "developer",
@@ -73,9 +73,9 @@
         "src/components/admin/AdminLayout.tsx"
       ],
       "kind": "page",
-      "version": "1.2.8",
-      "updatedAt": "2026-10-21T18:38:10.292Z",
-      "fingerprint": "46ea8148b95c4e9eb731d79ea3b564379a4f262c3ee5d607b701ad6abaaee989"
+      "version": "1.2.9",
+      "updatedAt": "2026-10-21T18:52:35.823Z",
+      "fingerprint": "c50006eaad21537a4192fdd9b16cc264a6b4fcfa1d709b9050cf40b5d27096b1"
     },
     {
       "id": "northport",
@@ -269,9 +269,9 @@
         "src/components/admin/AutoMail.tsx"
       ],
       "kind": "page",
-      "version": "1.0.0",
-      "updatedAt": "2026-10-21T18:38:10.292Z",
-      "fingerprint": "5881e7e6567b7aed3e6277b89081d822c07950192cedf440daf6542b66f5a843"
+      "version": "1.0.1",
+      "updatedAt": "2026-10-21T18:52:35.823Z",
+      "fingerprint": "a1d7164804a2a9299afcb261b44ea375c11d25eb8a8ea5e8847dda915f9405c7"
     },
     {
       "id": "src/components/admin/AutoMailKnowledgePage.tsx",
@@ -281,9 +281,9 @@
         "src/components/admin/AutoMailKnowledgePage.tsx"
       ],
       "kind": "page",
-      "version": "1.0.0",
-      "updatedAt": "2026-10-21T18:38:10.292Z",
-      "fingerprint": "f5b67a2f3c70b86b7ad5a297f2e5edc6fb2695dca879e847dc7dc9500183defb"
+      "version": "1.0.1",
+      "updatedAt": "2026-10-21T18:52:35.823Z",
+      "fingerprint": "d1a4b11310fa88a09c88d234c8eb994a1d36e6b23dc463bf60fc4dd5a3cfac1a"
     },
     {
       "id": "src/components/admin/CargoMoveScheduler.tsx",
@@ -580,7 +580,7 @@
     "media/registration-depot-card.png": "de3a1dfdc105987f1400cdf87b836faa9b474ac0cd7344db6f1f2c2f9a293468",
     "media/registration-port-hero-fast.webp": "36830a87ccaf357ccfc531603d2937abbfd8ea8a819eeeb6f18d6aca2438d01a",
     "media/registration-port-hero.png": "2b6df14a930709895dc1f2a5572e4897545952bfd726f8cffde61727f7a1ced5",
-    "package.json": "3dfc599709aa73eae4bd06044a6ded22d433160fab126082dfa34952620744b6",
+    "package.json": "e752aacef617035a905493f05e70321e0981e811ee28592258d23700b31526ed",
     "scripts/capture-push-version.ts": "1b4f1ef7ba558680dd94cede28b9f6046e49e8edffc0161d30bdee323f0dcb60",
     "scripts/system-version.ts": "51e6cf5f898dcc8398d787f9585b791f5457b4065a5c2382b1940a857fdc5436",
     "server-handlers/_email.ts": "9722520ad92b1e7adc090f6ff78b9b9a17df587b6af63a5f5284895911eb2eb8",
@@ -632,14 +632,14 @@
     "src/App.tsx": "5fe8e4849c0d2aaed22dbd6eecf3bb37c8bfde7fcb99fb172256bd7f50ad4593",
     "src/components/admin/AccountSettings.tsx": "307eff35f85f7d44dac7be9d25dbb8d10ff8cacaf625bc1920439ddc9a9b0862",
     "src/components/admin/AdminDashboard.tsx": "1d7f3cfcac941b62fe4e159d48c4fbeb6dac370c9632eafe165fd1088c38ac0a",
-    "src/components/admin/AdminLayout.tsx": "8c922c632cbf298267109d0e5937280975c7538f76a55874208440425f6e3fa3",
+    "src/components/admin/AdminLayout.tsx": "38c4abb381485a28ad40808436f030b1517757c166b59a0018cf566f4b988fe6",
     "src/components/admin/AdminUser.tsx": "00957e103bffd351a3ac6ed3e3d98f7615fe3476b88406fe751997c715f0769c",
     "src/components/admin/AdminUserCreate.tsx": "8d314b35a609239dca04e94f2ad8268b5ebdf38e73bd4cfe94559e43d467bc3b",
     "src/components/admin/AssignIdModal.tsx": "d5d25d70259c5d45b455bd6572b5842aadb6645019f7cee71c938d6b1808716e",
-    "src/components/admin/AutoMail.tsx": "9aef98165e05827dcd18058c503fb0b6f0e7eb619b1cc51bde3d2e6a3e43ffe1",
+    "src/components/admin/AutoMail.tsx": "8e2cd07901e53d5cefefaae46b5b9e5116895e153e0fae0e167b179ee081fd61",
     "src/components/admin/AutoMailAiDraft.tsx": "d1f21c90ac0b0f6fe199749d40ba7d9e42d4e54691a792f6f590eb5c741a9c14",
     "src/components/admin/AutoMailKnowledge.tsx": "cf7be9396bab473232f6c0315b802ec56d05e6f8aafe204bb4052c67f096b21e",
-    "src/components/admin/AutoMailKnowledgePage.tsx": "c95321198f548c03ab5a4dc263a61c143d141fec6ee68fd02e145909ea036b70",
+    "src/components/admin/AutoMailKnowledgePage.tsx": "44ec0e04348bf46c9276b572c9fe145edadc6bcc37b8c1b439d3de2b9de50386",
     "src/components/admin/AutoMailLearning.tsx": "75f9dcdffac8e865824bae6740400b249bd581d5405a8d62ce22c07fedddc893",
     "src/components/admin/CargoMoveScheduler.tsx": "0c72d668118bd8cea08ff4107947a2b2e2cca74e7684d82c7f8f01fb9ada8105",
     "src/components/admin/CompanyMaster.tsx": "1b18a0fe820bd02443ef990f28af66e2cf7d75cfcca4956bedfa1d4461b2f699",
@@ -775,6 +775,80 @@
     "vite.config.ts": "167e03f4e2c3298d4e3cbe61c5c1f8712073bf15d56c63d992827e99d3b7601b"
   },
   "history": [
+    {
+      "sourceCommit": "f743355ceac7c481494402a3cb0bb7399a510cbe",
+      "pushedBy": "lumoratechent-beep",
+      "commits": [
+        {
+          "sha": "f743355ceac7c481494402a3cb0bb7399a510cbe",
+          "author": "cargomovemy",
+          "subject": "fix: make developer knowledge base accessible from Auto Mail"
+        }
+      ],
+      "authors": [
+        "cargomovemy"
+      ],
+      "version": "1.7.1",
+      "previousVersion": "1.7.0",
+      "date": "2026-10-21T18:52:35.823Z",
+      "summary": "Updated existing pages, tools or shared system files",
+      "files": [
+        "package.json",
+        "src/components/admin/AdminLayout.tsx",
+        "src/components/admin/AutoMail.tsx",
+        "src/components/admin/AutoMailKnowledgePage.tsx"
+      ],
+      "changes": [
+        {
+          "id": "account-settings",
+          "name": "Account Settings",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.2.8",
+          "to": "1.2.9"
+        },
+        {
+          "id": "admin",
+          "name": "Admin Page",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.2.8",
+          "to": "1.2.9"
+        },
+        {
+          "id": "auto-mail",
+          "name": "Auto Mail",
+          "kind": "tool",
+          "action": "updated",
+          "from": "1.0.0",
+          "to": "1.0.1"
+        },
+        {
+          "id": "developer",
+          "name": "Dev Page",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.2.8",
+          "to": "1.2.9"
+        },
+        {
+          "id": "src/components/admin/AutoMail.tsx",
+          "name": "Auto Mail",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.0",
+          "to": "1.0.1"
+        },
+        {
+          "id": "src/components/admin/AutoMailKnowledgePage.tsx",
+          "name": "Knowledge Base",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.0",
+          "to": "1.0.1"
+        }
+      ]
+    },
     {
       "sourceCommit": "793363304ab14c884efa75e4a6f9b88653346bcb",
       "pushedBy": "lumoratechent-beep",
