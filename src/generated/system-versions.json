@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "version": "1.6.5",
-  "updatedAt": "2026-10-21T06:25:50.743Z",
+  "version": "1.6.6",
+  "updatedAt": "2026-10-21T08:15:59.335Z",
   "entries": [
     {
       "id": "account-settings",
@@ -11,9 +11,9 @@
         "src/components/admin/AdminLayout.tsx"
       ],
       "kind": "page",
-      "version": "1.2.0",
-      "updatedAt": "2026-10-21T06:25:50.743Z",
-      "fingerprint": "15b90a338d679cf9cdfe42941d4666d534a81b8113f492747e6ed6479d99abbd"
+      "version": "1.2.1",
+      "updatedAt": "2026-10-21T08:15:59.335Z",
+      "fingerprint": "9484fcf5e38ecb2dbfe76feaa7197152ad8f6a292ffac6675cba467219c3e5f8"
     },
     {
       "id": "admin",
@@ -23,9 +23,9 @@
         "src/components/admin/AdminLayout.tsx"
       ],
       "kind": "page",
-      "version": "1.2.0",
-      "updatedAt": "2026-10-21T06:25:50.743Z",
-      "fingerprint": "449ce31e5bce81e2aa22c10e3cac5881635ceccec19b37b2fc30fe82a43761ae"
+      "version": "1.2.1",
+      "updatedAt": "2026-10-21T08:15:59.335Z",
+      "fingerprint": "6f311d1d93c98988f089e4fbcdb544592a7562152ff62b9d71b63f01f8426654"
     },
     {
       "id": "auto-email",
@@ -42,9 +42,9 @@
         "server-handlers/_email.ts",
         "api/mail.ts"
       ],
-      "version": "1.0.3",
-      "updatedAt": "2026-10-21T06:25:50.743Z",
-      "fingerprint": "6015859957a546ff40b2b78377ecca8677ac99e251ec673217f7bf9d3d46bc4a"
+      "version": "1.0.4",
+      "updatedAt": "2026-10-21T08:15:59.335Z",
+      "fingerprint": "68ed20eb0a62e0c8818627341c81fd6f5437efb27717ba3623c8b0a380031e51"
     },
     {
       "id": "developer",
@@ -54,9 +54,9 @@
         "src/components/admin/AdminLayout.tsx"
       ],
       "kind": "page",
-      "version": "1.2.0",
-      "updatedAt": "2026-10-21T06:25:50.743Z",
-      "fingerprint": "b10cffef90b17c9327e5538e3fe349f2dd0cddb661851fa7636455ecf27ae132"
+      "version": "1.2.1",
+      "updatedAt": "2026-10-21T08:15:59.335Z",
+      "fingerprint": "77ae4e2ac2033e331a756a015662b71e86909709814fc46f77a817f0d70eb1e7"
     },
     {
       "id": "northport",
@@ -250,9 +250,9 @@
         "src/components/admin/CargoMoveScheduler.tsx"
       ],
       "kind": "page",
-      "version": "1.0.2",
-      "updatedAt": "2026-10-21T06:25:50.743Z",
-      "fingerprint": "a212f3239c5617ef54c81da5c8da433a198ac069b47e272a536e867f975b680e"
+      "version": "1.0.3",
+      "updatedAt": "2026-10-21T08:15:59.335Z",
+      "fingerprint": "b8443d83e2c34eaa3d0f6555c9f1c391098c180ae4793973f9c55f0acc00313c"
     },
     {
       "id": "src/components/admin/CompanyMaster.tsx",
@@ -509,7 +509,7 @@
   ],
   "sourceFiles": {
     ".github/workflows/system-version.yml": "1b2563ccd650b535fbe3de516602738f90b36a058ebb4d7b69237373fe101142",
-    "api/_runtime.ts": "85fbaf7657252cb9302580b82be311d178efba01755538107d6caa58729a7c91",
+    "api/_runtime.ts": "6ac2bbc18e8753c1a7edc884697758836f0d4d7de1dc72ec3d9866e8479b8084",
     "api/auth/login.ts": "b9ca37e15306678b28cad3646b66ca59e0a5d888e47ca88a9b91a521573610ca",
     "api/auth/logout.ts": "b9b0a8d91f7a8e2df747e72105e1c75d0b7a8f276cd16a81ca2087769cadbe55",
     "api/auth/session.ts": "b558da6ab3889ec7b6eea64efd7d62c312575a41032e974f5e72c9da40d3f807",
@@ -572,19 +572,19 @@
     "server-handlers/registration/submit.ts": "20a91014e114064e79dc48edd63e34877f1f86e113097f74e7ccd7ad01e5a742",
     "server-handlers/scheduler/access.ts": "76ef28658dda9612579330cb9d37e32f6a2f6d7896afb6c217395703b36a6d6f",
     "server-handlers/scheduler/automation.ts": "600829e517864ddb77fa16e03e04a39182dcd7eb8266dca41ff0386832a2e735",
-    "server-handlers/scheduler/catalog.ts": "270406dc5095073a3c1438e0dae357b6bc390f7d3ec165df11ae5ff746cc31ad",
+    "server-handlers/scheduler/catalog.ts": "2d57b4deba6d3e50e12ff551702baab55b1bdfdeef6ac665233bbe7ce039a4fd",
     "server-handlers/scheduler/handler.ts": "9f5e46399aec64ace317e10320bf11b73c18604a637b442afc5edaf3bdc04307",
     "server-handlers/scheduler/targets.ts": "be6109d1121d6f850ac15675564c71cd463dbc93f3e848ff5f7cbe24d9ed9c55",
     "server-handlers/system-versions.ts": "67576ad773da93c269b9e66efd6d72a9de02c8c1df0a1d986a17d564989ced9a",
-    "server.ts": "fbb48253478238288c47516efbce7abd7da37bfe22d83d0d12651d36caba412a",
+    "server.ts": "8474cd3c5e0327ead3d4ba0c185fe4452d5e21e14e3449fa266cb3327c55afd3",
     "src/App.tsx": "2fa22eea7b66ca604103515fd6e20c3864993d281de5b1e0c20c8c04c51260d6",
     "src/components/admin/AccountSettings.tsx": "31ed6c7098a383d841a96028c167731d4f8146f15ddae109417605f7574d8b41",
     "src/components/admin/AdminDashboard.tsx": "cb10fe76c1247361a6ddb8b7853395651d5d7c098a9adeb7711d9e00f97ff9f5",
-    "src/components/admin/AdminLayout.tsx": "1cd693a0ec64b22c5f9fda538b4958e6d0c2ad7f2c42235d4717fd4cc237ac10",
+    "src/components/admin/AdminLayout.tsx": "3a9e96540f44196926f9c131336b41510402bdf00dcd0aa7f21d2d6b60c86a4e",
     "src/components/admin/AdminUser.tsx": "89b5bd5ef89b32c180f3be974a9984e67a90dff6336637dc58fd4883a6a030cb",
     "src/components/admin/AdminUserCreate.tsx": "c3422282ca88edcc86ec8efc65a76402c6c35e983d18c762a0e095e09c71c97a",
     "src/components/admin/AssignIdModal.tsx": "d6e135717c66aa2ed343bc13dc6ca5fd3bddbceb01fe3ddab04124c32029b3c8",
-    "src/components/admin/CargoMoveScheduler.tsx": "b70e5615c6ba44a191f4225be6164c2e47f5fb9837ae6bd867aebdf4c089a38d",
+    "src/components/admin/CargoMoveScheduler.tsx": "0c72d668118bd8cea08ff4107947a2b2e2cca74e7684d82c7f8f01fb9ada8105",
     "src/components/admin/CompanyMaster.tsx": "db6a549960d505017865d5e0e431cb0a0fca91c5f36acbf156ee2230bc01e614",
     "src/components/admin/DeveloperSettings.tsx": "b677a73d2f907e52af05afc2d11524732f86adb70a191ba244e6affdadd760ee",
     "src/components/admin/EmailTemplateManager.tsx": "482a5243a97618f09760e7d7dd7662598cdce5b7f93614bda9b999a0b54f8e46",
@@ -652,7 +652,7 @@
     "src/services/supabaseAuth.ts": "8054b4cef823bf1c37983513b4dcf291d608fbb6f7368954854fed95d01641cb",
     "src/types/index.ts": "ec5ed8b3bc04d8406e6b140f0cc3d8704b938b506bf44150d79a1e87e826f850",
     "src/types/northport.ts": "f754f9aff8b32bc1247a635d90ae60ac07a9ab34db62046fab4f4b0bd33da822",
-    "src/types/scheduler.ts": "2a29ce2a8a8f00be77e0aa5aa5386914a11f01ec9f37ffa04c773fe161f1364a",
+    "src/types/scheduler.ts": "8668a45208ae05c8817396530baa654f93930b476c37d379c8ada646464ed88a",
     "src/utils/date.ts": "3a4177557054435ed93c5ee0a1264e4f217e1b2a0210bf47b1ecae6cca72434b",
     "src/utils/registrationEmailTemplates.ts": "7835899d94bd7c78d2dde67a46ee8ef6934e3fd963f8efe5609577b437992813",
     "src/vite-env.d.ts": "bb9c40ba45ded77a67f36f34f7262f1e154c08fb01efc3243c02c817c0806fe5",
@@ -709,6 +709,74 @@
     "vite.config.ts": "167e03f4e2c3298d4e3cbe61c5c1f8712073bf15d56c63d992827e99d3b7601b"
   },
   "history": [
+    {
+      "sourceCommit": "4b1798676e57cfe7491c408b1c63f44556fbacc5",
+      "pushedBy": "lumoratechent-beep",
+      "commits": [
+        {
+          "sha": "4b1798676e57cfe7491c408b1c63f44556fbacc5",
+          "author": "cargomovemy",
+          "subject": "scheduler login enhancement"
+        }
+      ],
+      "authors": [
+        "cargomovemy"
+      ],
+      "version": "1.6.6",
+      "previousVersion": "1.6.5",
+      "date": "2026-10-21T08:15:59.335Z",
+      "summary": "Updated existing pages, tools or shared system files",
+      "files": [
+        "api/_runtime.ts",
+        "server-handlers/scheduler/catalog.ts",
+        "server.ts",
+        "src/components/admin/AdminLayout.tsx",
+        "src/components/admin/CargoMoveScheduler.tsx",
+        "src/types/scheduler.ts"
+      ],
+      "changes": [
+        {
+          "id": "account-settings",
+          "name": "Account Settings",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.2.0",
+          "to": "1.2.1"
+        },
+        {
+          "id": "admin",
+          "name": "Admin Page",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.2.0",
+          "to": "1.2.1"
+        },
+        {
+          "id": "auto-email",
+          "name": "Auto Email",
+          "kind": "tool",
+          "action": "updated",
+          "from": "1.0.3",
+          "to": "1.0.4"
+        },
+        {
+          "id": "developer",
+          "name": "Dev Page",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.2.0",
+          "to": "1.2.1"
+        },
+        {
+          "id": "src/components/admin/CargoMoveScheduler.tsx",
+          "name": "Scheduler",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.2",
+          "to": "1.0.3"
+        }
+      ]
+    },
     {
       "sourceCommit": "c5e39f1dd6ec41d9562a5cf0943bf8a24dfcae4e",
       "pushedBy": "lumoratechent-beep",
