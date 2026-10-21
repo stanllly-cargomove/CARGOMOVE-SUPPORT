@@ -60,7 +60,7 @@ export default function App() {
     if (!isAuthLoading && page === 'admin' && !currentUser) navigate('login');
   }, [isAuthLoading, page, currentUser, navigate]);
 
-  if (isAuthLoading && page === 'admin' && !currentUser) return <PortalLoginPage onNavigate={navigate} onSuccess={user => { setCurrentUser(user); navigate('admin'); }} />;
+  if (isAuthLoading && page === 'admin' && !currentUser) return <div className="flex min-h-screen items-center justify-center bg-[#f6f8fb] text-sm text-slate-500" role="status">Loading your account…</div>;
   if (isPasswordRecovery) return <PasswordResetPage onDone={() => { setIsPasswordRecovery(false); navigate('login'); }} />;
 
   return (

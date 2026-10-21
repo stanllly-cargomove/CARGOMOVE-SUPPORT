@@ -35,7 +35,7 @@ async function parseBody(request: any): Promise<{ identifier?: string; password?
   });
 }
 
-function sessionCookie(payload: { id: string; email: string; type: string; exp: number }, secret: string) {
+function sessionCookie(payload: { id: string; email: string; type: string; username?: string; full_name?: string; exp: number }, secret: string) {
   const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url');
   const signature = crypto.createHmac('sha256', secret).update(encoded).digest('base64url');
   return `${encoded}.${signature}`;
@@ -92,7 +92,7 @@ export default async function login(request: any, response: any) {
       return;
     }
 
-    const token = sessionCookie({ id: authData.user.id, email: user.email, type: user.type, exp: Date.now() + 8 * 60 * 60 * 1000 }, sessionSecret);
+    const token = sessionCookie({ id: authData.user.id, email: user.email, type: user.type, username: user.username, full_name: user.full_name, exp: Date.now() + 8 * 60 * 60 * 1000 }, sessionSecret);
     response.setHeader('Set-Cookie', `cargomove_session=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=28800; ${process.env.VERCEL ? 'Secure' : ''}`);
     response.status(200).json({ user: { id: user.id, username: user.username, email: user.email, type: user.type, full_name: user.full_name } });
   } catch (error) {
