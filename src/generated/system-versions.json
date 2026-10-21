@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "version": "1.6.7",
-  "updatedAt": "2026-10-21T08:53:19.096Z",
+  "version": "1.6.8",
+  "updatedAt": "2026-10-21T09:04:41.818Z",
   "entries": [
     {
       "id": "account-settings",
@@ -510,9 +510,9 @@
   "sourceFiles": {
     ".github/workflows/system-version.yml": "1b2563ccd650b535fbe3de516602738f90b36a058ebb4d7b69237373fe101142",
     "api/_runtime.ts": "6ac2bbc18e8753c1a7edc884697758836f0d4d7de1dc72ec3d9866e8479b8084",
-    "api/auth/login.ts": "b9ca37e15306678b28cad3646b66ca59e0a5d888e47ca88a9b91a521573610ca",
+    "api/auth/login.ts": "e141c40e42720ad690f3c89c8a8fafabb7298bddd2a79209513c8be944274026",
     "api/auth/logout.ts": "b9b0a8d91f7a8e2df747e72105e1c75d0b7a8f276cd16a81ca2087769cadbe55",
-    "api/auth/session.ts": "b558da6ab3889ec7b6eea64efd7d62c312575a41032e974f5e72c9da40d3f807",
+    "api/auth/session.ts": "71fe8151cfeb4061198588b18799558a87454aa793a6c724f46a7b30f96b20e7",
     "api/auth/users.ts": "44e43475613e8db86a2e3db538969d2ae14e268aa1bb1e2a928a0b77923f763a",
     "api/data/[table].ts": "f78331d45ccb6b2fd47c08b7bcb8a3206828fe5e2e3424060640c5a497b81ac5",
     "api/data/[table]/[id].ts": "0d7de1f24e8a4b0e3e329254e829273771898ce34627327816edd902cd07a297",
@@ -577,7 +577,7 @@
     "server-handlers/scheduler/targets.ts": "be6109d1121d6f850ac15675564c71cd463dbc93f3e848ff5f7cbe24d9ed9c55",
     "server-handlers/system-versions.ts": "67576ad773da93c269b9e66efd6d72a9de02c8c1df0a1d986a17d564989ced9a",
     "server.ts": "8474cd3c5e0327ead3d4ba0c185fe4452d5e21e14e3449fa266cb3327c55afd3",
-    "src/App.tsx": "2fa22eea7b66ca604103515fd6e20c3864993d281de5b1e0c20c8c04c51260d6",
+    "src/App.tsx": "11598aa29a529077e6a8a93169c0b86ff86d7d05cea5fa6bd3161755dc414bba",
     "src/components/admin/AccountSettings.tsx": "307eff35f85f7d44dac7be9d25dbb8d10ff8cacaf625bc1920439ddc9a9b0862",
     "src/components/admin/AdminDashboard.tsx": "cb10fe76c1247361a6ddb8b7853395651d5d7c098a9adeb7711d9e00f97ff9f5",
     "src/components/admin/AdminLayout.tsx": "2d8d9a8cc24c32bd32e4e4f6b50326963bd2a1d3efe37b88104ae36e32ae235f",
@@ -709,6 +709,30 @@
     "vite.config.ts": "167e03f4e2c3298d4e3cbe61c5c1f8712073bf15d56c63d992827e99d3b7601b"
   },
   "history": [
+    {
+      "sourceCommit": "e8a2d76a9df016b2b307a7eaed4cdeb9f8b8e3a9",
+      "pushedBy": "lumoratechent-beep",
+      "commits": [
+        {
+          "sha": "e8a2d76a9df016b2b307a7eaed4cdeb9f8b8e3a9",
+          "author": "cargomovemy",
+          "subject": "fix refresh issue"
+        }
+      ],
+      "authors": [
+        "cargomovemy"
+      ],
+      "version": "1.6.8",
+      "previousVersion": "1.6.7",
+      "date": "2026-10-21T09:04:41.818Z",
+      "summary": "Updated existing pages, tools or shared system files",
+      "files": [
+        "api/auth/login.ts",
+        "api/auth/session.ts",
+        "src/App.tsx"
+      ],
+      "changes": []
+    },
     {
       "sourceCommit": "83203cb2c1901873c6fbe01303b740e7dad05607",
       "pushedBy": "lumoratechent-beep",
