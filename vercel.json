@@ -55,6 +55,10 @@
       "destination": "/api/mail?route=email/:path*"
     },
     {
+      "source": "/api/auto-mail/:path*",
+      "destination": "/api/mail?route=auto-mail/:path*"
+    },
+    {
       "source": "/api/gmail/:path*",
       "destination": "/api/mail?route=gmail/:path*"
     },

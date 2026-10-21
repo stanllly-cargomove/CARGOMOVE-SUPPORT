@@ -40,6 +40,8 @@ import { DeveloperSettings } from './DeveloperSettings';
 import { SystemVersion } from './SystemVersion';
 import { CargoMoveScheduler } from './CargoMoveScheduler';
 import { NorthportRecovery } from './NorthportRecovery';
+import { AutoMail } from './AutoMail';
+import { AutoMailKnowledgePage } from './AutoMailKnowledgePage';
 import { AccountSettings, ProfileAvatar, profileRequest } from './AccountSettings';
 import { notifyError, notifySuccess } from '../common/notifications';
 import { RegistrationType } from '../../types';
@@ -57,7 +59,7 @@ interface AdminLayoutProps {
 }
 
 export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout, onUserChange, active = true }: AdminLayoutProps) {
-  const [activeTab, setActiveTab] = useState<string>('dashboard');
+  const [activeTab, setActiveTab] = useState<string>(() => user?.type === 'ADMIN' && new URLSearchParams(window.location.search).get('auto_mail') === 'connected' ? 'auto-mail' : 'dashboard');
   const [hasOpenedNorthport, setHasOpenedNorthport] = useState(false);
   useEffect(() => { if (activeTab === 'northport-recovery') setHasOpenedNorthport(true); }, [activeTab]);
   const [portalMode, setPortalMode] = useState<'admin' | 'developer'>('admin');
@@ -192,8 +194,8 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
     setIsAccountMenuOpen(false);
   };
 
-  const isDevSettingsPage = activeTab === 'schema' || activeTab === 'scheduler' || activeTab === 'ports';
-  const activePageLabel = activeTab === 'system-version' ? 'System Version' : activeTab === 'ports' ? 'Ports & Depots' : activeTab === 'schema' ? 'Excel Mapping' : activeTab === 'scheduler' ? 'Scheduler' : activeTab === 'northport-recovery' ? 'Tools / NP Container' : [...navItems, ...registrationQueueItems, ...devToolItems]
+  const isDevSettingsPage = activeTab === 'schema' || activeTab === 'scheduler' || activeTab === 'ports' || activeTab === 'knowledge-base';
+  const activePageLabel = activeTab === 'knowledge-base' ? 'Knowledge Base' : activeTab === 'auto-mail' ? 'Tools / Auto Mail' : activeTab === 'system-version' ? 'System Version' : activeTab === 'ports' ? 'Ports & Depots' : activeTab === 'schema' ? 'Excel Mapping' : activeTab === 'scheduler' ? 'Scheduler' : activeTab === 'northport-recovery' ? 'Tools / NP Container' : [...navItems, ...registrationQueueItems, ...devToolItems]
     .find((item) => item.id === activeTab)?.label ?? (activeTab === 'account-settings' ? 'Account & Setting' : 'Dashboard');
 
   return (
@@ -365,6 +367,9 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
                 <Container className="h-4 w-4 shrink-0" />
                 <span className={`min-w-0 flex-1 truncate text-left ${isSidebarCollapsed ? 'md:hidden' : ''}`}>NP Container</span>
               </button>
+              <button type="button" onClick={() => { setActiveTab('auto-mail'); setIsMobileSidebarOpen(false); }} aria-label="Auto Mail" aria-current={activeTab === 'auto-mail' ? 'page' : undefined} title="Auto Mail" className={`flex w-full items-center gap-2 rounded-lg px-2 py-2 text-[11px] font-medium transition-all ${isSidebarCollapsed ? 'md:justify-center md:px-2' : ''} ${activeTab === 'auto-mail' ? 'bg-[#0095e8] font-semibold text-white shadow-sm' : 'text-slate-300 hover:bg-white/8 hover:text-white'}`}>
+                <Mail className="h-4 w-4 shrink-0" /><span className={`min-w-0 flex-1 truncate text-left ${isSidebarCollapsed ? 'md:hidden' : ''}`}>Auto Mail</span>
+              </button>
             </>
           )}
 
@@ -514,6 +519,7 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
             }} />
           )}
           {activeTab === 'companies' && <CompanyMaster />}
+          {activeTab === 'auto-mail' && user?.type === 'ADMIN' && <AutoMail />}
           {activeQueueItem && (
             <SubmissionsList
               status={activeQueueItem.status}
@@ -528,7 +534,8 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
           )}
           {activeTab === 'ports' && <PortDepotConfig />}
           {activeTab === 'schema' && <SchemaMappingInspector />}
-          {activeTab === 'developer-settings' && <DeveloperSettings onOpenScheduler={() => setActiveTab('scheduler')} onOpenExcelMapping={() => setActiveTab('schema')} onOpenPortDepotConfig={() => setActiveTab('ports')} />}
+          {activeTab === 'developer-settings' && <DeveloperSettings onOpenScheduler={() => setActiveTab('scheduler')} onOpenExcelMapping={() => setActiveTab('schema')} onOpenPortDepotConfig={() => setActiveTab('ports')} onOpenKnowledgeBase={() => setActiveTab('knowledge-base')} />}
+          {activeTab === 'knowledge-base' && user?.type === 'ADMIN' && <AutoMailKnowledgePage onBack={() => setActiveTab('developer-settings')} />}
           {activeTab === 'system-version' && <SystemVersion />}
           {activeTab === 'scheduler' && <div className="w-full space-y-4"><div><h2 className="text-xl font-bold tracking-tight text-slate-900">Scheduler</h2><p className="mt-1 text-xs text-slate-500">Manage saved schedulers and request a run when needed.</p></div><CargoMoveScheduler /></div>}
           {(hasOpenedNorthport || activeTab === 'northport-recovery') && user?.type === 'ADMIN' && <NorthportRecovery key={user.email} active={active && activeTab === 'northport-recovery' && portalMode === 'admin'} onBack={goToPortalHome} />}

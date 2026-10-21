@@ -76,14 +76,16 @@ function definitions(root: string): Definition[] {
     HomePage: 'Home Page', RegistrationPage: 'Registration', TrackStatusPage: 'Track Status', GuidelinePage: 'Haulier Guideline', PortalLoginPage: 'Login', PasswordResetPage: 'Password Reset',
     AdminDashboard: 'Registration Dashboard', CompanyMaster: 'Company List', UserRegistration: 'User Access Registration', AdminUser: 'Admin Users', AdminUserCreate: 'Create Admin User', EmailTemplateManager: 'Registration Templates', GuidelineManager: 'Haulier Guidelines', DeveloperSettings: 'Dev Setting', PortDepotConfig: 'Ports & Depots', SchemaMappingInspector: 'Excel Mapping', CargoMoveScheduler: 'Scheduler', NorthportRecovery: 'Northport Recovery', SystemVersion: 'System Version', ExcelExportCenter: 'Excel Export',
   };
-  const fragments = /(?:Modal|Icon|Editor)$|^(?:AdminLayout|SubmissionsList)$/;
+  labels.AutoMail = 'Auto Mail';
+  labels.AutoMailKnowledgePage = 'Knowledge Base';
+  const fragments = /(?:Modal|Icon|Editor)$|^(?:AdminLayout|SubmissionsList|AutoMailAiDraft|AutoMailKnowledge|AutoMailLearning)$/;
   for (const directory of ['customer', 'auth', 'admin']) {
     for (const file of walk(root, `src/components/${directory}`)) {
       if (!file.endsWith('.tsx')) continue;
       const name = path.basename(file, '.tsx');
       const isPage = directory === 'admin' ? !fragments.test(name) : /Page$/.test(name);
       if (!isPage) continue;
-      entries.push(page(file, labels[name] || name.replace(/([a-z])([A-Z])/g, '$1 $2'), directory === 'admin' ? (['AdminDashboard', 'UserRegistration', 'NorthportRecovery'].includes(name) ? 'Admin' : 'Developer') : 'Customer', file));
+      entries.push(page(file, labels[name] || name.replace(/([a-z])([A-Z])/g, '$1 $2'), directory === 'admin' ? (['AdminDashboard', 'UserRegistration', 'NorthportRecovery', 'AutoMail'].includes(name) ? 'Admin' : 'Developer') : 'Customer', file));
     }
   }
   // New tools are registered here so additions have a stable identity and source scope.
@@ -91,6 +93,7 @@ function definitions(root: string): Definition[] {
     { id: 'registration', name: 'Cargomove Registration', kind: 'tool', area: 'Registration', files: ['src/components/customer/RegistrationPage.tsx', 'src/components/admin/SubmissionsList.tsx', 'server-handlers/registration', 'api/registration.ts'] },
     { id: 'auto-email', name: 'Auto Email', kind: 'tool', area: 'Email', files: ['src/components/admin/EmailTemplateManager.tsx', 'src/components/admin/CargoMoveScheduler.tsx', 'src/services/email.ts', 'server-handlers/email', 'server-handlers/gmail', 'server-handlers/scheduler', 'server-handlers/_email.ts', 'api/mail.ts'] },
     { id: 'northport', name: 'Northport Recovery', kind: 'tool', area: 'Recovery', files: ['src/components/admin/NorthportRecovery.tsx', 'server-handlers/northport'] },
+    { id: 'auto-mail', name: 'Auto Mail', kind: 'tool', area: 'Email', files: ['src/components/admin/AutoMail.tsx', 'src/components/admin/AutoMailKnowledgePage.tsx', 'src/components/admin/AutoMailKnowledge.tsx', 'src/components/admin/AutoMailLearning.tsx', 'src/components/admin/AutoMailAiDraft.tsx', 'server-handlers/auto-mail', 'supabase/auto-mail', 'api/mail.ts'] },
   );
   // Each top-level module in these folders is a tool, so new tools need no
   // counter edits. Existing tools above retain their established source scopes.

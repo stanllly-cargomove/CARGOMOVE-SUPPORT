@@ -11,11 +11,33 @@ import emailTemplates from '../server-handlers/email/templates.js';
 import gmailCallback from '../server-handlers/gmail/callback.js';
 import gmailConnect from '../server-handlers/gmail/connect.js';
 import gmailStatus from '../server-handlers/gmail/status.js';
+import autoMailStatus from '../server-handlers/auto-mail/status.js';
+import { learningList, learningDetail, learningPropose, learningReview } from '../server-handlers/auto-mail/learning.js';
+import { aiGenerate, aiUse } from '../server-handlers/auto-mail/ai.js';
+import { knowledgeList, knowledgeDetail, knowledgeSave, knowledgeReview, knowledgeMatches } from '../server-handlers/auto-mail/knowledge.js';
+import { gmailConnect as autoMailConnect, gmailCallback as autoMailCallback, gmailThreads, gmailThread, gmailReply } from '../server-handlers/auto-mail/gmail.js';
 
 
 type Handler = (request: any, response: any) => unknown;
 
 const handlers: Record<string, Handler> = {
+  'GET auto-mail/status': autoMailStatus,
+  'GET auto-mail/learning': learningList,
+  'GET auto-mail/learning-suggestion': learningDetail,
+  'POST auto-mail/learning-propose': learningPropose,
+  'POST auto-mail/learning-review': learningReview,
+  'POST auto-mail/ai-generate': aiGenerate,
+  'POST auto-mail/ai-use': aiUse,
+  'GET auto-mail/knowledge': knowledgeList,
+  'POST auto-mail/knowledge': knowledgeSave,
+  'GET auto-mail/knowledge-article': knowledgeDetail,
+  'POST auto-mail/knowledge-review': knowledgeReview,
+  'POST auto-mail/knowledge-matches': knowledgeMatches,
+  'POST auto-mail/connect': autoMailConnect,
+  'GET auto-mail/callback': autoMailCallback,
+  'GET auto-mail/threads': gmailThreads,
+  'GET auto-mail/thread': gmailThread,
+  'POST auto-mail/reply': gmailReply,
   'GET email/logs': emailLogs,
   'POST email/attachments': emailAttachments,
   'POST email/preview': emailPreview,
