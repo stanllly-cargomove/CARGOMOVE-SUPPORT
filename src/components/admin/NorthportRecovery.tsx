@@ -60,10 +60,28 @@ function SearchModeButton({ mode, disabled, onChange }: { mode: SearchMode; disa
 }
 function RecordActions({ disabled, onChoose }: { disabled: boolean; onChoose: (action: 'edit' | 'reprocess' | 'download') => void }) {
   const menuRef=useRef<HTMLDivElement>(null);
+  const buttonRef=useRef<HTMLButtonElement>(null);
   const [open,setOpen]=useState(false);
   useEffect(()=>{if(disabled)menuRef.current?.hidePopover();},[disabled]);
+  useEffect(()=>{
+    if(!open)return;
+    const placeMenu=()=>{
+      const menu=menuRef.current;const button=buttonRef.current;
+      if(!menu||!button||!menu.matches(':popover-open'))return;
+      const rect=button.getBoundingClientRect();
+      if(rect.bottom<=0||rect.top>=window.innerHeight){menu.hidePopover();return;}
+      const width=menu.offsetWidth||184;const height=menu.offsetHeight||120;
+      const left=Math.max(8,Math.min(rect.right-width,window.innerWidth-width-8));
+      const top=rect.bottom+height>window.innerHeight-8?Math.max(8,rect.top-height-4):rect.bottom+4;
+      menu.style.left=`${left}px`;menu.style.top=`${top}px`;
+    };
+    placeMenu();
+    window.addEventListener('scroll',placeMenu,true);
+    window.addEventListener('resize',placeMenu);
+    return()=>{window.removeEventListener('scroll',placeMenu,true);window.removeEventListener('resize',placeMenu);};
+  },[open]);
   return <>
-    <button type="button" disabled={disabled} aria-label="Record actions" aria-haspopup="dialog" aria-expanded={open} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-50" onClick={event=>{
+    <button ref={buttonRef} type="button" disabled={disabled} aria-label="Record actions" aria-haspopup="dialog" aria-expanded={open} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-50" onClick={event=>{
       const menu=menuRef.current;if(!menu)return;
       if(menu.matches(':popover-open')){menu.hidePopover();return;}
       const rect=event.currentTarget.getBoundingClientRect();
