@@ -225,7 +225,7 @@
   .admin-dashboard { padding-bottom: 64px; }
   .overview-pending-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) 84px; align-items: center; gap: 8px; padding: 10px; }
   .overview-pending-search { width: auto; max-width: none; min-width: 0; }
-  .overview-pending-search input { height: 44px; font-size: 16px; }
+  .overview-pending-search input { height: 40px; font-size: 12px; }
   .overview-pending-controls { display: flex; width: 100%; min-width: 0; gap: 0; margin-left: 0; }
   .overview-pending-controls > label:first-child { width: 100%; }
   .overview-pending-controls > .overview-pending-page-size-control { display: none; }

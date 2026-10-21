@@ -420,11 +420,11 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             const idInfo = getCompanyExternalId(comp || { company_type: item.companyType });
             const facility = item.portLocation === 'PORT_KLANG' ? 'PORT KLANG' : item.portLocation === 'JOHOR' ? 'JOHOR' : 'OTHER PORT';
             return (
-              <article key={item.rowKey} role="listitem" className="min-w-0 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+              <article key={item.rowKey} role="listitem" className="min-w-0 rounded-xl border border-slate-200 bg-white p-3 shadow-[0_2px_6px_rgba(15,23,42,0.08)]">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <div className="break-words text-xs font-bold leading-5 text-slate-900">{item.companyName.toUpperCase()}</div>
-                    <div className="mt-1 inline-flex max-w-full rounded bg-blue-50 px-1.5 py-1 font-mono text-[10px] font-semibold text-blue-700">{item.referenceNo}</div>
+                    <div className="break-words text-[11px] font-bold leading-4 text-slate-900">{item.companyName.toUpperCase()}</div>
+                    <div className="mt-1 inline-flex max-w-full rounded-md bg-blue-50 px-2 py-1 font-mono text-[9px] font-semibold text-blue-700">{item.referenceNo}</div>
                   </div>
                   <span className="shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-[9px] font-bold uppercase tracking-wide text-amber-800">Pending</span>
                 </div>
@@ -433,7 +433,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                   <span className="rounded-md border border-slate-200 px-2 py-1 text-slate-600">{item.companyType || '—'}</span>
                   <span className="ml-auto whitespace-nowrap text-[9px] font-semibold text-slate-500">{facility}</span>
                 </div>
-                <div className="mt-2 grid grid-cols-2 gap-2 rounded-lg bg-slate-50 px-2.5 py-2">
+                <div className="mt-2 grid grid-cols-2 gap-2 rounded-lg border border-slate-100 bg-slate-50 px-2.5 py-2">
                   <div className="min-w-0">
                     <span className="block text-[8px] font-semibold uppercase tracking-wide text-slate-400">CargoMove ID</span>
                     <div className="mt-1">{idInfo.has_required_id ? <CargoMoveIdBadge id={idInfo.active_id_value || ''} /> : item.type === 'USER' ? <span className="text-[10px] text-slate-500">Managed by company</span> : <button type="button" onClick={() => { const company = ensureSubmissionCompany(sub.id); if (company) setSelectedCompanyForId(company); else notifyWarning('This submission does not contain enough company information to create a master record.'); }} className="inline-flex min-h-7 items-center rounded-md border border-amber-200 bg-amber-50 px-2 text-[9px] font-semibold text-amber-700">Assign ID</button>}</div>
@@ -444,7 +444,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                   </div>
                 </div>
                 <div className="mt-2 flex justify-end">
-                  <button type="button" onClick={() => item.type === 'USER' ? onNavigate('user-registration') : setActiveSubmission(sub)} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg bg-blue-600 px-4 text-[10px] font-bold text-white hover:bg-blue-700">{item.type === 'USER' ? 'MANAGE USER' : 'REVIEW REGISTRATION'}<ArrowUpRight className="h-3.5 w-3.5" /></button>
+                  <button type="button" onClick={() => item.type === 'USER' ? onNavigate('user-registration') : setActiveSubmission(sub)} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-blue-600 px-4 text-[9px] font-bold text-white shadow-sm hover:bg-blue-700">{item.type === 'USER' ? 'MANAGE USER' : 'REVIEW REGISTRATION'}<ArrowUpRight className="h-3.5 w-3.5" /></button>
                 </div>
               </article>
             );
