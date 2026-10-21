@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ChevronLeft, ChevronRight, Copy, Ellipsis, KeyRound, LoaderCircle, Mail, Phone, Plus, Search, UsersRound, X } from 'lucide-react';
+import { BadgeCheck, ChevronLeft, ChevronRight, Copy, Ellipsis, KeyRound, LoaderCircle, Mail, Phone, Plus, Search, UsersRound, X } from 'lucide-react';
 import { AdminAccount, getAdminUsers } from '../../services/auth';
 import { browserSupabaseAuth } from '../../services/supabaseAuth';
 import { notifyError, notifySuccess } from '../common/notifications';
@@ -139,7 +139,7 @@ export function AdminUser() {
                   <td className="px-5 py-2.5">
                     <div className="flex items-center gap-3">
                       <ProfileAvatar url={user.avatar_url} name={user.full_name || user.username} className="h-8 w-8 text-xs" />
-                      <span className="font-semibold text-slate-900">{user.username}</span>
+                      <span className="inline-flex items-center gap-1 font-semibold text-slate-900">{user.username}{['support', 'stanlly'].includes(user.username.toLowerCase()) && <BadgeCheck aria-label="Verified" className="h-5 w-5 fill-blue-500 text-white" />}</span>
                     </div>
                   </td>
                   <td className="px-5 py-2.5 text-slate-700">{user.full_name || '—'}</td>

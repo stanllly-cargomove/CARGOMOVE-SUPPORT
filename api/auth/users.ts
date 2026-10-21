@@ -52,6 +52,18 @@ export default async function createAdminUser(request: any, response: any) {
 
   if (request.method === 'GET') {
     try {
+      const requestedUsername = typeof request.query?.username === 'string' ? request.query.username.trim().toLowerCase() : '';
+      if (requestedUsername) {
+        if (!/^[a-z0-9._-]{4,16}$/.test(requestedUsername)) {
+          response.status(400).json({ error: 'Use 4–16 lowercase letters, numbers, dots, underscores, or hyphens.' });
+          return;
+        }
+        const availabilityQuery = new URLSearchParams({ select: 'id', username: `eq.${requestedUsername}`, limit: '1' });
+        const lookup = await fetch(`${url}/rest/v1/user_registrations?${availabilityQuery.toString()}`, { headers: { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}` } });
+        if (!lookup.ok) throw new Error('admin_username_lookup_failed');
+        response.json({ available: (await lookup.json()).length === 0 });
+        return;
+      }
       const query = new URLSearchParams({
         select: 'id,username,email,full_name,mobile_number',
         type: 'eq.ADMIN',
@@ -98,8 +110,8 @@ export default async function createAdminUser(request: any, response: any) {
       response.status(400).json({ error: 'Username, name, phone number, and a valid email are required.' });
       return;
     }
-    if (!/^[a-z0-9._-]{3,64}$/.test(username)) {
-      response.status(400).json({ error: 'Username must use 3–64 lowercase letters, numbers, dots, underscores, or hyphens.' });
+    if (!/^[a-z0-9._-]{4,16}$/.test(username)) {
+      response.status(400).json({ error: 'Username must use 4–16 lowercase letters, numbers, dots, underscores, or hyphens.' });
       return;
     }
     if (password.length < 6) {

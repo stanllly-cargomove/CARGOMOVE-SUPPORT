@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Camera, KeyRound, LoaderCircle, MoreVertical, ShieldCheck, Trash2, X } from 'lucide-react';
+import { BadgeCheck, Camera, KeyRound, LoaderCircle, MoreVertical, ShieldCheck, Trash2, X } from 'lucide-react';
 import type { ApplicationUser } from '../../services/auth';
 import { notifyError, notifySuccess } from '../common/notifications';
 
@@ -24,6 +24,7 @@ export function AccountSettings({ user, avatarUrl, onAvatarChange, onUserChange,
   const input = useRef<HTMLInputElement>(null);
   const dialog = useRef<HTMLDialogElement>(null);
   const usernameDialog = useRef<HTMLDialogElement>(null);
+  const fullNameDialog = useRef<HTMLDialogElement>(null);
   const image = useRef<HTMLImageElement>(null);
   const drag = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
   const [source, setSource] = useState<string | null>(null);
@@ -34,12 +35,33 @@ export function AccountSettings({ user, avatarUrl, onAvatarChange, onUserChange,
   const [isCardMenuOpen, setIsCardMenuOpen] = useState(false);
   const [editingUsername, setEditingUsername] = useState(user?.username || '');
   const [isSavingUsername, setIsSavingUsername] = useState(false);
+  const [editingFullName, setEditingFullName] = useState(user?.full_name || '');
+  const [isSavingFullName, setIsSavingFullName] = useState(false);
+  const [isCheckingUsername, setIsCheckingUsername] = useState(false);
+  const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null);
   const name = user?.username || user?.full_name || user?.email?.split('@')[0] || 'Admin';
   const scale = Math.max(256 / size.width, 256 / size.height) * zoom;
   const width = size.width * scale, height = size.height * scale;
   const maxX = Math.max(0, (width - 256) / 2), maxY = Math.max(0, (height - 256) / 2);
   const x = Math.max(-maxX, Math.min(maxX, offset.x)), y = Math.max(-maxY, Math.min(maxY, offset.y));
   useEffect(() => { if (source) dialog.current?.showModal(); }, [source]);
+  useEffect(() => {
+    const candidate = editingUsername.trim().toLowerCase();
+    if (!usernameDialog.current?.open || candidate.length < 4 || candidate === user?.username?.toLowerCase() || !/^[a-z0-9._-]{4,16}$/.test(candidate)) {
+      setIsCheckingUsername(false); setUsernameAvailable(null); return;
+    }
+    let active = true;
+    setIsCheckingUsername(true); setUsernameAvailable(null);
+    const timer = window.setTimeout(async () => {
+      try {
+        const result = await fetch(`/api/auth/profile?username=${encodeURIComponent(candidate)}`, { credentials: 'include' });
+        const body = await result.json().catch(() => ({}));
+        if (active) setUsernameAvailable(result.ok ? Boolean(body.available) : false);
+      } catch { if (active) setUsernameAvailable(false); }
+      finally { if (active) setIsCheckingUsername(false); }
+    }, 350);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [editingUsername, user?.username]);
   useEffect(() => () => { if (source) URL.revokeObjectURL(source); }, [source]);
   const close = () => { if (busy) return; dialog.current?.close(); setSource(null); input.current?.focus(); };
   const choose = async (file?: File) => {
@@ -80,13 +102,27 @@ export function AccountSettings({ user, avatarUrl, onAvatarChange, onUserChange,
     } catch (error) { notifyError(error instanceof Error ? error.message : 'Unable to update username.'); }
     finally { setIsSavingUsername(false); }
   };
+  const saveFullName = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!user || isSavingFullName || !editingFullName.trim()) return;
+    setIsSavingFullName(true);
+    try {
+      const result = await fetch('/api/auth/profile', { method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ full_name: editingFullName.trim() }) });
+      const body = await result.json().catch(() => ({}));
+      if (!result.ok) throw new Error(body.error || 'Unable to update full name.');
+      onUserChange?.({ ...user, full_name: body.full_name });
+      fullNameDialog.current?.close();
+      notifySuccess('Full name updated.');
+    } catch (error) { notifyError(error instanceof Error ? error.message : 'Unable to update full name.'); }
+    finally { setIsSavingFullName(false); }
+  };
   return <div className="w-full space-y-6">
     <div><p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-sky-600">Your workspace account</p><h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-900">Account settings</h2><p className="mt-2 text-xs text-slate-500">Manage your profile picture and account security.</p></div>
     <section className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <span className="absolute right-6 top-5 z-10 rounded-full bg-white/90 px-3 py-1 text-[10px] font-semibold text-sky-700 shadow-sm backdrop-blur-sm">Administrator</span>
       <div className="absolute right-6 top-16 z-20">
         <button type="button" aria-label="Account card actions" aria-expanded={isCardMenuOpen} onClick={() => setIsCardMenuOpen(open => !open)} className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"><MoreVertical className="h-5 w-5" /></button>
-        {isCardMenuOpen && <div className="absolute right-0 mt-2 w-40 rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg"><button type="button" className="w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50" onClick={() => { setEditingUsername(user?.username || ''); setIsCardMenuOpen(false); usernameDialog.current?.showModal(); }}>Change username</button></div>}
+        {isCardMenuOpen && <div className="absolute right-0 mt-2 w-40 rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg"><button type="button" className="w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50" onClick={() => { setEditingUsername(user?.username || ''); setIsCardMenuOpen(false); usernameDialog.current?.showModal(); }}>Change username</button><button type="button" className="w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50" onClick={() => { setEditingFullName(user?.full_name || ''); setIsCardMenuOpen(false); fullNameDialog.current?.showModal(); }}>Edit Full name</button></div>}
       </div>
       <div className="h-20 bg-gradient-to-r from-sky-100 via-blue-50 to-slate-50" />
       <div className="px-6 pb-6"><div className="-mt-9 flex items-end">
@@ -99,17 +135,20 @@ export function AccountSettings({ user, avatarUrl, onAvatarChange, onUserChange,
         </div>
         <input ref={input} type="file" aria-label="Choose profile picture" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={event => { void choose(event.target.files?.[0]); event.target.value = ''; }} />
       </div>
-        <h3 className="mt-4 text-lg font-bold text-slate-900">{name}</h3><p className="mt-1 break-all text-xs text-slate-500">{user?.email}</p>
+        <h3 className="mt-4 flex items-center gap-0.5 text-lg font-bold text-slate-900">@{user?.username || 'username'}{['support', 'stanlly'].includes((user?.username || '').toLowerCase()) && <BadgeCheck aria-label="Verified" className="h-5 w-5 fill-blue-500 text-white" />}</h3><p className="mt-0.5 break-words text-xs text-slate-500">{user?.full_name || ''}</p>
       </div>
     </section>
     <section className="flex flex-col gap-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:flex-row sm:items-center sm:justify-between"><div className="flex items-start gap-3"><ShieldCheck className="h-5 w-5 shrink-0 text-sky-600" /><div><h3 className="text-sm font-bold text-slate-900">Account security</h3><p className="mt-1 text-xs leading-5 text-slate-500">Send a secure password reset link to your account email.</p></div></div><button type="button" onClick={onReset} disabled={!user?.email || sendingReset} className={button + ' w-full shrink-0 sm:w-auto'}><KeyRound className="h-4 w-4" />{sendingReset ? 'Sending reset link…' : 'Email me a password reset link'}</button></section>
     <dialog ref={usernameDialog} aria-labelledby="username-dialog-title" className="m-auto w-[min(400px,calc(100vw-24px))] max-w-none rounded-2xl border border-slate-200 bg-white p-5 text-slate-900 shadow-xl backdrop:bg-slate-950/60">
       <form onSubmit={event => void saveUsername(event)}>
         <div className="flex items-center justify-between"><h3 id="username-dialog-title" className="text-base font-bold">Change username</h3><button type="button" aria-label="Close username editor" disabled={isSavingUsername} className="rounded-lg p-2 hover:bg-slate-100" onClick={() => usernameDialog.current?.close()}><X className="h-4 w-4" /></button></div>
-        <label className="mt-5 block text-xs font-semibold text-slate-700">Username<input autoFocus required minLength={3} maxLength={64} pattern="[a-z0-9._-]+" value={editingUsername} onChange={event => setEditingUsername(event.target.value.toLowerCase())} className="mt-2 h-10 w-full rounded-lg border border-slate-300 px-3 text-sm font-normal outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100" /></label>
-        <p className="mt-2 text-[11px] text-slate-500">Use lowercase letters, numbers, dots, underscores or hyphens.</p>
-        <div className="mt-5 flex justify-end gap-2"><button type="button" className={button} disabled={isSavingUsername} onClick={() => usernameDialog.current?.close()}>Cancel</button><button type="submit" disabled={isSavingUsername || editingUsername.trim() === user?.username} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50">{isSavingUsername && <LoaderCircle className="h-4 w-4 animate-spin" />}{isSavingUsername ? 'Saving…' : 'Save username'}</button></div>
+        <label className="mt-5 block text-xs font-semibold text-slate-700">Username<div className="relative mt-2"><input autoFocus required minLength={4} maxLength={16} pattern="[a-z0-9._-]+" value={editingUsername} onChange={event => setEditingUsername(event.target.value.toLowerCase())} className="h-10 w-full rounded-lg border border-slate-300 px-3 pr-10 text-sm font-normal outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100" />{editingUsername.trim().length >= 4 && editingUsername.trim() !== user?.username && <span aria-live="polite" className="absolute inset-y-0 right-3 flex items-center">{isCheckingUsername ? <LoaderCircle className="h-4 w-4 animate-spin text-emerald-500" /> : usernameAvailable === true ? <BadgeCheck className="h-4 w-4 text-emerald-600" /> : usernameAvailable === false ? <X className="h-4 w-4 text-rose-500" /> : null}</span>}</div></label>
+        <p className="mt-2 text-[11px] text-slate-500">Use 4–16 lowercase letters, numbers, dots, underscores or hyphens. {usernameAvailable === false ? 'That username is already in use.' : usernameAvailable === true ? 'Username is available.' : ''}</p>
+        <div className="mt-5 flex justify-between gap-2"><button type="button" className={button} disabled={isSavingUsername} onClick={() => usernameDialog.current?.close()}>Cancel</button><button type="submit" disabled={isSavingUsername || isCheckingUsername || usernameAvailable === false || editingUsername.trim().length < 4 || !/^[a-z0-9._-]{4,16}$/.test(editingUsername.trim()) || editingUsername.trim() === user?.username} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50">{isSavingUsername && <LoaderCircle className="h-4 w-4 animate-spin" />}{isSavingUsername ? 'Saving…' : 'Save username'}</button></div>
       </form>
+    </dialog>
+    <dialog ref={fullNameDialog} aria-labelledby="full-name-dialog-title" className="m-auto w-[min(400px,calc(100vw-24px))] max-w-none rounded-2xl border border-slate-200 bg-white p-5 text-slate-900 shadow-xl backdrop:bg-slate-950/60">
+      <form onSubmit={event => void saveFullName(event)}><div className="flex items-center justify-between"><h3 id="full-name-dialog-title" className="text-base font-bold">Edit Full name</h3><button type="button" aria-label="Close full name editor" className="rounded-lg p-2 hover:bg-slate-100" onClick={() => fullNameDialog.current?.close()}><X className="h-4 w-4" /></button></div><label className="mt-5 block text-xs font-semibold text-slate-700">Full name<input autoFocus required maxLength={120} value={editingFullName} onChange={event => setEditingFullName(event.target.value)} className="mt-2 h-10 w-full rounded-lg border border-slate-300 px-3 text-sm font-normal outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100" /></label><div className="mt-5 flex justify-between gap-2"><button type="button" className={button} disabled={isSavingFullName} onClick={() => fullNameDialog.current?.close()}>Cancel</button><button type="submit" disabled={isSavingFullName || !editingFullName.trim() || editingFullName.trim() === user?.full_name} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50">{isSavingFullName && <LoaderCircle className="h-4 w-4 animate-spin" />}{isSavingFullName ? 'Saving…' : 'Save full name'}</button></div></form>
     </dialog>
     <dialog ref={dialog} aria-labelledby="crop-title" className="m-auto w-[min(420px,calc(100vw-24px))] max-w-none max-h-[calc(100dvh-24px)] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 text-slate-900 shadow-xl backdrop:bg-slate-950/60" onCancel={event => { event.preventDefault(); close(); }}>
       <div className="mb-4 flex items-center justify-between"><h3 id="crop-title" className="font-bold">Crop profile picture</h3><button type="button" aria-label="Close photo editor" disabled={busy} className="rounded-lg p-2 hover:bg-slate-100" onClick={close}><X className="h-4 w-4" /></button></div>

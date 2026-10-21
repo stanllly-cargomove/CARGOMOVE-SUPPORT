@@ -28,11 +28,28 @@ export function createProfileHandler(deps = {
       const { data, error } = await client.auth.admin.getUserById(access.session.id);
       if (error || !data.user) throw new Error('Unable to load your profile.');
       const oldUrl = data.user.user_metadata?.avatar_url as string | undefined;
+      if (request.method === 'GET' && typeof request.query?.username === 'string') {
+        const username = request.query.username.trim().toLowerCase();
+        if (!/^[a-z0-9._-]{4,16}$/.test(username)) return response.status(400).json({ error: 'Use 4–16 lowercase letters, numbers, dots, underscores or hyphens.' });
+        if (username === String(data.user.user_metadata?.username || '').toLowerCase()) return response.json({ available: true });
+        const existing = await access.client.from('user_registrations').select('id').eq('username', username).neq('email', access.session.email).maybeSingle();
+        if (existing.error) throw new Error('Unable to check username availability.');
+        return response.json({ available: !existing.data });
+      }
       if (request.method === 'GET') return response.json({ avatar_url: oldUrl || null });
       if (request.method === 'PATCH') {
         const body = await requestBody(request);
+        if (typeof body?.full_name === 'string') {
+          const fullName = body.full_name.trim();
+          if (!fullName || fullName.length > 120) return response.status(400).json({ error: 'Full name must be between 1 and 120 characters.' });
+          const updated = await access.client.from('user_registrations').update({ full_name: fullName }).eq('email', access.session.email).eq('type', 'ADMIN').select('full_name').single();
+          if (updated.error || !updated.data) throw new Error('Unable to save your full name.');
+          const savedUser = await client.auth.admin.updateUserById(access.session.id, { user_metadata: { ...data.user.user_metadata, full_name: fullName } });
+          if (savedUser.error) throw new Error('Your full name was updated, but the account profile could not be synchronized.');
+          return response.json({ full_name: fullName });
+        }
         const username = String(body?.username || '').trim().toLowerCase();
-        if (!/^[a-z0-9._-]{3,64}$/.test(username)) return response.status(400).json({ error: 'Use 3–64 lowercase letters, numbers, dots, underscores or hyphens.' });
+        if (!/^[a-z0-9._-]{4,16}$/.test(username)) return response.status(400).json({ error: 'Use 4–16 lowercase letters, numbers, dots, underscores or hyphens.' });
         const existing = await access.client.from('user_registrations').select('id').eq('username', username).neq('email', access.session.email).maybeSingle();
         if (existing.error) throw new Error('Unable to check username availability.');
         if (existing.data) return response.status(409).json({ error: 'That username is already in use.' });
@@ -42,11 +59,11 @@ export function createProfileHandler(deps = {
         if (savedUser.error) throw new Error('Your username was updated, but the account profile could not be synchronized.');
         return response.json({ username });
       }
-      // The SDK handles the connected store's rotating Vercel OIDC credentials.
-      // A read-write token also remains supported for local development.
-      if (!process.env.BLOB_STORE_ID?.trim() && !process.env.BLOB_READ_WRITE_TOKEN?.trim()) return response.status(503).json({ error: 'Profile photos use Vercel Blob. Connect a public Blob store to this project and redeploy so BLOB_STORE_ID is available. For local development, configure BLOB_READ_WRITE_TOKEN.' });
       let nextUrl: string | null = null;
       if (request.method === 'POST') {
+        // The SDK handles the connected store's rotating Vercel OIDC credentials.
+        // A read-write token also remains supported for local development.
+        if (!process.env.BLOB_STORE_ID?.trim() && !process.env.BLOB_READ_WRITE_TOKEN?.trim()) return response.status(503).json({ error: 'Profile photos use Vercel Blob. Connect a public Blob store to this project and redeploy so BLOB_STORE_ID is available. For local development, configure BLOB_READ_WRITE_TOKEN.' });
         const body = await requestBody(request);
         const image = typeof body?.image === 'string' ? body.image : '';
         if (image.length > 900_000 || !/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(image)) return response.status(400).json({ error: 'Upload a cropped JPEG image under 650 KB.' });
@@ -55,13 +72,18 @@ export function createProfileHandler(deps = {
         const blob = await deps.put(`avatars/${access.session.id}/profile.jpg`, bytes, { access: 'public', addRandomSuffix: true, contentType: 'image/jpeg' });
         nextUrl = blob.url;
       }
-      const saved = await client.auth.admin.updateUserById(access.session.id, { user_metadata: { avatar_url: nextUrl } });
+      if (request.method === 'DELETE' && oldUrl && (process.env.BLOB_STORE_ID?.trim() || process.env.BLOB_READ_WRITE_TOKEN?.trim())) {
+        // Production removes the managed Vercel Blob before clearing the profile reference.
+        // Local development without Blob credentials can still clear the reference.
+        await removeManagedPhoto(access.session.id, oldUrl, deps.del);
+      }
+      const saved = await client.auth.admin.updateUserById(access.session.id, { user_metadata: { ...data.user.user_metadata, avatar_url: nextUrl } });
       if (saved.error) {
         if (nextUrl) await removeManagedPhoto(access.session.id,nextUrl,deps.del).catch(() => {});
         throw new Error('Unable to save your profile picture. Please try again.');
       }
       // Only delete images inside this account's managed storage directory.
-      if (oldUrl && oldUrl !== nextUrl) {
+      if (request.method === 'POST' && oldUrl && oldUrl !== nextUrl) {
         await removeManagedPhoto(access.session.id,oldUrl,deps.del).catch(() => {});
       }
       return response.json({ avatar_url: nextUrl });

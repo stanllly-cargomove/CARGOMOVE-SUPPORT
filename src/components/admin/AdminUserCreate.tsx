@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { KeyRound, LoaderCircle, UserPlus, X } from 'lucide-react';
 import { createAdminUser } from '../../services/auth';
 import { refreshProtectedStorage } from '../../services/storage';
@@ -13,13 +13,35 @@ interface AdminUserCreateProps {
 export function AdminUserCreate({ onClose }: AdminUserCreateProps) {
   const [form, setForm] = useState(EMPTY_FORM);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCheckingUsername, setIsCheckingUsername] = useState(false);
+  const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null);
 
   const update = (field: keyof typeof EMPTY_FORM, value: string) => setForm((current) => ({ ...current, [field]: value }));
+
+  useEffect(() => {
+    const username = form.username.trim().toLowerCase();
+    if (username.length < 4 || !/^[a-z0-9._-]{4,16}$/.test(username)) { setIsCheckingUsername(false); setUsernameAvailable(null); return; }
+    let active = true;
+    setIsCheckingUsername(true); setUsernameAvailable(null);
+    const timer = window.setTimeout(async () => {
+      try {
+        const response = await fetch(`/api/auth/users?username=${encodeURIComponent(username)}`, { credentials: 'include' });
+        const result = await response.json().catch(() => ({}));
+        if (active) setUsernameAvailable(response.ok && Boolean(result.available));
+      } catch { if (active) setUsernameAvailable(false); }
+      finally { if (active) setIsCheckingUsername(false); }
+    }, 350);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [form.username]);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (form.password.length < 6) {
       notifyError('Password must be at least 6 characters.');
+      return;
+    }
+    if (!/^[a-z0-9._-]{4,16}$/.test(form.username.trim().toLowerCase()) || usernameAvailable !== true) {
+      notifyError('Choose an available username with 4–16 lowercase letters, numbers, dots, underscores, or hyphens.');
       return;
     }
     setIsSubmitting(true);
@@ -49,13 +71,13 @@ export function AdminUserCreate({ onClose }: AdminUserCreateProps) {
       <form onSubmit={submit} className="space-y-5">
         <div className="flex items-center gap-2 text-slate-900 font-bold text-sm"><UserPlus className="w-4 h-4 text-blue-600" /> Account details</div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <label className="text-xs font-semibold text-slate-700">Username<input required value={form.username} onChange={(event) => update('username', event.target.value)} autoComplete="username" className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm" /></label>
+          <label className="text-xs font-semibold text-slate-700">Username<div className="relative mt-1.5"><input required minLength={4} maxLength={16} pattern="[a-z0-9._-]+" value={form.username} onChange={(event) => update('username', event.target.value.toLowerCase())} autoComplete="username" className="w-full rounded-lg border border-slate-300 px-3 py-2.5 pr-9 text-sm" />{form.username.trim().length >= 4 && <span aria-live="polite" className="absolute inset-y-0 right-3 flex items-center">{isCheckingUsername ? <LoaderCircle className="h-4 w-4 animate-spin text-emerald-500" /> : usernameAvailable === true ? <span className="text-sm font-bold text-emerald-600">✓</span> : usernameAvailable === false ? <X className="h-4 w-4 text-rose-500" /> : null}</span>}</div><span className="mt-1 block text-[10px] font-normal text-slate-500">4–16 characters. {usernameAvailable === false ? 'Username is already taken.' : usernameAvailable === true ? 'Username is available.' : ''}</span></label>
           <label className="text-xs font-semibold text-slate-700">Name<input required value={form.fullName} onChange={(event) => update('fullName', event.target.value)} autoComplete="name" className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm" /></label>
           <label className="text-xs font-semibold text-slate-700">Email<input required type="email" value={form.email} onChange={(event) => update('email', event.target.value)} autoComplete="email" className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm" /></label>
           <label className="text-xs font-semibold text-slate-700">Phone number<input required type="tel" value={form.mobileNumber} onChange={(event) => update('mobileNumber', event.target.value)} autoComplete="tel" className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm" /></label>
           <label className="text-xs font-semibold text-slate-700 sm:col-span-2">Password <span className="font-normal text-slate-400">(at least 6 characters)</span><div className="relative mt-1.5"><KeyRound className="absolute left-3 top-3 w-4 h-4 text-slate-400" /><input required minLength={6} type="password" value={form.password} onChange={(event) => update('password', event.target.value)} autoComplete="new-password" className="w-full rounded-lg border border-slate-300 py-2.5 pl-9 pr-3 text-sm" /></div></label>
         </div>
-        <button type="submit" disabled={isSubmitting} className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-60">
+        <button type="submit" disabled={isSubmitting || isCheckingUsername || usernameAvailable !== true || !/^[a-z0-9._-]{4,16}$/.test(form.username.trim().toLowerCase())} className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-60">
           {isSubmitting ? <LoaderCircle className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
           {isSubmitting ? 'Creating user...' : 'Create admin user'}
         </button>

@@ -26,6 +26,7 @@ import {
   Home,
   ChevronRight as BreadcrumbChevronRight,
   MoreVertical,
+  BadgeCheck,
   KeyRound,
 } from 'lucide-react';
 import { AdminDashboard } from './AdminDashboard';
@@ -233,12 +234,9 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
             <div id="admin-account-menu" className="absolute left-[calc(100%+0.5rem)] top-2 z-50 w-[min(15rem,calc(100vw-1rem))] overflow-hidden rounded-xl border border-white/10 bg-[#111d35] p-2 text-slate-200 shadow-[0_18px_35px_rgba(2,6,23,0.3)]">
               <div className="border-b border-white/10 px-2 pb-2 pt-1">
                 <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">Account</p>
-                <div className="mt-2 flex items-center gap-2"><ProfileAvatar url={avatarUrl} name={user?.full_name || user?.email || 'Admin'} className="h-8 w-8 text-xs" /><p className="truncate text-xs font-normal text-slate-200" title={user?.email}>{user?.email || 'Signed-in admin'}</p></div>
+                <div className="mt-2 flex min-w-0 items-center gap-2"><ProfileAvatar url={avatarUrl} name={user?.full_name || user?.email || 'Admin'} className="h-8 w-8 text-xs" /><div className="min-w-0"><p className="flex items-center gap-1 truncate text-xs font-semibold text-slate-100">@{user?.username || 'username'}{['support', 'stanlly'].includes((user?.username || '').toLowerCase()) && <BadgeCheck aria-label="Verified" className="h-4 w-4 shrink-0 fill-blue-500 text-white" />}</p><p className="truncate text-[11px] text-slate-300">{user?.full_name || 'Signed-in admin'}</p></div></div>
               </div>
               <div className="space-y-0.5 pt-1.5">
-                <button type="button" onClick={() => void handlePasswordReset()} disabled={!user?.email || isSendingReset} className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs font-normal hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">
-                  <KeyRound className="h-4 w-4 shrink-0" />{isSendingReset ? 'Sending...' : 'Reset password'}
-                </button>
                 <button type="button" onClick={() => { setActiveTab('account-settings'); setIsAccountMenuOpen(false); setIsMobileSidebarOpen(false); }} className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs font-normal hover:bg-white/10">
                   <Settings className="h-4 w-4 shrink-0" />Account &amp; Setting
                 </button>
