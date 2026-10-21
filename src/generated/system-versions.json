@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "version": "1.6.6",
-  "updatedAt": "2026-10-21T08:15:59.335Z",
+  "version": "1.6.7",
+  "updatedAt": "2026-10-21T08:53:19.096Z",
   "entries": [
     {
       "id": "account-settings",
@@ -11,9 +11,9 @@
         "src/components/admin/AdminLayout.tsx"
       ],
       "kind": "page",
-      "version": "1.2.1",
-      "updatedAt": "2026-10-21T08:15:59.335Z",
-      "fingerprint": "9484fcf5e38ecb2dbfe76feaa7197152ad8f6a292ffac6675cba467219c3e5f8"
+      "version": "1.2.2",
+      "updatedAt": "2026-10-21T08:53:19.096Z",
+      "fingerprint": "2838f4e3b682dd9acd8cba42aa36e0768493e43b329677cebdccf1506264815f"
     },
     {
       "id": "admin",
@@ -23,9 +23,9 @@
         "src/components/admin/AdminLayout.tsx"
       ],
       "kind": "page",
-      "version": "1.2.1",
-      "updatedAt": "2026-10-21T08:15:59.335Z",
-      "fingerprint": "6f311d1d93c98988f089e4fbcdb544592a7562152ff62b9d71b63f01f8426654"
+      "version": "1.2.2",
+      "updatedAt": "2026-10-21T08:53:19.096Z",
+      "fingerprint": "b4bd9308302eb7721f2192d474baa52540fb9e36dbe085d5b48723078d774c20"
     },
     {
       "id": "auto-email",
@@ -54,9 +54,9 @@
         "src/components/admin/AdminLayout.tsx"
       ],
       "kind": "page",
-      "version": "1.2.1",
-      "updatedAt": "2026-10-21T08:15:59.335Z",
-      "fingerprint": "77ae4e2ac2033e331a756a015662b71e86909709814fc46f77a817f0d70eb1e7"
+      "version": "1.2.2",
+      "updatedAt": "2026-10-21T08:53:19.096Z",
+      "fingerprint": "bb21170fc51abd9699af952a59194b42d52ff46d6fd4084aaf5e6f96c4a6fee5"
     },
     {
       "id": "northport",
@@ -202,9 +202,9 @@
         "src/components/admin/AccountSettings.tsx"
       ],
       "kind": "page",
-      "version": "1.0.2",
-      "updatedAt": "2026-10-20T16:09:04.058Z",
-      "fingerprint": "a150eea656e2d4be4059c05a28f00549ca12857815dbe41c24a6b9cafe4eb9f5"
+      "version": "1.0.3",
+      "updatedAt": "2026-10-21T08:53:19.096Z",
+      "fingerprint": "3e98c05274a1cce732c6c70c2eff1ccc2b930c2e93b57483d6fdfa7aaf572c04"
     },
     {
       "id": "src/components/admin/AdminDashboard.tsx",
@@ -226,9 +226,9 @@
         "src/components/admin/AdminUser.tsx"
       ],
       "kind": "page",
-      "version": "1.0.1",
-      "updatedAt": "2026-10-20T16:09:04.058Z",
-      "fingerprint": "0ab5a5ef113735f0d47f23a3f018920500d46586319867bd7f505ab7a7c3c7f9"
+      "version": "1.0.2",
+      "updatedAt": "2026-10-21T08:53:19.096Z",
+      "fingerprint": "f26682b5d917fd2bd7d23df266b98c1c432e3bc43e665ab81d98f89caf47c864"
     },
     {
       "id": "src/components/admin/AdminUserCreate.tsx",
@@ -238,9 +238,9 @@
         "src/components/admin/AdminUserCreate.tsx"
       ],
       "kind": "page",
-      "version": "1.0.1",
-      "updatedAt": "2026-10-20T16:09:04.058Z",
-      "fingerprint": "561b82949ebf5d08f3ff146a26c85317f6f517f13cf87d93f5b93404292add75"
+      "version": "1.0.2",
+      "updatedAt": "2026-10-21T08:53:19.096Z",
+      "fingerprint": "669f1f363a11a13ba0d0b2fc7e80cffef429a20a83b5a53251caffdb99e0ae08"
     },
     {
       "id": "src/components/admin/CargoMoveScheduler.tsx",
@@ -513,7 +513,7 @@
     "api/auth/login.ts": "b9ca37e15306678b28cad3646b66ca59e0a5d888e47ca88a9b91a521573610ca",
     "api/auth/logout.ts": "b9b0a8d91f7a8e2df747e72105e1c75d0b7a8f276cd16a81ca2087769cadbe55",
     "api/auth/session.ts": "b558da6ab3889ec7b6eea64efd7d62c312575a41032e974f5e72c9da40d3f807",
-    "api/auth/users.ts": "431843555faf5e6ca6ffa23840398c5e1d69b65471a91c59cc88a0be3538cf41",
+    "api/auth/users.ts": "44e43475613e8db86a2e3db538969d2ae14e268aa1bb1e2a928a0b77923f763a",
     "api/data/[table].ts": "f78331d45ccb6b2fd47c08b7bcb8a3206828fe5e2e3424060640c5a497b81ac5",
     "api/data/[table]/[id].ts": "0d7de1f24e8a4b0e3e329254e829273771898ce34627327816edd902cd07a297",
     "api/dev-tools.ts": "af3c0baed92a52dd67bd3b724a4c08add1ac16eae53dd0d7e48957da8712ac5a",
@@ -565,7 +565,7 @@
     "server-handlers/northport/listing.ts": "6ff0a9ff3651deedee665d81ee80025e8dce35d94fbddf643e171c984c919bcb",
     "server-handlers/northport/scan.ts": "d33d49f1ee7b6af5dfbce6b9dcec23b00d87a931c3031c70b767437514b919cd",
     "server-handlers/northport/scheduler-verification.ts": "a706cef9f5498bf6cee8a671d80f0e1e1c3d8017383e073482bd7e4616803259",
-    "server-handlers/profile.ts": "027947dfde3cd167cbdc3f5e8a4d51f8c83ef5056380132d0d5a0eb093c19032",
+    "server-handlers/profile.ts": "8d962972b874694a0b49cd66f9e7382fd7ecc6fcf60950d5274d9ded06085f02",
     "server-handlers/registration/config.ts": "6b7c4f2016d268e8235a7c2873d1875511c9c4a088abd9699feaabfd0e9e3539",
     "server-handlers/registration/lookup.ts": "a38ca555d30d80f738b4fba2e8bb31dcab89f08c4590327811af9c65724aab67",
     "server-handlers/registration/status.ts": "753814e9b0d2570a96028c09cbe2ffb235155f717fcb30c6fbb1350488b210cd",
@@ -578,11 +578,11 @@
     "server-handlers/system-versions.ts": "67576ad773da93c269b9e66efd6d72a9de02c8c1df0a1d986a17d564989ced9a",
     "server.ts": "8474cd3c5e0327ead3d4ba0c185fe4452d5e21e14e3449fa266cb3327c55afd3",
     "src/App.tsx": "2fa22eea7b66ca604103515fd6e20c3864993d281de5b1e0c20c8c04c51260d6",
-    "src/components/admin/AccountSettings.tsx": "31ed6c7098a383d841a96028c167731d4f8146f15ddae109417605f7574d8b41",
+    "src/components/admin/AccountSettings.tsx": "307eff35f85f7d44dac7be9d25dbb8d10ff8cacaf625bc1920439ddc9a9b0862",
     "src/components/admin/AdminDashboard.tsx": "cb10fe76c1247361a6ddb8b7853395651d5d7c098a9adeb7711d9e00f97ff9f5",
-    "src/components/admin/AdminLayout.tsx": "3a9e96540f44196926f9c131336b41510402bdf00dcd0aa7f21d2d6b60c86a4e",
-    "src/components/admin/AdminUser.tsx": "89b5bd5ef89b32c180f3be974a9984e67a90dff6336637dc58fd4883a6a030cb",
-    "src/components/admin/AdminUserCreate.tsx": "c3422282ca88edcc86ec8efc65a76402c6c35e983d18c762a0e095e09c71c97a",
+    "src/components/admin/AdminLayout.tsx": "2d8d9a8cc24c32bd32e4e4f6b50326963bd2a1d3efe37b88104ae36e32ae235f",
+    "src/components/admin/AdminUser.tsx": "00957e103bffd351a3ac6ed3e3d98f7615fe3476b88406fe751997c715f0769c",
+    "src/components/admin/AdminUserCreate.tsx": "8d314b35a609239dca04e94f2ad8268b5ebdf38e73bd4cfe94559e43d467bc3b",
     "src/components/admin/AssignIdModal.tsx": "d6e135717c66aa2ed343bc13dc6ca5fd3bddbceb01fe3ddab04124c32029b3c8",
     "src/components/admin/CargoMoveScheduler.tsx": "0c72d668118bd8cea08ff4107947a2b2e2cca74e7684d82c7f8f01fb9ada8105",
     "src/components/admin/CompanyMaster.tsx": "db6a549960d505017865d5e0e431cb0a0fca91c5f36acbf156ee2230bc01e614",
@@ -709,6 +709,82 @@
     "vite.config.ts": "167e03f4e2c3298d4e3cbe61c5c1f8712073bf15d56c63d992827e99d3b7601b"
   },
   "history": [
+    {
+      "sourceCommit": "83203cb2c1901873c6fbe01303b740e7dad05607",
+      "pushedBy": "lumoratechent-beep",
+      "commits": [
+        {
+          "sha": "83203cb2c1901873c6fbe01303b740e7dad05607",
+          "author": "cargomovemy",
+          "subject": "User Management enhancement"
+        }
+      ],
+      "authors": [
+        "cargomovemy"
+      ],
+      "version": "1.6.7",
+      "previousVersion": "1.6.6",
+      "date": "2026-10-21T08:53:19.096Z",
+      "summary": "Updated existing pages, tools or shared system files",
+      "files": [
+        "api/auth/users.ts",
+        "server-handlers/profile.ts",
+        "src/components/admin/AccountSettings.tsx",
+        "src/components/admin/AdminLayout.tsx",
+        "src/components/admin/AdminUser.tsx",
+        "src/components/admin/AdminUserCreate.tsx"
+      ],
+      "changes": [
+        {
+          "id": "account-settings",
+          "name": "Account Settings",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.2.1",
+          "to": "1.2.2"
+        },
+        {
+          "id": "admin",
+          "name": "Admin Page",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.2.1",
+          "to": "1.2.2"
+        },
+        {
+          "id": "developer",
+          "name": "Dev Page",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.2.1",
+          "to": "1.2.2"
+        },
+        {
+          "id": "src/components/admin/AccountSettings.tsx",
+          "name": "Account Settings",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.2",
+          "to": "1.0.3"
+        },
+        {
+          "id": "src/components/admin/AdminUser.tsx",
+          "name": "Admin Users",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.1",
+          "to": "1.0.2"
+        },
+        {
+          "id": "src/components/admin/AdminUserCreate.tsx",
+          "name": "Create Admin User",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.1",
+          "to": "1.0.2"
+        }
+      ]
+    },
     {
       "sourceCommit": "4b1798676e57cfe7491c408b1c63f44556fbacc5",
       "pushedBy": "lumoratechent-beep",
