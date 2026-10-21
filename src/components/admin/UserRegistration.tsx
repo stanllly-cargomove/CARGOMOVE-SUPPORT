@@ -5,19 +5,18 @@ import { getExternalUserAccess, ExternalUserAccess, updateExternalUserAccess } f
 import { EmailPreview, EmailTemplate, EmailTemplatePort, generateWelcomeEmailPreview, getEmailTemplateCatalog, sendWelcomeEmail } from '../../services/email';
 import { RichTextEmailEditor } from './RichTextEmailEditor';
 import { notifyError, notifySuccess } from '../common/notifications';
-import { getSubmissions, subscribeToStorage } from '../../services/storage';
+import { getCompanyById, getSubmissions, subscribeToStorage } from '../../services/storage';
 import { isEmailTemplateForRegistration } from '../../utils/registrationEmailTemplates';
 
 const statuses: ExternalUserAccess['status'][] = ['PENDING', 'DONE', 'REJECTED'];
-const emailStatuses: ExternalUserAccess['email_status'][] = ['NOT_READY', 'READY', 'SENDING', 'SENT', 'FAILED'];
 type EditableUserField = 'username' | 'email' | 'password' | 'company_name' | 'full_name' | 'mobile_number' | 'status' | 'email_status';
 const MINIMUM_VISIBLE_ROWS = 4;
 const USER_ROW_HEIGHT = 32;
 
 const statusTabColors: Record<ExternalUserAccess['status'], string> = {
-  PENDING: 'text-amber-700',
-  DONE: 'text-emerald-700',
-  REJECTED: 'text-rose-700',
+  PENDING: 'border-amber-300 bg-amber-100 text-amber-800',
+  DONE: 'border-emerald-300 bg-emerald-100 text-emerald-800',
+  REJECTED: 'border-rose-300 bg-rose-100 text-rose-800',
 };
 
 const statusSelectClasses: Record<ExternalUserAccess['status'], string> = {
@@ -175,7 +174,6 @@ export function UserRegistration() {
   const [users, setUsers] = useState<ExternalUserAccess[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [registrationStatusFilter, setRegistrationStatusFilter] = useState<ExternalUserAccess['status']>('PENDING');
-  const [emailStatusFilter, setEmailStatusFilter] = useState<'ALL' | ExternalUserAccess['email_status']>('ALL');
   const [savingKeys, setSavingKeys] = useState<Set<string>>(new Set());
   const [loadError, setLoadError] = useState('');
   const [preview, setPreview] = useState<EmailPreview | null>(null);
@@ -216,7 +214,7 @@ export function UserRegistration() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, registrationStatusFilter, emailStatusFilter, pageSize]);
+  }, [searchTerm, registrationStatusFilter, pageSize]);
 
   const updateUser = async (user: ExternalUserAccess, changes: Partial<Pick<ExternalUserAccess, 'status' | 'rejection_reason' | 'rejection_detail'>>) => {
     const key = `${user.id}-${Object.keys(changes)[0]}`;
@@ -407,8 +405,7 @@ export function UserRegistration() {
         resolvedEmailStatus,
       ].some((value) => String(value || '').toLowerCase().includes(term));
       return matchesSearch
-        && user.status === registrationStatusFilter
-        && (emailStatusFilter === 'ALL' || resolvedEmailStatus === emailStatusFilter);
+        && user.status === registrationStatusFilter;
     })
     .sort((left, right) => {
       const rejectionDifference = Number(left.status === 'REJECTED') - Number(right.status === 'REJECTED');
@@ -464,7 +461,7 @@ export function UserRegistration() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="user-registration-page space-y-4 md:space-y-6">
       <div>
         <div className="flex items-center gap-2">
           <h2 className="text-xl font-bold text-slate-900 tracking-tight">User Registration</h2>
@@ -484,38 +481,31 @@ export function UserRegistration() {
             </div>
           </div>
         </div>
-        <p className="text-xs text-slate-500 mt-1">Users registered through the company registration form.</p>
+        <p className="mt-1 text-[11px] leading-relaxed text-slate-500 md:text-xs">Review user access requests, registration status, and email delivery.</p>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
-        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+      <div className="user-registration-toolbar rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+        <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
           <div className="relative min-w-0 flex-1">
             <input
               type="text"
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
               placeholder="Search username, email, company or name..."
-              className="h-8 w-full min-w-0 rounded-lg border border-slate-300 px-2.5 pl-8 text-[10px] focus:border-slate-400 focus:outline-none focus:ring-0 sm:h-9 sm:px-3.5 sm:pl-9 sm:text-xs"
+              aria-label="Search user registrations"
+              className="h-10 w-full min-w-0 rounded-lg border border-slate-300 px-2.5 pl-8 text-xs focus:border-slate-400 focus:outline-none focus:ring-0 sm:h-9 sm:px-3.5 sm:pl-9 sm:text-xs"
             />
             <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-400 sm:left-3 sm:top-2.5 sm:h-4 sm:w-4" />
           </div>
-          <select
-            value={emailStatusFilter}
-            onChange={(event) => setEmailStatusFilter(event.target.value as 'ALL' | ExternalUserAccess['email_status'])}
-            className="h-8 w-32 shrink-0 rounded-lg border border-slate-300 bg-white px-2 text-[9px] font-semibold uppercase text-slate-700 focus:border-slate-400 focus:outline-none focus:ring-0 sm:h-9 sm:w-44 sm:px-3 sm:text-xs"
-            aria-label="Filter by email status"
-          >
-            <option value="ALL">ALL EMAIL STATUSES</option>
-            {emailStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
-          </select>
           <button
             type="button"
             onClick={downloadReport}
             aria-label="Download registration report"
             title="Download registration report"
-            className="inline-flex h-8 w-8 shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-lg bg-blue-600 text-[9px] font-bold text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 sm:h-9 sm:w-auto sm:px-2.5 sm:text-[10px]"
+            className="inline-flex h-10 shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-lg bg-blue-600 px-3 text-[9px] font-bold text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 sm:h-9 sm:w-auto sm:px-2.5 sm:text-[10px]"
           >
             <Download className="h-3.5 w-3.5 shrink-0 sm:h-3 sm:w-3" />
+            <span className="sm:hidden">DOWNLOAD</span>
             <span className="hidden sm:inline">DOWNLOAD REPORT</span>
           </button>
         </div>
@@ -523,7 +513,7 @@ export function UserRegistration() {
 
       <div className="rounded-xl">
         <div>
-          <div className="ml-[0.5px] flex w-fit items-end" role="tablist" aria-label="User registration status">
+          <div className="user-registration-status-tabs ml-[0.5px] flex w-fit items-end" role="tablist" aria-label="User registration status">
             {([
               ['PENDING', 'Pending'],
               ['DONE', 'Closed / Done'],
@@ -537,12 +527,13 @@ export function UserRegistration() {
                 key={value}
                 type="button"
                 role="tab"
+                data-status={value}
                 aria-selected={registrationStatusFilter === value}
                 aria-label={`${label}: ${statusCount} registration${statusCount === 1 ? '' : 's'}`}
                 onClick={() => setRegistrationStatusFilter(value)}
                 className={`admin-registration-tab relative -mr-px flex h-10 w-[132px] min-w-[132px] items-center justify-center rounded-t-lg border px-3 text-xs font-bold uppercase tracking-wider transition-colors ${
                   registrationStatusFilter === value
-                    ? `z-10 border-slate-400 border-b-transparent bg-[#CBD5E1] ${statusTabColors[value]}`
+                    ? `z-10 border-b-transparent ${statusTabColors[value]}`
                     : 'border-slate-300 bg-[#F1F5F9] text-slate-500 hover:bg-slate-200 hover:text-slate-900'
                 }`}
               >
@@ -561,8 +552,8 @@ export function UserRegistration() {
             })}
           </div>
         </div>
-        <div className="overflow-hidden rounded-b-xl rounded-tr-xl border-x border-b border-slate-200 bg-white shadow-sm">
-        <div className="w-full overflow-hidden">
+        <div className="user-registration-results overflow-hidden rounded-b-xl rounded-tr-xl border-x border-b border-slate-200 bg-white shadow-sm">
+        <div className="hidden w-full overflow-hidden md:block">
           <table aria-label="User registrations" className="user-registration-table w-full table-fixed border-collapse text-left text-[11px]">
             <colgroup>
               <col style={{ width: 'calc((100% - 224px) * 0.14)' }} />
@@ -646,8 +637,54 @@ export function UserRegistration() {
             </tbody>
           </table>
         </div>
-        <div className="flex items-center justify-center border-t border-slate-200 bg-slate-50 px-4 py-3">
-          <nav className="flex items-center gap-1" aria-label="User registration pagination">
+        <div className="user-registration-cards space-y-2 p-2 md:hidden" role="list" aria-label="User registration cards">
+          <div className="px-1 py-1 text-[11px] text-slate-500">{filteredUsers.length} user{filteredUsers.length === 1 ? '' : 's'}</div>
+          {paginatedUsers.length === 0 && (
+            <div className="rounded-lg border border-dashed border-slate-300 bg-white px-4 py-10 text-center text-xs text-slate-500">
+              <UsersRound className="mx-auto mb-2 h-6 w-6 text-slate-300" />
+              {loadError || (users.length ? 'No users match the selected filters.' : 'No company users found.')}
+            </div>
+          )}
+          {paginatedUsers.map((user) => {
+            const resolvedEmailStatus = user.email_status || (['DONE', 'REJECTED'].includes(user.status) ? 'READY' : 'NOT_READY');
+            const canResendEmail = ['DONE', 'REJECTED'].includes(user.status) && resolvedEmailStatus !== 'SENDING';
+            const companyType = user.company_id ? getCompanyById(user.company_id)?.company_type || '—' : '—';
+            return (
+              <article key={user.id} role="listitem" className="min-w-0 rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+                <div className="flex items-start gap-2">
+                  <div className="min-w-0 flex-1">
+                    <CopyableValue value={user.username} label="Username" className="text-xs font-bold text-slate-900" />
+                    <CopyableValue value={user.email} label="Email address" className="mt-0.5 text-[11px] text-blue-700" />
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <span title="Company type" className="inline-flex h-7 w-24 items-center justify-center truncate rounded-md border border-slate-200 bg-slate-50 px-1 text-[9px] font-semibold uppercase text-slate-600">{companyType}</span>
+                    <UserActionMenu username={user.username} canResend={canResendEmail} loading={openingPreview === user.id} onEdit={() => setEditingUser({ ...user })} onResend={() => void openPreview(user)} />
+                  </div>
+                </div>
+                <div className="mt-2 grid min-w-0 grid-cols-2 gap-x-3 gap-y-2 border-t border-slate-100 pt-2 text-[10px]">
+                  <div className="min-w-0"><span className="text-slate-400">Company</span><CopyableValue value={user.company_name.toUpperCase()} label="Company name" className="mt-0.5 font-semibold text-slate-700" /></div>
+                  <div className="min-w-0"><span className="text-slate-400">Full name</span><CopyableValue value={user.full_name} label="Full name" className="mt-0.5 font-semibold text-slate-700" /></div>
+                  <div className="min-w-0"><span className="text-slate-400">Mobile</span><CopyableValue value={user.mobile_number} label="Mobile number" className="mt-0.5 font-semibold text-slate-700" /></div>
+                  <div className="min-w-0"><span className="text-slate-400">Password</span><CopyableValue value={user.password || 'Unavailable'} label="Password" className="mt-0.5 font-mono font-semibold text-slate-700" /></div>
+                </div>
+                <div className="user-card-status-row mt-1 flex items-center justify-end gap-2 border-t border-slate-100 pt-1.5">
+                  <div className="flex min-w-0 items-center justify-end gap-1 text-[9px] font-medium text-slate-500">
+                    <span>EMAIL:</span>
+                    <div className={`user-card-status-tag flex h-7 items-center justify-center rounded-md border px-1 text-[9px] font-semibold ${emailStatusClasses(resolvedEmailStatus)}`}><CopyableValue value={emailStatusLabel(resolvedEmailStatus)} label="Email status" className="w-full text-center" /></div>
+                  </div>
+                  <div className="flex min-w-0 items-center justify-end gap-1 text-[9px] font-medium text-slate-500">
+                    <span className="whitespace-nowrap">REGISTRATION:</span>
+                    <select value={user.status || 'PENDING'} onChange={(event) => void changeStatus(user, event.target.value as ExternalUserAccess['status'])} disabled={savingKeys.has(`${user.id}-status`)} aria-label={`Status for ${user.username}`} className={`user-card-status-tag h-7 shrink-0 rounded-md border px-1 text-[9px] font-bold disabled:cursor-wait disabled:opacity-60 ${statusSelectClasses[user.status || 'PENDING']}`}>
+                      {statuses.map((status) => <option key={status} value={status}>{status}</option>)}
+                    </select>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+        <div className="user-registration-pagination-footer flex items-center justify-center border-t border-slate-200 bg-slate-50 px-4 py-3">
+          <nav className="user-registration-pagination flex items-center gap-1" aria-label="User registration pagination">
             <button
               type="button"
               onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}

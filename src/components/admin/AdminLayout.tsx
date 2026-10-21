@@ -200,10 +200,10 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
     .find((item) => item.id === activeTab)?.label ?? (activeTab === 'account-settings' ? 'Account & Setting' : 'Dashboard');
 
   return (
-    <div hidden={!active} style={active ? undefined : { display: 'none' }} className={`admin-theme min-h-screen bg-[#f6f8fb] flex flex-col md:flex-row ${isDarkMode ? 'admin-theme-dark' : ''}`}>
+    <div hidden={!active} data-sidebar-collapsed={isSidebarCollapsed ? 'true' : 'false'} style={active ? undefined : { display: 'none' }} className={`admin-theme min-h-screen bg-[#f6f8fb] flex flex-col md:flex-row ${isDarkMode ? 'admin-theme-dark' : ''}`}>
       {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-64 -translate-x-full flex-col shrink-0 overflow-visible border-r border-[#17263d] bg-[#0b1930] text-slate-300 shadow-2xl transition-[width,transform] duration-300 ease-out md:relative md:inset-auto md:h-screen md:translate-x-0 md:shadow-none md:sticky md:top-0 md:self-start ${
+        className={`fixed inset-y-0 left-0 z-50 flex w-64 -translate-x-full flex-col shrink-0 overflow-visible border-r border-[#17263d] bg-[#0b1930] text-slate-300 shadow-2xl transition-[width,transform] duration-300 ease-out md:relative md:inset-auto md:h-screen md:w-64 md:translate-x-0 md:shadow-none md:sticky md:top-0 md:self-start ${
           isMobileSidebarOpen ? 'translate-x-0' : ''
         } ${
           isSidebarCollapsed ? 'md:w-[60px]' : 'md:w-[185px]'
@@ -213,8 +213,8 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
           <div className={`flex min-w-0 flex-1 items-center gap-2 ${isSidebarCollapsed ? 'md:hidden' : ''}`}>
             <ProfileAvatar url={avatarUrl} name={user?.full_name || user?.username || user?.email || 'Admin'} className="h-8 w-8 text-xs" />
             <div className="min-w-0 flex-1 select-none">
-              <p className="truncate text-xs font-medium leading-4 text-white">CargoMove</p>
-              <p className="truncate text-[10px] leading-3.5 text-sky-200">{portalMode === 'admin' ? 'Admin portal' : 'Developer tools'}</p>
+              <p className="truncate text-sm font-medium leading-4 text-white md:text-xs">CargoMove</p>
+              <p className="truncate text-[11px] leading-3.5 text-sky-200 md:text-[10px]">{portalMode === 'admin' ? 'Admin portal' : 'Developer tools'}</p>
             </div>
           </div>
           <button
@@ -253,7 +253,7 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
           aria-label={portalMode === 'admin' ? 'Admin navigation' : 'Developer navigation'}
           className={`min-h-0 flex-1 space-y-0.5 overflow-y-auto overscroll-contain px-2 py-3 ${isSidebarCollapsed ? 'md:px-2' : ''}`}
         >
-          {portalMode === 'admin' && <p className={`px-2 pb-1 text-[9px] font-medium uppercase tracking-[0.14em] text-slate-500 ${isSidebarCollapsed ? 'md:hidden' : ''}`}>Registration</p>}
+          {portalMode === 'admin' && <p className={`px-2 pb-1 text-[11px] md:text-[9px] font-medium uppercase tracking-[0.14em] text-slate-500 ${isSidebarCollapsed ? 'md:hidden' : ''}`}>Registration</p>}
           {portalMode === 'admin' && navItems.map((item) => {
             const Icon = item.icon;
             const isRegistrationQueue = item.id === 'submissions';
@@ -268,10 +268,13 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
                   type="button"
                   onClick={() => {
                     if (isRegistrationQueue) {
-                      setIsRegistrationQueueExpanded((expanded) => isSidebarCollapsed || !expanded);
-                      if (isSidebarCollapsed) setIsSidebarCollapsed(false);
-                      setIsMobileSidebarOpen(false);
-                      if (!activeQueueItem) setActiveTab('submissions-pending');
+                      if (isSidebarCollapsed) {
+                        setIsSidebarCollapsed(false);
+                        setIsRegistrationQueueExpanded(true);
+                      } else {
+                        setIsRegistrationQueueExpanded((expanded) => !expanded);
+                      }
+                      if (window.innerWidth < 768) setIsMobileSidebarOpen(true);
                     } else {
                       setActiveTab(item.id);
                       setIsRegistrationQueueExpanded(false);
@@ -281,13 +284,13 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
                   aria-expanded={isRegistrationQueue ? isRegistrationQueueExpanded : undefined}
                   aria-label={isSidebarCollapsed ? item.label : undefined}
                   title={isSidebarCollapsed ? item.label : undefined}
-                  className={`relative w-full flex items-center rounded-lg py-2 text-[11px] font-medium transition-all ${isRegistrationQueue ? 'gap-1 px-1.5' : 'gap-2 px-2'} ${isSidebarCollapsed ? 'md:justify-center md:px-2' : ''} ${
+                  className={`relative min-h-11 w-full flex items-center rounded-lg py-2 text-[14px] md:text-[11px] font-medium transition-all ${isRegistrationQueue ? 'gap-1 px-1.5' : 'gap-2 px-2'} ${isSidebarCollapsed ? 'md:justify-center md:px-2' : ''} ${
                     isActive
                       ? 'bg-[#0095e8] text-white shadow-sm font-semibold'
                       : 'text-slate-300 hover:text-white hover:bg-white/8'
                   }`}
                 >
-                  <Icon className={`shrink-0 ${isRegistrationQueue ? 'h-3.5 w-3.5' : 'h-4 w-4'}`} />
+                  <Icon className="h-5 w-5 shrink-0 md:h-4 md:w-4" />
                   <span className={`min-w-0 flex-1 text-left ${isRegistrationQueue ? 'whitespace-nowrap tracking-tight' : 'truncate'} ${isSidebarCollapsed ? 'md:hidden' : ''}`}>{item.navLabel || item.label}</span>
                   {notificationCount > 0 && (
                     <span
@@ -298,7 +301,7 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
                     </span>
                   )}
                   {isRegistrationQueue && (
-                    <ChevronDown className={`h-3 w-3 shrink-0 transition-transform duration-200 ease-out ${isSidebarCollapsed ? 'md:hidden' : ''} ${isRegistrationQueueExpanded ? 'rotate-180' : ''}`} />
+                    <ChevronDown className={`h-4 w-4 shrink-0 transition-transform duration-200 ease-out md:h-3 md:w-3 ${isSidebarCollapsed ? 'md:hidden' : ''} ${isRegistrationQueueExpanded ? 'rotate-180' : ''}`} />
                   )}
                 </button>
 
@@ -324,13 +327,13 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
                               setActiveTab(queueItem.id);
                               setIsMobileSidebarOpen(false);
                             }}
-                            className={`relative flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-[11px] font-medium transition-colors ${
+                            className={`relative min-h-10 flex w-full items-center gap-2 rounded-lg px-2 py-2 text-[13px] md:min-h-0 md:py-1.5 md:text-[11px] font-medium transition-colors ${
                               isQueueItemActive
                                 ? 'bg-slate-800 font-semibold text-white'
                                 : 'text-slate-400 hover:bg-slate-800/80 hover:text-slate-100'
                             }`}
                           >
-                            <QueueIcon className="h-3.5 w-3.5 shrink-0" />
+                            <QueueIcon className="h-4 w-4 shrink-0 md:h-3.5 md:w-3.5" />
                             <span className="flex-1 text-left">{queueItem.label}</span>
                             {queueItem.status === 'PENDING' && pendingSubmissionCount > 0 && (
                               <span
@@ -350,7 +353,7 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
 
           {portalMode === 'admin' && user?.type === 'ADMIN' && (
             <>
-              <p className={`mt-4 border-t border-white/10 px-2 pb-1 pt-3 text-[9px] font-medium uppercase tracking-[0.14em] text-slate-500 ${isSidebarCollapsed ? 'md:hidden' : ''}`}>Tools</p>
+              <p className={`mt-4 border-t border-white/10 px-2 pb-1 pt-3 text-[11px] md:text-[9px] font-medium uppercase tracking-[0.14em] text-slate-500 ${isSidebarCollapsed ? 'md:hidden' : ''}`}>Tools</p>
               <button
                 type="button"
                 onClick={() => {
@@ -360,9 +363,9 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
                 aria-label="NP Container"
                 aria-current={activeTab === 'northport-recovery' ? 'page' : undefined}
                 title="NP Container"
-                className={`flex w-full items-center gap-2 rounded-lg px-2 py-2 text-[11px] font-medium transition-all ${isSidebarCollapsed ? 'md:justify-center md:px-2' : ''} ${activeTab === 'northport-recovery' ? 'bg-[#0095e8] font-semibold text-white shadow-sm' : 'text-slate-300 hover:bg-white/8 hover:text-white'}`}
+                className={`min-h-11 flex w-full items-center gap-2 rounded-lg px-2 py-2 text-[14px] md:min-h-0 md:text-[11px] font-medium transition-all ${isSidebarCollapsed ? 'md:justify-center md:px-2' : ''} ${activeTab === 'northport-recovery' ? 'bg-[#0095e8] font-semibold text-white shadow-sm' : 'text-slate-300 hover:bg-white/8 hover:text-white'}`}
               >
-                <Container className="h-4 w-4 shrink-0" />
+                <Container className="h-5 w-5 shrink-0 md:h-4 md:w-4" />
                 <span className={`min-w-0 flex-1 truncate text-left ${isSidebarCollapsed ? 'md:hidden' : ''}`}>NP Container</span>
               </button>
             </>
@@ -375,7 +378,7 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
             return (
               <React.Fragment key={item.id}>
                 {(index === 0 || devToolItems[index - 1].section !== item.section) && (
-                  <p className={`px-2 pb-1 text-[9px] font-medium uppercase tracking-[0.14em] text-slate-500 ${index > 0 ? 'mt-4 border-t border-white/10 pt-3' : ''} ${isSidebarCollapsed ? 'md:hidden' : ''}`}>{item.section}</p>
+                  <p className={`px-2 pb-1 text-[11px] md:text-[9px] font-medium uppercase tracking-[0.14em] text-slate-500 ${index > 0 ? 'mt-4 border-t border-white/10 pt-3' : ''} ${isSidebarCollapsed ? 'md:hidden' : ''}`}>{item.section}</p>
                 )}
               <button
                 type="button"
@@ -386,13 +389,13 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
                 }}
                 aria-label={isSidebarCollapsed ? item.label : undefined}
                 title={item.label}
-                className={`w-full flex items-center rounded-lg py-2 text-[11px] font-medium transition-all ${item.id === 'email-template' ? 'gap-1.5 px-1.5' : 'gap-2 px-2'} ${isSidebarCollapsed ? 'md:justify-center md:px-2' : ''} ${
+                className={`min-h-11 w-full flex items-center rounded-lg py-2 text-[14px] md:min-h-0 md:text-[11px] font-medium transition-all ${item.id === 'email-template' ? 'gap-1.5 px-1.5' : 'gap-2 px-2'} ${isSidebarCollapsed ? 'md:justify-center md:px-2' : ''} ${
                   isActive
                     ? 'bg-[#0095e8] text-white shadow-sm font-semibold'
                     : 'text-slate-300 hover:text-white hover:bg-white/8'
                 }`}
               >
-                <Icon className="h-3.5 w-3.5 shrink-0" />
+                <Icon className="h-5 w-5 shrink-0 md:h-3.5 md:w-3.5" />
                 <span className={`min-w-0 flex-1 text-left ${item.id === 'email-template' ? 'whitespace-nowrap tracking-tight' : 'truncate'} ${isSidebarCollapsed ? 'md:hidden' : ''}`}>{item.label}</span>
               </button>
               </React.Fragment>
@@ -422,8 +425,8 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
           <button
             type="button"
             onClick={switchPortal}
-            aria-label={portalMode === 'admin' ? 'Open Dev Tools' : 'Return to Admin Portal'}
-            title={isSidebarCollapsed ? (portalMode === 'admin' ? 'Dev Tools' : 'Admin Portal') : undefined}
+            aria-label={portalMode === 'admin' ? 'Open Developer' : 'Return to Admin Portal'}
+            title={isSidebarCollapsed ? (portalMode === 'admin' ? 'Developer' : 'Admin Portal') : undefined}
             className={`flex w-full items-center justify-center gap-2 rounded-lg bg-slate-800 px-3 py-2 text-xs font-normal text-slate-200 transition-colors hover:bg-slate-700 ${isSidebarCollapsed ? 'md:px-2' : ''}`}
           >
             {portalMode === 'admin' ? (
@@ -432,7 +435,7 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
               <LayoutDashboard className="h-3.5 w-3.5 shrink-0" />
             )}
             <span className={isSidebarCollapsed ? 'md:hidden' : ''}>
-              {portalMode === 'admin' ? 'Dev Tools' : 'Admin Portal'}
+              {portalMode === 'admin' ? 'Developer' : 'Admin Portal'}
             </span>
           </button>
         </div>
@@ -462,7 +465,7 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
             <button
               type="button"
               onClick={goToPortalHome}
-              aria-label={`Go to ${portalMode === 'admin' ? 'Admin Portal' : 'Dev Tools'} home`}
+              aria-label={`Go to ${portalMode === 'admin' ? 'Admin Portal' : 'Developer'} home`}
               title="Home"
               className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-sky-50 hover:text-[#0095e8] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0095e8]"
             >
@@ -522,6 +525,7 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
             (activeQueueItem || activeTab === 'user-registration') && isSidebarCollapsed ? 'max-w-none' : 'mx-auto max-w-[1600px]'
           }`}
         >
+          <div key={`${portalMode}:${activeTab}`} className="admin-page-transition w-full min-w-0">
           {activeTab === 'dashboard' && (
             <AdminDashboard onNavigate={(tab, registrationType) => {
               const destination = tab === 'submissions' ? 'submissions-pending' : tab;
@@ -557,6 +561,7 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
           {activeTab === 'scheduler' && <div className="w-full space-y-4"><div><h2 className="text-xl font-bold tracking-tight text-slate-900">Scheduler</h2><p className="mt-1 text-xs text-slate-500">Manage saved schedulers and request a run when needed.</p></div><CargoMoveScheduler /></div>}
           {(hasOpenedNorthport || activeTab === 'northport-recovery') && user?.type === 'ADMIN' && <NorthportRecovery key={user.email} active={active && activeTab === 'northport-recovery' && portalMode === 'admin'} onBack={goToPortalHome} />}
           {activeTab === 'account-settings' && <AccountSettings user={user} avatarUrl={avatarUrl} onAvatarChange={setAvatarUrl} onUserChange={onUserChange} onReset={() => void handlePasswordReset()} sendingReset={isSendingReset} />}
+          </div>
         </main>
       </div>
 

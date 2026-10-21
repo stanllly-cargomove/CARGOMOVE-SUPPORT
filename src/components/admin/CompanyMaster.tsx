@@ -58,7 +58,7 @@ export function CompanyMaster() {
   const [sortBy, setSortBy] = useState<CompanySort>('CREATED_DESC');
   const [pageSize, setPageSize] = useState(20);
   const [currentPage, setCurrentPage] = useState(1);
-  const [isNarrowToolbar, setIsNarrowToolbar] = useState(false);
+  const [isNarrowToolbar, setIsNarrowToolbar] = useState(() => window.matchMedia('(max-width: 767px)').matches);
 
   // Modals
   const [selectedCompanyForId, setSelectedCompanyForId] = useState<Company | null>(null);
@@ -74,7 +74,10 @@ export function CompanyMaster() {
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(max-width: 767px)');
-    const updateToolbarMode = () => setIsNarrowToolbar(mediaQuery.matches);
+    const updateToolbarMode = () => {
+      setIsNarrowToolbar(mediaQuery.matches);
+      setActiveActionMenuId(null);
+    };
     updateToolbarMode();
     mediaQuery.addEventListener('change', updateToolbarMode);
     return () => mediaQuery.removeEventListener('change', updateToolbarMode);
@@ -125,10 +128,11 @@ export function CompanyMaster() {
     if (sortBy === 'UPDATED_DESC') return Date.parse(right.updated_at) - Date.parse(left.updated_at);
     return Date.parse(right.created_at) - Date.parse(left.created_at);
   });
-  const totalPages = Math.max(1, Math.ceil(sortedCompanies.length / pageSize));
+  const effectivePageSize = isNarrowToolbar ? 25 : pageSize;
+  const totalPages = Math.max(1, Math.ceil(sortedCompanies.length / effectivePageSize));
   const safeCurrentPage = Math.min(currentPage, totalPages);
-  const pageStart = (safeCurrentPage - 1) * pageSize;
-  const paginatedCompanies = sortedCompanies.slice(pageStart, pageStart + pageSize);
+  const pageStart = (safeCurrentPage - 1) * effectivePageSize;
+  const paginatedCompanies = sortedCompanies.slice(pageStart, pageStart + effectivePageSize);
   const pageCompanyIds = paginatedCompanies.map((company) => company.id);
   const allPageCompaniesSelected = pageCompanyIds.length > 0 && pageCompanyIds.every((id) => selectedCompanyIds.includes(id));
   const pageNumbers = getVisiblePageNumbers(safeCurrentPage, totalPages);
@@ -191,8 +195,19 @@ export function CompanyMaster() {
     };
   }, [isExportMenuOpen]);
 
+  const companyActions = (company: Company) => (
+    <CompanyActionMenu
+      companyName={company.name}
+      isOpen={activeActionMenuId === company.id}
+      onToggle={() => setActiveActionMenuId(activeActionMenuId === company.id ? null : company.id)}
+      onClose={() => setActiveActionMenuId(null)}
+      onAssignId={() => { setActiveActionMenuId(null); setSelectedCompanyForId(company); }}
+      onEdit={() => { setActiveActionMenuId(null); setEditingCompany(company); setIsNewCompanyModalOpen(true); }}
+    />
+  );
+
   return (
-    <div className="space-y-6">
+    <div className="company-master min-w-0 space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-slate-900 tracking-tight">Company list</h2>
@@ -201,45 +216,44 @@ export function CompanyMaster() {
           </p>
         </div>
 
-        <div ref={exportMenuRef} className="relative flex items-center gap-2 self-start sm:self-auto">
-          <button
-            type="button"
-            onClick={() => {
-              setEditingCompany(null);
-              setIsNewCompanyModalOpen(true);
-            }}
-            className="inline-flex items-center px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors shadow-sm"
-          >
-            <Plus className="w-4 h-4 mr-1.5" />
-            Add Company
-          </button>
-          <button type="button" onClick={() => setIsExportMenuOpen((open) => !open)} aria-label="Company list options" aria-expanded={isExportMenuOpen} title="Company list options" className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-600 hover:bg-slate-50">
-            <MoreVertical className="h-4 w-4" />
-          </button>
-          {isExportMenuOpen && <div role="menu" aria-label="Company export options" className="absolute right-0 top-full z-30 mt-1 w-max min-w-60 rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
-            <button type="button" role="menuitem" disabled={!selectedCompanyIds.length} onClick={() => exportCompanies(companies.filter((company) => selectedCompanyIds.includes(company.id)))} className="flex w-full items-center gap-2 whitespace-nowrap px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-40"><FileSpreadsheet className="h-4 w-4 shrink-0" /> EXPORT SELECTED COMPANIES</button>
-            <button type="button" role="menuitem" onClick={() => exportCompanies(companies)} className="flex w-full items-center gap-2 whitespace-nowrap px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-blue-50"><FileSpreadsheet className="h-4 w-4 shrink-0" /> EXPORT ALL COMPANY</button>
-          </div>}
-        </div>
       </div>
 
       {/* Company table and controls */}
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex min-w-0 flex-nowrap items-center gap-2 border-b border-slate-100 px-3 py-3 sm:gap-3 sm:px-5 sm:py-4">
-        <div className="relative min-w-[10rem] flex-1">
-          <input
-            type="search"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search registration or company..."
-            className="h-8 w-full rounded-lg border border-slate-300 bg-white pl-9 pr-3 text-[11px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            aria-label="Search companies"
-          />
-          <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+      <div className="company-list-panel overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="company-list-toolbar flex min-w-0 flex-wrap items-center gap-2 border-b border-slate-100 px-3 py-3 sm:gap-3 sm:px-5 sm:py-4">
+        <div className="company-list-search-row flex min-w-0 flex-[1_1_14rem] items-center gap-2">
+          <div className="company-list-search relative min-w-0 flex-1">
+            <input
+              type="search"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search registration or company..."
+              className="h-8 w-full rounded-lg border border-slate-300 bg-white pl-9 pr-3 text-[11px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              aria-label="Search companies"
+            />
+            <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+          </div>
+          <div ref={exportMenuRef} className="company-list-header-actions relative flex shrink-0 items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => { setEditingCompany(null); setIsNewCompanyModalOpen(true); }}
+              className="inline-flex h-8 items-center justify-center gap-1 rounded-lg bg-blue-600 px-2.5 text-[10px] font-bold uppercase text-white shadow-sm transition-colors hover:bg-blue-700"
+            >
+              <Plus className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              ADD
+            </button>
+            <button type="button" onClick={() => setIsExportMenuOpen((open) => !open)} aria-label="Company list options" aria-expanded={isExportMenuOpen} title="Company list options" className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-600 hover:bg-slate-50">
+              <MoreVertical className="h-4 w-4" aria-hidden="true" />
+            </button>
+            {isExportMenuOpen && <div role="menu" aria-label="Company export options" className="absolute right-0 top-full z-30 mt-1 w-max min-w-60 max-w-[calc(100vw-2rem)] rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
+              <button type="button" role="menuitem" disabled={!selectedCompanyIds.length} onClick={() => exportCompanies(companies.filter((company) => selectedCompanyIds.includes(company.id)))} className="flex w-full items-center gap-2 whitespace-nowrap px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-40"><FileSpreadsheet className="h-4 w-4 shrink-0" /> EXPORT SELECTED COMPANIES</button>
+              <button type="button" role="menuitem" onClick={() => exportCompanies(companies)} className="flex w-full items-center gap-2 whitespace-nowrap px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-blue-50"><FileSpreadsheet className="h-4 w-4 shrink-0" /> EXPORT ALL COMPANY</button>
+            </div>}
+          </div>
         </div>
 
-        <div className="ml-auto flex shrink-0 flex-nowrap items-center gap-2">
-          <label className="shrink-0" htmlFor="company-sort">
+        <div className="company-list-filters ml-auto flex min-w-0 flex-wrap items-center gap-2">
+          {!isNarrowToolbar && <label className="shrink-0" htmlFor="company-sort">
             <select
               id="company-sort"
               value={sortBy}
@@ -253,7 +267,7 @@ export function CompanyMaster() {
               <option value="NAME_ASC">COMPANY NAME A-Z</option>
               <option value="NAME_DESC">COMPANY NAME Z-A</option>
             </select>
-          </label>
+          </label>}
 
           {/* Company Type Filter */}
           <select
@@ -300,14 +314,55 @@ export function CompanyMaster() {
                 : 'bg-slate-50 text-slate-600 border-slate-300 hover:bg-slate-100'
             }`}
           >
-            <Filter className="h-3.5 w-3.5" aria-hidden="true" />
-            <span>Missing IDs Only</span>
+            <Filter className="company-missing-filter-icon h-3.5 w-3.5" aria-hidden="true" />
+            <span>{isNarrowToolbar ? 'Missing IDs' : 'Missing IDs Only'}</span>
           </button>
         </div>
       </div>
 
       {/* Companies Table */}
-        <div className="overflow-x-auto">
+        {isNarrowToolbar ? (
+          <div className="company-mobile-list">
+            <label className="flex min-h-10 items-center gap-2 text-[11px] text-slate-600">
+              <input type="checkbox" aria-label="Select all companies on this page" checked={allPageCompaniesSelected} onChange={(event) => setSelectedCompanyIds((current) => event.target.checked ? Array.from(new Set([...current, ...pageCompanyIds])) : current.filter((id) => !pageCompanyIds.includes(id)))} className="h-5 w-5 rounded border-slate-300" />
+              Select page
+              <span className="ml-auto">{selectedCompanyIds.length ? `${selectedCompanyIds.length} selected` : `${sortedCompanies.length} companies`}</span>
+            </label>
+            {paginatedCompanies.length === 0 ? (
+              <p className="px-4 py-8 text-center text-sm text-slate-500">No company master records matching current filters.</p>
+            ) : <ul aria-label="Company cards" className="space-y-2">
+              {paginatedCompanies.map(company => {
+                const companyPorts = company.assigned_port_ids?.length
+                  ? company.assigned_port_ids
+                  : company.port_id ? [company.port_id] : [];
+                const portNames = companyPorts
+                  .map(id => ports.find(port => port.id === id)?.display_name || id)
+                  .filter(Boolean)
+                  .map(abbreviatedPortName)
+                  .join(', ') || 'Unassigned';
+                return (
+                  <li key={company.id} className="rounded-md border border-slate-200 bg-white px-2.5 py-1.5 shadow-sm">
+                    <article aria-label={company.name} className="min-w-0 space-y-1.5">
+                      <div className="relative pr-8">
+                        <span className="company-card-name block min-w-0 break-words text-xs font-bold leading-4 text-slate-900">{company.name.toUpperCase()}</span>
+                        <div className="absolute right-0 top-0">{companyActions(company)}</div>
+                      </div>
+                      <div className="company-card-registrations flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 pr-8 text-[11px] leading-4 text-slate-600">
+                        <span className="company-card-type inline-flex h-5 w-[76px] shrink-0 items-center justify-center rounded bg-slate-100 px-1 text-[10px] font-semibold text-slate-700">{company.company_type}</span>
+                        <span aria-label="New registration" className="break-all font-mono">{company.registration_number_new || '—'}</span>
+                        <span aria-label="Old registration" className="break-all font-mono">{company.registration_number_old || company.registration_number || '—'}</span>
+                      </div>
+                      <div className="company-card-meta flex min-w-0 items-center justify-between gap-2 text-[10px] leading-4">
+                        <span className="shrink-0 whitespace-nowrap text-slate-500">Updated {formatAdminDate(company.updated_at)}</span>
+                        <span aria-label="Port" className="min-w-0 truncate text-right text-slate-600">{portNames}</span>
+                      </div>
+                    </article>
+                  </li>
+                );
+              })}
+            </ul>}
+          </div>
+        ) : <div className="overflow-x-auto">
           <table aria-label="Company list" className="company-list-table w-full table-auto border-collapse text-left text-[11px] font-normal">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-100 font-bold uppercase tracking-wider text-slate-600">
@@ -413,21 +468,7 @@ export function CompanyMaster() {
                       </td>
 
                       <td className="py-3 px-4 text-center">
-                        <CompanyActionMenu
-                          companyName={comp.name}
-                          isOpen={activeActionMenuId === comp.id}
-                          onToggle={() => setActiveActionMenuId(activeActionMenuId === comp.id ? null : comp.id)}
-                          onClose={() => setActiveActionMenuId(null)}
-                          onAssignId={() => {
-                            setActiveActionMenuId(null);
-                            setSelectedCompanyForId(comp);
-                          }}
-                          onEdit={() => {
-                            setActiveActionMenuId(null);
-                            setEditingCompany(comp);
-                            setIsNewCompanyModalOpen(true);
-                          }}
-                        />
+                        {companyActions(comp)}
                       </td>
                     </tr>
                   );
@@ -435,9 +476,9 @@ export function CompanyMaster() {
               )}
             </tbody>
           </table>
-        </div>
-        <div className="flex flex-col gap-3 border-t border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3 text-xs text-slate-500">
+        </div>}
+        <div className="company-list-footer flex flex-col gap-3 border-t border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="company-list-summary-controls flex flex-wrap items-center gap-3 text-xs text-slate-500">
             <span>
               {sortedCompanies.length
                 ? `Showing ${pageStart + 1}-${Math.min(pageStart + pageSize, sortedCompanies.length)} of ${sortedCompanies.length}`
@@ -456,7 +497,7 @@ export function CompanyMaster() {
             </label>
           </div>
 
-          <nav className="flex items-center gap-1" aria-label="Company table pagination">
+          <nav className="company-list-pagination flex items-center gap-1" aria-label="Company table pagination">
             <button
               type="button"
               onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
@@ -903,9 +944,9 @@ function CompanyEditModal({
     }
   };
 
-  return (
+  return createPortal((
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
-      <div className="flex h-[min(760px,calc(100vh-2rem))] min-w-0 w-[min(900px,calc(100vw-2rem))] max-w-full flex-col overflow-hidden rounded-2xl border border-slate-100 bg-white p-6 shadow-2xl">
+      <div role="dialog" aria-modal="true" aria-label={isEditing ? 'Edit Master Company' : 'Add New Master Company'} className="company-edit-dialog flex h-[min(760px,calc(100dvh-2rem))] min-w-0 w-[min(900px,calc(100vw-2rem))] max-w-full flex-col overflow-hidden rounded-2xl border border-slate-100 bg-white p-4 sm:p-6 shadow-2xl">
         <div className="flex min-w-0 items-center justify-between pb-4 border-b border-slate-100">
           <div>
             <h3 className="text-base font-bold text-slate-900">{isEditing ? 'Edit Master Company' : 'Add New Master Company'}</h3>
@@ -922,7 +963,7 @@ function CompanyEditModal({
               </div>
             )}
             <input ref={importFileRef} type="file" accept=".xlsx,.xls,.xlsm" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) void handleExcelImport(file); event.target.value = ''; }} />
-            <button type="button" onClick={onClose} className="rounded-lg p-1 text-slate-400 hover:text-slate-600"><X className="h-5 w-5" /></button>
+            <button type="button" onClick={onClose} aria-label="Close company details" className="rounded-lg p-1 text-slate-400 hover:text-slate-600"><X className="h-5 w-5" /></button>
           </div>
         </div>
 
@@ -940,7 +981,7 @@ function CompanyEditModal({
             </div>
           </div>
         ) : <>
-          <div className="mt-4 flex min-w-0 items-center gap-2" role="tablist" aria-label="Company details sections">
+          <div className="company-details-sections mt-4 flex min-w-0 items-center gap-2" role="tablist" aria-label="Company details sections">
             {sections.map((section, index) => (
               <button
                 key={section.title}
@@ -1060,7 +1101,7 @@ function CompanyEditModal({
 
       </div>
     </div>
-  );
+  ), document.querySelector('.admin-theme:not([hidden])') || document.body);
 }
 
 type CompanyFormState = Omit<Company, 'created_at' | 'updated_at'>;

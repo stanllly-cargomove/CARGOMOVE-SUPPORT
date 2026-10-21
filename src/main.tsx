@@ -1,6 +1,8 @@
 import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
+import { InstallApp } from './components/common/InstallApp';
+import { registerServiceWorker } from './services/pwa';
 import './index.css';
 import { loadCustomerConfiguration } from './services/customerConfiguration';
 import brandLogo from '../media/image-removebg-preview.webp';
@@ -9,6 +11,8 @@ import guidelineBackground from '../media/guideline-background-fast.webp';
 import registrationBackground from '../media/registration-background-fast.webp';
 import portHeroImage from '../media/registration-port-hero-fast.webp';
 import depotHeroImage from '../media/registration-depot-card-fast.webp';
+
+registerServiceWorker();
 
 // Begin loading the public facility list and shared visual assets while React starts.
 void loadCustomerConfiguration().catch(() => undefined);
@@ -22,5 +26,6 @@ for (const source of [brandLogo, homeBackground, guidelineBackground, registrati
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />
+    <InstallApp />
   </StrictMode>,
 );

@@ -8,6 +8,15 @@
   --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
+@keyframes admin-page-enter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.admin-page-transition { animation: admin-page-enter 180ms ease-out both; }
+@media (prefers-reduced-motion: reduce) {
+  .admin-page-transition { animation: none; }
+}
+
 /* Fit recovery filters to the card's available width, including a collapsed sidebar. */
 .northport-search-card { container: northport-search / inline-size; }
 .northport-search-fields {
@@ -104,7 +113,67 @@
 .company-list-table td:first-child { width: 100%; min-width: 280px; overflow-wrap: anywhere; }
 .company-list-table th:not(:first-child),
 .company-list-table td:not(:first-child) { width: 1%; white-space: nowrap; overflow-wrap: normal; }
+
+@media (max-width: 767px) {
+  .company-list-panel { border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+  .company-list-toolbar { border: 1px solid #e2e8f0; border-radius: 6px; background: white; }
+  .company-list-toolbar { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .company-list-search-row { width: 100%; gap: 6px; }
+  .company-list-search input::placeholder { font-size: 10px; }
+  .company-list-header-actions { gap: 4px; }
+  .company-list-header-actions > button:first-child { width: 64px; min-width: 64px; min-height: 44px; flex: 0 0 64px; padding-inline: 6px; }
+  .company-list-header-actions > button[aria-label="Company list options"] { width: 36px; min-width: 36px; min-height: 44px; }
+  .company-list-filters { display: grid; width: 100%; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-left: 0; }
+  .company-list-filters > *, .company-list-filters select { width: 100%; min-width: 0; max-width: 100%; }
+  .company-list-toolbar input, .company-list-filters select, .company-list-filters > button { height: 44px; font-size: 11px; }
+  .company-list-toolbar input { font-size: 16px; }
+  .company-list-filters select, .company-list-filters > button { padding-inline: 2px; font-size: clamp(7px, 2.25vw, 9px); }
+  .company-list-filters select { text-align-last: center; }
+  .company-list-footer { border-top: 0; padding: 8px 0 12px; }
+  .company-list-summary-controls { display: none; }
+  .company-missing-filter-icon { display: none; }
+  .company-mobile-list button[aria-label^="Actions for"] { min-width: 32px; min-height: 32px; padding: 8px; margin-top: -4px; margin-right: -4px; }
+  .company-list-pagination { width: 100%; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 6px; }
+  .company-list-pagination button { min-width: 40px; min-height: 40px; }
+  .company-list-pagination button[aria-current="page"] { font-size: 11px; }
+  .company-details-sections { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .company-details-sections button { min-height: 52px; }
+  .company-details-sections button > span:last-child { white-space: normal; }
+  .company-edit-dialog input, .company-edit-dialog select, .company-edit-dialog textarea { font-size: 16px; }
+  .company-id-dialog .flex.justify-between { gap: 12px; }
+  .company-id-dialog .flex.justify-between > span { min-width: 0; overflow-wrap: anywhere; }
+  .company-id-dialog button, .company-edit-dialog button { min-height: 44px; }
+}
 .user-registration-table { table-layout: fixed; }
+@media (max-width: 767px) {
+  .user-registration-page { min-width: 0; padding-bottom: 64px; }
+  .user-registration-toolbar { padding: 10px; border-radius: 8px; }
+  .user-registration-toolbar input[type="text"] { min-height: 44px; font-size: 16px; }
+  .user-registration-toolbar input::placeholder { font-size: 10px; }
+  .user-registration-toolbar .relative > svg { top: 14px; }
+  .user-registration-toolbar > div:first-child { flex-direction: row; align-items: center; gap: 8px; }
+  .user-registration-toolbar > div:first-child > div:first-child { flex: 1 1 auto; }
+  .user-registration-toolbar > div:first-child > button { width: auto; min-width: 92px; height: 44px; padding-inline: 8px; font-size: 8px; }
+  .user-registration-status-tabs { display: grid; width: 100%; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; margin: 0 0 6px; padding: 0; overflow: hidden; border: 1px solid #e2e8f0; border-radius: 8px; background: white; }
+  .user-registration-status-tabs .admin-registration-tab { width: 100%; min-width: 0; height: 48px; margin: 0; padding: 4px 2px; border: 0; border-radius: 0; background: transparent; font-size: clamp(8px, 2.7vw, 10px); letter-spacing: 0; }
+  .user-registration-status-tabs .admin-registration-tab[aria-selected="true"] { border-bottom-color: currentColor; }
+  .user-registration-status-tabs .admin-registration-tab[data-status="PENDING"][aria-selected="true"] { background: #fef3c7; color: #92400e; }
+  .user-registration-status-tabs .admin-registration-tab[data-status="DONE"][aria-selected="true"] { background: #d1fae5; color: #047857; }
+  .user-registration-status-tabs .admin-registration-tab[data-status="REJECTED"][aria-selected="true"] { background: #ffe4e6; color: #be123c; }
+  .user-registration-results { overflow: visible; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+  .user-registration-cards { padding: 0; }
+  .user-card-status-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; white-space: nowrap; }
+  .user-card-status-row > div { width: 100%; justify-content: space-between; gap: 3px; }
+  .user-card-status-row > div > span { flex-shrink: 0; }
+  .user-card-status-tag { width: auto; min-width: 0; flex: 1 1 0%; }
+  .user-registration-pagination-footer { position: fixed; right: 0; bottom: 0; left: 0; z-index: 30; margin: 0; padding: 8px 12px calc(8px + env(safe-area-inset-bottom)); border-top: 1px solid #e2e8f0; background: rgb(248 250 252 / 96%); box-shadow: 0 -4px 14px rgb(15 23 42 / 8%); backdrop-filter: blur(10px); }
+  .user-registration-pagination { width: 100%; justify-content: center; flex-wrap: wrap; gap: 8px; }
+  .user-registration-pagination button { min-width: 36px; min-height: 36px; }
+  .admin-theme-dark .user-registration-status-tabs { background: #1e293b; border-color: #334155; }
+  .admin-theme-dark .user-registration-status-tabs .admin-registration-tab[data-status="PENDING"][aria-selected="true"] { background: #78350f !important; color: #fde68a !important; }
+  .admin-theme-dark .user-registration-status-tabs .admin-registration-tab[data-status="DONE"][aria-selected="true"] { background: #064e3b !important; color: #a7f3d0 !important; }
+  .admin-theme-dark .user-registration-status-tabs .admin-registration-tab[data-status="REJECTED"][aria-selected="true"] { background: #881337 !important; color: #fecdd3 !important; }
+}
 .submission-review table { width: 100%; table-layout: fixed; }
 .submission-review table th { font-size: 10px; font-weight: 600; text-transform: none; }
 .submission-review table th,
@@ -112,6 +181,36 @@
 .submission-review table th:first-child { width: 32px; }
 .submission-review table tbody tr:nth-child(even) { background: #f8fafc; }
 .registration-queue-table { width: 100%; table-layout: fixed; }
+@media (max-width: 767px) {
+  .registration-queue { min-width: 0; }
+  .registration-queue { padding-bottom: 64px; }
+  .queue-toolbar { padding: 10px; border-radius: 8px; }
+  .queue-toolbar input[type="text"] { min-height: 44px; font-size: 16px; }
+  .queue-toolbar input::placeholder { font-size: 11px; }
+  .queue-toolbar .relative > svg { top: 14px; }
+  .queue-filters { container-type: inline-size; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .queue-filters > .queue-sort { display: none; }
+  .queue-filters > *, .queue-filters select { width: 100%; min-width: 0; }
+  .queue-filters select, .queue-filters > button { height: 44px; min-height: 44px; padding-inline: 3px; font-size: clamp(8px, 3cqi, 12px); }
+  .queue-filters select { appearance: none; padding-right: 16px; text-align-last: center; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%2364758b' stroke-width='2.5'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 4px center; }
+  .queue-filters > button { gap: 3px; }
+  .queue-filters > button > svg { width: 12px; height: 12px; flex-shrink: 0; }
+  .queue-type-tabs { display: grid; width: 100%; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; margin: 0 0 6px; padding: 4px; border: 1px solid #e2e8f0; border-radius: 8px; background: white; }
+  .queue-type-tabs .admin-registration-tab { width: 100%; min-width: 0; height: 44px; margin: 0; padding: 4px 2px; border: 0; border-radius: 5px; background: transparent; font-size: clamp(8px, 2.35vw, 10px); letter-spacing: 0; }
+  .queue-type-tabs .admin-registration-tab[aria-selected="true"] { background: #0057ff; color: white; }
+  .queue-type-tabs .admin-registration-tab > span { flex-wrap: wrap; gap: 3px; }
+  .queue-results { overflow: visible; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+  .queue-pagination-footer { position: fixed; right: 0; bottom: 0; left: 0; z-index: 30; margin: 0; padding: 8px 12px calc(8px + env(safe-area-inset-bottom)); border-top: 1px solid #e2e8f0; background: rgb(248 250 252 / 96%); box-shadow: 0 -4px 14px rgb(15 23 42 / 8%); backdrop-filter: blur(10px); }
+  .queue-pagination { width: 100%; justify-content: center; flex-wrap: wrap; gap: 8px; }
+  .queue-pagination button { min-width: 36px; min-height: 36px; }
+  .registration-queue [role="menu"] button { min-height: 44px; }
+  .admin-theme-dark .queue-type-tabs { background: #1e293b; border-color: #334155; }
+  .admin-theme-dark .queue-type-tabs .admin-registration-tab[aria-selected="true"] { background: #0057ff !important; color: white !important; }
+}
+@media (min-width: 768px) {
+  .admin-theme[data-sidebar-collapsed="false"] .queue-pagination-footer { left: 185px; }
+  .admin-theme[data-sidebar-collapsed="true"] .queue-pagination-footer { left: 60px; }
+}
 .registration-queue-table th,
 .registration-queue-table td { padding-left: 6px; padding-right: 6px; vertical-align: middle; }
 .registration-queue-table th { font-size: 10px; letter-spacing: 0.025em; }
@@ -122,6 +221,28 @@
 .registration-queue-table td:nth-child(7) > .admin-registration-copy-text { display: inline-flex; justify-content: center; }
 .registration-queue-table td:nth-child(7) .admin-registration-copy-text > span { width: 80px; justify-content: center; }
 .overview-queue-table td:nth-child(7) { text-align: center; }
+@media (max-width: 767px) {
+  .admin-dashboard { padding-bottom: 64px; }
+  .overview-pending-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) 84px; align-items: center; gap: 8px; padding: 10px; }
+  .overview-pending-search { width: auto; max-width: none; min-width: 0; }
+  .overview-pending-search input { height: 44px; font-size: 16px; }
+  .overview-pending-controls { display: flex; width: 100%; min-width: 0; gap: 0; margin-left: 0; }
+  .overview-pending-controls > label:first-child { width: 100%; }
+  .overview-pending-controls > .overview-pending-page-size-control { display: none; }
+  .overview-pending-controls label, .overview-pending-controls select { min-width: 0; }
+  .overview-pending-controls select { height: 44px; width: 100%; padding-inline: 4px; text-align-last: center; font-size: 9px; }
+  .overview-pending-table { display: none; }
+  .overview-pending-panel { overflow: visible; border: 0; background: transparent; box-shadow: none; }
+  .overview-pending-cards { padding: 0; }
+  .overview-pending-pagination { position: fixed; right: 0; bottom: 0; left: 0; z-index: 30; display: flex; min-height: 56px; align-items: center; justify-content: center; margin: 0; padding: 8px 12px calc(8px + env(safe-area-inset-bottom)); border-top: 1px solid #e2e8f0; background: rgb(248 250 252 / 96%); box-shadow: 0 -4px 14px rgb(15 23 42 / 8%); backdrop-filter: blur(10px); }
+  .overview-pending-pagination > span, .overview-pending-pagination > div { display: none; }
+  .overview-pending-mobile-pagination { display: flex; width: 100%; flex-wrap: wrap; gap: 8px; }
+  .overview-pending-mobile-pagination button { min-width: 36px; min-height: 36px; }
+}
+@media (min-width: 768px) {
+  .admin-theme[data-sidebar-collapsed="false"] .overview-pending-pagination { left: 185px; }
+  .admin-theme[data-sidebar-collapsed="true"] .overview-pending-pagination { left: 60px; }
+}
 .user-registration-status-column { width: 88px; }
 .user-registration-action-column { width: 48px; }
 .user-registration-table th,

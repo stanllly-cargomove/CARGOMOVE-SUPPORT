@@ -66,7 +66,7 @@ export function AssignIdModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
-      <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100">
+      <div role="dialog" aria-modal="true" aria-label="Assign Master Backend ID" className="company-id-dialog bg-white rounded-2xl max-w-md w-full max-h-[calc(100dvh-2rem)] overflow-y-auto p-4 sm:p-6 shadow-2xl border border-slate-100">
         <div className="flex items-center justify-between pb-4 border-b border-slate-100">
           <div className="flex items-center gap-2 text-slate-900 font-bold text-base">
             <Key className="w-5 h-5 text-blue-600" />
@@ -74,6 +74,7 @@ export function AssignIdModal({
           </div>
           <button
             onClick={onClose}
+            aria-label="Close ID assignment"
             disabled={saving}
             className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
           >

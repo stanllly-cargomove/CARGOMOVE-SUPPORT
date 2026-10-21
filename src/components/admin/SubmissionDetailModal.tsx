@@ -410,28 +410,28 @@ export function SubmissionDetailModal({
         </div>
 
         {/* Footer */}
-        <div className="flex shrink-0 flex-col-reverse gap-3 border-t border-slate-200 bg-white px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+        <div className="flex shrink-0 items-center justify-between gap-2 border-t border-slate-200 bg-white px-3 py-2 sm:px-6">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg px-4 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            className="min-h-10 shrink-0 rounded-lg px-2 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 sm:px-4"
           >
             Close
           </button>
 
-          <div className="flex items-center justify-end gap-2">
+          <div className="flex min-w-0 items-center justify-end gap-1.5 sm:gap-2">
           <button
             type="button"
             onClick={handleExportSingle}
             disabled={!idInfo.has_required_id}
             title={!idInfo.has_required_id ? `Assign ${idInfo.required_id_type} before exporting` : 'Export this submission to Excel'}
-            className="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-sm transition-colors hover:bg-emerald-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex min-h-10 items-center justify-center whitespace-nowrap rounded-lg bg-emerald-600 px-2 py-2 text-[11px] font-bold text-white shadow-sm transition-colors hover:bg-emerald-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:px-4 sm:text-xs"
           >
             <Download className="w-3.5 h-3.5 mr-1.5" />
-            Export to Excel (.xlsx)
+            <span>Export to Excel<span className="hidden sm:inline"> (.xlsx)</span></span>
           </button>
           <div className="relative">
-            <button type="button" aria-label="More export options" aria-haspopup="menu" aria-expanded={exportMenuOpen} onClick={() => setExportMenuOpen((value) => !value)} className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"><MoreVertical className="h-4 w-4" /></button>
+            <button type="button" aria-label="More export options" aria-haspopup="menu" aria-expanded={exportMenuOpen} onClick={() => setExportMenuOpen((value) => !value)} className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"><MoreVertical className="h-4 w-4" /></button>
             {exportMenuOpen && <>
               <button type="button" tabIndex={-1} aria-label="Close export options" onClick={() => setExportMenuOpen(false)} className="fixed inset-0 z-10 cursor-default" />
               <div role="menu" className="absolute bottom-full right-0 z-20 mb-2 w-64 max-w-[80vw] rounded-lg border border-slate-200 bg-white p-1 shadow-lg">

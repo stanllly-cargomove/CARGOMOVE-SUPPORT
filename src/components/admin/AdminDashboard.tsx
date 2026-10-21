@@ -13,6 +13,7 @@ import { CargoMoveIdBadge, StatusBadge } from '../common/Badge';
 import { AssignIdModal } from './AssignIdModal';
 import { SubmissionDetailModal } from './SubmissionDetailModal';
 import { notifyWarning } from '../common/notifications';
+import { formatAdminDate } from '../../utils/date';
 import {
   Building2,
   Users,
@@ -77,10 +78,21 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const registeredByType = (type: RegistrationType) =>
     submissions.filter((s) => s.registration_type === type && s.status === 'DONE').length;
 
+  const rejectedByType = (type: RegistrationType) =>
+    submissions.filter((s) => s.registration_type === type && s.status === 'REJECTED').length;
+
   const pendingUserCount = externalUsers.filter((user) => user.status === 'PENDING').length;
   const registeredUserCount = externalUsers.filter((user) => user.status === 'DONE').length;
+  const rejectedUserCount = externalUsers.filter((user) => user.status === 'REJECTED').length;
   const registeredSubmissionCount = submissions.filter((submission) => submission.status === 'DONE').length;
   const activeCompanyCount = companies.filter((company) => company.status === 'ACTIVE').length;
+  const registrationCategories = [
+    { type: 'COMPANY' as RegistrationType, label: 'Company', pendingCount: pendingByType('COMPANY'), registeredCount: registeredByType('COMPANY'), rejectedCount: rejectedByType('COMPANY'), destination: 'submissions', icon: Building2, iconClass: 'bg-blue-100 text-blue-600', cardClass: 'border-blue-100 bg-gradient-to-br from-white via-white to-blue-50', accentClass: 'bg-blue-200/30' },
+    { type: 'USER' as const, label: 'User', pendingCount: pendingUserCount, registeredCount: registeredUserCount, rejectedCount: rejectedUserCount, destination: 'user-registration', icon: UserRound, iconClass: 'bg-cyan-100 text-cyan-600', cardClass: 'border-cyan-100 bg-gradient-to-br from-white via-white to-cyan-50', accentClass: 'bg-cyan-200/30' },
+    { type: 'DRIVER' as RegistrationType, label: 'Driver', pendingCount: pendingByType('DRIVER'), registeredCount: registeredByType('DRIVER'), rejectedCount: rejectedByType('DRIVER'), destination: 'submissions', icon: Users, iconClass: 'bg-emerald-100 text-emerald-600', cardClass: 'border-emerald-100 bg-gradient-to-br from-white via-white to-emerald-50', accentClass: 'bg-emerald-200/30' },
+    { type: 'TRAILER' as RegistrationType, label: 'Trailer', pendingCount: pendingByType('TRAILER'), registeredCount: registeredByType('TRAILER'), rejectedCount: rejectedByType('TRAILER'), destination: 'submissions', icon: Container, iconClass: 'bg-violet-100 text-violet-600', cardClass: 'border-violet-100 bg-gradient-to-br from-white via-white to-violet-50', accentClass: 'bg-violet-200/30' },
+    { type: 'VEHICLE' as RegistrationType, label: 'Vehicle', pendingCount: pendingByType('VEHICLE'), registeredCount: registeredByType('VEHICLE'), rejectedCount: rejectedByType('VEHICLE'), destination: 'submissions', icon: Truck, iconClass: 'bg-fuchsia-100 text-fuchsia-600', cardClass: 'border-fuchsia-100 bg-gradient-to-br from-white via-white to-fuchsia-50', accentClass: 'bg-fuchsia-200/30' },
+  ];
 
   const submissionQueue: RecentQueueItem[] = submissions.map((submission) => ({
     rowKey: `submission:${submission.id}`,
@@ -135,10 +147,13 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const currentQueuePage = Math.min(queuePage, queuePageCount);
   const queueStart = (currentQueuePage - 1) * queuePageSize;
   const visibleQueue = pendingQueue.slice(queueStart, queueStart + queuePageSize);
+  const visibleQueuePageCount = Math.min(5, queuePageCount);
+  const firstVisibleQueuePage = Math.min(Math.max(1, currentQueuePage - 2), queuePageCount - visibleQueuePageCount + 1);
+  const visibleQueuePages = Array.from({ length: visibleQueuePageCount }, (_, index) => firstVisibleQueuePage + index);
   const totalRegisteredCount = registeredSubmissionCount + registeredUserCount;
 
   return (
-    <div className="space-y-5">
+    <div className="admin-dashboard space-y-5">
       <section className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white px-5 py-5 shadow-sm sm:px-6">
         <div className="pointer-events-none absolute -right-10 -top-16 h-48 w-48 rounded-full bg-sky-100/70" aria-hidden="true" />
         <div className="pointer-events-none absolute right-24 -top-24 h-48 w-48 rounded-full border-[24px] border-sky-50" aria-hidden="true" />
@@ -173,69 +188,31 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
       </section>
 
       {/* Pending and registered counts by type */}
-      <section className="space-y-3">
-        <div>
+      <section className="overview-pending-section space-y-3">
+        <div className="hidden sm:block">
           <h3 className="text-sm font-bold text-slate-900">Registration categories</h3>
           <p className="mt-0.5 text-[11px] text-slate-500">Select a category to open its connected registration list.</p>
         </div>
-        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-        {[
-          {
-            type: 'COMPANY' as RegistrationType,
-            label: 'Company',
-            pendingCount: pendingByType('COMPANY'),
-            registeredCount: registeredByType('COMPANY'),
-            destination: 'submissions',
-            icon: Building2,
-            iconClass: 'bg-blue-100 text-blue-600',
-            cardClass: 'border-blue-100 bg-gradient-to-br from-white via-white to-blue-50',
-            accentClass: 'bg-blue-200/30',
-          },
-          {
-            type: 'USER' as const,
-            label: 'User',
-            pendingCount: pendingUserCount,
-            registeredCount: registeredUserCount,
-            destination: 'user-registration',
-            icon: UserRound,
-            iconClass: 'bg-cyan-100 text-cyan-600',
-            cardClass: 'border-cyan-100 bg-gradient-to-br from-white via-white to-cyan-50',
-            accentClass: 'bg-cyan-200/30',
-          },
-          {
-            type: 'DRIVER' as RegistrationType,
-            label: 'Driver',
-            pendingCount: pendingByType('DRIVER'),
-            registeredCount: registeredByType('DRIVER'),
-            destination: 'submissions',
-            icon: Users,
-            iconClass: 'bg-emerald-100 text-emerald-600',
-            cardClass: 'border-emerald-100 bg-gradient-to-br from-white via-white to-emerald-50',
-            accentClass: 'bg-emerald-200/30',
-          },
-          {
-            type: 'TRAILER' as RegistrationType,
-            label: 'Trailer',
-            pendingCount: pendingByType('TRAILER'),
-            registeredCount: registeredByType('TRAILER'),
-            destination: 'submissions',
-            icon: Container,
-            iconClass: 'bg-violet-100 text-violet-600',
-            cardClass: 'border-violet-100 bg-gradient-to-br from-white via-white to-violet-50',
-            accentClass: 'bg-violet-200/30',
-          },
-          {
-            type: 'VEHICLE' as RegistrationType,
-            label: 'Vehicle',
-            pendingCount: pendingByType('VEHICLE'),
-            registeredCount: registeredByType('VEHICLE'),
-            destination: 'submissions',
-            icon: Truck,
-            iconClass: 'bg-fuchsia-100 text-fuchsia-600',
-            cardClass: 'border-fuchsia-100 bg-gradient-to-br from-white via-white to-fuchsia-50',
-            accentClass: 'bg-fuchsia-200/30',
-          },
-        ].map(({ type, label, pendingCount, registeredCount, destination, icon: Icon, iconClass, cardClass, accentClass }) => (
+        <div className="admin-registration-mobile sm:hidden overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div className="admin-registration-mobile-header grid grid-cols-[minmax(0,1.25fr)_repeat(3,minmax(0,0.75fr))] bg-[#0b1930] px-3 py-2.5 text-[8px] font-bold uppercase tracking-[0.08em] text-white">
+            <span>REG TYPE</span><span className="text-center text-amber-300">PENDING</span><span className="text-center text-emerald-300">DONE</span><span className="text-center text-rose-300">REJECTED</span>
+          </div>
+          {registrationCategories.map(({ type, label, pendingCount, registeredCount, rejectedCount, destination, icon: Icon, iconClass }) => (
+            <button key={type} type="button" onClick={() => type === 'USER' ? onNavigate(destination) : onNavigate(destination, type)}
+              aria-label={`View ${label} registrations: ${pendingCount} pending, ${registeredCount} done, and ${rejectedCount} rejected`}
+              className="admin-registration-mobile-row grid min-h-12 w-full grid-cols-[minmax(0,1.25fr)_repeat(3,minmax(0,0.75fr))] items-center border-b border-slate-100 px-3 py-2 text-left transition-colors last:border-b-0 hover:bg-sky-50 active:bg-sky-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky-500">
+              <span className="flex min-w-0 items-center gap-2">
+                <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${iconClass}`}><Icon className="h-3.5 w-3.5" strokeWidth={2.2} aria-hidden="true" /></span>
+                <span className="truncate text-[11px] font-semibold uppercase tracking-wide text-slate-700">{label}</span>
+              </span>
+              <span className="text-center text-[13px] font-semibold tabular-nums text-amber-700">{pendingCount}</span>
+              <span className="text-center text-[13px] font-semibold tabular-nums text-emerald-700">{registeredCount}</span>
+              <span className="text-center text-[13px] font-semibold tabular-nums text-rose-700">{rejectedCount}</span>
+            </button>
+          ))}
+        </div>
+        <div className="hidden gap-2.5 sm:grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        {registrationCategories.map(({ type, label, pendingCount, registeredCount, rejectedCount, destination, icon: Icon, iconClass, cardClass, accentClass }) => (
           <button
             type="button"
             key={type}
@@ -259,18 +236,22 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                   <ChevronRight className="h-4 w-4 shrink-0 text-slate-500 transition-transform group-hover:translate-x-0.5" />
                 </div>
 
-                <div className="mt-2 grid grid-cols-2">
-                  <div className="min-w-0 pr-2">
+                <div className="mt-2 grid grid-cols-3">
+                  <div className="min-w-0 pr-1">
                     <div className="text-lg font-bold leading-none tabular-nums text-slate-900">
                       {pendingCount}
                     </div>
-                    <div className="mt-1 text-[9px] font-bold text-amber-600">Pending</div>
+                    <div className="mt-1 truncate text-[8px] font-bold text-amber-600">Pending</div>
                   </div>
-                  <div className="min-w-0 border-l border-slate-200 pl-2.5">
+                  <div className="min-w-0 border-l border-slate-200 pl-1.5">
                     <div className="text-lg font-bold leading-none tabular-nums text-slate-900">
                       {registeredCount}
                     </div>
-                    <div className="mt-1 truncate text-[9px] font-bold text-emerald-600">Registered</div>
+                    <div className="mt-1 truncate text-[8px] font-bold text-emerald-600">Done</div>
+                  </div>
+                  <div className="min-w-0 border-l border-slate-200 pl-1.5">
+                    <div className="text-lg font-bold leading-none tabular-nums text-slate-900">{rejectedCount}</div>
+                    <div className="mt-1 truncate text-[8px] font-bold text-rose-600">Rejected</div>
                   </div>
                 </div>
               </div>
@@ -291,9 +272,9 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             <span className="h-1.5 w-1.5 rounded-full bg-amber-500" /> {pendingQueue.length} waiting
           </span>
         </div>
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="flex flex-nowrap items-center gap-2 border-b border-slate-100 px-3 py-3 sm:gap-3 sm:px-5 sm:py-4">
-          <div className="relative min-w-0 flex-1 lg:max-w-sm">
+      <div className="overview-pending-panel bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="overview-pending-toolbar flex flex-nowrap items-center gap-2 border-b border-slate-100 px-3 py-3 sm:gap-3 sm:px-5 sm:py-4" style={{ flexDirection: 'row', flexWrap: 'nowrap' }}>
+          <div className="overview-pending-search relative min-w-0 flex-1 lg:max-w-sm">
             <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" aria-hidden="true" />
             <input
               type="search"
@@ -304,7 +285,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
               className="h-8 w-full rounded-lg border border-slate-300 bg-white pl-9 pr-3 text-[11px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
-          <div className="ml-auto flex shrink-0 flex-nowrap items-center gap-2 sm:gap-3">
+          <div className="overview-pending-controls ml-auto flex shrink-0 flex-nowrap items-center gap-2 sm:gap-3">
             <label className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.16em] text-slate-500">
               <select
                 value={queueType}
@@ -320,7 +301,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                 <option value="USER">USER</option>
               </select>
             </label>
-            <label className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.16em] text-slate-500">
+            <label className="overview-pending-page-size-control hidden items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.16em] text-slate-500 sm:flex">
               <select
                 value={queuePageSize}
                 onChange={(event) => setQueuePageSize(Number(event.target.value) as 20 | 30 | 50)}
@@ -341,7 +322,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           </div>
         </div>
 
-        <div className="overflow-hidden">
+        <div className="overview-pending-table overflow-hidden">
           <table className="registration-queue-table overview-queue-table w-full table-fixed text-left text-[11px] font-normal border-collapse">
             <colgroup>
               <col style={{ width: '128px' }} />
@@ -430,8 +411,47 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             </tbody>
           </table>
         </div>
+        <div className="overview-pending-cards space-y-2 p-2 md:hidden" role="list" aria-label="Pending registration cards">
+          <p className="px-1 py-1 text-[11px] text-slate-500">{pendingQueue.length} pending registration{pendingQueue.length === 1 ? '' : 's'}</p>
+          {visibleQueue.length === 0 && <div className="rounded-lg border border-dashed border-slate-300 px-4 py-10 text-center text-xs text-slate-500">No pending registrations match the current filters.</div>}
+          {visibleQueue.map((item) => {
+            const sub = item.submission;
+            const comp = item.companyId ? getCompanyById(item.companyId) : undefined;
+            const idInfo = getCompanyExternalId(comp || { company_type: item.companyType });
+            const facility = item.portLocation === 'PORT_KLANG' ? 'PORT KLANG' : item.portLocation === 'JOHOR' ? 'JOHOR' : 'OTHER PORT';
+            return (
+              <article key={item.rowKey} role="listitem" className="min-w-0 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="break-words text-xs font-bold leading-5 text-slate-900">{item.companyName.toUpperCase()}</div>
+                    <div className="mt-1 inline-flex max-w-full rounded bg-blue-50 px-1.5 py-1 font-mono text-[10px] font-semibold text-blue-700">{item.referenceNo}</div>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-[9px] font-bold uppercase tracking-wide text-amber-800">Pending</span>
+                </div>
+                <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[9px] font-semibold uppercase">
+                  <span className="rounded-md bg-slate-100 px-2 py-1 text-slate-700">{item.type}</span>
+                  <span className="rounded-md border border-slate-200 px-2 py-1 text-slate-600">{item.companyType || '—'}</span>
+                  <span className="ml-auto whitespace-nowrap text-[9px] font-semibold text-slate-500">{facility}</span>
+                </div>
+                <div className="mt-2 grid grid-cols-2 gap-2 rounded-lg bg-slate-50 px-2.5 py-2">
+                  <div className="min-w-0">
+                    <span className="block text-[8px] font-semibold uppercase tracking-wide text-slate-400">CargoMove ID</span>
+                    <div className="mt-1">{idInfo.has_required_id ? <CargoMoveIdBadge id={idInfo.active_id_value || ''} /> : item.type === 'USER' ? <span className="text-[10px] text-slate-500">Managed by company</span> : <button type="button" onClick={() => { const company = ensureSubmissionCompany(sub.id); if (company) setSelectedCompanyForId(company); else notifyWarning('This submission does not contain enough company information to create a master record.'); }} className="inline-flex min-h-7 items-center rounded-md border border-amber-200 bg-amber-50 px-2 text-[9px] font-semibold text-amber-700">Assign ID</button>}</div>
+                  </div>
+                  <div className="min-w-0 text-right">
+                    <span className="block text-[8px] font-semibold uppercase tracking-wide text-slate-400">Submitted</span>
+                    <span className="mt-1 block text-[10px] font-medium text-slate-600">{formatAdminDate(item.submittedAt)}</span>
+                  </div>
+                </div>
+                <div className="mt-2 flex justify-end">
+                  <button type="button" onClick={() => item.type === 'USER' ? onNavigate('user-registration') : setActiveSubmission(sub)} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg bg-blue-600 px-4 text-[10px] font-bold text-white hover:bg-blue-700">{item.type === 'USER' ? 'MANAGE USER' : 'REVIEW REGISTRATION'}<ArrowUpRight className="h-3.5 w-3.5" /></button>
+                </div>
+              </article>
+            );
+          })}
+        </div>
         {pendingQueue.length > queuePageSize && (
-          <div className="flex flex-col gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3 text-[10px] text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+          <div className="overview-pending-pagination flex flex-col gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3 text-[10px] text-slate-500 sm:flex-row sm:items-center sm:justify-between">
             <span>
               Showing {queueStart + 1}–{Math.min(queueStart + queuePageSize, pendingQueue.length)} of {pendingQueue.length} records
             </span>
@@ -456,6 +476,11 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                 Next <ChevronRight className="h-3 w-3" />
               </button>
             </div>
+            <nav className="overview-pending-mobile-pagination hidden items-center justify-center gap-2" aria-label="Pending registration pagination">
+              <button type="button" onClick={() => setQueuePage((page) => Math.max(1, page - 1))} disabled={currentQueuePage === 1} aria-label="Previous page" className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 disabled:opacity-40"><ChevronLeft className="h-4 w-4" /></button>
+              {visibleQueuePages.map((page) => <button key={page} type="button" onClick={() => setQueuePage(page)} aria-current={page === currentQueuePage ? 'page' : undefined} className={`h-9 min-w-9 rounded-md px-2 text-xs font-semibold ${page === currentQueuePage ? 'bg-blue-600 text-white' : 'border border-slate-300 bg-white text-slate-600'}`}>{page}</button>)}
+              <button type="button" onClick={() => setQueuePage((page) => Math.min(queuePageCount, page + 1))} disabled={currentQueuePage === queuePageCount} aria-label="Next page" className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 disabled:opacity-40"><ChevronRight className="h-4 w-4" /></button>
+            </nav>
           </div>
         )}
       </div>
