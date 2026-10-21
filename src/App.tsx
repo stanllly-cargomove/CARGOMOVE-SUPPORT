@@ -16,6 +16,12 @@ export default function App() {
   const [page, setPage] = useState(() => pageFromPath(window.location.pathname));
   const [routeKey, setRouteKey] = useState(() => window.location.pathname + window.location.search);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [isInitializationDelayActive, setIsInitializationDelayActive] = useState(true);
+  const isInitializing = isAuthLoading || isInitializationDelayActive;
+  useEffect(() => {
+    const timer = window.setTimeout(() => setIsInitializationDelayActive(false), 1500);
+    return () => window.clearTimeout(timer);
+  }, []);
   const [currentUser, setCurrentUser] = useState<ApplicationUser | null>(null);
   const [hasOpenedAdmin, setHasOpenedAdmin] = useState(false);
   useEffect(() => { if (page === 'admin' && currentUser) setHasOpenedAdmin(true); }, [page, currentUser]);
@@ -72,7 +78,7 @@ export default function App() {
       {page === 'guideline' && <GuidelinePage onNavigate={navigate} />}
       {(page === 'login' || (page === 'admin' && !currentUser && !isAuthLoading)) && <PortalLoginPage onNavigate={navigate} onSuccess={user => { setCurrentUser(user); navigate('admin'); }} />}
       </React.Fragment>
-      <div inert={isAuthLoading && page === 'admin'}>
+      <div inert={isInitializing && page === 'admin'}>
       {(page === 'admin' || hasOpenedAdmin) && (currentUser || isAuthLoading) && <AdminLayout
         key={currentUser?.id || 'loading'}
         active={page === 'admin'}
@@ -88,7 +94,7 @@ export default function App() {
         }}
       />}
       </div>
-      {isAuthLoading && page === 'admin' && <AccountLoadingScreen />}
+      {isInitializing && page === 'admin' && <AccountLoadingScreen />}
     </div>
   );
 }
