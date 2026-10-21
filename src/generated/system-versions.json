@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "version": "1.6.11",
-  "updatedAt": "2026-10-21T13:28:35.555Z",
+  "version": "1.6.12",
+  "updatedAt": "2026-10-21T13:33:28.297Z",
   "entries": [
     {
       "id": "account-settings",
@@ -11,9 +11,9 @@
         "src/components/admin/AdminLayout.tsx"
       ],
       "kind": "page",
-      "version": "1.2.4",
-      "updatedAt": "2026-10-21T13:28:35.555Z",
-      "fingerprint": "d298d159f73a6efced1efb4476f53be05f3e025b24a542796829db53555cf786"
+      "version": "1.2.5",
+      "updatedAt": "2026-10-21T13:33:28.297Z",
+      "fingerprint": "8a0d4f1bf3be42c8b0dc5c63322987695a83df733e81b4634aae081c7c393b03"
     },
     {
       "id": "admin",
@@ -23,9 +23,9 @@
         "src/components/admin/AdminLayout.tsx"
       ],
       "kind": "page",
-      "version": "1.2.4",
-      "updatedAt": "2026-10-21T13:28:35.555Z",
-      "fingerprint": "dc8aaaac778a5692a7df6db6d0f883826b2853677b40665cefb4f4ac92b01e8a"
+      "version": "1.2.5",
+      "updatedAt": "2026-10-21T13:33:28.297Z",
+      "fingerprint": "b21780d319aed7b64f49e8156c835037ffbb6fd2adc9959b8899f964a53e0074"
     },
     {
       "id": "auto-email",
@@ -54,9 +54,9 @@
         "src/components/admin/AdminLayout.tsx"
       ],
       "kind": "page",
-      "version": "1.2.4",
-      "updatedAt": "2026-10-21T13:28:35.555Z",
-      "fingerprint": "43e0d8be0ea4b978b7bf5468f827574dda0f9af57222377a81c3ffd8b69d919e"
+      "version": "1.2.5",
+      "updatedAt": "2026-10-21T13:33:28.297Z",
+      "fingerprint": "67b8ccd42b87faa4421ce8b41476ce1f6f6c38175c47b66fc9a2b6925780c953"
     },
     {
       "id": "northport",
@@ -214,9 +214,9 @@
         "src/components/admin/AdminDashboard.tsx"
       ],
       "kind": "page",
-      "version": "1.0.3",
-      "updatedAt": "2026-10-21T13:28:35.555Z",
-      "fingerprint": "f3771a98ea9a3429b14508fcc718b08a22f7cf8f882c7a086a3000f63eb545f0"
+      "version": "1.0.4",
+      "updatedAt": "2026-10-21T13:33:28.297Z",
+      "fingerprint": "2465169eaef75ebb462c0d84ba6951cef20aa41445679cd3d345bfe3288f76d0"
     },
     {
       "id": "src/components/admin/AdminUser.tsx",
@@ -579,7 +579,7 @@
     "server.ts": "8474cd3c5e0327ead3d4ba0c185fe4452d5e21e14e3449fa266cb3327c55afd3",
     "src/App.tsx": "5fe8e4849c0d2aaed22dbd6eecf3bb37c8bfde7fcb99fb172256bd7f50ad4593",
     "src/components/admin/AccountSettings.tsx": "307eff35f85f7d44dac7be9d25dbb8d10ff8cacaf625bc1920439ddc9a9b0862",
-    "src/components/admin/AdminDashboard.tsx": "ede0a5a1c71285cac697d5ed04a1b3765276d3781e3dbce330c87e218d7410b2",
+    "src/components/admin/AdminDashboard.tsx": "6c04decc71b2cf26bfea671cb2f51459c9d43520a376ef41e273c3b62da09a13",
     "src/components/admin/AdminLayout.tsx": "3a87da64d94d6eb8ab3e18da34152b6043db356f33f2b7ef2609714f4473f551",
     "src/components/admin/AdminUser.tsx": "00957e103bffd351a3ac6ed3e3d98f7615fe3476b88406fe751997c715f0769c",
     "src/components/admin/AdminUserCreate.tsx": "8d314b35a609239dca04e94f2ad8268b5ebdf38e73bd4cfe94559e43d467bc3b",
@@ -636,7 +636,7 @@
     "src/components/customer/portalNavigation.ts": "6d84ef00bab14c4afbb6b01d91e8d6ecbc792fdd20ef2760f52c81e7db9c6060",
     "src/constants/companyLocations.ts": "8d2b5675aec95c90d7bd1c3582150e459008afb52ab3f5e68feb9b478385ec99",
     "src/constants/versions.ts": "120fd67eb3c17be825625d786d515b1616631e66a35890e316a5deab411d1c49",
-    "src/index.css": "25d62e29dfd24c8bb81a4719f34e3cdbe35990952598847eaa2636dd8ce3857f",
+    "src/index.css": "7c2f7f623cbaf26b57c096f76ea6f4b755e0db925908d54db47a8be3ac51e8ea",
     "src/main.tsx": "731e28fcd16c49d7c1ffac030cc71b3be7b3aa64f0dba41bef0ca08411a17dce",
     "src/services/auth.ts": "bd67085eb38fe8a8c95b3c1bf6197d14ffe0591e7dc0e2406b7823cc445df6a0",
     "src/services/companyHelper.ts": "80622040cde5309408ad4c2208a6e15ac5f9fbdaf7d5a506f9e229ff6c914b26",
@@ -712,6 +712,62 @@
     "vite.config.ts": "167e03f4e2c3298d4e3cbe61c5c1f8712073bf15d56c63d992827e99d3b7601b"
   },
   "history": [
+    {
+      "sourceCommit": "6215fa3de8158349732a3a57ccebb60ff5b784c3",
+      "pushedBy": "lumoratechent-beep",
+      "commits": [
+        {
+          "sha": "6215fa3de8158349732a3a57ccebb60ff5b784c3",
+          "author": "cargomovemy",
+          "subject": "Refine pending registration cards"
+        }
+      ],
+      "authors": [
+        "cargomovemy"
+      ],
+      "version": "1.6.12",
+      "previousVersion": "1.6.11",
+      "date": "2026-10-21T13:33:28.297Z",
+      "summary": "Updated existing pages, tools or shared system files",
+      "files": [
+        "src/components/admin/AdminDashboard.tsx",
+        "src/index.css"
+      ],
+      "changes": [
+        {
+          "id": "account-settings",
+          "name": "Account Settings",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.2.4",
+          "to": "1.2.5"
+        },
+        {
+          "id": "admin",
+          "name": "Admin Page",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.2.4",
+          "to": "1.2.5"
+        },
+        {
+          "id": "developer",
+          "name": "Dev Page",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.2.4",
+          "to": "1.2.5"
+        },
+        {
+          "id": "src/components/admin/AdminDashboard.tsx",
+          "name": "Registration Dashboard",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.3",
+          "to": "1.0.4"
+        }
+      ]
+    },
     {
       "sourceCommit": "8ea61dab27299606b216b114ade335b80e0c1e45",
       "pushedBy": "lumoratechent-beep",
