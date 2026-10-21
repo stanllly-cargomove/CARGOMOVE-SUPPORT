@@ -9,6 +9,7 @@ import { PasswordResetPage } from './components/auth/PasswordResetPage';
 import { PortalPage, pageFromPath, portalPaths } from './components/customer/portalNavigation';
 import { clearProtectedStorage, refreshProtectedStorage, startProtectedStorageSync } from './services/storage';
 import { ApplicationUser, getApplicationSession, logoutApplicationUser } from './services/auth';
+import { AccountLoadingScreen } from './components/common/AccountLoadingScreen';
 
 export default function App() {
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(() => window.location.hash.includes('type=recovery') || window.location.hash.includes('error_code=otp_expired'));
@@ -60,7 +61,7 @@ export default function App() {
     if (!isAuthLoading && page === 'admin' && !currentUser) navigate('login');
   }, [isAuthLoading, page, currentUser, navigate]);
 
-  if (isAuthLoading && page === 'admin' && !currentUser) return <div className="flex min-h-screen items-center justify-center bg-[#f6f8fb] text-sm text-slate-500" role="status">Loading your account…</div>;
+  if (isAuthLoading && page === 'admin' && !currentUser) return <AccountLoadingScreen />;
   if (isPasswordRecovery) return <PasswordResetPage onDone={() => { setIsPasswordRecovery(false); navigate('login'); }} />;
 
   return (
