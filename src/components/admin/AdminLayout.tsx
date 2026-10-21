@@ -11,8 +11,6 @@ import {
   Container,
   UserRoundPlus,
   ChevronDown,
-  Moon,
-  Sun,
   RefreshCw,
   Mail,
   Clock3,
@@ -67,7 +65,6 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
   const [queueRegistrationType, setQueueRegistrationType] = useState<RegistrationType>('COMPANY');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [emailTemplateView, setEmailTemplateView] = useState<'list' | 'design'>('list');
   const [pendingSubmissionCount, setPendingSubmissionCount] = useState(0);
@@ -200,7 +197,7 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
     .find((item) => item.id === activeTab)?.label ?? (activeTab === 'account-settings' ? 'Account & Setting' : 'Dashboard');
 
   return (
-    <div hidden={!active} data-sidebar-collapsed={isSidebarCollapsed ? 'true' : 'false'} style={active ? undefined : { display: 'none' }} className={`admin-theme min-h-screen bg-[#f6f8fb] flex flex-col md:flex-row ${isDarkMode ? 'admin-theme-dark' : ''}`}>
+    <div hidden={!active} data-sidebar-collapsed={isSidebarCollapsed ? 'true' : 'false'} style={active ? undefined : { display: 'none' }} className="admin-theme min-h-screen bg-[#f6f8fb] flex flex-col md:flex-row">
       {/* Sidebar */}
       <aside
         className={`fixed inset-y-0 left-0 z-50 flex w-64 -translate-x-full flex-col shrink-0 overflow-visible border-r border-[#17263d] bg-[#0b1930] text-slate-300 shadow-2xl transition-[width,transform] duration-300 ease-out md:relative md:inset-auto md:h-screen md:w-64 md:translate-x-0 md:shadow-none md:sticky md:top-0 md:self-start ${
@@ -231,7 +228,7 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
             <MoreVertical className="h-5 w-5" />
           </button>
           {isAccountMenuOpen && (
-            <div id="admin-account-menu" className="absolute left-[calc(100%+0.5rem)] top-2 z-50 w-[min(15rem,calc(100vw-1rem))] overflow-hidden rounded-xl border border-white/10 bg-[#111d35] p-2 text-slate-200 shadow-[0_18px_35px_rgba(2,6,23,0.3)]">
+            <div id="admin-account-menu" className="absolute right-2 top-full z-50 mt-2 w-[min(15rem,calc(100vw-1rem))] overflow-hidden rounded-xl border border-white/10 bg-[#111d35] p-2 text-slate-200 shadow-[0_18px_35px_rgba(2,6,23,0.3)] md:left-[calc(100%+0.5rem)] md:right-auto md:top-2 md:mt-0">
               <div className="border-b border-white/10 px-2 pb-2 pt-1">
                 <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">Account</p>
                 <div className="mt-2 flex min-w-0 items-center gap-2"><ProfileAvatar url={avatarUrl} name={user?.full_name || user?.email || 'Admin'} className="h-8 w-8 text-xs" /><div className="min-w-0"><p className="flex items-center gap-1 truncate text-xs font-semibold text-slate-100">@{user?.username || 'username'}{['support', 'stanlly'].includes((user?.username || '').toLowerCase()) && <BadgeCheck aria-label="Verified" className="h-4 w-4 shrink-0 fill-blue-500 text-white" />}</p><p className="truncate text-[11px] text-slate-300">{user?.full_name || 'Signed-in admin'}</p></div></div>
@@ -489,31 +486,6 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
             >
               <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
               <span className="hidden sm:inline">{isRefreshing ? 'Checking...' : 'Refresh data'}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setIsDarkMode((darkMode) => !darkMode)}
-              aria-pressed={isDarkMode}
-              aria-label={isDarkMode ? 'Switch to light theme' : 'Switch to dark theme'}
-              title={isDarkMode ? 'Switch to light theme' : 'Switch to dark theme'}
-              className={`relative inline-flex w-12 h-7 shrink-0 items-center rounded-full border p-0.5 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                isDarkMode
-                  ? 'border-slate-600 bg-slate-700 focus:ring-offset-slate-800'
-                  : 'border-slate-300 bg-slate-200 focus:ring-offset-white'
-              }`}
-            >
-              <span
-                className={`flex h-5 w-5 items-center justify-center rounded-full bg-white shadow-sm transition-transform ${
-                  isDarkMode ? 'translate-x-5' : 'translate-x-0'
-                }`}
-              >
-                {isDarkMode ? (
-                  <Moon className="w-3 h-3 text-slate-700" />
-                ) : (
-                  <Sun className="w-3 h-3 text-amber-500" />
-                )}
-              </span>
             </button>
 
           </div>

@@ -179,7 +179,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
               <p className="mt-1 text-[10px] text-slate-500">approved requests</p>
             </div>
             <div className="rounded-xl border border-sky-100 bg-sky-50/80 px-3 py-2.5">
-              <p className="text-[9px] font-bold uppercase tracking-wider text-sky-700">Company master</p>
+              <p className="text-[9px] font-bold uppercase tracking-wider text-sky-700">Total company</p>
               <p className="mt-1 text-xl font-bold leading-none tabular-nums text-slate-900">{activeCompanyCount}</p>
               <p className="mt-1 text-[10px] text-slate-500">active companies</p>
             </div>
@@ -283,7 +283,6 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           </div>
           <div className="overview-pending-controls ml-auto flex shrink-0 flex-nowrap items-center gap-2 sm:gap-3">
             <label className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.16em] text-slate-500">
-              <span className="hidden sm:inline">Reg. Type</span>
               <select
                 value={queueType}
                 onChange={(event) => setQueueType(event.target.value as RegistrationType | 'USER' | 'ALL')}
@@ -299,7 +298,6 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
               </select>
             </label>
             <label className="overview-pending-page-size-control hidden items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.16em] text-slate-500 sm:flex">
-              <span className="hidden sm:inline">Show</span>
               <select
                 value={queuePageSize}
                 onChange={(event) => setQueuePageSize(Number(event.target.value) as 20 | 30 | 50)}

@@ -1,7 +1,6 @@
 import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
-import { InstallApp } from './components/common/InstallApp';
 import { registerServiceWorker } from './services/pwa';
 import './index.css';
 import { loadCustomerConfiguration } from './services/customerConfiguration';
@@ -26,6 +25,5 @@ for (const source of [brandLogo, homeBackground, guidelineBackground, registrati
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />
-    <InstallApp />
   </StrictMode>,
 );

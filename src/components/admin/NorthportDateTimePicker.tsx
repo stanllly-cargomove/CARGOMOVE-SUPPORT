@@ -12,9 +12,9 @@ const malaysiaNow = () => {
   return `${part('year')}-${part('month')}-${part('day')}T${part('hour')}:${part('minute')}`;
 };
 
-function PickerPopover({ label, disabled, display, children, onOpen, wide = false }: {
+function PickerPopover({ label, disabled, display, children, onOpen, wide = false, showChevron = true }: {
   label: string; disabled: boolean; display: React.ReactNode;
-  children: (close: () => void) => React.ReactNode; onOpen?: () => void; wide?: boolean;
+  children: (close: () => void) => React.ReactNode; onOpen?: () => void; wide?: boolean; showChevron?: boolean;
 }) {
   const trigger = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
@@ -48,7 +48,7 @@ function PickerPopover({ label, disabled, display, children, onOpen, wide = fals
     <button ref={trigger} type="button" aria-label={label} aria-haspopup="dialog" aria-expanded={open} disabled={disabled} className={control} onClick={() => {
       if (panel.current?.matches(':popover-open')) { close(); return; }
       onOpen?.(); panel.current?.showPopover();
-    }}>{display}<ChevronDown aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-slate-400"/></button>
+    }}>{display}{showChevron && <ChevronDown aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-slate-400"/>}</button>
     <div ref={panel} popover="auto" role="dialog" aria-label={`${label} picker`} onToggle={() => setOpen(panel.current?.matches(':popover-open') ?? false)} style={{ position: 'fixed', margin: 0 }} className={'max-h-[calc(100dvh-1rem)] max-w-[calc(100vw-1rem)] overflow-y-auto rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-700 shadow-xl '+(wide?'w-[520px]':'w-52')}>
       {children(close)}
     </div>
@@ -142,7 +142,7 @@ export function NorthportDateTimePicker({ value, disabled, onChange }: { value: 
     draftRef.current=initial;
     setDraft(initial); setMonth(initial.slice(0,7));
   }} display={<span className="flex min-w-0 items-center gap-2"><CalendarDays aria-hidden="true" className="hidden h-4 w-4 shrink-0 text-slate-400 sm:block"/><span className={'flex flex-col gap-x-1.5 text-left leading-4 sm:flex-row sm:flex-wrap '+(!value?'font-normal text-slate-400':'')}>
-    {value ? <><span className="whitespace-nowrap">{value.slice(0,10).split('-').reverse().join('/')}</span><span className="whitespace-nowrap text-slate-500">{value.slice(11,16)}</span></> : <><span className="sm:hidden">Date &amp; time</span><span className="hidden sm:inline">Select date &amp; time</span></>}
+    {value ? <><span className="whitespace-nowrap">{value.slice(0,10).split('-').reverse().join('/')}</span><span className="whitespace-nowrap text-slate-500">{value.slice(11,16)}</span></> : <><span className="northport-eir-compact-label sm:hidden">Date/Time</span><span className="northport-eir-full-label hidden sm:inline">Select date &amp; time</span></>}
   </span></span>}>
     {close => <>
       <div className="flex h-[260px] gap-2 sm:gap-4">
@@ -169,10 +169,11 @@ export function NorthportDateTimePicker({ value, disabled, onChange }: { value: 
 }
 
 export function NorthportTimeRangePicker({ direction, value, disabled, onChange }: { direction: 'before'|'after'; value: number; disabled: boolean; onChange: (value: number) => void }) {
-  return <PickerPopover label={`Minutes ${direction}`} disabled={disabled} display={<span className="flex min-w-0 flex-1 items-center justify-between gap-2"><span className="font-semibold tabular-nums">{value}</span><span className="text-[11px] text-slate-500">{direction}</span></span>}>
+  const positionLabel = direction === 'before' ? 'Start time range' : 'End time range';
+  return <PickerPopover label={positionLabel} disabled={disabled} showChevron={false} display={<span className="flex min-w-0 flex-1 items-center justify-between gap-1"><span className="font-semibold tabular-nums">{value}</span><span className="text-[11px] text-slate-500">min</span></span>}>
     {close => <>
       <div className="flex h-[260px] flex-col">
-        <div className="mx-auto min-h-0 w-24 flex-1"><ScrollColumn label={`Minutes ${direction}`} value={value} min={0} max={60} step={5} loop={false} onChange={onChange}/></div>
+        <div className="mx-auto min-h-0 w-24 flex-1"><ScrollColumn label={direction === 'before' ? 'Minutes before' : 'Minutes after'} value={value} min={0} max={60} step={5} loop={false} onChange={onChange}/></div>
       </div>
       <button type="button" className="mt-4 w-full rounded-lg bg-blue-600 py-2.5 font-semibold text-white hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" onClick={close}>Done</button>
     </>}

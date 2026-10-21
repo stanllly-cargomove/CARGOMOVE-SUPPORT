@@ -67,18 +67,18 @@ try {
   });
   assert.deepEqual(cachedUrls, ['/offline.html'], 'Only generic offline HTML is stored in Cache Storage');
 
-  // Prompt events are browser-owned; simulate the event to check our user gesture flow.
-  await page.evaluate(`(() => {
+  // Customers should not see an install prompt; installation remains available through the browser.
+  const promptWasPrevented = await page.evaluate(`(() => {
     const event = new Event('beforeinstallprompt', { cancelable: true });
     Object.assign(event, {
       prompt: async () => { document.documentElement.dataset.installPrompted = 'true'; },
       userChoice: Promise.resolve({ outcome: 'dismissed' }),
     });
     window.dispatchEvent(event);
+    return event.defaultPrevented;
   })()`);
-  await page.getByRole('button', { name: 'Install app', exact: true }).click();
-  assert.equal(await page.locator('html').getAttribute('data-install-prompted'), 'true');
-  await page.getByRole('complementary', { name: 'Install CargoMove' }).waitFor({ state: 'hidden' });
+  assert.equal(promptWasPrevented, false, 'The app leaves the install prompt to the browser');
+  assert.equal(await page.getByText('Install CargoMove', { exact: true }).count(), 0);
 
   await context.setOffline(true);
   await page.goto(`${origin}/admin?section=registrations`);
@@ -89,7 +89,7 @@ try {
   await page.getByRole('button', { name: 'Try again' }).click();
   await page.locator('#root').waitFor();
   await page.getByRole('heading', { name: "You're offline" }).waitFor({ state: 'hidden' });
-  console.log('Install action, data cache isolation, offline navigation and reconnection passed');
+  console.log('Browser installation, data cache isolation, offline navigation and reconnection passed');
 
   const ios = await browser.newContext({
     userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1',
@@ -98,13 +98,11 @@ try {
   await ios.route('**/*', route => new URL(route.request().url()).origin === origin ? route.continue() : route.abort());
   const iphone = await ios.newPage();
   await iphone.goto(origin);
-  await iphone.getByText('Add to Home Screen', { exact: true }).waitFor();
+  await iphone.waitForLoadState('networkidle');
+  assert.equal(await iphone.getByText('Add to Home Screen', { exact: true }).count(), 0);
   assert.equal(await iphone.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
-  await iphone.getByRole('button', { name: 'Dismiss install suggestion' }).click();
-  await iphone.reload();
-  await iphone.locator('#root > div').waitFor();
   assert.equal(await iphone.getByRole('complementary', { name: 'Install CargoMove' }).count(), 0);
-  console.log('iPhone installation instructions, mobile width and dismissal passed');
+  console.log('No installation notice appears on desktop or mobile');
   assert.deepEqual(errors, []);
 } finally {
   await browser?.close();

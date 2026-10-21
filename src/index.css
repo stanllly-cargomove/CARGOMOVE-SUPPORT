@@ -33,6 +33,22 @@
 .northport-search-fields > .northport-search-actions { flex: 0 0 auto; }
 
 .northport-search-actions > button[type="submit"] { padding-inline: 14px; }
+.northport-time-range-controls > button { flex: 1 1 0%; }
+
+/* Keep the recovery controls together when the main content is narrowed by the sidebar. */
+@container northport-search (min-width: 760px) and (max-width: 1000px) {
+  .northport-search-fields {
+    display: grid;
+    grid-template-columns: minmax(130px, 1.2fr) minmax(170px, 1.4fr) minmax(120px, 1fr) minmax(150px, 1.15fr) auto;
+    gap: 12px;
+  }
+  .northport-search-fields > :nth-child(n) { min-width: 0; }
+  .northport-search-fields > .northport-search-actions { width: auto; }
+}
+@container northport-search (max-width: 1000px) {
+  .northport-eir-compact-label { display: inline !important; }
+  .northport-eir-full-label { display: none !important; }
+}
 .northport-file-dialog button,
 .northport-confirm-dialog button { text-transform: uppercase; }
 .northport-dialog-footer > button:first-child { margin-right: auto; }
@@ -113,6 +129,16 @@
 .company-list-table td:first-child { width: 100%; min-width: 280px; overflow-wrap: anywhere; }
 .company-list-table th:not(:first-child),
 .company-list-table td:not(:first-child) { width: 1%; white-space: nowrap; overflow-wrap: normal; }
+
+.company-list-panel { container: company-list-panel / inline-size; }
+
+@container company-list-panel (max-width: 900px) {
+  .company-list-search-row { flex-basis: 100%; width: 100%; }
+  .company-list-filters { width: 100%; margin-left: 0; }
+  .company-list-filters > * { flex: 1 1 0; min-width: 0; }
+  .company-list-filters select,
+  .company-list-filters > button { width: 100%; max-width: none; }
+}
 
 @media (max-width: 767px) {
   .company-list-panel { border: 0; border-radius: 0; background: transparent; box-shadow: none; }
@@ -288,7 +314,7 @@
   .northport-search-fields > :nth-child(3) select { height: 48px; min-height: 48px; }
   .northport-search-fields > :nth-child(3) select { padding-left: 10px; padding-right: 28px; font-size: 12px; }
   .northport-search-fields > :nth-child(3) .lucide-chevron-down { top: 16px; right: 10px; }
-  .northport-search-fields > :nth-child(4) > :last-child { gap: 10px; }
+  .northport-time-range-controls { gap: 8px; }
   .northport-search-fields > :nth-child(3) .lucide-list-filter { display: none; }
   .northport-search-actions { width: 100%; }
   .northport-search-actions > button[type="submit"] { flex: 1; }

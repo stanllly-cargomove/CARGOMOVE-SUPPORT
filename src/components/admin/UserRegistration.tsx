@@ -14,9 +14,9 @@ const MINIMUM_VISIBLE_ROWS = 4;
 const USER_ROW_HEIGHT = 32;
 
 const statusTabColors: Record<ExternalUserAccess['status'], string> = {
-  PENDING: 'border-amber-300 bg-amber-100 text-amber-800',
-  DONE: 'border-emerald-300 bg-emerald-100 text-emerald-800',
-  REJECTED: 'border-rose-300 bg-rose-100 text-rose-800',
+  PENDING: 'border-slate-400 bg-[#CBD5E1] text-slate-900',
+  DONE: 'border-slate-400 bg-[#CBD5E1] text-slate-900',
+  REJECTED: 'border-slate-400 bg-[#CBD5E1] text-slate-900',
 };
 
 const statusSelectClasses: Record<ExternalUserAccess['status'], string> = {
