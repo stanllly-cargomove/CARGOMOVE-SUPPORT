@@ -109,6 +109,8 @@ Until this migration is applied, the app retains the earlier receipt-saving path
 
 ## Production deployment
 
+Knowledge Base management is under **Developer → Dev Setting → Knowledge Base**. From **Tools → Auto Mail**, **Manage Knowledge Base** switches directly to that Developer page. Use **Dev Setting** on the KB page to return to its parent settings. The approved-answer lookup inside an email remains available for composing replies.
+
 Deploy the application through the existing GitHub/Vercel integration. Configure these **server-only Production environment variables** in Vercel, then redeploy. Local `.env.local` values are not uploaded by Git:
 
 ```dotenv

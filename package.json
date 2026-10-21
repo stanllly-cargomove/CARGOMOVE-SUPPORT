@@ -18,6 +18,7 @@
     "lint": "tsc --noEmit",
     "test:auto-mail": "tsx --test tests/auto-mail.test.ts tests/auto-mail-knowledge.test.ts tests/auto-mail-ai.test.ts tests/auto-mail-learning.test.ts",
     "test:auto-mail:ui": "tsx tests/auto-mail-ui.ts",
+    "test:auto-mail:navigation:ui": "tsx tests/auto-mail-navigation-ui.ts",
     "test:profile": "tsx --test tests/profile.test.ts",
     "test:profile:ui": "tsx tests/account-settings-ui.ts",
     "test:versions": "node --experimental-strip-types --test --test-isolation=none tests/system-version.test.ts tests/push-version.test.ts",

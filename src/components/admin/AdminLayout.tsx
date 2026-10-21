@@ -519,7 +519,7 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
             }} />
           )}
           {activeTab === 'companies' && <CompanyMaster />}
-          {activeTab === 'auto-mail' && user?.type === 'ADMIN' && <AutoMail />}
+          {activeTab === 'auto-mail' && user?.type === 'ADMIN' && <AutoMail onOpenKnowledgeBase={() => { setPortalMode('developer'); setActiveTab('knowledge-base'); setIsMobileSidebarOpen(false); }} />}
           {activeQueueItem && (
             <SubmissionsList
               status={activeQueueItem.status}
