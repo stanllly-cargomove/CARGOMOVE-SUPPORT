@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "version": "1.6.12",
-  "updatedAt": "2026-10-21T13:33:28.297Z",
+  "version": "1.6.13",
+  "updatedAt": "2026-10-21T13:46:48.880Z",
   "entries": [
     {
       "id": "account-settings",
@@ -11,9 +11,9 @@
         "src/components/admin/AdminLayout.tsx"
       ],
       "kind": "page",
-      "version": "1.2.5",
-      "updatedAt": "2026-10-21T13:33:28.297Z",
-      "fingerprint": "8a0d4f1bf3be42c8b0dc5c63322987695a83df733e81b4634aae081c7c393b03"
+      "version": "1.2.6",
+      "updatedAt": "2026-10-21T13:46:48.880Z",
+      "fingerprint": "e70596b2d491ebd36e7aac0998a5b66be606cb6d5bb324b32d6720c1f3d0054d"
     },
     {
       "id": "admin",
@@ -23,9 +23,9 @@
         "src/components/admin/AdminLayout.tsx"
       ],
       "kind": "page",
-      "version": "1.2.5",
-      "updatedAt": "2026-10-21T13:33:28.297Z",
-      "fingerprint": "b21780d319aed7b64f49e8156c835037ffbb6fd2adc9959b8899f964a53e0074"
+      "version": "1.2.6",
+      "updatedAt": "2026-10-21T13:46:48.880Z",
+      "fingerprint": "f1bcae1dab4f5dc56f608c9d64b6f74585d1662079de747e26d62590dc9b64b0"
     },
     {
       "id": "auto-email",
@@ -54,9 +54,9 @@
         "src/components/admin/AdminLayout.tsx"
       ],
       "kind": "page",
-      "version": "1.2.5",
-      "updatedAt": "2026-10-21T13:33:28.297Z",
-      "fingerprint": "67b8ccd42b87faa4421ce8b41476ce1f6f6c38175c47b66fc9a2b6925780c953"
+      "version": "1.2.6",
+      "updatedAt": "2026-10-21T13:46:48.880Z",
+      "fingerprint": "fff0f65a6574df1e491c76996318431b5f71c0a1b8fef87a616ecbbc21805c5c"
     },
     {
       "id": "northport",
@@ -214,9 +214,9 @@
         "src/components/admin/AdminDashboard.tsx"
       ],
       "kind": "page",
-      "version": "1.0.4",
-      "updatedAt": "2026-10-21T13:33:28.297Z",
-      "fingerprint": "2465169eaef75ebb462c0d84ba6951cef20aa41445679cd3d345bfe3288f76d0"
+      "version": "1.0.5",
+      "updatedAt": "2026-10-21T13:46:48.880Z",
+      "fingerprint": "e0c333f9fab213f1d2ba9c5ac4f21f6960ed3ac6d14954c2b8fe56b1eb175f57"
     },
     {
       "id": "src/components/admin/AdminUser.tsx",
@@ -262,9 +262,9 @@
         "src/components/admin/CompanyMaster.tsx"
       ],
       "kind": "page",
-      "version": "1.0.3",
-      "updatedAt": "2026-10-21T13:28:35.555Z",
-      "fingerprint": "60d6a2a4f99582a15ccc437c26c8ff118f0a7a19c22ae4809c352f7a1bd4d03a"
+      "version": "1.0.4",
+      "updatedAt": "2026-10-21T13:46:48.880Z",
+      "fingerprint": "98f4e653345d5d1ddcafbe4d5dfce8a1e8fc71e2287249cf5b434872167195df"
     },
     {
       "id": "src/components/admin/DeveloperSettings.tsx",
@@ -579,13 +579,13 @@
     "server.ts": "8474cd3c5e0327ead3d4ba0c185fe4452d5e21e14e3449fa266cb3327c55afd3",
     "src/App.tsx": "5fe8e4849c0d2aaed22dbd6eecf3bb37c8bfde7fcb99fb172256bd7f50ad4593",
     "src/components/admin/AccountSettings.tsx": "307eff35f85f7d44dac7be9d25dbb8d10ff8cacaf625bc1920439ddc9a9b0862",
-    "src/components/admin/AdminDashboard.tsx": "6c04decc71b2cf26bfea671cb2f51459c9d43520a376ef41e273c3b62da09a13",
-    "src/components/admin/AdminLayout.tsx": "3a87da64d94d6eb8ab3e18da34152b6043db356f33f2b7ef2609714f4473f551",
+    "src/components/admin/AdminDashboard.tsx": "3226e2c65a3f39de459190145b56bedc3291b073978f6cbb1895279f8fdfd0c8",
+    "src/components/admin/AdminLayout.tsx": "3f7db3b3e76d76f15bd2371c4e5f106e240e6facfb201479f32cefd00787f13c",
     "src/components/admin/AdminUser.tsx": "00957e103bffd351a3ac6ed3e3d98f7615fe3476b88406fe751997c715f0769c",
     "src/components/admin/AdminUserCreate.tsx": "8d314b35a609239dca04e94f2ad8268b5ebdf38e73bd4cfe94559e43d467bc3b",
     "src/components/admin/AssignIdModal.tsx": "d5d25d70259c5d45b455bd6572b5842aadb6645019f7cee71c938d6b1808716e",
     "src/components/admin/CargoMoveScheduler.tsx": "0c72d668118bd8cea08ff4107947a2b2e2cca74e7684d82c7f8f01fb9ada8105",
-    "src/components/admin/CompanyMaster.tsx": "321e630cb39862534aac248f2e560faa94efcb3fb08666fa507420cf36f5f3cc",
+    "src/components/admin/CompanyMaster.tsx": "1b18a0fe820bd02443ef990f28af66e2cf7d75cfcca4956bedfa1d4461b2f699",
     "src/components/admin/DeveloperSettings.tsx": "b677a73d2f907e52af05afc2d11524732f86adb70a191ba244e6affdadd760ee",
     "src/components/admin/EmailTemplateManager.tsx": "482a5243a97618f09760e7d7dd7662598cdce5b7f93614bda9b999a0b54f8e46",
     "src/components/admin/ExcelExportCenter.tsx": "7c809f9d537cc2db7d91eb5bbb119ba6d234ff0d77086b7bf9330bbb8a9c14d2",
@@ -712,6 +712,71 @@
     "vite.config.ts": "167e03f4e2c3298d4e3cbe61c5c1f8712073bf15d56c63d992827e99d3b7601b"
   },
   "history": [
+    {
+      "sourceCommit": "ed241f9c32ed2208abc7df04ca58609430760fff",
+      "pushedBy": "lumoratechent-beep",
+      "commits": [
+        {
+          "sha": "ed241f9c32ed2208abc7df04ca58609430760fff",
+          "author": "cargomovemy",
+          "subject": "enhance ui"
+        }
+      ],
+      "authors": [
+        "cargomovemy"
+      ],
+      "version": "1.6.13",
+      "previousVersion": "1.6.12",
+      "date": "2026-10-21T13:46:48.880Z",
+      "summary": "Updated existing pages, tools or shared system files",
+      "files": [
+        "src/components/admin/AdminDashboard.tsx",
+        "src/components/admin/AdminLayout.tsx",
+        "src/components/admin/CompanyMaster.tsx"
+      ],
+      "changes": [
+        {
+          "id": "account-settings",
+          "name": "Account Settings",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.2.5",
+          "to": "1.2.6"
+        },
+        {
+          "id": "admin",
+          "name": "Admin Page",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.2.5",
+          "to": "1.2.6"
+        },
+        {
+          "id": "developer",
+          "name": "Dev Page",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.2.5",
+          "to": "1.2.6"
+        },
+        {
+          "id": "src/components/admin/AdminDashboard.tsx",
+          "name": "Registration Dashboard",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.4",
+          "to": "1.0.5"
+        },
+        {
+          "id": "src/components/admin/CompanyMaster.tsx",
+          "name": "Company List",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.3",
+          "to": "1.0.4"
+        }
+      ]
+    },
     {
       "sourceCommit": "6215fa3de8158349732a3a57ccebb60ff5b784c3",
       "pushedBy": "lumoratechent-beep",
