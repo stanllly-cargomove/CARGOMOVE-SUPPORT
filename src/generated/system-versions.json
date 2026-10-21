@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "version": "1.6.4",
-  "updatedAt": "2026-10-20T19:11:37.252Z",
+  "version": "1.6.5",
+  "updatedAt": "2026-10-21T06:25:50.743Z",
   "entries": [
     {
       "id": "account-settings",
@@ -11,9 +11,9 @@
         "src/components/admin/AdminLayout.tsx"
       ],
       "kind": "page",
-      "version": "1.1.9",
-      "updatedAt": "2026-10-20T19:11:37.252Z",
-      "fingerprint": "14c5939fcb76fb95cdb8cd1ed0d8146832d739be8e8afc943ea43118507d8af1"
+      "version": "1.2.0",
+      "updatedAt": "2026-10-21T06:25:50.743Z",
+      "fingerprint": "15b90a338d679cf9cdfe42941d4666d534a81b8113f492747e6ed6479d99abbd"
     },
     {
       "id": "admin",
@@ -23,9 +23,9 @@
         "src/components/admin/AdminLayout.tsx"
       ],
       "kind": "page",
-      "version": "1.1.9",
-      "updatedAt": "2026-10-20T19:11:37.252Z",
-      "fingerprint": "cae00ff6bf08f77399054bc8f49dd4ed36ed50a04e4f0462faceb53e71c8a904"
+      "version": "1.2.0",
+      "updatedAt": "2026-10-21T06:25:50.743Z",
+      "fingerprint": "449ce31e5bce81e2aa22c10e3cac5881635ceccec19b37b2fc30fe82a43761ae"
     },
     {
       "id": "auto-email",
@@ -42,9 +42,9 @@
         "server-handlers/_email.ts",
         "api/mail.ts"
       ],
-      "version": "1.0.2",
-      "updatedAt": "2026-10-20T19:11:37.252Z",
-      "fingerprint": "a23b1c28ecadd8fac2d23f9f330e4830908db0a4181237f203da74f916471d53"
+      "version": "1.0.3",
+      "updatedAt": "2026-10-21T06:25:50.743Z",
+      "fingerprint": "6015859957a546ff40b2b78377ecca8677ac99e251ec673217f7bf9d3d46bc4a"
     },
     {
       "id": "developer",
@@ -54,9 +54,9 @@
         "src/components/admin/AdminLayout.tsx"
       ],
       "kind": "page",
-      "version": "1.1.9",
-      "updatedAt": "2026-10-20T19:11:37.252Z",
-      "fingerprint": "41f978eaa16b442e8c973e10094ffdca7956f2afccb5b89b54bbb3de573f55d8"
+      "version": "1.2.0",
+      "updatedAt": "2026-10-21T06:25:50.743Z",
+      "fingerprint": "b10cffef90b17c9327e5538e3fe349f2dd0cddb661851fa7636455ecf27ae132"
     },
     {
       "id": "northport",
@@ -67,9 +67,9 @@
         "src/components/admin/NorthportRecovery.tsx",
         "server-handlers/northport"
       ],
-      "version": "1.1.9",
-      "updatedAt": "2026-10-20T19:11:37.252Z",
-      "fingerprint": "2a921a89814892ceb176abc24a45c809a64ea6e9cee1632e9f2df283e87684ad"
+      "version": "1.2.0",
+      "updatedAt": "2026-10-21T06:25:50.743Z",
+      "fingerprint": "2834e8b7208419b90b8ea7679cb3c778e75b364618f18139a76d66b98912305e"
     },
     {
       "id": "queue-done",
@@ -250,9 +250,9 @@
         "src/components/admin/CargoMoveScheduler.tsx"
       ],
       "kind": "page",
-      "version": "1.0.1",
-      "updatedAt": "2026-10-20T16:09:04.058Z",
-      "fingerprint": "fe905542ea8cce91599e195e3ca1130c1ea154dc51876bfce5ceeb9a050b478a"
+      "version": "1.0.2",
+      "updatedAt": "2026-10-21T06:25:50.743Z",
+      "fingerprint": "a212f3239c5617ef54c81da5c8da433a198ac069b47e272a536e867f975b680e"
     },
     {
       "id": "src/components/admin/CompanyMaster.tsx",
@@ -358,9 +358,9 @@
         "src/components/admin/NorthportRecovery.tsx"
       ],
       "kind": "page",
-      "version": "1.1.8",
-      "updatedAt": "2026-10-20T19:11:37.252Z",
-      "fingerprint": "ba2b580d56cddf9a12e0de3fb29b07f13082abb55337ccdf48b72afb2af62604"
+      "version": "1.1.9",
+      "updatedAt": "2026-10-21T06:25:50.743Z",
+      "fingerprint": "45c4abc6f5d231c48febb84feedb3c7cf5f248d480c4390283ee1a3181c91f64"
     },
     {
       "id": "src/components/admin/NorthportScannedFiles.tsx",
@@ -572,7 +572,7 @@
     "server-handlers/registration/submit.ts": "20a91014e114064e79dc48edd63e34877f1f86e113097f74e7ccd7ad01e5a742",
     "server-handlers/scheduler/access.ts": "76ef28658dda9612579330cb9d37e32f6a2f6d7896afb6c217395703b36a6d6f",
     "server-handlers/scheduler/automation.ts": "600829e517864ddb77fa16e03e04a39182dcd7eb8266dca41ff0386832a2e735",
-    "server-handlers/scheduler/catalog.ts": "4833774bf6056f24159c3ba39cc6b3750cee4cc5cf6ae476cb03beaa340fcc2a",
+    "server-handlers/scheduler/catalog.ts": "270406dc5095073a3c1438e0dae357b6bc390f7d3ec165df11ae5ff746cc31ad",
     "server-handlers/scheduler/handler.ts": "9f5e46399aec64ace317e10320bf11b73c18604a637b442afc5edaf3bdc04307",
     "server-handlers/scheduler/targets.ts": "be6109d1121d6f850ac15675564c71cd463dbc93f3e848ff5f7cbe24d9ed9c55",
     "server-handlers/system-versions.ts": "67576ad773da93c269b9e66efd6d72a9de02c8c1df0a1d986a17d564989ced9a",
@@ -584,7 +584,7 @@
     "src/components/admin/AdminUser.tsx": "89b5bd5ef89b32c180f3be974a9984e67a90dff6336637dc58fd4883a6a030cb",
     "src/components/admin/AdminUserCreate.tsx": "c3422282ca88edcc86ec8efc65a76402c6c35e983d18c762a0e095e09c71c97a",
     "src/components/admin/AssignIdModal.tsx": "d6e135717c66aa2ed343bc13dc6ca5fd3bddbceb01fe3ddab04124c32029b3c8",
-    "src/components/admin/CargoMoveScheduler.tsx": "8591234a4f2c8b7bfdcb1e4b776172396374d8b4456fd015013c9bc4eab157c9",
+    "src/components/admin/CargoMoveScheduler.tsx": "b70e5615c6ba44a191f4225be6164c2e47f5fb9837ae6bd867aebdf4c089a38d",
     "src/components/admin/CompanyMaster.tsx": "db6a549960d505017865d5e0e431cb0a0fca91c5f36acbf156ee2230bc01e614",
     "src/components/admin/DeveloperSettings.tsx": "b677a73d2f907e52af05afc2d11524732f86adb70a191ba244e6affdadd760ee",
     "src/components/admin/EmailTemplateManager.tsx": "482a5243a97618f09760e7d7dd7662598cdce5b7f93614bda9b999a0b54f8e46",
@@ -593,7 +593,7 @@
     "src/components/admin/NorthportContainerPagination.tsx": "4e65be1bec3fe9b0b2619c489e15f0652930e8bd45e33dba620c9296c2c104a3",
     "src/components/admin/NorthportDateTimePicker.tsx": "18363b86911ca5fccc357fc997acc996b5b1b35b72a6914aae72669cdd58c722",
     "src/components/admin/NorthportFileContainers.tsx": "9803b88a214f92f3541d1d32bc3dc593203d3ba36d3c9d8368738ee8d76d781e",
-    "src/components/admin/NorthportRecovery.tsx": "8389ad437002318b275ef9c3885c023fa1b2f595d5d129071691ca129779ebed",
+    "src/components/admin/NorthportRecovery.tsx": "36d319a1ae2c4ce41feab0dcaa11bf19f9973b817a6987dfcde287b609bfcc00",
     "src/components/admin/NorthportScannedFiles.tsx": "c50d61fc85a8ce616cf51ce082a3dc05063b0d531862ab5e98056c49dd4f5124",
     "src/components/admin/PdfAttachmentIcon.tsx": "4b65ea388a582c838e1782957115244f628de17b2f056cbae9ba39ef41afcc7d",
     "src/components/admin/PortDepotConfig.tsx": "0e0fb6700ba437b0709f80b51eb49e95337d6030a5fefef2bccdff66efed8bf6",
@@ -652,7 +652,7 @@
     "src/services/supabaseAuth.ts": "8054b4cef823bf1c37983513b4dcf291d608fbb6f7368954854fed95d01641cb",
     "src/types/index.ts": "ec5ed8b3bc04d8406e6b140f0cc3d8704b938b506bf44150d79a1e87e826f850",
     "src/types/northport.ts": "f754f9aff8b32bc1247a635d90ae60ac07a9ab34db62046fab4f4b0bd33da822",
-    "src/types/scheduler.ts": "53c3f723d35722e0e8ece89f8ffab1521f8ec3a5c3935b3e177b04d07586c64c",
+    "src/types/scheduler.ts": "2a29ce2a8a8f00be77e0aa5aa5386914a11f01ec9f37ffa04c773fe161f1364a",
     "src/utils/date.ts": "3a4177557054435ed93c5ee0a1264e4f217e1b2a0210bf47b1ecae6cca72434b",
     "src/utils/registrationEmailTemplates.ts": "7835899d94bd7c78d2dde67a46ee8ef6934e3fd963f8efe5609577b437992813",
     "src/vite-env.d.ts": "bb9c40ba45ded77a67f36f34f7262f1e154c08fb01efc3243c02c817c0806fe5",
@@ -705,9 +705,93 @@
     "supabase/migrations/20261021020000_northport_cancelled_recoveries.sql": "84b35fdf0c6afe5232e7baad7909a78405f331de4468f44978d46acf02b6e4a8",
     "supabase/migrations/20261021030000_northport_manual_reviews.sql": "c24de4c2e795e9bf127cb446fb7c95f95f0e988124022486532a95f4414a0f01",
     "supabase/migrations/20261021040000_northport_retry_search_setup.sql": "7f680f5cdd461e1f33554ab5171de07e52e760c175e6f61ad44b0b3ac28c1f44",
+    "supabase/migrations/20261022000000_scheduler_system_origin.sql": "125f3712473724f66d56dc6c1be6bd5d92204dddbff2821544d898b3156c393c",
     "vite.config.ts": "167e03f4e2c3298d4e3cbe61c5c1f8712073bf15d56c63d992827e99d3b7601b"
   },
   "history": [
+    {
+      "sourceCommit": "c5e39f1dd6ec41d9562a5cf0943bf8a24dfcae4e",
+      "pushedBy": "lumoratechent-beep",
+      "commits": [
+        {
+          "sha": "c5e39f1dd6ec41d9562a5cf0943bf8a24dfcae4e",
+          "author": "cargomovemy",
+          "subject": "add new field : system_origin for scheduler"
+        }
+      ],
+      "authors": [
+        "cargomovemy"
+      ],
+      "version": "1.6.5",
+      "previousVersion": "1.6.4",
+      "date": "2026-10-21T06:25:50.743Z",
+      "summary": "Updated existing pages, tools or shared system files",
+      "files": [
+        "server-handlers/scheduler/catalog.ts",
+        "src/components/admin/CargoMoveScheduler.tsx",
+        "src/components/admin/NorthportRecovery.tsx",
+        "src/types/scheduler.ts",
+        "supabase/migrations/20261022000000_scheduler_system_origin.sql"
+      ],
+      "changes": [
+        {
+          "id": "account-settings",
+          "name": "Account Settings",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.1.9",
+          "to": "1.2.0"
+        },
+        {
+          "id": "admin",
+          "name": "Admin Page",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.1.9",
+          "to": "1.2.0"
+        },
+        {
+          "id": "auto-email",
+          "name": "Auto Email",
+          "kind": "tool",
+          "action": "updated",
+          "from": "1.0.2",
+          "to": "1.0.3"
+        },
+        {
+          "id": "developer",
+          "name": "Dev Page",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.1.9",
+          "to": "1.2.0"
+        },
+        {
+          "id": "northport",
+          "name": "Northport Recovery",
+          "kind": "tool",
+          "action": "updated",
+          "from": "1.1.9",
+          "to": "1.2.0"
+        },
+        {
+          "id": "src/components/admin/CargoMoveScheduler.tsx",
+          "name": "Scheduler",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.1",
+          "to": "1.0.2"
+        },
+        {
+          "id": "src/components/admin/NorthportRecovery.tsx",
+          "name": "Northport Recovery",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.1.8",
+          "to": "1.1.9"
+        }
+      ]
+    },
     {
       "sourceCommit": "f99597b415e9c8800cf6e295c2cdfa628037fc0e",
       "pushedBy": "stanllly-cargomove",
