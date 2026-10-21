@@ -117,6 +117,7 @@ app.post('/api/dev-tools/run-scheduler', runScheduler);
 app.post('/api/dev-tools/system-versions', systemVersions);
 app.get('/api/dev-tools/schedulers', schedulerCatalog);
 app.post('/api/dev-tools/schedulers', schedulerCatalog);
+app.patch('/api/dev-tools/schedulers', schedulerCatalog);
 app.all('/api/dev-tools/northport-recovery', express.json({ limit: '64kb' }), northportRecovery);
 
 // Vercel can invoke an API function with either the public /api path or the

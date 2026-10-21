@@ -6,7 +6,8 @@ import type { SavedScheduler } from '../../src/types/scheduler.js';
 const FIELDS = 'id,display_name,worker_name,task_id,description,origin,enabled';
 function serialize(row: any): SavedScheduler {
   return { id: row.id, displayName: row.display_name, workerName: row.worker_name,
-    description: row.description, origin: row.origin || 'CargoMove', enabled: row.enabled, url: schedulerUrl({ taskId: row.task_id, workerName: row.worker_name }) };
+    description: row.description, origin: row.origin || 'CargoMove', enabled: row.enabled,
+    lastRun: row.lastRun || null, url: schedulerUrl({ taskId: row.task_id, workerName: row.worker_name }) };
 }
 
 export function createSchedulerCatalog(deps = { adminClient, readSession }) {
@@ -25,9 +26,19 @@ export function createSchedulerCatalog(deps = { adminClient, readSession }) {
     try {
       const { client, session } = access;
       if (request.method === 'GET') {
-        const rows = await client.from('cargomove_schedulers').select(FIELDS).order('created_at').limit(200).timeout(8000);
+        const rows = await client.from('cargomove_schedulers').select(FIELDS).order('display_name').limit(200).timeout(8000);
         if (rows.error) return fail(503, 'Unable to load scheduler gallery. Apply the scheduler gallery migration.');
-        return response.status(200).json({ schedulers: (rows.data || []).map(serialize) });
+        const schedulerRows = rows.data || [];
+        const ids = schedulerRows.map((row:any)=>row.id);
+        const runs = ids.length ? await client.from('cargomove_scheduler_runs').select('scheduler_id,status,requested_at,triggered_by').in('scheduler_id',ids).order('requested_at',{ascending:false}).limit(1000).timeout(8000) : {data:[],error:null};
+        if (runs.error) return fail(503, 'Unable to load scheduler run history. Apply the scheduler gallery migration and refresh the database schema.');
+        const latestByScheduler = new Map<string,any>();
+        for (const run of runs.data || []) if (!latestByScheduler.has(run.scheduler_id)) latestByScheduler.set(run.scheduler_id,run);
+        const schedulers = schedulerRows.map((row:any) => {
+          const latest = latestByScheduler.get(row.id);
+          return serialize({...row,lastRun:latest?{status:latest.status,requestedAt:latest.requested_at,triggeredBy:latest.triggered_by}:null});
+        });
+        return response.status(200).json({ schedulers });
       }
       const body = await requestBody(request).catch(() => null) as Record<string, unknown> | null;
       if (!body || Array.isArray(body)) return fail(400, 'Enter scheduler details.');

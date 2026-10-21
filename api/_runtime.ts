@@ -96,6 +96,11 @@ class PostgrestBuilder implements PromiseLike<{ data: any; error: any; count?: n
     return this;
   }
 
+  in(column: string, values: unknown[]) {
+    this.filters.append(column, `in.(${values.map(value => String(value)).join(',')})`);
+    return this;
+  }
+
   is(column: string, value: null | boolean) {
     this.filters.append(column, `is.${String(value)}`);
     return this;

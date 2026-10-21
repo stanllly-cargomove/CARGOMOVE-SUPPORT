@@ -6,4 +6,5 @@ export interface SavedScheduler {
   description: string;
   url: string;
   enabled: boolean;
+  lastRun: { status: string; requestedAt: string; triggeredBy: string | null } | null;
 }
