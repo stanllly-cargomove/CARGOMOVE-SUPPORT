@@ -65,8 +65,12 @@ export function CompanyMaster() {
   const [isNewCompanyModalOpen, setIsNewCompanyModalOpen] = useState(false);
   const [editingCompany, setEditingCompany] = useState<Company | null>(null);
   const [activeActionMenuId, setActiveActionMenuId] = useState<string | null>(null);
+  const [selectedCompanyIds, setSelectedCompanyIds] = useState<string[]>([]);
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement | null>(null);
 
   const ports = getPorts();
+  const depots = getDepots();
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(max-width: 767px)');
@@ -125,11 +129,67 @@ export function CompanyMaster() {
   const safeCurrentPage = Math.min(currentPage, totalPages);
   const pageStart = (safeCurrentPage - 1) * pageSize;
   const paginatedCompanies = sortedCompanies.slice(pageStart, pageStart + pageSize);
+  const pageCompanyIds = paginatedCompanies.map((company) => company.id);
+  const allPageCompaniesSelected = pageCompanyIds.length > 0 && pageCompanyIds.every((id) => selectedCompanyIds.includes(id));
   const pageNumbers = getVisiblePageNumbers(safeCurrentPage, totalPages);
+
+  const exportCompanies = (items: Company[]) => {
+    const rows = items.map((company) => {
+      const companyPorts = company.assigned_port_ids?.length ? company.assigned_port_ids : company.port_id ? [company.port_id] : [];
+      const companyDepots = company.assigned_depot_ids?.length ? company.assigned_depot_ids : company.depot_id ? [company.depot_id] : [];
+      return {
+        HAULIERID: company.haulier_id || '',
+        FORWARDING_AGENT_ID: company.forwarding_agent_id || '',
+        NAME: company.name,
+        SHORTNAME: company.short_name || '',
+        TYPE: company.company_type || '',
+        REGISTRATION: company.registration_number_old || company.registration_number || '',
+        REGISTRATION_NEW: company.registration_number_new || '',
+        PORTS: companyPorts.map((id) => ports.find((port) => port.id === id)?.display_name || id).join(', '),
+        LEDGER_CODES: company.ledger_codes || '',
+        DEPOTS: companyDepots.map((id) => depots.find((depot) => depot.id === id)?.display_name || id).join(', '),
+        BLOCK: company.block || '',
+        ADDRESS1: company.address1 || '',
+        ADDRESS2: company.address2 || '',
+        CITY: company.city || '',
+        STATE: company.state || '',
+        POSTCODE: company.postcode || '',
+        COUNTRY: company.country || '',
+        CONTACTNAME: company.contact_name || '',
+        CONTACTEMAIL: company.contact_email || '',
+        CONTACTDESGN: company.contact_designation || '',
+        CONTACTMOBILE: company.contact_mobile || '',
+        OFFICE: company.office_phone || '',
+        FAX: company.fax || '',
+      };
+    });
+    const worksheet = XLSX.utils.json_to_sheet(rows, { header: [...COMPANY_IMPORT_COLUMNS] });
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Companies');
+    XLSX.writeFile(workbook, `cargomove-companies-${new Date().toISOString().slice(0, 10)}.xlsx`);
+    setIsExportMenuOpen(false);
+    notifySuccess(`Exported ${items.length} compan${items.length === 1 ? 'y' : 'ies'}.`);
+  };
 
   useEffect(() => {
     if (currentPage > totalPages) setCurrentPage(totalPages);
   }, [currentPage, totalPages]);
+
+  useEffect(() => {
+    if (!isExportMenuOpen) return;
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      if (!exportMenuRef.current?.contains(event.target as Node)) setIsExportMenuOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsExportMenuOpen(false);
+    };
+    document.addEventListener('mousedown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('mousedown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [isExportMenuOpen]);
 
   return (
     <div className="space-y-6">
@@ -141,17 +201,26 @@ export function CompanyMaster() {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => {
-            setEditingCompany(null);
-            setIsNewCompanyModalOpen(true);
-          }}
-          className="inline-flex items-center px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors shadow-sm self-start sm:self-auto"
-        >
-          <Plus className="w-4 h-4 mr-1.5" />
-          Add Company
-        </button>
+        <div ref={exportMenuRef} className="relative flex items-center gap-2 self-start sm:self-auto">
+          <button
+            type="button"
+            onClick={() => {
+              setEditingCompany(null);
+              setIsNewCompanyModalOpen(true);
+            }}
+            className="inline-flex items-center px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors shadow-sm"
+          >
+            <Plus className="w-4 h-4 mr-1.5" />
+            Add Company
+          </button>
+          <button type="button" onClick={() => setIsExportMenuOpen((open) => !open)} aria-label="Company list options" aria-expanded={isExportMenuOpen} title="Company list options" className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-600 hover:bg-slate-50">
+            <MoreVertical className="h-4 w-4" />
+          </button>
+          {isExportMenuOpen && <div role="menu" aria-label="Company export options" className="absolute right-0 top-full z-30 mt-1 w-max min-w-60 rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
+            <button type="button" role="menuitem" disabled={!selectedCompanyIds.length} onClick={() => exportCompanies(companies.filter((company) => selectedCompanyIds.includes(company.id)))} className="flex w-full items-center gap-2 whitespace-nowrap px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-40"><FileSpreadsheet className="h-4 w-4 shrink-0" /> EXPORT SELECTED COMPANIES</button>
+            <button type="button" role="menuitem" onClick={() => exportCompanies(companies)} className="flex w-full items-center gap-2 whitespace-nowrap px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-blue-50"><FileSpreadsheet className="h-4 w-4 shrink-0" /> EXPORT ALL COMPANY</button>
+          </div>}
+        </div>
       </div>
 
       {/* Company table and controls */}
@@ -242,7 +311,7 @@ export function CompanyMaster() {
           <table aria-label="Company list" className="company-list-table w-full table-auto border-collapse text-left text-[11px] font-normal">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-100 font-bold uppercase tracking-wider text-slate-600">
-                <th className="py-3 px-4">Company Name</th>
+                <th className="py-3 px-4"><div className="flex items-center gap-3"><input type="checkbox" aria-label="Select all companies on this page" checked={allPageCompaniesSelected} onChange={(event) => setSelectedCompanyIds((current) => event.target.checked ? Array.from(new Set([...current, ...pageCompanyIds])) : current.filter((id) => !pageCompanyIds.includes(id)))} className="h-3.5 w-3.5 shrink-0 rounded border-slate-300 text-blue-600 focus:ring-blue-500" /><span>Company Name</span></div></th>
                 <th className="py-3 px-3 text-center">Reg. Old</th>
                 <th className="py-3 px-3 text-center">Reg. New</th>
                 <th className="py-3 px-3 text-center">Type</th>
@@ -272,7 +341,7 @@ export function CompanyMaster() {
                       className="hover:bg-slate-50/70 transition-colors"
                     >
                       <td className="py-3 px-4">
-                        <div className="font-bold text-slate-900">{comp.name.toUpperCase()}</div>
+                        <div className="flex items-center gap-3 font-bold text-slate-900"><input type="checkbox" aria-label={`Select ${comp.name}`} checked={selectedCompanyIds.includes(comp.id)} onChange={(event) => setSelectedCompanyIds((current) => event.target.checked ? [...current, comp.id] : current.filter((id) => id !== comp.id))} className="h-3.5 w-3.5 shrink-0 rounded border-slate-300 text-blue-600 focus:ring-blue-500" /><span className="min-w-0 break-words">{comp.name.toUpperCase()}</span></div>
                       </td>
 
                       <td className="py-3 px-3 text-center font-mono text-[11px] text-slate-600">

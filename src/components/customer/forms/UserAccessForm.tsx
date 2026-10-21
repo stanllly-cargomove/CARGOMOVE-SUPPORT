@@ -53,6 +53,8 @@ export function UserAccessForm({ companyName, initialData, onSubmit, onBack }: U
     event.preventDefault();
     const nextErrors: Record<string, string> = {};
     if (!formData.username.trim()) nextErrors.username = 'Username is required.';
+    else if (/\s/.test(formData.username)) nextErrors.username = 'Username cannot contain spaces.';
+    else if (formData.username.length > 20) nextErrors.username = 'Username must be 20 characters or fewer.';
     if (!formData.email.trim() || !formData.email.includes('@')) nextErrors.email = 'A valid email is required.';
     if (formData.password.length < 6) nextErrors.password = 'Password must be at least 6 characters.';
     if (!formData.full_name.trim()) nextErrors.full_name = 'Full name is required.';
@@ -109,10 +111,12 @@ export function UserAccessForm({ companyName, initialData, onSubmit, onBack }: U
               <input
                 type={item.type}
                 value={formData[item.field]}
-                onChange={(event) => handleChange(item.field, event.target.value)}
+                onChange={(event) => handleChange(item.field, item.field === 'username' ? event.target.value.replace(/\s/g, '').slice(0, 20) : event.target.value)}
                 placeholder={item.placeholder}
                 autoComplete={item.field === 'password' ? 'new-password' : item.field}
                 minLength={item.field === 'password' ? 6 : undefined}
+                maxLength={item.field === 'username' ? 20 : undefined}
+                pattern={item.field === 'username' ? '\\S+' : undefined}
                 className="w-full px-2.5 py-1.5 rounded border border-slate-300 text-xs focus:ring-1 focus:ring-sky-500 focus:outline-none"
               />
               <FieldError message={errors[item.field]} />

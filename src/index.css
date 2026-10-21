@@ -96,26 +96,14 @@
 
 /* Company List follows the Northport tables: compact columns size to their
    contents while descriptive values consume the remaining available width. */
-.company-list-table { min-width: 980px; table-layout: auto; }
+.company-list-table { width: 100%; min-width: 980px; table-layout: auto; }
 .company-list-table th,
-.company-list-table td { padding: 8px 12px; vertical-align: middle; }
+.company-list-table td { padding: 10px 12px; vertical-align: middle; }
 .company-list-table th { white-space: nowrap; }
 .company-list-table th:first-child,
-.company-list-table td:first-child { min-width: 300px; }
-.company-list-table td:first-child,
-.company-list-table td:nth-child(5) { overflow-wrap: anywhere; }
-.company-list-table th:nth-child(2),
-.company-list-table td:nth-child(2),
-.company-list-table th:nth-child(3),
-.company-list-table td:nth-child(3),
-.company-list-table th:nth-child(4),
-.company-list-table td:nth-child(4),
-.company-list-table th:nth-child(6),
-.company-list-table td:nth-child(6),
-.company-list-table th:nth-child(7),
-.company-list-table td:nth-child(7),
-.company-list-table th:last-child,
-.company-list-table td:last-child { width: 1%; white-space: nowrap; }
+.company-list-table td:first-child { width: 100%; min-width: 280px; overflow-wrap: anywhere; }
+.company-list-table th:not(:first-child),
+.company-list-table td:not(:first-child) { width: 1%; white-space: nowrap; overflow-wrap: normal; }
 .user-registration-table { table-layout: fixed; }
 .submission-review table { width: 100%; table-layout: fixed; }
 .submission-review table th { font-size: 10px; font-weight: 600; text-transform: none; }
