@@ -34,6 +34,7 @@ try {
       assert.equal(url.origin, 'http://localhost:3000');
       if (url.pathname === '/styles.css') return route.fulfill({ contentType: 'text/css', body: css });
       if (url.pathname.startsWith('/assets/')) return route.fulfill({ path: 'dist' + url.pathname });
+      if (url.pathname === '/api/auto-mail/agent-settings') return route.fulfill({ json: { settings: { enabled: true, model: 'gpt-5.4-mini', enabled_models: ['gpt-5.4-mini'], version: 0 }, models: ['gpt-5.4-mini', 'gpt-4.1-mini'], storageReady: true, serverEnabled: true, keyConfigured: true } });
       if (url.pathname === '/api/auto-mail/status') return route.fulfill({ json: { state: 'READY', message: 'Database ready.', knowledgeReady: true, learningReady: true, mailboxConnected: false, oauthReady: true } });
       if (url.pathname === '/api/auto-mail/knowledge') return route.fulfill({ json: { articles: [], total: 0 } });
       if (url.pathname === '/api/auto-mail/learning') return route.fulfill({ json: { suggestions: [], total: 0 } });
@@ -64,7 +65,8 @@ try {
     await nav('Return to Admin Portal');
     await nav('Auto Mail');
     assert.equal(await page.getByRole('tab').count(), 0, 'Configuration tabs are only in Developer settings');
-    await page.getByRole('button', { name: 'Auto Email Config', exact: true }).click();
+    await page.getByRole('button', { name: 'Auto Mail options', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Manage knowledge', exact: true }).click();
     await page.getByRole('heading', { name: 'Auto Email Config', exact: true }).waitFor();
     // Opening from Auto Mail must switch the actual portal and select Dev Setting.
     const menu = page.getByRole('button', { name: 'Open navigation menu', exact: true });
@@ -72,6 +74,15 @@ try {
     const developerNav = page.getByRole('navigation', { name: 'Developer navigation', exact: true });
     await developerNav.waitFor();
     assert.match(await developerNav.getByRole('button', { name: 'Dev Setting', exact: true }).getAttribute('class') || '', /bg-\[#0095e8\]/);
+    await nav('Return to Admin Portal');
+    await nav('Auto Mail');
+    await page.getByRole('button', { name: 'Auto Mail options', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Email config', exact: true }).click();
+    await page.getByRole('tab', { name: 'Email agent', exact: true }).waitFor();
+    assert.equal(await page.getByRole('tab', { name: 'Email agent', exact: true }).getAttribute('aria-selected'), 'true');
+    await page.getByRole('heading', { name: 'Email agent model', exact: true }).waitFor();
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+    await page.screenshot({ path: `test-results/auto-email-agent-${width}.png`, fullPage: true });
     assert.deepEqual(errors, []);
     await page.close();
   }

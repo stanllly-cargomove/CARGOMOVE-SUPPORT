@@ -122,19 +122,20 @@ test('AI handlers use actual thread context, skip OpenAI without sources, and ca
   const before=Object.fromEntries(Object.keys(overrides).map(key=>[key,process.env[key]]));Object.assign(process.env,overrides);
   const realFetch=globalThis.fetch;
   const connection={id:'system',mailbox_id:mailbox,version,email:'operator@example.com',...encryptRefreshToken('fake-refresh')};
-  let noSources=true;let claims=0;let providerCalls=0;let failed=0;let changed=false;let dbSourceChanged=false;let saved:any=null;
+  let noSources=true;let claims=0;let providerCalls=0;let failed=0;let changed=false;let dbSourceChanged=false;let saved:any=null;let storedSettings:any=null;let disableDuringProvider=false;
   globalThis.fetch=(async(input:any,init:any={})=>{
     const url=String(input);
     const json=(value:any,status=200)=>new Response(JSON.stringify(value),{status,headers:{'Content-Type':'application/json'}});
     assert.ok(!url.includes('main.supabase.co'));
     assert.ok(!url.includes('/messages/send'),'Draft handlers must never send email');
+    if(url.includes('/agent_settings'))return storedSettings?json(storedSettings):json({code:'PGRST205',message:'Table not found'},404);
     if(url.includes('/gmail_connections'))return json(connection);
     if(url==='https://oauth2.googleapis.com/token')return json({access_token:'fake-access'});
     if(url.includes('/threads/thread1')){const thread=rawThread();if(changed)thread.messages[0].id='new-message';return json(thread);}
     if(url.includes('/match_knowledge_articles')){assert.equal(JSON.parse(init.body).p_port,'ALL');return json(noSources?[]:sources);}
     if(url.includes('/claim_ai_draft')){claims++;const req=JSON.parse(init.body).p_request;saved={...req,status:'GENERATING',body_text:'',review_notes:'',cited_source_ids:[]};return json({claimed:true,draft:saved});}
     if(url==='https://api.openai.com/v1/responses'){
-      providerCalls++;const request=JSON.parse(init.body);assert.equal(request.model,'server-model');assert.equal(request.store,false);assert.ok(!request.tools);assert.ok(request.input[0].content.includes('What registration documents'));
+      providerCalls++;const request=JSON.parse(init.body);assert.equal(request.model,storedSettings?.model||'server-model');if(disableDuringProvider)storedSettings.enabled=false;assert.equal(request.store,false);assert.ok(!request.tools);assert.ok(request.input[0].content.includes('What registration documents'));
       return json({status:'completed',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify(output)}]}]});
     }
     if(url.includes('/finish_ai_draft')){if(dbSourceChanged)return json({message:'AI_SOURCES_CHANGED'},400);saved={...saved,...JSON.parse(init.body).p_result};return json(saved);}
@@ -154,5 +155,9 @@ test('AI handlers use actual thread context, skip OpenAI without sources, and ca
     assert.equal((await invoke(aiUse,{draftId:requestId,threadId:'thread1',connectionVersion:version})).value.draft.body,output.body_text);
     changed=true;assert.equal((await invoke(aiUse,{draftId:requestId,threadId:'thread1',connectionVersion:version})).code,409);changed=false;
     dbSourceChanged=true;assert.equal((await invoke(aiGenerate)).code,409);assert.equal(failed,1,'Rejected generation is released without a second model call');
+    dbSourceChanged=false;storedSettings={enabled:false,model:'admin-model',enabled_models:['admin-model'],version:1};
+    const beforeDisable=providerCalls;assert.equal((await invoke(aiGenerate)).code,503);assert.equal(providerCalls,beforeDisable,'Disabled agent cannot call OpenAI');
+    storedSettings.enabled=true;assert.equal((await invoke(aiGenerate)).value.draft.model,'admin-model','Generation uses the saved administrator model');
+    disableDuringProvider=true;assert.equal((await invoke(aiGenerate)).code,409);assert.equal(failed,2,'Disabling during generation invalidates the unfinished draft');
   }finally{globalThis.fetch=realFetch;for(const key of Object.keys(overrides)){if(before[key]===undefined)delete process.env[key];else process.env[key]=before[key];}}
 });

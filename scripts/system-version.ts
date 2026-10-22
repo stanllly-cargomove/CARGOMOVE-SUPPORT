@@ -78,7 +78,7 @@ function definitions(root: string): Definition[] {
   };
   labels.AutoMail = 'Auto Mail';
   labels.AutoEmailConfig = 'Auto Email Config';
-  const fragments = /(?:Modal|Icon|Editor)$|^(?:AdminLayout|SubmissionsList|AutoMailAiDraft|AutoMailKnowledge|AutoMailLearning)$/;
+  const fragments = /(?:Modal|Icon|Editor)$|^(?:AdminLayout|SubmissionsList|AutoMailAiDraft|AutoMailKnowledge|AutoMailLearning|AutoMailAgentSettings)$/;
   for (const directory of ['customer', 'auth', 'admin']) {
     for (const file of walk(root, `src/components/${directory}`)) {
       if (!file.endsWith('.tsx')) continue;
@@ -93,7 +93,7 @@ function definitions(root: string): Definition[] {
     { id: 'registration', name: 'Cargomove Registration', kind: 'tool', area: 'Registration', files: ['src/components/customer/RegistrationPage.tsx', 'src/components/admin/SubmissionsList.tsx', 'server-handlers/registration', 'api/registration.ts'] },
     { id: 'auto-email', name: 'Auto Email', kind: 'tool', area: 'Email', files: ['src/components/admin/EmailTemplateManager.tsx', 'src/components/admin/CargoMoveScheduler.tsx', 'src/services/email.ts', 'server-handlers/email', 'server-handlers/gmail', 'server-handlers/scheduler', 'server-handlers/_email.ts', 'api/mail.ts'] },
     { id: 'northport', name: 'Northport Recovery', kind: 'tool', area: 'Recovery', files: ['src/components/admin/NorthportRecovery.tsx', 'server-handlers/northport'] },
-    { id: 'auto-mail', name: 'Auto Mail', kind: 'tool', area: 'Email', files: ['src/components/admin/AutoMail.tsx', 'src/components/admin/AutoEmailConfig.tsx', 'src/components/admin/AutoMailKnowledge.tsx', 'src/components/admin/AutoMailLearning.tsx', 'src/components/admin/AutoMailAiDraft.tsx', 'server-handlers/auto-mail', 'supabase/auto-mail', 'api/mail.ts'] },
+    { id: 'auto-mail', name: 'Auto Mail', kind: 'tool', area: 'Email', files: ['src/components/admin/AutoMail.tsx', 'src/components/admin/AutoEmailConfig.tsx', 'src/components/admin/AutoMailKnowledge.tsx', 'src/components/admin/AutoMailLearning.tsx', 'src/components/admin/AutoMailAiDraft.tsx', 'src/components/admin/AutoMailAgentSettings.tsx', 'server-handlers/auto-mail', 'supabase/auto-mail', 'api/mail.ts'] },
   );
   // Each top-level module in these folders is a tool, so new tools need no
   // counter edits. Existing tools above retain their established source scopes.

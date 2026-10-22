@@ -109,7 +109,19 @@ Until this migration is applied, the app retains the earlier receipt-saving path
 
 ## Production deployment
 
-Knowledge management and learning review are under **Developer / Dev Setting / Auto Email Config**, with **Knowledge Base** and **Learning review** tabs. From **Tools / Auto Mail**, **Auto Email Config** opens the Knowledge Base tab; **Open Learning review** after a confirmed reply opens the review tab. Use **Dev Setting** to return to the parent settings. Unsaved edits remain in place when switching between these two tabs. The approved-answer lookup inside an email remains available for composing replies.
+### Email agent model settings
+
+Run `supabase/auto-mail/migrations/20261022050000_agent_settings.sql` in the **separate Auto Mail project's SQL Editor only**. It creates `agent_settings` and `agent_setting_events`, with server-only reads and a versioned save function. It does not alter existing tables or the schema version. Before this migration, generation continues using the current server model and enable flag; the new settings form explains that saving needs setup.
+
+Open **Developer / Dev Setting / Auto Email Config / Email agent**. Choose the active model, enable the models you want available, and save. The active model must be enabled whenever suggestions are enabled. An administrator can disable all suggestions here. Every save records the administrator and a settings snapshot. Concurrent saves require reloading the latest version. The server's `AUTO_MAIL_AI_ENABLED` flag and `OPENAI_API_KEY` are still required; API keys are never stored in these tables or sent to the browser. Model access and Responses API/Structured Outputs compatibility are checked when generating a draft, not by a paid test during settings changes.
+
+The first saved setting inherits the displayed server defaults. There is no automatic switch to a different model. New generation requests read the saved settings, and in-flight generation rechecks the enabled state and selected model before saving its result. Saved historical drafts retain their original model. Manual replies are unaffected by disabling suggestions.
+
+OpenAI's [complimentary-token offer](https://help.openai.com/en/articles/10306912-sharing-feedback-evals-and-api-data-with-openai) requires eligible shared traffic and remaining daily allowance. The app does not change OpenAI organization data-sharing settings, confirm enrollment, measure organization-wide free usage, or guarantee zero charges. Shared inputs/outputs can be used for model improvement; review suitability before enabling sharing for customer email. The model options include general text models from the offer and support a custom model ID for other project-accessible models. See [GPT-5.4 mini compatibility](https://developers.openai.com/api/docs/models/gpt-5.4-mini).
+
+In Auto Mail, clicking the connected Google logo silently refreshes mailbox status and inbox summaries while preserving the selected conversation and typed reply. Hover/focus retains the connected account details. Use the adjacent **Auto Mail options** menu for **Manage knowledge**, **Email config**, or **Reconnect Gmail**. Reconnection remains an explicit OAuth action. The tabs in Auto Email Config use the same styling as Email Templates, with keyboard navigation and retained editor state across tab changes.
+
+Knowledge management and learning review are under **Developer / Dev Setting / Auto Email Config**, with **Knowledge Base**, **Learning review** and **Email agent** tabs. From **Tools / Auto Mail**, the three-dot menu opens knowledge management or email agent configuration; **Open Learning review** after a confirmed reply opens the review tab. Use **Dev Setting** to return to the parent settings. Unsaved edits remain in place when switching between these two tabs. The approved-answer lookup inside an email remains available for composing replies.
 
 Deploy the application through the existing GitHub/Vercel integration. Configure these **server-only Production environment variables** in Vercel, then redeploy. Local `.env.local` values are not uploaded by Git:
 

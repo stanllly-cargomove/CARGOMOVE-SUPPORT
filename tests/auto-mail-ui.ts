@@ -14,6 +14,9 @@ try {
     const errors: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
     let sends = 0;
+    let inboxLoads = 0;
+    let agent = { enabled: true, model: 'gpt-5.4-mini', enabled_models: ['gpt-5.4-mini'], version: 1 };
+    let agentConflict = false;
     let uncertain = false;
     let knowledge: any = null;
     let revisions: any[] = [];
@@ -35,6 +38,15 @@ try {
       if (url.pathname === '/styles.css') return route.fulfill({ contentType: 'text/css', body: css });
       if (/^\/assets\/[\w.-]+\.woff2?$/.test(url.pathname)) return route.fulfill({ path: 'dist' + url.pathname });
       if (url.pathname === '/favicon.ico') return route.fulfill({ status: 204 });
+      if (url.pathname === '/api/auto-mail/agent-settings') {
+        if (route.request().method() === 'POST') {
+          if (agentConflict) return route.fulfill({ status: 409, json: { error: 'Another administrator changed the agent settings. Reload before saving; your changes are preserved.' } });
+          const data = route.request().postDataJSON(); assert.equal(data.version, agent.version);
+          agent = { enabled: data.enabled, model: data.model, enabled_models: data.enabledModels, version: agent.version + 1 };
+          return route.fulfill({ json: { settings: agent } });
+        }
+        return route.fulfill({ json: { settings: agent, models: ['gpt-5.4-mini', 'gpt-4.1-mini'], storageReady: true, serverEnabled: true, keyConfigured: true } });
+      }
       if (url.pathname === '/api/auto-mail/status') return route.fulfill({ json: { state: 'READY', message: 'Gmail connected.', mailboxConnected: true, oauthReady: true, mailbox: 'operator@example.com', knowledgeReady: true, aiEnabled: true, learningReady: true } });
       if (url.pathname === '/api/auto-mail/learning') {
         const status = url.searchParams.get('status'); const filtered = learning.filter(item => !status || item.status === status);
@@ -85,7 +97,7 @@ try {
       }
       if (url.pathname === '/api/auto-mail/knowledge-article') return route.fulfill({ json: { article: { ...knowledge, ...(staleSource ? { status: 'DRAFT' } : {}) }, revisions } });
       if (url.pathname === '/api/auto-mail/knowledge-matches') return route.fulfill({ json: { articles: knowledge?.status === 'APPROVED' ? [knowledge] : [], aiGenerated: false, retrieval: 'KEYWORD' } });
-      if (url.pathname === '/api/auto-mail/threads') return route.fulfill({ json: { threads: [{ id: 'thread1', subject: 'Registration help', from: 'customer@example.com', snippet: 'Please help.', unread: true }], nextPageToken: null } });
+      if (url.pathname === '/api/auto-mail/threads') { inboxLoads++; return route.fulfill({ json: { threads: [{ id: 'thread1', subject: 'Registration help', from: 'customer@example.com', snippet: 'Please help.', unread: true }], nextPageToken: null } }); }
       if (url.pathname === '/api/auto-mail/thread') return route.fulfill({ json: { id: 'thread1', subject: 'Registration help', mailbox: 'operator@example.com', connectionVersion: 'version1', recipient: 'customer@example.com', replyBlocked: '', messages: [{ id: 'incoming1', from: 'customer@example.com', to: 'operator@example.com', date: '2026-10-22T01:00:00Z', body: '<script>window.mailInjected=true</script> Please help.', outbound: false, attachments: true }] } });
       if (url.pathname === '/api/auto-mail/reply') {
         sends++;
@@ -104,8 +116,22 @@ try {
     await page.goto('http://localhost:3000/');
     assert.equal(await page.getByRole('tab', { name: 'Knowledge base', exact: true }).count(), 0, 'KB management is no longer an Auto Mail tab');
     assert.equal(await page.getByRole('tab', { name: 'Learning review', exact: true }).count(), 0, 'Learning review moved out of Auto Mail');
+    assert.equal(await page.getByRole('button', { name: 'Refresh', exact: true }).count(), 0);
+    assert.equal(await page.getByText('Gmail connected.', { exact: true }).count(), 0);
     await page.getByRole('button', { name: 'Developer settings', exact: true }).click();
     await page.getByRole('button', { name: /^Auto Email Config/ }).click();
+    await page.getByRole('tab', { name: 'Email agent', exact: true }).click();
+    await page.getByRole('combobox', { name: 'Active reply model', exact: true }).selectOption('gpt-4.1-mini');
+    await page.getByRole('checkbox', { name: 'Enable AI reply suggestions', exact: true }).uncheck();
+    agentConflict = true;
+    await page.getByRole('button', { name: 'Save agent settings', exact: true }).click();
+    await page.getByRole('alert').filter({ hasText: 'Another administrator' }).waitFor();
+    assert.equal(await page.getByRole('combobox', { name: 'Active reply model', exact: true }).inputValue(), 'gpt-4.1-mini');
+    agentConflict = false;
+    await page.getByRole('button', { name: 'Save agent settings', exact: true }).click();
+    await page.getByText('Email agent settings saved. New drafts use these settings.').waitFor();
+    assert.equal(agent.enabled, false); assert.equal(agent.model, 'gpt-4.1-mini');
+    await page.getByRole('tab', { name: 'Knowledge Base', exact: true }).click();
     await page.getByRole('button', { name: 'New article' }).click();
     await page.getByRole('textbox', { name: 'Article title', exact: true }).fill('Required registration documents');
     await page.getByRole('tab', { name: 'Learning review', exact: true }).click();
@@ -146,6 +172,18 @@ try {
     assert.equal(await page.evaluate(() => (window as any).mailInjected), undefined, 'Email body is rendered as text');
     assert.equal(await page.getByRole('button', { name: 'Send reply', exact: true }).isDisabled(), true);
     await editor.fill('My existing note.');
+    const loadsBeforeRefresh = inboxLoads;
+    await page.getByRole('button', { name: 'Google connected as operator@example.com. Click to refresh inbox.', exact: true }).click();
+    await page.waitForFunction(() => document.querySelector('button[aria-busy="false"][aria-label*="refresh inbox"]'));
+    assert.equal(inboxLoads, loadsBeforeRefresh + 1, 'Google logo refreshes the inbox without OAuth');
+    assert.equal(await editor.inputValue(), 'My existing note.', 'Silent refresh preserves unsent reply text');
+    await page.getByRole('button', { name: /Click to refresh inbox/ }).hover();
+    await page.getByRole('tooltip').getByText('operator@example.com', { exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Auto Mail options', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Manage knowledge', exact: true }).waitFor();
+    await page.keyboard.press('Escape');
+    assert.equal(await page.getByRole('menu').count(), 0);
+    assert.equal(await page.getByRole('button', { name: 'Auto Mail options', exact: true }).evaluate(element => element === document.activeElement), true);
     await page.getByRole('button', { name: 'Find KB articles', exact: true }).click();
     await page.getByRole('complementary', { name: 'Approved knowledge search' }).locator('summary').filter({ hasText: 'Required registration documents' }).click();
     staleSource = true;

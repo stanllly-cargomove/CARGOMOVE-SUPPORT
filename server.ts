@@ -6,6 +6,7 @@ import gmailConnect from './server-handlers/gmail/connect.js';
 import gmailCallback from './server-handlers/gmail/callback.js';
 import gmailStatus from './server-handlers/gmail/status.js';
 import autoMailStatus from './server-handlers/auto-mail/status.js';
+import agentSettings from './server-handlers/auto-mail/agent-settings.js';
 import { learningList, learningDetail, learningPropose, learningReview } from './server-handlers/auto-mail/learning.js';
 import { aiGenerate, aiUse } from './server-handlers/auto-mail/ai.js';
 import { knowledgeList, knowledgeDetail, knowledgeSave, knowledgeReview, knowledgeMatches } from './server-handlers/auto-mail/knowledge.js';
@@ -118,6 +119,7 @@ async function fetchSupabaseTable(table: string, params: URLSearchParams) {
 
 app.use(express.json({ limit: '1mb' }));
 app.all('/api/auto-mail/status', autoMailStatus);
+app.all('/api/auto-mail/agent-settings', agentSettings);
 app.get('/api/auto-mail/learning', learningList);
 app.get('/api/auto-mail/learning-suggestion', learningDetail);
 app.post('/api/auto-mail/learning-propose', learningPropose);

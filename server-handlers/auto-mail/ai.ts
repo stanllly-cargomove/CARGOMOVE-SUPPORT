@@ -2,18 +2,12 @@ import { bodyOf, noStore, requireAdmin } from '../_email.js';
 import { autoMailClient, autoMailConfiguration } from './configuration.js';
 import { accessToken, checkOrigin, connected, gmailGet, MailError, presentThread, replyContext } from './gmail.js';
 import { threadSignature } from './thread-signature.js';
+import { aiConfiguration, effectiveAiConfiguration } from './agent-config.js';
+export { aiConfiguration } from './agent-config.js';
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 export type AiSource = { id: string; version: number; title: string; port: string; content: string };
 export type AiOutput = { status: 'READY' | 'NEEDS_REVIEW' | 'NO_ANSWER'; body_text: string; review_notes: string; cited_source_ids: string[] };
-
-export function aiConfiguration(env: NodeJS.ProcessEnv = process.env) {
-  if (env.AUTO_MAIL_AI_ENABLED !== 'true') return { ready: false, message: 'AI suggestions are disabled. Enable them in the Auto Mail server configuration.' };
-  const key = env.OPENAI_API_KEY?.trim();
-  const model = env.AUTO_MAIL_AI_MODEL?.trim();
-  if (!key || !model || !/^[a-zA-Z0-9._:-]{1,100}$/.test(model)) return { ready: false, message: 'Configure OPENAI_API_KEY and AUTO_MAIL_AI_MODEL on the server.' };
-  return { ready: true, message: 'OpenAI draft generation is configured.', key, model };
-}
 
 export function validateAiOutput(value: any, sources: AiSource[]): AiOutput {
   if (!value || !['READY', 'NEEDS_REVIEW', 'NO_ANSWER'].includes(value.status) || typeof value.body_text !== 'string' || value.body_text.length > 5000
@@ -95,9 +89,9 @@ export function createAiHandler(action: 'generate' | 'use') {
       checkOrigin(request);
       const dbConfig = autoMailConfiguration();
       if (!dbConfig.ready) throw new MailError(503, dbConfig.message);
-      const config = aiConfiguration();
-      if (!config.ready) throw new MailError(503, config.message);
       client = autoMailClient(dbConfig);
+      const config = await effectiveAiConfiguration(client);
+      if (!config.ready) throw new MailError(503, config.message);
       const body = await bodyOf(request);
       const id = String(action === 'generate' ? body.requestId || '' : body.draftId || '');
       if (!uuid.test(id)) throw new MailError(400, 'Invalid draft request.');
@@ -136,6 +130,8 @@ export function createAiHandler(action: 'generate' | 'use') {
       }
       activeId = id;
       const output = await generateOpenAiDraft(config, scope, thread, sources);
+      const currentConfig = await effectiveAiConfiguration(client);
+      if (!currentConfig.ready || currentConfig.model !== config.model) throw new MailError(409, 'Email agent settings changed during generation. Review the settings before generating again.');
       const latest = await gmailGet(token, `threads/${encodeURIComponent(threadId)}?format=full`);
       if (threadSignature(presentThread(latest, connection.email)) !== signature) throw new MailError(409, 'The conversation changed during generation. Reload it and generate a new draft.');
       const finished = await client.rpc('finish_ai_draft', { p_id: id, p_actor: session.id, p_result: output });

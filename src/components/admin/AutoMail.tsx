@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { BookOpen, ExternalLink, RefreshCw, Send } from 'lucide-react';
+import { BookOpen, ExternalLink, MoreVertical, Settings, Send } from 'lucide-react';
 import { GoogleConnectionButton } from '../common/GoogleConnectionButton';
 import { AutoMailKnowledgeMatches } from './AutoMailKnowledge';
 import { AutoMailAiDraft } from './AutoMailAiDraft';
@@ -19,6 +19,20 @@ async function api<T>(path: string, body?: unknown, signal?: AbortSignal): Promi
 }
 
 export function AutoMail({ onOpenConfig }: { onOpenConfig?: (tab: AutoEmailConfigTab) => void }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const menuButton = useRef<HTMLButtonElement>(null);
+  const refreshController = useRef<AbortController | null>(null);
+  useEffect(() => () => refreshController.current?.abort(), []);
+  useEffect(() => {
+    if (!menuOpen) return;
+    menuRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus();
+    const outside = (event: PointerEvent) => { if (!menuRef.current?.contains(event.target as Node)) setMenuOpen(false); };
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') { setMenuOpen(false); menuButton.current?.focus(); } };
+    document.addEventListener('pointerdown', outside); document.addEventListener('keydown', escape);
+    return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape); };
+  }, [menuOpen]);
   const [status, setStatus] = useState<Status | null>(null);
   const [threads, setThreads] = useState<Summary[]>([]);
   const [thread, setThread] = useState<Thread | null>(null);
@@ -65,6 +79,20 @@ export function AutoMail({ onOpenConfig }: { onOpenConfig?: (tab: AutoEmailConfi
     try { const result = await api<{ authorizationUrl: string }>('connect', {}); window.location.assign(result.authorizationUrl); }
     catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to connect Gmail.'); setBusy(''); }
   };
+  const refreshMailbox = async () => {
+    if (refreshController.current || busy) return;
+    const controller = new AbortController(); refreshController.current = controller; setRefreshing(true); setError('');
+    try {
+      const latest = await api<Status>('status', undefined, controller.signal);
+      if (!controller.signal.aborted) setStatus(latest);
+      if (latest.mailboxConnected && latest.oauthReady) {
+        const inbox = await api<{ threads: Summary[]; nextPageToken: string | null }>('threads', undefined, controller.signal);
+        if (!controller.signal.aborted) { setThreads(inbox.threads); setNextPage(inbox.nextPageToken); }
+      }
+      if (thread && (!latest.mailboxConnected || latest.mailbox !== thread.mailbox)) { setSendBlocked(true); setError('The connected mailbox changed. Reload the conversation before sending.'); }
+    } catch (reason) { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : 'Unable to refresh inbox.'); }
+    finally { if (!controller.signal.aborted) setRefreshing(false); refreshController.current = null; }
+  };
   const loadMore = async () => {
     if (!nextPage) return;
     setBusy('more'); setError('');
@@ -99,13 +127,15 @@ export function AutoMail({ onOpenConfig }: { onOpenConfig?: (tab: AutoEmailConfi
   };
   const button = 'inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium hover:bg-slate-50 disabled:opacity-50';
   return <section className="space-y-4">
-    <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-xl font-bold text-slate-900">Auto Mail</h2><p className="mt-1 text-sm text-slate-500">{status?.mailbox || 'Connect Gmail to read conversations and reply.'}</p></div><div className="flex items-center gap-3"><span className="rounded-full bg-amber-50 px-3 py-1 text-xs text-amber-800">Manual replies only</span><GoogleConnectionButton email={status?.mailboxConnected ? status.mailbox || '' : ''} connecting={busy === 'connect'} disabled={!!busy || status?.state !== 'READY' || !status.oauthReady} onConnect={() => void connect()} /></div></div>
-    <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white p-4">
-      <p role="status" className="min-w-0 flex-1 text-sm text-slate-600">{busy === 'setup' ? 'Checking connection and loading inbox...' : status?.message}</p>
-      <button className={button} disabled={!!busy} onClick={() => setAttempt(value => value + 1)}><RefreshCw className="h-4 w-4" />Refresh</button>
-    </div>
+    <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-xl font-bold text-slate-900">Auto Mail</h2><p className="mt-1 text-sm text-slate-500">{status?.mailbox || 'Connect Gmail to read conversations and reply.'}</p></div><div className="flex items-center gap-3"><span className="rounded-full bg-amber-50 px-3 py-1 text-xs text-amber-800">Manual replies only</span><GoogleConnectionButton email={status?.mailboxConnected ? status.mailbox || '' : ''} connecting={busy === 'connect' || refreshing} connectedAction="refresh" disabled={!!busy || status?.state !== 'READY' || !status.oauthReady} onConnect={() => void (status?.mailboxConnected ? refreshMailbox() : connect())} />
+      <div ref={menuRef} className="relative"><button ref={menuButton} type="button" aria-label="Auto Mail options" aria-haspopup="menu" aria-expanded={menuOpen} disabled={!!busy} onClick={() => setMenuOpen(value => !value)} className="inline-flex h-10 w-9 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-50"><MoreVertical className="h-5 w-5" /></button>
+      {menuOpen && <div role="menu" aria-label="Auto Mail options" onKeyDown={event => { const items = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')); const index = items.indexOf(document.activeElement as HTMLButtonElement); const next = event.key === 'ArrowDown' ? (index + 1) % items.length : event.key === 'ArrowUp' ? (index + items.length - 1) % items.length : event.key === 'Home' ? 0 : event.key === 'End' ? items.length - 1 : null; if (next !== null) { event.preventDefault(); items[next]?.focus(); } if (event.key === 'Tab') setMenuOpen(false); }} className="absolute right-0 top-full z-40 mt-2 w-56 rounded-lg border border-slate-200 bg-white p-1 shadow-lg">
+      {onOpenConfig && <><button type="button" role="menuitem" onClick={() => { setMenuOpen(false); onOpenConfig('knowledge'); }} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm hover:bg-slate-50"><BookOpen className="h-4 w-4" />Manage knowledge</button><button type="button" role="menuitem" onClick={() => { setMenuOpen(false); onOpenConfig('agent'); }} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm hover:bg-slate-50"><Settings className="h-4 w-4" />Email config</button></>}
+      {status?.mailboxConnected && <button type="button" role="menuitem" onClick={() => { setMenuOpen(false); void connect(); }} className="w-full rounded-md px-3 py-2 text-left text-sm hover:bg-slate-50">Reconnect Gmail</button>}
+      </div>}</div></div></div>
+    {busy === 'setup' && <p role="status" className="text-sm text-slate-500">Loading inbox...</p>}
+    {status && status.state !== 'READY' && <p role="status" className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">{status.message}</p>}
     {status?.state === 'READY' && !status.oauthReady && <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">Configure AUTO_MAIL_APP_URL, Google OAuth credentials, and GOOGLE_TOKEN_ENCRYPTION_KEY on the server, then refresh. See the Auto Mail development guide.</p>}
-    {onOpenConfig && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-sky-100 bg-sky-50 p-4"><p className="text-sm text-slate-600">Manage knowledge and learning in Developer / Dev Setting / Auto Email Config.</p><button type="button" className={button} disabled={!!busy} onClick={() => onOpenConfig?.('knowledge')}><BookOpen className="h-4 w-4" />Auto Email Config</button></div>}
     {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
     {notice && <p role="status" className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
     <div>
