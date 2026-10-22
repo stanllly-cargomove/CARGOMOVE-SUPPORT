@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import sanitize from 'sanitize-html';
+import sanitize from './vendor/sanitize-html.cjs';
 import { convert } from 'html-to-text';
 import addresses from 'email-addresses';
 import { MailError } from './mail-error.js';

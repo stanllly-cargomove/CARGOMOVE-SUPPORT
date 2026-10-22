@@ -125,6 +125,8 @@ Before applying this migration, the enhanced reader remains available, the compo
 
 Implementation references: [Gmail MIME sending](https://developers.google.com/workspace/gmail/api/guides/sending), [Gmail attachment retrieval](https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.messages.attachments/get), [Supabase signed uploads](https://supabase.com/docs/reference/javascript/storage-from-createsigneduploadurl).
 
+The server sanitizer is bundled at `server-handlers/auto-mail/vendor/sanitize-html.cjs` to support Vercel's function loader without relying on native CommonJS-to-ESM interoperability. The upstream sanitizer version and security fixes are preserved. After updating `sanitize-html`, run `npm run generate:mail-sanitizer`, commit the generated bundle and its dependency license notices, and rerun the startup/security tests. The startup regression disables native `require(ESM)` before loading the shared email router.
+
 ### Email agent model settings
 
 Run `supabase/auto-mail/migrations/20261022050000_agent_settings.sql` in the **separate Auto Mail project's SQL Editor only**. It creates `agent_settings` and `agent_setting_events`, with server-only reads and a versioned save function. It does not alter existing tables or the schema version. Before this migration, generation continues using the current server model and enable flag; the new settings form explains that saving needs setup.

@@ -8,9 +8,15 @@ import { loadReplyFiles, uploadMetadata } from '../server-handlers/auto-mail/fil
 import { attachmentRead, attachmentUpload, attachmentRemove } from '../server-handlers/auto-mail/attachments.js';
 import { encryptMailboxToken } from '../server-handlers/auto-mail/token-encryption.js';
 import { signSession } from '../api/_runtime.js';
+import { spawnSync } from 'node:child_process';
 
 const actor='10000000-0000-4000-8000-000000000001',mailbox='10000000-0000-4000-8000-000000000002',version='10000000-0000-4000-8000-000000000003',requestId='10000000-0000-4000-8000-000000000004',fileId='10000000-0000-4000-8000-000000000005';
 const incoming=()=>({id:'thread1',messages:[{id:'message1',internalDate:'1792600000000',labelIds:['INBOX'],payload:{mimeType:'multipart/mixed',headers:[{name:'From',value:'Customer <customer@example.com>'},{name:'To',value:'operator@example.com, colleague@example.com'},{name:'Cc',value:'team@example.com'},{name:'Subject',value:'Documents'},{name:'Message-ID',value:'<incoming@example.com>'}],parts:[{partId:'0',mimeType:'text/html',body:{data:Buffer.from('<p>Please read <a href="https://example.com/help">the instructions</a>.</p><script>evil()</script><img src="https://tracker.test/x">').toString('base64url')}},{partId:'1',mimeType:'application/pdf',filename:'guide.pdf',body:{attachmentId:'google-attachment',size:12}}]}}]});
+
+test('shared email function starts without native require(ESM) support, matching Vercel',()=>{
+  const result=spawnSync(process.execPath,['--no-experimental-require-module','--import','tsx','--input-type=module','-e',`import router from './api/mail.ts';const res={code:200,setHeader(){},status(code){this.code=code;return this;},json(){}};await router({method:'GET',query:{route:'auto-mail/status'},headers:{}},res);if(res.code!==401)throw new Error('Authentication gate was not reached');console.log('ready');`],{cwd:process.cwd(),encoding:'utf8',timeout:20000});
+  assert.equal(result.status,0,result.stderr);assert.match(result.stdout,/ready/);
+});
 
 test('HTML-only reading preserves tables and links, strips active content/tracking, and exposes CC and file metadata',()=>{
   const view=presentThread(incoming(),'operator@example.com');
