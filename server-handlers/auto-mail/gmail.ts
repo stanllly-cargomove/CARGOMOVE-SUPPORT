@@ -11,6 +11,7 @@ import { loadReplyFiles } from './file-storage.js';
 
 export const READ_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
 export const SEND_SCOPE = 'https://www.googleapis.com/auth/gmail.send';
+export const MODIFY_SCOPE = 'https://www.googleapis.com/auth/gmail.modify';
 const GMAIL = 'https://gmail.googleapis.com/gmail/v1/users/me/';
 
 export function portalOrigin(env: NodeJS.ProcessEnv = process.env) {
@@ -35,7 +36,7 @@ export function checkOrigin(request: any) {
   if (request.headers?.origin !== portalOrigin()) throw new MailError(403, 'Open Auto Mail from its configured portal URL.');
 }
 
-async function googleJson(url: string, init: RequestInit = {}) {
+export async function googleJson(url: string, init: RequestInit = {}) {
   const response = await fetch(url, { ...init, signal: AbortSignal.timeout(15000) });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new MailError(response.status === 401 || response.status === 403 ? 409 : 502,
@@ -151,7 +152,7 @@ export function createAutoMailHandler(action: 'connect' | 'callback' | 'threads'
         dbCheck((await client.from('oauth_states').delete().lt('expires_at', new Date().toISOString())).error);
         dbCheck((await client.from('oauth_states').insert({ state_hash: hash(state), pkce_verifier: pkce.verifier, admin_id: session.id, expires_at: new Date(Date.now() + 600000).toISOString() })).error);
         const query = new URLSearchParams({ client_id: oauth.clientId, redirect_uri: oauth.redirectUri, response_type: 'code',
-          scope: `openid email ${READ_SCOPE} ${SEND_SCOPE}`, access_type: 'offline', prompt: 'consent select_account',
+          scope: `openid email ${READ_SCOPE} ${SEND_SCOPE} ${MODIFY_SCOPE}`, access_type: 'offline', prompt: 'consent select_account',
           state, code_challenge: pkce.challenge, code_challenge_method: 'S256' });
         return response.json({ authorizationUrl: `https://accounts.google.com/o/oauth2/v2/auth?${query}` });
       }
@@ -186,9 +187,9 @@ export function createAutoMailHandler(action: 'connect' | 'callback' | 'threads'
         const pageToken = typeof request.query?.pageToken === 'string' ? request.query.pageToken : '';
         const folder = request.query?.folder ?? 'inbox';
         const search = request.query?.q ?? '';
-        if (pageToken.length > 1000 || !['inbox', 'sent'].includes(folder) || typeof search !== 'string' || search.length > 500) throw new MailError(400, 'Invalid mailbox search or page.');
-        const label = folder === 'sent' ? 'SENT' : 'INBOX';
-        const query = new URLSearchParams({ maxResults: '25', labelIds: label, ...(search.trim() ? { q: search.trim() } : {}), ...(pageToken ? { pageToken } : {}) });
+        if (pageToken.length > 1000 || !['inbox', 'sent', 'trash'].includes(folder) || typeof search !== 'string' || search.length > 500) throw new MailError(400, 'Invalid mailbox search or page.');
+        const label = folder === 'sent' ? 'SENT' : folder === 'trash' ? 'TRASH' : 'INBOX';
+        const query = new URLSearchParams({ maxResults: '25', labelIds: label, ...(folder === 'trash' ? {includeSpamTrash:'true'} : {}), ...(search.trim() ? { q: search.trim() } : {}), ...(pageToken ? { pageToken } : {}) });
         const list = await gmailGet(token, `threads?${query}`);
         const threads = await Promise.all((list.threads || []).map(async (t: any) => {
           const thread = await gmailGet(token, `threads/${encodeURIComponent(t.id)}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Date`);

@@ -36,6 +36,10 @@ export function createAttachmentHandler(action:'upload'|'read'|'remove') {
         if(row.error||!row.data||row.data.mailbox_id!==connection.mailbox_id)throw new MailError(404,'Attachment was not found.');
         const delivery=await client.from('reply_deliveries').select('id').eq('id',row.data.request_id).maybeSingle();
         if(delivery.error||delivery.data)throw new MailError(409,'Attachments cannot be removed after a send request.');
+        if(row.data.gmail_thread_id==='compose') {
+          const outbox=await client.from('outbox_messages').select('id').eq('id',row.data.request_id).maybeSingle();
+          if(outbox.error||outbox.data)throw new MailError(409,'Attachments cannot be removed after submitting this composed message.');
+        }
         if((await client.storage.from(ATTACHMENT_BUCKET).remove([row.data.path])).error)throw new MailError(503,'Unable to remove the attachment. Try again.');
         if((await client.from('reply_uploads').delete().eq('id',row.data.id)).error)throw new MailError(503,'Unable to remove the attachment record.');
         return response.json({removed:true});

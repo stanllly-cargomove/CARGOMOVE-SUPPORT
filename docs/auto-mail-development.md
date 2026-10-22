@@ -191,3 +191,31 @@ Search submits to Gmail within the selected folder and supports Gmail operators 
 No migration or new OAuth scope is required. This uses the existing read/send connection and does not change the main database. Mail0 (https://github.com/Mail-0/Zero) was reviewed as an open-source interface reference; the implementation uses our existing React components and Gmail handlers without importing that application or its backend.
 
 Offline verification: `npm run test:auto-mail`, `npm run test:auto-mail:mailbox:ui`, `npm run test:auto-mail:rich:ui`, and `npm run test:auto-mail:ui`. Browser tests intercept requests and never send real email.
+
+## Full workspace, Compose, Trash and Scheduled
+
+The Auto Mail workspace fills the available portal width. Its viewport has a 520px minimum height with internal scrolling, including while a conversation loads. Opening a conversation hides the list search header. The sidebar includes Compose, Inbox, Sent, Scheduled and Trash.
+
+Compose supports a new subject, To/CC/BCC, the rich editor, and the same 10-file / 15 MB attachment limit. A new composed message uses its own durable request ID. Its prepared MIME is saved as an immutable object in the private `auto-mail-outbox` bucket, with a SHA-256 snapshot. New tables record queue state and Gmail receipts; existing Auto Mail and production tables are not altered. The prepared object can be larger than the original attachments due to MIME encoding, so the new bucket limit is 25 MB. Prepared content is retained privately for delivery review; no automatic content cleanup is configured.
+
+### Enable the features after deployment
+
+1. Run `supabase/auto-mail/migrations/20261022070000_compose_outbox.sql` in the **separate Auto Mail project**. This follows the existing foundation/rich-replies migrations. Click the Google logo in Auto Mail to refresh feature readiness.
+2. In Google Cloud Console, add `https://www.googleapis.com/auth/gmail.modify` to the OAuth application's data-access scopes. In Auto Mail's three-dot menu, select **Reconnect Gmail** and approve mailbox management. Read/send connections continue to work before reconnecting; Trash/Restore controls become available once the saved connection includes modify permission. The registration email integration is unchanged. [Gmail Trash API](https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.threads.trash).
+3. Configure a random server-only `AUTO_MAIL_SCHEDULER_SECRET` of at least 32 characters on Vercel and locally. During this development change it was generated in ignored `.env.local` and saved to Vercel production, without displaying the value. Keep it out of browser variables and Git.
+4. Open `supabase/auto-mail/setup-scheduled-worker.sql`, replace the secret placeholder with the **same value from `.env.local`**, confirm the production callback URL, and run it in the **separate Auto Mail project**. This installs a once-per-minute `pg_cron` / `pg_net` call authenticated with a Vault-held secret. Do not run the placeholder unchanged, and do not create duplicate named Vault secrets. [Supabase scheduling guidance](https://supabase.com/docs/guides/functions/schedule-functions).
+5. Wait for the first worker tick, then refresh with the Google logo. **Compose ? Send later** is enabled when the server credential exists and the last worker heartbeat is less than five minutes old. Times use the browser's displayed time zone and are stored in UTC. The initial worker claims one message per minute, on the first tick after its due time; provider or service delays can make delivery later. You can schedule between two minutes and 90 days ahead.
+
+Scheduled currently contains **new composed messages scheduled through Auto Mail**, plus their sent, cancelled, failed or uncertain history. It does not mirror Gmail web's Scheduled folder. Replies still use the existing reviewed manual-send workflow. Scheduled messages are staff-authored messages with an explicit send time; automatic AI replies remain disabled.
+
+Moving a conversation to Trash affects all messages in its Gmail thread. Restore removes it from Trash. There is no permanent-delete action. Select up to 25 loaded rows for a bulk action; partial failures keep unconfirmed rows visible. Existing read status is preserved.
+
+### Delivery and cancellation behavior
+
+Queued messages can be cancelled until the worker atomically claims them. Cancellation and claiming serialize on the same queue row. Messages already sending cannot be cancelled. A reconnect changes the connection version; pending messages stop before provider sending if the saved mailbox/version is no longer current. Refresh Scheduled to see the reason and compose a new message if needed.
+
+The worker downloads and verifies the immutable MIME snapshot before sending. It never automatically retries an ambiguous Gmail send. A stopped worker leaves SENDING messages quarantined as UNCERTAIN after ten minutes, and the UI instructs staff to check Gmail Sent. A confirmed Gmail response remains successful even if receipt storage fails; do not send a second copy. Restarting the worker does not requeue these messages.
+
+Monitor `select last_seen from auto_mail.outbox_worker_state;` and the Scheduled view. To stop the minute trigger, run `select cron.unschedule('auto-mail-outbox-every-minute');` in the separate project. For key rotation, update both Vercel and the named Vault secret, then redeploy.
+
+Validation adds real Postgres-compatible SQL tests and fully intercepted browser/API tests for Compose, no duplicate sends, private snapshots, mailbox changes, missed worker ticks, cancel/send races, Trash scopes, bulk partial failures, and desktop/mobile layout. No real email or live AI request is sent by these tests.

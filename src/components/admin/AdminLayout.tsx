@@ -503,7 +503,7 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
         {/* Content Body */}
         <main
           className={`flex-1 w-full p-4 sm:p-6 lg:px-7 lg:py-4 transition-[max-width] duration-200 ${
-            (activeQueueItem || activeTab === 'user-registration') && isSidebarCollapsed ? 'max-w-none' : 'mx-auto max-w-[1600px]'
+            activeTab === 'auto-mail' ? 'max-w-none !p-2 sm:!p-3' : (activeQueueItem || activeTab === 'user-registration') && isSidebarCollapsed ? 'max-w-none' : 'mx-auto max-w-[1600px]'
           }`}
         >
           <div key={`${portalMode}:${activeTab}`} className="admin-page-transition w-full min-w-0">

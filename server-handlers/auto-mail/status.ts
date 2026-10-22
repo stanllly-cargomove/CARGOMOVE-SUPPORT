@@ -1,7 +1,8 @@
 import { noStore, requireAdmin } from '../_email.js';
 import { encryptMailboxToken } from './token-encryption.js';
 import { autoMailClient, autoMailConfiguration } from './configuration.js';
-import { oauthConfig } from './gmail.js';
+import { oauthConfig, MODIFY_SCOPE } from './gmail.js';
+import { workerReady } from './outbox.js';
 import { effectiveAiConfiguration } from './agent-config.js';
 
 export default async function autoMailStatus(request: any, response: any) {
@@ -21,11 +22,12 @@ export default async function autoMailStatus(request: any, response: any) {
     try { oauthConfig(); encryptMailboxToken('configuration-check'); oauthReady = true; } catch { /* Keep credentials private. */ }
     const rich=await autoMailClient(config).from('reply_details').select('delivery_id').limit(1);
     const richRepliesReady=!rich.error;
-    const result = await autoMailClient(config).from('gmail_connections').select('email,connected_at').eq('id', 'system').maybeSingle();
+    const outbox=await autoMailClient(config).from('outbox_messages').select('id').limit(1);
+    const result = await autoMailClient(config).from('gmail_connections').select('email,connected_at,version,scopes').eq('id', 'system').maybeSingle();
     if (result.error) return response.json({ ...base, state: 'DATABASE_REQUIRED', message: 'Unable to read Gmail connection settings. Check the Milestone 2 migration.' });
     let ai: { ready: boolean; message: string; model?: string };
     try { ai = await effectiveAiConfiguration(autoMailClient(config)); } catch { ai = { ready: false, message: 'Email agent settings are unavailable. Check Auto Email Config.' }; }
-    return response.json({ ...base, state: 'READY', richRepliesReady, oauthReady, mailboxConnected: !!result.data, knowledgeReady: data.schema_version >= 3,
+    return response.json({ ...base, state: 'READY', richRepliesReady, composeReady:!outbox.error, schedulerReady:!outbox.error && await workerReady(autoMailClient(config)), canManageMail:result.data?.scopes?.includes(MODIFY_SCOPE)||false, connectionVersion:result.data?.version||null, oauthReady, mailboxConnected: !!result.data, knowledgeReady: data.schema_version >= 3,
       aiModel: ai.model || null, aiDraftsReady: data.schema_version >= 4, aiEnabled: data.schema_version >= 4 && ai.ready, learningReady: data.schema_version >= 5,
       aiMessage: data.schema_version < 4 ? 'Apply the AI draft migration to the Auto Mail database to enable this feature.' : ai.message,
       mailbox: result.data?.email || null, manualReplyEnabled: !!result.data && oauthReady,

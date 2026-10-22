@@ -13,6 +13,8 @@ import gmailConnect from '../server-handlers/gmail/connect.js';
 import gmailStatus from '../server-handlers/gmail/status.js';
 import autoMailStatus from '../server-handlers/auto-mail/status.js';
 import agentSettings from '../server-handlers/auto-mail/agent-settings.js';
+import mailboxActions from '../server-handlers/auto-mail/mailbox-actions.js';
+import { composeMessage, listOutbox, cancelOutbox, runOutbox } from '../server-handlers/auto-mail/outbox.js';
 import { attachmentUpload, attachmentRead, attachmentRemove } from '../server-handlers/auto-mail/attachments.js';
 import { learningList, learningDetail, learningPropose, learningReview } from '../server-handlers/auto-mail/learning.js';
 import { aiGenerate, aiUse } from '../server-handlers/auto-mail/ai.js';
@@ -24,6 +26,12 @@ type Handler = (request: any, response: any) => unknown;
 
 const handlers: Record<string, Handler> = {
   'GET auto-mail/status': autoMailStatus,
+  'POST auto-mail/mailbox-action': mailboxActions,
+  'POST auto-mail/compose': composeMessage,
+  'GET auto-mail/outbox': listOutbox,
+  'POST auto-mail/outbox-cancel': cancelOutbox,
+  'POST auto-mail/outbox-run': runOutbox,
+  'GET auto-mail/outbox-run': runOutbox,
   'POST auto-mail/attachment-upload': attachmentUpload,
   'GET auto-mail/attachment': attachmentRead,
   'POST auto-mail/attachment-remove': attachmentRemove,

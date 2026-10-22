@@ -184,7 +184,7 @@ test('mailbox listing scopes Gmail search and pagination to Inbox or Sent withou
     calls.length=0;
     assert.equal((await invoke({})).result.threads[0].snippet,'Customer response');
     assert.equal(calls.find(url=>url.pathname.endsWith('/threads'))!.searchParams.get('labelIds'),'INBOX');
-    assert.equal((await invoke({folder:'trash'})).code,400);
+    assert.equal((await invoke({folder:'spam'})).code,400);
     assert.equal((await invoke({q:['bad']})).code,400);
     assert.equal((await invoke({q:'x'.repeat(501)})).code,400);
   } finally {

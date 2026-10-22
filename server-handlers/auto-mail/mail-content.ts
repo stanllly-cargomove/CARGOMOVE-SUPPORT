@@ -79,12 +79,12 @@ function mimeFilename(name:string){
   const extended=segments.length===1?`filename*=UTF-8''${segments[0]}`:segments.map((value,index)=>`filename*${index}*=${index===0?"UTF-8''":''}${value}`).join(';\r\n ');
   return `filename="${safe.replace(/[^a-zA-Z0-9._ -]/g,'_')}";\r\n ${extended}`;
 }
-export function richRawReply(email: string, context: { subject: string; messageId: string; references: string }, recipients: ReturnType<typeof replyRecipients>, text: string, html: string, files: ReplyFile[], id: string) {
+export function richRawReply(email: string, context: { subject: string; messageId: string; references: string; compose?: boolean }, recipients: ReturnType<typeof replyRecipients>, text: string, html: string, files: ReplyFile[], id: string) {
   const alt = `auto_alt_${crypto.randomBytes(16).toString('hex')}`;
   const mixed = `auto_mix_${crypto.randomBytes(16).toString('hex')}`;
-  const subject = /^re:/i.test(context.subject) ? context.subject : `Re: ${context.subject}`;
+  const subject = context.compose || /^re:/i.test(context.subject) ? context.subject : `Re: ${context.subject}`;
   const parts = [`Content-Type: multipart/alternative; boundary="${alt}"`, '', `--${alt}`, 'Content-Type: text/plain; charset=UTF-8','Content-Transfer-Encoding: base64','',base64(text),`--${alt}`,'Content-Type: text/html; charset=UTF-8','Content-Transfer-Encoding: base64','',base64(html),`--${alt}--`];
-  const headers = [`From: ${email}`, `To: ${recipients.to.join(',\r\n ')}`, ...(recipients.cc.length ? [`Cc: ${recipients.cc.join(',\r\n ')}`] : []), ...(recipients.bcc.length ? [`Bcc: ${recipients.bcc.join(',\r\n ')}`] : []), `Subject: ${mimeSubject(subject)}`, `In-Reply-To: ${context.messageId}`, `References: ${context.references}`, `Message-ID: <auto-mail-${id}@${email.split('@')[1]}>`, 'MIME-Version: 1.0'];
+  const headers = [`From: ${email}`, `To: ${recipients.to.join(',\r\n ')}`, ...(recipients.cc.length ? [`Cc: ${recipients.cc.join(',\r\n ')}`] : []), ...(recipients.bcc.length ? [`Bcc: ${recipients.bcc.join(',\r\n ')}`] : []), `Subject: ${mimeSubject(subject)}`, ...(!context.compose ? [`In-Reply-To: ${context.messageId}`, `References: ${context.references}`] : []), `Message-ID: <auto-mail-${id}@${email.split('@')[1]}>`, 'MIME-Version: 1.0'];
   if (!files.length) return Buffer.from([...headers,...parts].join('\r\n')).toString('base64url');
   const attached = files.flatMap(file => [`--${mixed}`, `Content-Type: ${file.type}`, 'Content-Transfer-Encoding: base64', `Content-Disposition: attachment; ${mimeFilename(file.name)}`, '', base64(file.data)]);
   return Buffer.from([...headers,`Content-Type: multipart/mixed; boundary="${mixed}"`,'',`--${mixed}`,...parts,...attached,`--${mixed}--`].join('\r\n')).toString('base64url');
