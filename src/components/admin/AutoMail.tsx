@@ -3,7 +3,7 @@ import { BookOpen, ExternalLink, RefreshCw, Send } from 'lucide-react';
 import { GoogleConnectionButton } from '../common/GoogleConnectionButton';
 import { AutoMailKnowledgeMatches } from './AutoMailKnowledge';
 import { AutoMailAiDraft } from './AutoMailAiDraft';
-import { AutoMailLearning } from './AutoMailLearning';
+import type { AutoEmailConfigTab } from './AutoEmailConfig';
 
 type Status = { state: string; message: string; oauthReady?: boolean; mailboxConnected: boolean; mailbox?: string; knowledgeReady?: boolean; aiEnabled?: boolean; aiMessage?: string; learningReady?: boolean };
 type Summary = { id: string; subject: string; from: string; snippet: string; unread: boolean };
@@ -18,7 +18,7 @@ async function api<T>(path: string, body?: unknown, signal?: AbortSignal): Promi
   return data;
 }
 
-export function AutoMail({ onOpenKnowledgeBase }: { onOpenKnowledgeBase?: () => void }) {
+export function AutoMail({ onOpenConfig }: { onOpenConfig?: (tab: AutoEmailConfigTab) => void }) {
   const [status, setStatus] = useState<Status | null>(null);
   const [threads, setThreads] = useState<Summary[]>([]);
   const [thread, setThread] = useState<Thread | null>(null);
@@ -29,11 +29,9 @@ export function AutoMail({ onOpenKnowledgeBase }: { onOpenKnowledgeBase?: () => 
   const [notice, setNotice] = useState('');
   const [attempt, setAttempt] = useState(0);
   const [sendBlocked, setSendBlocked] = useState(false);
-  const [view, setView] = useState<'inbox' | 'learning'>('inbox');
   const [aiDraftId, setAiDraftId] = useState<string | null>(null);
   const [lastDeliveryId, setLastDeliveryId] = useState<string | null>(null);
   const [learningQueued, setLearningQueued] = useState(false);
-  const [learningRefresh, setLearningRefresh] = useState(0);
   const threadRequest = useRef(0);
   const sending = useRef(false);
   const requestId = useRef(crypto.randomUUID());
@@ -83,7 +81,6 @@ export function AutoMail({ onOpenKnowledgeBase }: { onOpenKnowledgeBase?: () => 
       const result = await api<{ status: string; warning?: string; deliveryId?: string; learningQueued?: boolean }>('reply', { threadId: thread.id, body, recipient: thread.recipient,
         sourceMessageId: thread.messages.at(-1)?.id, connectionVersion: thread.connectionVersion, requestId: requestId.current, aiDraftId });
       setSendBlocked(true); setBody(''); setLastDeliveryId(result.deliveryId || null); setLearningQueued(!!result.learningQueued);
-      if (result.learningQueued) setLearningRefresh(value => value + 1);
       setNotice(result.warning || (result.learningQueued ? 'Reply sent through Gmail. Your edits were queued for KB review.' : 'Reply sent through Gmail. Reload the conversation to see the latest messages.'));
     } catch (reason) {
       // A browser/network error can hide a successful send. Require a fresh server check.
@@ -95,7 +92,7 @@ export function AutoMail({ onOpenKnowledgeBase }: { onOpenKnowledgeBase?: () => 
     setBusy('learning'); setError('');
     try {
       const result = await api<{ suggestion: { status: string } }>('learning-propose', { deliveryId: lastDeliveryId });
-      setLearningQueued(true); setLearningRefresh(value => value + 1);
+      setLearningQueued(true);
       setNotice(result.suggestion.status === 'PENDING' ? 'Reply added to Learning review. It will not affect the KB until approved.' : `This reply already has a ${result.suggestion.status.toLowerCase()} learning suggestion.`);
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to propose learning.'); }
     finally { setBusy(''); }
@@ -108,12 +105,10 @@ export function AutoMail({ onOpenKnowledgeBase }: { onOpenKnowledgeBase?: () => 
       <button className={button} disabled={!!busy} onClick={() => setAttempt(value => value + 1)}><RefreshCw className="h-4 w-4" />Refresh</button>
     </div>
     {status?.state === 'READY' && !status.oauthReady && <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">Configure AUTO_MAIL_APP_URL, Google OAuth credentials, and GOOGLE_TOKEN_ENCRYPTION_KEY on the server, then refresh. See the Auto Mail development guide.</p>}
-    {onOpenKnowledgeBase && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-sky-100 bg-sky-50 p-4"><p className="text-sm text-slate-600">Manage approved answers in Developer → Dev Setting → Knowledge Base.</p><button type="button" className={button} disabled={!!busy} onClick={onOpenKnowledgeBase}><BookOpen className="h-4 w-4" />Manage Knowledge Base</button></div>}
+    {onOpenConfig && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-sky-100 bg-sky-50 p-4"><p className="text-sm text-slate-600">Manage knowledge and learning in Developer / Dev Setting / Auto Email Config.</p><button type="button" className={button} disabled={!!busy} onClick={() => onOpenConfig?.('knowledge')}><BookOpen className="h-4 w-4" />Auto Email Config</button></div>}
     {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
     {notice && <p role="status" className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
-    <div role="tablist" aria-label="Auto Mail workspace" className="flex gap-2 border-b border-slate-200 pb-2">{(['inbox', 'learning'] as const).map(tab => <button key={tab} id={`auto-mail-tab-${tab}`} role="tab" aria-controls={`auto-mail-panel-${tab}`} aria-selected={view === tab} disabled={!!busy} onClick={() => setView(tab)} className={`rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50 ${view === tab ? 'bg-sky-100 text-sky-800' : 'text-slate-500 hover:bg-slate-100'}`}>{tab === 'inbox' ? 'Inbox' : 'Learning review'}</button>)}</div>
-    <div id="auto-mail-panel-learning" role="tabpanel" aria-labelledby="auto-mail-tab-learning" hidden={view !== 'learning'}><AutoMailLearning ready={!!status?.learningReady} refreshToken={learningRefresh} onReviewed={() => setLearningRefresh(value => value + 1)} /></div>
-    <div id="auto-mail-panel-inbox" role="tabpanel" aria-labelledby="auto-mail-tab-inbox" hidden={view !== 'inbox'}>
+    <div>
     {status?.mailboxConnected && <div className="grid min-h-[480px] gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
       <aside aria-label="Inbox conversations" className="overflow-hidden rounded-xl border border-slate-200 bg-white"><h3 className="border-b border-slate-100 p-4 text-sm font-semibold">Inbox</h3>
         {!threads.length && !busy && <p className="p-4 text-sm text-slate-500">No inbox conversations loaded. Refresh to check Gmail.</p>}
@@ -127,7 +122,7 @@ export function AutoMail({ onOpenKnowledgeBase }: { onOpenKnowledgeBase?: () => 
           {status?.knowledgeReady && !thread.replyBlocked && <AutoMailKnowledgeMatches key={thread.id + ':' + thread.messages.at(-1)?.id} subject={thread.subject} message={thread.messages.at(-1)?.body || ''} disabled={!!busy || sendBlocked} onInsert={answer => { setBody(current => current.trim() ? current + '\n\n' + answer : answer); setNotice('Approved KB answer added. Review and edit the reply before sending.'); }} />}
           {status?.knowledgeReady && !thread.replyBlocked && <AutoMailAiDraft key={'ai:' + thread.id + ':' + thread.messages.at(-1)?.id} threadId={thread.id} sourceMessageId={thread.messages.at(-1)?.id || ''} connectionVersion={thread.connectionVersion} enabled={!!status.aiEnabled} setupMessage={status.aiMessage || 'AI suggestions are not enabled yet.'} disabled={!!busy || sendBlocked} onBusyChange={value => setBusy(current => value ? 'ai' : current === 'ai' ? '' : current)} onUse={(answer, id) => { setBody(current => current.trim() ? current + '\n\n' + answer : answer); setAiDraftId(id); setNotice('AI draft added. Review and edit your reply before sending.'); }} />}
           {thread.replyBlocked ? <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">{thread.replyBlocked}</p> : <form onSubmit={event => { event.preventDefault(); void send(); }} className="space-y-3 border-t border-slate-100 pt-4"><p className="break-words text-sm text-slate-600">From: {thread.mailbox}<br />Reply to: <strong>{thread.recipient}</strong></p><label className="block text-sm font-medium text-slate-700">Your reply<textarea value={body} onChange={event => setBody(event.target.value)} disabled={!!busy || sendBlocked} maxLength={50000} rows={6} className="mt-2 block w-full rounded-lg border border-slate-300 p-3 text-sm disabled:bg-slate-50" placeholder="Write your reply..." /></label><button type="submit" disabled={!!busy || sendBlocked || !body.trim()} className="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700 disabled:opacity-50"><Send className="h-4 w-4" />{busy === 'send' ? 'Sending...' : 'Send reply'}</button></form>}
-          {status?.learningReady && lastDeliveryId && <div className="mt-4 rounded-lg border border-emerald-100 bg-emerald-50/40 p-3">{learningQueued ? <p className="text-xs text-emerald-800">This reply has a learning suggestion. Review it in the Learning review tab before publishing to the KB.</p> : <button type="button" className={button} disabled={!!busy} onClick={() => void proposeLearning()}>Suggest this reply for the KB</button>}</div>}
+          {status?.learningReady && lastDeliveryId && <div className="mt-4 rounded-lg border border-emerald-100 bg-emerald-50/40 p-3">{learningQueued ? <p className="text-xs text-emerald-800">This reply has a learning suggestion. Review it in Auto Email Config before publishing to the KB.</p> : <button type="button" className={button} disabled={!!busy} onClick={() => void proposeLearning()}>Suggest this reply for the KB</button>}{onOpenConfig && <button type="button" className={`${button} mt-2`} disabled={!!busy} onClick={() => onOpenConfig('learning')}>Open Learning review</button>}</div>}
         </>}
       </div>
     </div>}

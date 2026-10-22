@@ -44,7 +44,7 @@ Each incoming message permits one manual reply request. Duplicate clicks, repeat
 ## Milestone 3: knowledge base first
 
 1. Run `supabase/auto-mail/migrations/20261022020000_knowledge_base.sql` in the **separate Auto Mail project's SQL Editor**, after the Milestone 2 migration. Do not run it against the main CargoMove project.
-2. Restart the local API if it is not watching files, then open **Developer → Dev Setting → Knowledge Base**. KB management is separate from the Auto Mail inbox.
+2. Restart the local API if it is not watching files, then open **Developer / Dev Setting / Auto Email Config**. KB management is separate from the Auto Mail inbox.
 3. Click **New article**. Enter the question/topic as the title, a short summary, category, port/scope (`ALL` if generally applicable), keywords separated by commas, and the answer or procedure. Save the draft.
 4. Review the saved text and click **Approve article**. Only approved articles appear in email searches.
 5. Open an incoming email in **Inbox**, then click **Find KB articles**. Leave keywords blank to search from its subject and latest message, or enter a more precise search. Expand an article to check its answer and port/scope.
@@ -92,7 +92,7 @@ All automated verification uses mocked Gmail/OpenAI responses and an in-memory d
 ## Milestone 4: reviewed learning from sent replies
 
 1. Run `supabase/auto-mail/migrations/20261022040000_reviewed_learning.sql` in the **separate Auto Mail project's SQL Editor only**, after the AI draft migration. It adds review metadata and events to learning suggestions, captures confirmed reply evidence, and advances the schema version to 5. It does not change the main CargoMove database or enable automatic sending.
-2. Restart the API if necessary, refresh Auto Mail, and open the **Learning review** tab. No new API key or external provider configuration is needed for this milestone.
+2. Restart the API if necessary, open **Developer / Dev Setting / Auto Email Config**, and select the **Learning review** tab. No new API key or external provider configuration is needed for this milestone.
 3. Edit an AI draft and send the final reply manually. After Gmail accepts it and the local receipt is saved, its changed text is queued as a pending suggestion. The comparison trims surrounding whitespace; it is not an AI assessment of whether the edit is useful. Unchanged AI replies and failed/uncertain sends do not automatically create suggestions.
 4. For a confirmed manual reply, click **Suggest this reply for the KB** immediately after sending. The source is the server's stored sent reply, not client-provided evidence. Repeated nominations or receipt retries return the same suggestion rather than creating duplicates.
 5. In **Learning review**, select a pending suggestion and expand **Source evidence**. Compare the customer question, original AI draft (when applicable), actual sent reply and the KB source snapshots.
@@ -109,7 +109,7 @@ Until this migration is applied, the app retains the earlier receipt-saving path
 
 ## Production deployment
 
-Knowledge Base management is under **Developer → Dev Setting → Knowledge Base**. From **Tools → Auto Mail**, **Manage Knowledge Base** switches directly to that Developer page. Use **Dev Setting** on the KB page to return to its parent settings. The approved-answer lookup inside an email remains available for composing replies.
+Knowledge management and learning review are under **Developer / Dev Setting / Auto Email Config**, with **Knowledge Base** and **Learning review** tabs. From **Tools / Auto Mail**, **Auto Email Config** opens the Knowledge Base tab; **Open Learning review** after a confirmed reply opens the review tab. Use **Dev Setting** to return to the parent settings. Unsaved edits remain in place when switching between these two tabs. The approved-answer lookup inside an email remains available for composing replies.
 
 Deploy the application through the existing GitHub/Vercel integration. Configure these **server-only Production environment variables** in Vercel, then redeploy. Local `.env.local` values are not uploaded by Git:
 
@@ -130,7 +130,7 @@ Use the same encryption key that encrypted the existing Auto Mail connection: th
 
 Add `https://cargomove-register.vercel.app/api/auto-mail/callback` to the OAuth client's **Authorized redirect URIs** in Google Cloud Console before connecting or reconnecting Gmail on production. Keep the localhost callback for development.
 
-The separate Auto Mail database must already have migrations through schema version 5. Deployment does not run SQL or modify the main production database. After deployment, sign in as an administrator, open **Tools → Auto Mail**, check database/Gmail readiness, and open **Developer → Dev Setting → Knowledge Base**. Verify suggestions and learning review before manually sending a test reply. Automated sending remains disabled.
+The separate Auto Mail database must already have migrations through schema version 5. Deployment does not run SQL or modify the main production database. After deployment, sign in as an administrator, open **Tools → Auto Mail**, check database/Gmail readiness, and open **Developer / Dev Setting / Auto Email Config**. Verify suggestions and learning review before manually sending a test reply. Automated sending remains disabled.
 
 ## Remaining milestones
 

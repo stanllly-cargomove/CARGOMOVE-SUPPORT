@@ -34,7 +34,7 @@ try {
       assert.equal(url.origin, 'http://localhost:3000');
       if (url.pathname === '/styles.css') return route.fulfill({ contentType: 'text/css', body: css });
       if (url.pathname.startsWith('/assets/')) return route.fulfill({ path: 'dist' + url.pathname });
-      if (url.pathname === '/api/auto-mail/status') return route.fulfill({ json: { state: 'READY', message: 'Database ready.', knowledgeReady: true, mailboxConnected: false, oauthReady: true } });
+      if (url.pathname === '/api/auto-mail/status') return route.fulfill({ json: { state: 'READY', message: 'Database ready.', knowledgeReady: true, learningReady: true, mailboxConnected: false, oauthReady: true } });
       if (url.pathname === '/api/auto-mail/knowledge') return route.fulfill({ json: { articles: [], total: 0 } });
       if (url.pathname === '/api/auto-mail/learning') return route.fulfill({ json: { suggestions: [], total: 0 } });
       assert.ok(!url.pathname.startsWith('/api/'), 'Unexpected API: ' + url.pathname);
@@ -48,17 +48,24 @@ try {
     }
     await nav('Open Developer');
     await nav('Dev Setting');
-    await page.getByRole('button', { name: /Knowledge Base Create, review/ }).click();
-    await page.getByRole('heading', { name: 'Knowledge Base', exact: true }).waitFor();
+    await page.getByRole('button', { name: /Auto Email Config Manage the knowledge/ }).click();
+    await page.getByRole('heading', { name: 'Auto Email Config', exact: true }).waitFor();
     await page.getByRole('button', { name: 'New article', exact: true }).waitFor();
+    const knowledgeTab = page.getByRole('tab', { name: 'Knowledge Base', exact: true });
+    const learningTab = page.getByRole('tab', { name: 'Learning review', exact: true });
+    await knowledgeTab.focus(); await knowledgeTab.press('ArrowRight');
+    assert.equal(await learningTab.getAttribute('aria-selected'), 'true');
+    await page.getByRole('tabpanel', { name: 'Learning review', exact: true }).waitFor();
+    await learningTab.press('Home');
+    assert.equal(await knowledgeTab.getAttribute('aria-selected'), 'true');
     await page.screenshot({ path: `test-results/knowledge-base-developer-${width}.png` });
     await page.locator('main').getByRole('button', { name: 'Dev Setting', exact: true }).last().click();
     await page.getByRole('heading', { name: 'Developer Settings', exact: true }).waitFor();
     await nav('Return to Admin Portal');
     await nav('Auto Mail');
-    assert.equal(await page.getByRole('tab', { name: /Knowledge/i }).count(), 0);
-    await page.getByRole('button', { name: 'Manage Knowledge Base', exact: true }).click();
-    await page.getByRole('heading', { name: 'Knowledge Base', exact: true }).waitFor();
+    assert.equal(await page.getByRole('tab').count(), 0, 'Configuration tabs are only in Developer settings');
+    await page.getByRole('button', { name: 'Auto Email Config', exact: true }).click();
+    await page.getByRole('heading', { name: 'Auto Email Config', exact: true }).waitFor();
     // Opening from Auto Mail must switch the actual portal and select Dev Setting.
     const menu = page.getByRole('button', { name: 'Open navigation menu', exact: true });
     if (await menu.isVisible()) await menu.click();
@@ -68,5 +75,5 @@ try {
     assert.deepEqual(errors, []);
     await page.close();
   }
-  console.log('Real portal navigation: Dev Setting opens the KB; Auto Mail shortcut switches to Developer and selects Dev Setting on desktop and mobile.');
+  console.log('Real portal navigation: Auto Email Config contains KB and Learning tabs, supports keyboard navigation, and opens under Dev Setting from Auto Mail on desktop and mobile.');
 } finally { await browser.close(); }

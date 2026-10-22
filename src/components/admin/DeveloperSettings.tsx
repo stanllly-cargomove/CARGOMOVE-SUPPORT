@@ -6,10 +6,10 @@ interface DeveloperSettingsProps {
   onOpenScheduler: () => void;
   onOpenExcelMapping: () => void;
   onOpenPortDepotConfig: () => void;
-  onOpenKnowledgeBase: () => void;
+  onOpenAutoEmailConfig: () => void;
 }
 
-export function DeveloperSettings({ onOpenScheduler, onOpenExcelMapping, onOpenPortDepotConfig, onOpenKnowledgeBase }: DeveloperSettingsProps) {
+export function DeveloperSettings({ onOpenScheduler, onOpenExcelMapping, onOpenPortDepotConfig, onOpenAutoEmailConfig }: DeveloperSettingsProps) {
   const [testToolsEnabled, setTestToolsEnabled] = useState(areRegistrationTestToolsEnabled);
 
   const updateTestTools = (enabled: boolean) => {
@@ -35,7 +35,7 @@ export function DeveloperSettings({ onOpenScheduler, onOpenExcelMapping, onOpenP
           </button>
         </div>
         {[
-          { title: 'Knowledge Base', description: 'Create, review and approve the support answers used by Auto Mail.', icon: BookOpen, onClick: onOpenKnowledgeBase },
+          { title: 'Auto Email Config', description: 'Manage the knowledge base and review learning from sent replies.', icon: BookOpen, onClick: onOpenAutoEmailConfig },
           { title: 'Ports & Depots', description: 'Manage the ports and depots available for registration.', icon: Settings, onClick: onOpenPortDepotConfig },
           { title: 'Scheduler', description: 'View saved schedulers and request a run.', icon: Clock3, onClick: onOpenScheduler },
           { title: 'Excel Mapping', description: 'Review how registration details map to Excel templates and database fields.', icon: TableProperties, onClick: onOpenExcelMapping },

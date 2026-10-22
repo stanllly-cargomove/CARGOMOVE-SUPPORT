@@ -4,7 +4,7 @@ import { readFile, readdir, mkdir } from 'node:fs/promises';
 import { build } from 'esbuild';
 import { chromium } from 'playwright-core';
 
-const bundle = await build({ stdin: { contents: `import React,{useState} from 'react';import {createRoot} from 'react-dom/client';import {AutoMail} from './src/components/admin/AutoMail';import {AutoMailKnowledgePage} from './src/components/admin/AutoMailKnowledgePage';import {DeveloperSettings} from './src/components/admin/DeveloperSettings';function App(){const [view,setView]=useState('mail');return <main className="p-4"><nav className="mb-4 flex gap-3"><button onClick={()=>setView('settings')}>Developer settings</button><button onClick={()=>setView('mail')}>Auto Mail workspace</button></nav>{view==='mail'?<AutoMail/>:view==='knowledge'?<AutoMailKnowledgePage onBack={()=>setView('settings')}/>:<DeveloperSettings onOpenKnowledgeBase={()=>setView('knowledge')} onOpenScheduler={()=>{}} onOpenExcelMapping={()=>{}} onOpenPortDepotConfig={()=>{}}/>}</main>}createRoot(document.getElementById('root')).render(<App/>);`, loader: 'tsx', resolveDir: process.cwd() }, bundle: true, write: false, format: 'iife', platform: 'browser', define: { 'process.env.NODE_ENV': '"test"' } });
+const bundle = await build({ stdin: { contents: `import React,{useState} from 'react';import {createRoot} from 'react-dom/client';import {AutoMail} from './src/components/admin/AutoMail';import {AutoEmailConfig} from './src/components/admin/AutoEmailConfig';import {DeveloperSettings} from './src/components/admin/DeveloperSettings';function App(){const [view,setView]=useState('mail');const [tab,setTab]=useState('knowledge');const openConfig=(tab='knowledge')=>{setTab(tab);setView('config');};return <main className="p-4"><nav className="mb-4 flex gap-3"><button onClick={()=>setView('settings')}>Developer settings</button><button onClick={()=>setView('mail')}>Auto Mail workspace</button></nav>{view==='mail'?<AutoMail onOpenConfig={openConfig}/>:view==='config'?<AutoEmailConfig initialTab={tab} onBack={()=>setView('settings')}/>:<DeveloperSettings onOpenAutoEmailConfig={()=>openConfig()} onOpenScheduler={()=>{}} onOpenExcelMapping={()=>{}} onOpenPortDepotConfig={()=>{}}/>}</main>}createRoot(document.getElementById('root')).render(<App/>);`, loader: 'tsx', resolveDir: process.cwd() }, bundle: true, write: false, format: 'iife', platform: 'browser', define: { 'process.env.NODE_ENV': '"test"' } });
 const css = (await Promise.all((await readdir('dist/assets')).filter(file => file.endsWith('.css')).map(file => readFile('dist/assets/' + file, 'utf8')))).join('\n');
 await mkdir('test-results', { recursive: true });
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
@@ -103,10 +103,14 @@ try {
     });
     await page.goto('http://localhost:3000/');
     assert.equal(await page.getByRole('tab', { name: 'Knowledge base', exact: true }).count(), 0, 'KB management is no longer an Auto Mail tab');
+    assert.equal(await page.getByRole('tab', { name: 'Learning review', exact: true }).count(), 0, 'Learning review moved out of Auto Mail');
     await page.getByRole('button', { name: 'Developer settings', exact: true }).click();
-    await page.getByRole('button', { name: /^Knowledge Base/ }).click();
+    await page.getByRole('button', { name: /^Auto Email Config/ }).click();
     await page.getByRole('button', { name: 'New article' }).click();
     await page.getByRole('textbox', { name: 'Article title', exact: true }).fill('Required registration documents');
+    await page.getByRole('tab', { name: 'Learning review', exact: true }).click();
+    await page.getByRole('tab', { name: 'Knowledge Base', exact: true }).click();
+    assert.equal(await page.getByRole('textbox', { name: 'Article title', exact: true }).inputValue(), 'Required registration documents', 'Switching configuration tabs preserves unsaved KB work');
     await page.getByRole('textbox', { name: 'Short summary' }).fill('A reusable registration procedure.');
     await page.getByRole('textbox', { name: 'Keywords (comma separated)' }).fill('registration, documents');
     await page.getByRole('textbox', { name: 'Answer / procedure' }).fill('Provide the company certificate.');
@@ -179,7 +183,7 @@ try {
     await page.getByText(/Reply sent through Gmail/).waitFor();
     assert.equal(sends, 1);
     assert.equal(await editor.isDisabled(), true, 'Successful sends block repeat clicks');
-    await page.getByRole('tab', { name: 'Learning review', exact: true }).click();
+    await page.getByRole('button', { name: 'Open Learning review', exact: true }).click();
     const reviewPanel = page.getByRole('tabpanel', { name: 'Learning review', exact: true });
     await reviewPanel.getByRole('button', { name: /Learning from registration reply/ }).click();
     await reviewPanel.locator('summary').filter({ hasText: 'Source evidence' }).click();
@@ -204,7 +208,8 @@ try {
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, 'Learning review has no horizontal overflow');
     await page.screenshot({ path: `test-results/auto-mail-learning-${width}.png`, fullPage: true });
     assert.equal(sends, 1, 'Learning approval cannot send email');
-    await page.getByRole('tab', { name: 'Inbox', exact: true }).click();
+    await page.getByRole('button', { name: 'Auto Mail workspace', exact: true }).click();
+    await page.getByRole('button', { name: /Registration help/ }).click();
     uncertain = true;
     await page.getByRole('button', { name: 'Reload conversation' }).click();
     await editor.fill('Here are the instructions.');
@@ -220,7 +225,7 @@ try {
     await page.getByRole('button', { name: 'Send reply', exact: true }).click();
     await page.getByRole('button', { name: 'Suggest this reply for the KB', exact: true }).click();
     await page.getByText('Reply added to Learning review. It will not affect the KB until approved.').waitFor();
-    await page.getByRole('tab', { name: 'Learning review', exact: true }).click();
+    await page.getByRole('button', { name: 'Open Learning review', exact: true }).click();
     await reviewPanel.getByRole('button', { name: /Manual support reply/ }).click();
     await reviewPanel.getByRole('textbox', { name: 'Review note / rejection reason' }).fill('One-off case; not reusable.');
     const approvedContent = knowledge.content;
