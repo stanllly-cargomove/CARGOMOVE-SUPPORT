@@ -1,15 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { Clock, RefreshCw } from 'lucide-react';
 import { knowledgeRequest } from '../../services/autoMailKnowledge';
+import { cachedMail, peekMail, expireMail, writeMail } from '../../services/autoMailCache';
 
 type Job={id:string;subject:string;to_addresses:string[];cc_addresses:string[];bcc_addresses:string[];attachments:{name:string}[];send_at:string;status:string;error:string;gmail_thread_id?:string};
-export function AutoMailScheduled({connectionVersion,onBusy}:{connectionVersion:string;onBusy:(busy:boolean)=>void}) {
-  const [jobs,setJobs]=useState<Job[]>([]);const [next,setNext]=useState<number|null>(null);const [busy,setBusy]=useState(false);const [error,setError]=useState('');const [ready,setReady]=useState(false);
-  const load=async(offset=0)=>{setBusy(true);setError('');try{const result=await knowledgeRequest<{messages:Job[];nextOffset:number|null;workerReady:boolean}>(`outbox?offset=${offset}`);setJobs(current=>offset?[...current,...result.messages]:result.messages);setNext(result.nextOffset);setReady(result.workerReady);}catch(reason){setError(reason instanceof Error?reason.message:'Unable to load Scheduled.');}finally{setBusy(false);}};
+export function AutoMailScheduled({connectionVersion,onBusy,cacheScope='session'}:{connectionVersion:string;onBusy:(busy:boolean)=>void;cacheScope?:string}) {
+  const saved=peekMail<{messages:Job[];nextOffset:number|null;workerReady:boolean}>(cacheScope,'outbox?offset=0',connectionVersion);
+  const [jobs,setJobs]=useState<Job[]>(saved?.messages||[]);const [next,setNext]=useState<number|null>(saved?.nextOffset||null);const [busy,setBusy]=useState(false);const [error,setError]=useState('');const [ready,setReady]=useState(saved?.workerReady||false);
+  const load=async(offset=0,force=false)=>{if(!saved||force||offset)setBusy(true);setError('');try{const result=await cachedMail<{messages:Job[];nextOffset:number|null;workerReady:boolean}>(cacheScope,`outbox?offset=${offset}`,{context:connectionVersion,force});setJobs(current=>{const messages=offset?[...current,...result.messages]:result.messages;writeMail(cacheScope,'outbox?offset=0',{...result,messages},connectionVersion);return messages;});setNext(result.nextOffset);setReady(result.workerReady);}catch(reason){setError(reason instanceof Error?reason.message:'Unable to load Scheduled.');}finally{setBusy(false);}};
   useEffect(()=>{void load();},[]);
-  const cancel=async(id:string)=>{if(!window.confirm('Cancel this scheduled message?'))return;setBusy(true);onBusy(true);setError('');try{await knowledgeRequest('outbox-cancel',{id,connectionVersion});await load();}catch(reason){setError(reason instanceof Error?reason.message:'Unable to cancel.');}finally{setBusy(false);onBusy(false);}};
+  const cancel=async(id:string)=>{if(!window.confirm('Cancel this scheduled message?'))return;setBusy(true);onBusy(true);setError('');try{await knowledgeRequest('outbox-cancel',{id,connectionVersion});expireMail(cacheScope,'outbox');await load(0,true);}catch(reason){setError(reason instanceof Error?reason.message:'Unable to cancel.');}finally{setBusy(false);onBusy(false);}};
   return <section aria-label="Scheduled messages" className="p-4 sm:p-6">
-    <div className="mb-4 flex items-center justify-between gap-3"><h3 className="flex items-center gap-2 font-semibold"><Clock className="h-5 w-5"/>Scheduled</h3><button type="button" disabled={busy} onClick={()=>void load()} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs"><RefreshCw className="h-4 w-4"/>Refresh scheduled</button></div>
+    <div className="mb-4 flex items-center justify-between gap-3"><h3 className="flex items-center gap-2 font-semibold"><Clock className="h-5 w-5"/>Scheduled</h3><button type="button" disabled={busy} onClick={()=>void load(0,true)} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs"><RefreshCw className="h-4 w-4"/>Refresh scheduled</button></div>
     {error&&<p role="alert" className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
     {!ready&&!busy&&<p role="status" className="mb-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">The background worker has no recent heartbeat. Queued messages will wait until it resumes. You can cancel messages that have not started sending.</p>}
     {busy&&<p role="status" className="py-4 text-sm text-slate-500">Loading scheduled messages...</p>}

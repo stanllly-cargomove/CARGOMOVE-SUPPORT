@@ -52,7 +52,7 @@ try {
     await search.fill('has:attachment'); await Promise.all([page.waitForResponse(response=>new URL(response.url()).searchParams.get('q')==='has:attachment'),search.press('Enter')]);
     await page.getByText('Sent · Results for “has:attachment”',{exact:true}).waitFor();
     assert.equal(lists.at(-1)!.searchParams.get('folder'),'sent');assert.equal(lists.at(-1)!.searchParams.get('q'),'has:attachment');
-    await Promise.all([page.waitForResponse(response=>response.url().includes('/threads?')&&!new URL(response.url()).searchParams.has('q')),page.getByRole('button',{name:'Clear email search'}).click()]);
+    await page.getByRole('button',{name:'Clear email search'}).click();
     await page.getByRole('button',{name:'Load more',exact:true}).click();
     await page.getByRole('button',{name:/Second page/}).waitFor();
     assert.equal(lists.at(-1)!.searchParams.get('folder'),'sent');assert.equal(lists.at(-1)!.searchParams.get('pageToken'),'next-page');
@@ -63,7 +63,7 @@ try {
     await search.fill('nothing');await search.press('Enter');await page.getByText('No conversations match this search.',{exact:true}).waitFor();
     await folders.getByRole('button',{name:'Inbox',exact:true}).click();
     await page.getByRole('button',{name:/Customer.*Registration help/}).waitFor();
-    assert.equal(lists.at(-1)!.searchParams.get('q'),null);
+    assert.equal(await page.getByRole('searchbox',{name:'Search emails'}).inputValue(),'');
     const mailboxBox=page.locator('nav[aria-label="Mail folders"]').locator('..').locator('..');
     const listHeight=(await mailboxBox.boundingBox())!.height;
     await page.getByRole('button',{name:/Customer.*Registration help/}).click();

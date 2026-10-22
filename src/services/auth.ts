@@ -1,3 +1,4 @@
+import { clearMailSession } from './autoMailCache';
 export interface ApplicationUser {
   id: string;
   username?: string;
@@ -137,6 +138,7 @@ export async function getApplicationSession(): Promise<{ authenticated: boolean;
 }
 
 export async function loginApplicationUser(identifier: string, password: string): Promise<ApplicationUser> {
+  clearMailSession();
   const response = await fetch('/api/auth/login', {
     method: 'POST',
     credentials: 'include',
@@ -149,6 +151,7 @@ export async function loginApplicationUser(identifier: string, password: string)
 }
 
 export async function logoutApplicationUser(): Promise<void> {
+  clearMailSession();
   await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
 }
 

@@ -165,6 +165,7 @@ test('mailbox listing scopes Gmail search and pagination to Inbox or Sent withou
     if (url.pathname.endsWith('/gmail_connections')) return json({ id: 'system', email: 'operator@example.com', scopes: [READ_SCOPE, SEND_SCOPE], ...encryptRefreshToken('fake-refresh') });
     if (url.hostname === 'oauth2.googleapis.com') return json({ access_token: 'fake-access' });
     assert.equal(init.method || 'GET', 'GET', 'Listing never changes Gmail messages');
+    if (url.pathname.endsWith('/profile')) return json({historyId:'42'});
     if (url.pathname.endsWith('/threads')) return json({ threads: [{id:'thread1'}], nextPageToken:'next-token', resultSizeEstimate:100 });
     if (url.pathname.endsWith('/threads/thread1')) return json({messages:[{internalDate:'1720000000000',labelIds:['SENT'],snippet:'Sent reply',payload:{headers:[{name:'From',value:'operator@example.com'},{name:'To',value:'customer@example.com'},{name:'Subject',value:'Help'}]}}, {labelIds:['INBOX'],snippet:'Customer response',payload:{headers:[{name:'From',value:'customer@example.com'}]}}]});
     throw new Error('Unexpected URL');
@@ -184,6 +185,9 @@ test('mailbox listing scopes Gmail search and pagination to Inbox or Sent withou
     calls.length=0;
     assert.equal((await invoke({})).result.threads[0].snippet,'Customer response');
     assert.equal(calls.find(url=>url.pathname.endsWith('/threads'))!.searchParams.get('labelIds'),'INBOX');
+    calls.length=0;
+    assert.equal((await invoke({historyId:'42'})).result.notModified,true);
+    assert.equal(calls.filter(url=>url.pathname.includes('/threads')).length,0,'Unchanged mailbox history avoids thread listing and metadata calls');
     assert.equal((await invoke({folder:'spam'})).code,400);
     assert.equal((await invoke({q:['bad']})).code,400);
     assert.equal((await invoke({q:'x'.repeat(501)})).code,400);

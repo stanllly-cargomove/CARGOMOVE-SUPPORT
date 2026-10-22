@@ -2,13 +2,14 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Clock, X } from 'lucide-react';
 import { AutoMailComposer, type ReplyUpload } from './AutoMailComposer';
 import { knowledgeRequest } from '../../services/autoMailKnowledge';
+import type { ComposeDraft } from '../../services/autoMailSending';
 
-export function AutoMailNewMessage({mailbox,connectionVersion,schedulerReady,onClose,onDirty,onBusy,onDone}:{mailbox:string;connectionVersion:string;schedulerReady:boolean;onClose:()=>void;onDirty:(dirty:boolean)=>void;onBusy:(busy:boolean)=>void;onDone:(notice:string)=>void}) {
-  const [subject,setSubject]=useState(''); const [body,setBody]=useState('');const [html,setHtml]=useState('');
-  const [addresses,setAddresses]=useState({to:'',cc:'',bcc:''}); const [files,setFiles]=useState<ReplyUpload[]>([]);
-  const [sendAt,setSendAt]=useState('');const [busy,setBusy]=useState(false);const [blocked,setBlocked]=useState(false);const [error,setError]=useState('');
-  const id=useRef(crypto.randomUUID());const sending=useRef(false);
-  const originalConnection=useRef({mailbox,connectionVersion});
+export function AutoMailNewMessage({mailbox,connectionVersion,schedulerReady,onClose,onDirty,onBusy,onDone,onSubmit,initialDraft,initialBlocked=false}:{mailbox:string;connectionVersion:string;schedulerReady:boolean;onClose:()=>void;onDirty:(dirty:boolean)=>void;onBusy:(busy:boolean)=>void;onDone:(notice:string)=>void;onSubmit?:(draft:ComposeDraft)=>void;initialDraft?:ComposeDraft;initialBlocked?:boolean}) {
+  const [subject,setSubject]=useState(initialDraft?.subject||''); const [body,setBody]=useState(initialDraft?.body||'');const [html,setHtml]=useState(initialDraft?.bodyHtml||'');
+  const [addresses,setAddresses]=useState({to:initialDraft?.to||'',cc:initialDraft?.cc||'',bcc:initialDraft?.bcc||''}); const [files,setFiles]=useState<ReplyUpload[]>(initialDraft?.files||[]);
+  const [sendAt,setSendAt]=useState('');const [busy,setBusy]=useState(false);const [blocked,setBlocked]=useState(initialBlocked);const [error,setError]=useState(initialBlocked?'Check Gmail Sent before composing another copy. This request cannot be resent.':'');
+  const id=useRef(initialDraft?.requestId||crypto.randomUUID());const sending=useRef(false);
+  const originalConnection=useRef({mailbox:initialDraft?.mailbox||mailbox,connectionVersion:initialDraft?.connectionVersion||connectionVersion});
   useEffect(()=>{if(mailbox!==originalConnection.current.mailbox||connectionVersion!==originalConnection.current.connectionVersion){setBlocked(true);setError('The Gmail connection changed. Close this composer and open a new message before sending.');}},[mailbox,connectionVersion]);
   useEffect(()=>{onDirty(!!(subject||body||addresses.to||addresses.cc||addresses.bcc||files.length));},[subject,body,addresses,files]);
   const send=async(schedule:boolean)=>{
@@ -16,6 +17,7 @@ export function AutoMailNewMessage({mailbox,connectionVersion,schedulerReady,onC
     if(!subject.trim()||!addresses.to.trim()){setError('Enter To recipients and a subject.');return;}
     const when=sendAt?new Date(sendAt):null;
     if(schedule&&(!when||!Number.isFinite(when.getTime())||when.getTime()<Date.now()+120000)){setError('Choose a send time at least 2 minutes from now.');return;}
+    if(onSubmit){sending.current=true;onDirty(false);onSubmit({requestId:id.current,...originalConnection.current,subject,body,bodyHtml:html,...addresses,attachmentIds:files.map(file=>file.id),files,...(schedule?{sendAt:when!.toISOString()}:{})});return;}
     sending.current=true;setBusy(true);onBusy(true);setError('');
     try {
       const result=await knowledgeRequest<{status:string;warning?:string}>('compose',{requestId:id.current,connectionVersion:originalConnection.current.connectionVersion,subject,body,bodyHtml:html,...addresses,attachmentIds:files.map(file=>file.id),...(schedule?{sendAt:when!.toISOString()}:{})});

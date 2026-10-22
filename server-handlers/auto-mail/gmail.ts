@@ -189,6 +189,11 @@ export function createAutoMailHandler(action: 'connect' | 'callback' | 'threads'
         const search = request.query?.q ?? '';
         if (pageToken.length > 1000 || !['inbox', 'sent', 'trash'].includes(folder) || typeof search !== 'string' || search.length > 500) throw new MailError(400, 'Invalid mailbox search or page.');
         const label = folder === 'sent' ? 'SENT' : folder === 'trash' ? 'TRASH' : 'INBOX';
+        const knownHistory=request.query?.historyId;
+        if(knownHistory!==undefined&&(typeof knownHistory!=='string'||!/^\d{1,50}$/.test(knownHistory)))throw new MailError(400,'Invalid mailbox refresh cursor.');
+        const profile=await gmailGet(token,'profile');
+        const historyId=String(profile.historyId||'');
+        if(!pageToken&&!search.trim()&&knownHistory&&knownHistory===historyId)return response.json({notModified:true,historyId,mailbox:connection.email});
         const query = new URLSearchParams({ maxResults: '25', labelIds: label, ...(folder === 'trash' ? {includeSpamTrash:'true'} : {}), ...(search.trim() ? { q: search.trim() } : {}), ...(pageToken ? { pageToken } : {}) });
         const list = await gmailGet(token, `threads?${query}`);
         const threads = await Promise.all((list.threads || []).map(async (t: any) => {
@@ -197,7 +202,7 @@ export function createAutoMailHandler(action: 'connect' | 'callback' | 'threads'
           const latest = messages.filter((m: any) => m.labelIds?.includes(label)).at(-1) || messages.at(-1) || {};
           return { id: t.id, subject: header(messages[0] || {}, 'Subject') || '(No subject)', from: header(latest, 'From'), to: header(latest, 'To'), date: header(latest, 'Date'), timestamp: Number(latest.internalDate) || null, messageCount: messages.length, snippet: latest.snippet || t.snippet || '', unread: messages.some((m: any) => m.labelIds?.includes('UNREAD')) };
         }));
-        return response.json({ threads, nextPageToken: list.nextPageToken || null, resultSizeEstimate: list.resultSizeEstimate ?? null, folder, mailbox: connection.email });
+        return response.json({ threads, nextPageToken: list.nextPageToken || null, resultSizeEstimate: list.resultSizeEstimate ?? null, folder, mailbox: connection.email, historyId });
       }
       const body = action === 'reply' ? await bodyOf(request) : {};
       const threadId = String(action === 'reply' ? body.threadId || '' : request.query?.id || '');

@@ -1,4 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { cachedMail, peekMail, writeMail, expireMail, mailIsFresh, MAIL_REFRESH_MS } from '../../services/autoMailCache';
+import { startMailSend, subscribeMailSends, mailSendSnapshot, dismissMailSend, type ComposeDraft } from '../../services/autoMailSending';
 import { BookOpen, ExternalLink, MoreVertical, Settings } from 'lucide-react';
 import { AutoMailMailbox, type MailFolder, type MailSummary } from './AutoMailMailbox';
 import { AutoMailNewMessage } from './AutoMailNewMessage';
@@ -23,12 +25,13 @@ async function api<T>(path: string, body?: unknown, signal?: AbortSignal): Promi
   return data;
 }
 
-export function AutoMail({ onOpenConfig }: { onOpenConfig?: (tab: AutoEmailConfigTab) => void }) {
+export function AutoMail({ onOpenConfig, cacheScope = 'session', pollEnabled = true }: { onOpenConfig?: (tab: AutoEmailConfigTab) => void; cacheScope?:string; pollEnabled?:boolean }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const menuButton = useRef<HTMLButtonElement>(null);
   const refreshController = useRef<AbortController | null>(null);
+  const listView=useRef(0);
   useEffect(() => () => refreshController.current?.abort(), []);
   useEffect(() => {
     if (!menuOpen) return;
@@ -38,7 +41,11 @@ export function AutoMail({ onOpenConfig }: { onOpenConfig?: (tab: AutoEmailConfi
     document.addEventListener('pointerdown', outside); document.addEventListener('keydown', escape);
     return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape); };
   }, [menuOpen]);
-  const [status, setStatus] = useState<Status | null>(null);
+  const [status, setStatus] = useState<Status | null>(()=>peekMail<Status>(cacheScope,'status')||null);
+  const [permissionNeeded,setPermissionNeeded]=useState(false);
+  const [recoveredDraft,setRecoveredDraft]=useState<ComposeDraft|undefined>();
+  const sendTasks=useSyncExternalStore(subscribeMailSends,mailSendSnapshot).filter(task=>task.scope===cacheScope);
+  const connectionKey=status?.connectionVersion||status?.mailbox||'';
   const [folder, setFolder] = useState<MailFolder>('inbox');
   const [query, setQuery] = useState('');
   const [reading, setReading] = useState(false);
@@ -67,28 +74,31 @@ export function AutoMail({ onOpenConfig }: { onOpenConfig?: (tab: AutoEmailConfi
   const requestId = useRef(crypto.randomUUID());
 
   useEffect(() => {
-    const controller = new AbortController();
-    setBusy('setup'); setError(''); setNotice(''); setThread(null); setBody(''); setBodyHtml(''); setFiles([]); setThreads([]); setNextPage(null); setAiDraftId(null); setLastDeliveryId(null); setLearningQueued(false);
-    void api<Status>('status', undefined, controller.signal).then(async result => {
-      if (controller.signal.aborted) return;
+    listView.current++;
+    let cancelled=false;
+    const known=peekMail<Status>(cacheScope,'status');
+    const saved=peekMail<{threads:Summary[];nextPageToken:string|null}>(cacheScope,listPath(),known?.connectionVersion||known?.mailbox||'');
+    setBusy(saved||folder==='scheduled'&&known?'':'setup'); setError(''); setNotice(''); setThread(null); setBody(''); setBodyHtml(''); setFiles([]); setThreads(saved?.threads||[]); setNextPage(saved?.nextPageToken||null); setAiDraftId(null); setLastDeliveryId(null); setLearningQueued(false);
+    void cachedMail<Status>(cacheScope,'status').then(async result => {
+      if (cancelled) return;
       setStatus(result);
       if (result.mailboxConnected && result.oauthReady && folder!=='scheduled') {
-        const inbox = await api<{ threads: Summary[]; nextPageToken: string | null }>(listPath(), undefined, controller.signal);
-        if (!controller.signal.aborted) { setThreads(inbox.threads); setNextPage(inbox.nextPageToken); }
+        const inbox = await cachedMail<{ threads: Summary[]; nextPageToken: string | null }>(cacheScope,listPath(),{context:result.connectionVersion||result.mailbox||''});
+        if (!cancelled) { setThreads(inbox.threads); setNextPage(inbox.nextPageToken); }
       }
-    }).catch(reason => { if (!controller.signal.aborted) setError(reason.message); })
-      .finally(() => { if (!controller.signal.aborted) setBusy(''); });
-    return () => { controller.abort(); threadRequest.current++; };
-  }, [attempt, folder, query]);
+    }).catch(reason => { if (!cancelled) setError(reason.message); })
+      .finally(() => { if (!cancelled) setBusy(''); });
+    return () => { cancelled=true; threadRequest.current++; };
+  }, [attempt, folder, query, cacheScope]);
 
   const openThread = async (id: string, reload = false) => {
-    if (thread?.id === id && !reload) { setReading(true); return; }
+    if (thread?.id === id && !reload && (body.trim()||files.length||mailIsFresh(cacheScope,`thread?id=${encodeURIComponent(id)}`,connectionKey))) { setReading(true); return; }
     if ((body.trim() || files.length) && !window.confirm('Discard your unsent reply and load this conversation?')) return;
     setReading(true);
     const serial = ++threadRequest.current;
     setBusy('thread'); setError(''); setNotice(''); setThread(null); setBody(''); setBodyHtml(''); setFiles([]); setSendBlocked(false); setAiDraftId(null); setLastDeliveryId(null); setLearningQueued(false);
     try {
-      const result = await api<Thread>(`thread?id=${encodeURIComponent(id)}`);
+      const result = await cachedMail<Thread>(cacheScope,`thread?id=${encodeURIComponent(id)}`,{context:connectionKey,force:reload});
       if (serial === threadRequest.current) { setThread(result); setRecipients({to:result.recipient,cc:'',bcc:''}); requestId.current = crypto.randomUUID(); }
     } catch (reason) { if (serial === threadRequest.current) setError(reason instanceof Error ? reason.message : 'Unable to open conversation.'); }
     finally { if (serial === threadRequest.current) setBusy(''); }
@@ -98,27 +108,34 @@ export function AutoMail({ onOpenConfig }: { onOpenConfig?: (tab: AutoEmailConfi
     try { const result = await api<{ authorizationUrl: string }>('connect', {}); window.location.assign(result.authorizationUrl); }
     catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to connect Gmail.'); setBusy(''); }
   };
-  const refreshMailbox = async () => {
+  const refreshMailbox = async (automatic = false) => {
+    if(automatic&&!pollEnabled)return;
     if (refreshController.current || busy) return;
-    const controller = new AbortController(); refreshController.current = controller; setRefreshing(true); setError('');
+    const view=listView.current;
+    const controller = new AbortController(); refreshController.current = controller; if(!automatic)setRefreshing(true); setError('');
     try {
-      const latest = await api<Status>('status', undefined, controller.signal);
+      const latest = await cachedMail<Status>(cacheScope,'status',{force:true});
       if (!controller.signal.aborted) setStatus(latest);
       if (latest.mailboxConnected && latest.oauthReady && folder!=='scheduled') {
-        const inbox = await api<{ threads: Summary[]; nextPageToken: string | null }>(listPath(), undefined, controller.signal);
-        if (!controller.signal.aborted) { setThreads(inbox.threads); setNextPage(inbox.nextPageToken); }
+        const inbox = await cachedMail<{ threads: Summary[]; nextPageToken: string | null }>(cacheScope,listPath(),{context:latest.connectionVersion||latest.mailbox||'',force:true,conditional:automatic});
+        if (!controller.signal.aborted&&view===listView.current) {
+          for(const item of inbox.threads){const old=threads.find(row=>row.id===item.id);if(old&&JSON.stringify(old)!==JSON.stringify(item))expireMail(cacheScope,`thread?id=${encodeURIComponent(item.id)}`);}
+          setThreads(inbox.threads); setNextPage(inbox.nextPageToken);
+        }
       }
-      if(folder==='scheduled')setScheduledRefresh(value=>value+1);
+      if(folder==='scheduled'){expireMail(cacheScope,'outbox');setScheduledRefresh(value=>value+1);}
       if (thread && (!latest.mailboxConnected || latest.mailbox !== thread.mailbox)) { setSendBlocked(true); setError('The connected mailbox changed. Reload the conversation before sending.'); }
     } catch (reason) { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : 'Unable to refresh mailbox.'); }
     finally { if (!controller.signal.aborted) setRefreshing(false); refreshController.current = null; }
   };
+  const refreshTick=useRef(refreshMailbox);refreshTick.current=refreshMailbox;
+  useEffect(()=>{const timer=window.setInterval(()=>{if(document.visibilityState==='visible')void refreshTick.current(true);},MAIL_REFRESH_MS);return()=>window.clearInterval(timer);},[]);
   const loadMore = async () => {
     if (!nextPage) return;
     setBusy('more'); setError('');
     try {
-      const result = await api<{ threads: Summary[]; nextPageToken: string | null }>(listPath(nextPage));
-      setThreads(current => [...current, ...result.threads.filter(item => !current.some(existing => existing.id === item.id))]); setNextPage(result.nextPageToken);
+      const result = await cachedMail<{ threads: Summary[]; nextPageToken: string | null }>(cacheScope,listPath(nextPage),{context:connectionKey});
+      setThreads(current => {const all=[...current,...result.threads.filter(item=>!current.some(existing=>existing.id===item.id))];writeMail(cacheScope,listPath(),{...peekMail<object>(cacheScope,listPath(),connectionKey),threads:all,nextPageToken:result.nextPageToken},connectionKey);return all;}); setNextPage(result.nextPageToken);
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to load mail.'); }
     finally { setBusy(''); }
   };
@@ -128,6 +145,7 @@ export function AutoMail({ onOpenConfig }: { onOpenConfig?: (tab: AutoEmailConfi
     try {
       const result = await api<{ status: string; warning?: string; deliveryId?: string; learningQueued?: boolean }>('reply', { threadId: thread.id, body, recipient: thread.recipient,
         sourceMessageId: thread.messages.at(-1)?.id, connectionVersion: thread.connectionVersion, requestId: requestId.current, aiDraftId, ...(status?.richRepliesReady?{bodyHtml,to:recipients.to,cc:recipients.cc,bcc:recipients.bcc,attachmentIds:files.map(file=>file.id)}:{}) });
+      expireMail(cacheScope,'threads');expireMail(cacheScope,'thread?');
       setSendBlocked(true); setBody(''); setBodyHtml(''); setFiles([]); setLastDeliveryId(result.deliveryId || null); setLearningQueued(!!result.learningQueued);
       setNotice(result.warning || (result.learningQueued ? 'Reply sent through Gmail. Your edits were queued for KB review.' : 'Reply sent through Gmail. Reload the conversation to see the latest messages.'));
     } catch (reason) {
@@ -151,14 +169,17 @@ export function AutoMail({ onOpenConfig }: { onOpenConfig?: (tab: AutoEmailConfi
   const changeFolder=(value:MailFolder)=>{if(value!==folder||composing){if(!mayLeave())return;setComposing(false);setComposeDirty(false);}setReading(false);setFolder(value);if(value!==folder)setQuery('');};
   const startCompose=()=>{
     if(composing)return;
+    setRecoveredDraft(undefined);
     if(!status?.composeReady||!status.richRepliesReady||!status.connectionVersion){setError('Apply the compose/outbox migration in the separate Auto Mail database, then click the Google logo to refresh.');return;}
     if(!mayLeave())return;setBody('');setBodyHtml('');setFiles([]);setThread(null);setReading(false);setComposeDirty(false);setComposing(true);setError('');setNotice('');
   };
   const manageMail=async(ids:string[],action:'trash'|'restore')=>{
-    if(!status?.canManageMail||!status.connectionVersion||busy)return;
+    if(busy)return;
+    if(!status?.canManageMail){setPermissionNeeded(true);return;}
+    if(!status.connectionVersion)return;
     if(!window.confirm(action==='trash'?`Move ${ids.length} conversation(s), including all their messages, to Gmail Trash?`:`Restore ${ids.length} conversation(s) from Gmail Trash?`))return;
     if(!mayLeave())return;setBusy('manage');setError('');setNotice('');
-    try{const result=await api<{completed:string[];failed:string[]}>('mailbox-action',{ids,action,connectionVersion:status.connectionVersion});setThreads(current=>current.filter(item=>!result.completed.includes(item.id)));if(thread&&result.completed.includes(thread.id)){setThread(null);setReading(false);setBody('');setBodyHtml('');setFiles([]);}setNotice(`${result.completed.length} conversation(s) ${action==='trash'?'moved to Trash':'restored'}.${result.failed.length?' Some requests could not be confirmed. Refresh Gmail before retrying.':''}`);}catch(reason){setError(reason instanceof Error?reason.message:'Unable to manage conversations.');}finally{setBusy('');}
+    try{const result=await api<{completed:string[];failed:string[]}>('mailbox-action',{ids,action,connectionVersion:status.connectionVersion});expireMail(cacheScope,'threads');expireMail(cacheScope,'thread?');setThreads(current=>current.filter(item=>!result.completed.includes(item.id)));if(thread&&result.completed.includes(thread.id)){setThread(null);setReading(false);setBody('');setBodyHtml('');setFiles([]);}setNotice(`${result.completed.length} conversation(s) ${action==='trash'?'moved to Trash':'restored'}.${result.failed.length?' Some requests could not be confirmed. Refresh Gmail before retrying.':''}`);}catch(reason){setError(reason instanceof Error?reason.message:'Unable to manage conversations.');}finally{setBusy('');}
   };
   const button = 'inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium hover:bg-slate-50 disabled:opacity-50';
   return <section className="w-full min-w-0 space-y-3">
@@ -172,13 +193,15 @@ export function AutoMail({ onOpenConfig }: { onOpenConfig?: (tab: AutoEmailConfi
     {status && status.state !== 'READY' && <p role="status" className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">{status.message}</p>}
     {status?.state === 'READY' && !status.oauthReady && <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">Configure AUTO_MAIL_APP_URL, Google OAuth credentials, and GOOGLE_TOKEN_ENCRYPTION_KEY on the server, then refresh. See the Auto Mail development guide.</p>}
     {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+    {permissionNeeded&&!status?.canManageMail&&<div role="status" className="flex flex-wrap items-center gap-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-900"><p>Gmail can read Trash, but moving or restoring messages needs mailbox-management permission. Add gmail.modify in Google Console and reconnect Gmail.</p><button type="button" className={button} disabled={!!busy} onClick={()=>void connect()}>Reconnect Gmail for Trash</button></div>}
+    {sendTasks.map(task=><div key={task.id} role={task.state==='ERROR'?'alert':'status'} className="flex flex-wrap items-center gap-3 rounded-lg bg-slate-100 p-3 text-sm"><span>{task.state==='SENDING'?'Sending...':task.state==='SENT'?(task.error||'Message sent through Gmail.'):task.state==='QUEUED'?(task.draft.sendAt?'Message scheduled. View or cancel it in Scheduled.':'Message queued for sending.'):task.error}</span><span>{task.draft.subject}</span>{task.state==='ERROR'&&<><button type="button" className={button} disabled={!!busy} onClick={()=>{if(!mayLeave())return;setRecoveredDraft(task.draft);setComposing(true);setComposeDirty(false);setBody('');setFiles([]);}}>{task.canEdit?'Restore draft':'View message'}</button><button type="button" className={button} onClick={()=>dismissMailSend(task.id)}>Dismiss</button></>}{(task.state==='SENT'||task.state==='QUEUED')&&<button type="button" className={button} onClick={()=>dismissMailSend(task.id)}>Dismiss</button>}</div>)}
     {notice && <p role="status" className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
     <div>
     {status?.mailboxConnected && <AutoMailMailbox folder={folder} query={query} threads={threads} nextPage={nextPage} loading={!!busy || refreshing} disabled={!!busy || refreshing} onCompose={startCompose} composeReady={!!status.composeReady} onAction={(ids,action)=>void manageMail(ids,action)} canManage={!!status.canManageMail} activeThreadId={!composing&&reading?thread?.id:undefined}
       onFolder={changeFolder}
       onSearch={value => { if (value === query) { setReading(false); return; } if ((body.trim() || files.length) && !window.confirm('Discard your unsent reply and search mail?')) return; setReading(false); setQuery(value); }}
       onMore={() => void loadMore()} reading={reading||composing||folder==='scheduled'} onBack={() => composing?closeCompose():setReading(false)} onOpen={id => void openThread(id)}>
-      {composing?<AutoMailNewMessage mailbox={status.mailbox||''} connectionVersion={status.connectionVersion||''} schedulerReady={!!status.schedulerReady} onClose={closeCompose} onDirty={setComposeDirty} onBusy={value=>setBusy(value?'compose':'')} onDone={message=>{setComposing(false);setComposeDirty(false);setReading(false);setNotice(message);setScheduledRefresh(value=>value+1);}}/>:folder==='scheduled'?<AutoMailScheduled key={scheduledRefresh} connectionVersion={status.connectionVersion||''} onBusy={value=>setBusy(value?'schedule':'')}/>:<div className="min-w-0 bg-white p-4 sm:p-5">
+      {composing?<AutoMailNewMessage key={recoveredDraft?.requestId||'new'} initialDraft={recoveredDraft} initialBlocked={recoveredDraft?sendTasks.some(task=>task.id===recoveredDraft.requestId&&!task.canEdit):false} onSubmit={draft=>{startMailSend(cacheScope,draft);setComposing(false);setComposeDirty(false);setRecoveredDraft(undefined);setReading(false);setNotice('');}} mailbox={status.mailbox||''} connectionVersion={status.connectionVersion||''} schedulerReady={!!status.schedulerReady} onClose={closeCompose} onDirty={setComposeDirty} onBusy={value=>setBusy(value?'compose':'')} onDone={message=>{setComposing(false);setComposeDirty(false);setReading(false);setNotice(message);setScheduledRefresh(value=>value+1);}}/>:folder==='scheduled'?<AutoMailScheduled key={scheduledRefresh} cacheScope={cacheScope} connectionVersion={status.connectionVersion||''} onBusy={value=>setBusy(value?'schedule':'')}/>:<div className="min-w-0 bg-white p-4 sm:p-5">
         {busy === 'thread' ? <p role="status" className="text-sm text-slate-500">Loading conversation...</p> : !thread ? <p className="text-sm text-slate-500">Select a conversation to read and reply.</p> : <>
           <div className="flex flex-wrap items-center justify-between gap-3"><h3 className="break-words font-semibold text-slate-900">{thread.subject}</h3><div className="flex items-center gap-3"><button className={button} disabled={!!busy} onClick={() => void openThread(thread.id, true)}>Reload conversation</button><a href={`https://mail.google.com/mail/?authuser=${encodeURIComponent(thread.mailbox)}#all/${encodeURIComponent(thread.id)}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-sky-700">Gmail <ExternalLink className="h-3 w-3" /></a></div></div>
           <AutoMailReader key={thread.id} threadId={thread.id} messages={thread.messages} />

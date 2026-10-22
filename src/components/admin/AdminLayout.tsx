@@ -523,7 +523,7 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
             }} />
           )}
           {activeTab === 'companies' && <CompanyMaster />}
-          {activeTab === 'auto-mail' && user?.type === 'ADMIN' && <AutoMail onOpenConfig={openAutoEmailConfig} />}
+          {activeTab === 'auto-mail' && user?.type === 'ADMIN' && <AutoMail key={user.id} cacheScope={user.id} pollEnabled={active} onOpenConfig={openAutoEmailConfig} />}
           {activeQueueItem && (
             <SubmissionsList
               status={activeQueueItem.status}
