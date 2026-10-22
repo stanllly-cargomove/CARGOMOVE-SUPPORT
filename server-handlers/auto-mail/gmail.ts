@@ -184,16 +184,19 @@ export function createAutoMailHandler(action: 'connect' | 'callback' | 'threads'
       const token = await accessToken(connection);
       if (action === 'threads') {
         const pageToken = typeof request.query?.pageToken === 'string' ? request.query.pageToken : '';
-        if (pageToken.length > 1000) throw new MailError(400, 'Invalid inbox page.');
-        const query = new URLSearchParams({ maxResults: '15', labelIds: 'INBOX', ...(pageToken ? { pageToken } : {}) });
+        const folder = request.query?.folder ?? 'inbox';
+        const search = request.query?.q ?? '';
+        if (pageToken.length > 1000 || !['inbox', 'sent'].includes(folder) || typeof search !== 'string' || search.length > 500) throw new MailError(400, 'Invalid mailbox search or page.');
+        const label = folder === 'sent' ? 'SENT' : 'INBOX';
+        const query = new URLSearchParams({ maxResults: '25', labelIds: label, ...(search.trim() ? { q: search.trim() } : {}), ...(pageToken ? { pageToken } : {}) });
         const list = await gmailGet(token, `threads?${query}`);
         const threads = await Promise.all((list.threads || []).map(async (t: any) => {
-          const thread = await gmailGet(token, `threads/${encodeURIComponent(t.id)}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date`);
+          const thread = await gmailGet(token, `threads/${encodeURIComponent(t.id)}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Date`);
           const messages = thread.messages || [];
-          const latest = messages.at(-1) || {};
-          return { id: t.id, subject: header(messages[0] || {}, 'Subject') || '(No subject)', from: header(latest, 'From'), snippet: latest.snippet || t.snippet || '', unread: messages.some((m: any) => m.labelIds?.includes('UNREAD')) };
+          const latest = messages.filter((m: any) => m.labelIds?.includes(label)).at(-1) || messages.at(-1) || {};
+          return { id: t.id, subject: header(messages[0] || {}, 'Subject') || '(No subject)', from: header(latest, 'From'), to: header(latest, 'To'), date: header(latest, 'Date'), timestamp: Number(latest.internalDate) || null, messageCount: messages.length, snippet: latest.snippet || t.snippet || '', unread: messages.some((m: any) => m.labelIds?.includes('UNREAD')) };
         }));
-        return response.json({ threads, nextPageToken: list.nextPageToken || null, mailbox: connection.email });
+        return response.json({ threads, nextPageToken: list.nextPageToken || null, resultSizeEstimate: list.resultSizeEstimate ?? null, folder, mailbox: connection.email });
       }
       const body = action === 'reply' ? await bodyOf(request) : {};
       const threadId = String(action === 'reply' ? body.threadId || '' : request.query?.id || '');

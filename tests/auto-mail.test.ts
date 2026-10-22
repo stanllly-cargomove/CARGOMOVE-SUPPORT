@@ -152,6 +152,47 @@ test('manual sending enforces origin, freshness and durable duplicate protection
   }
 });
 
+test('mailbox listing scopes Gmail search and pagination to Inbox or Sent without modifying messages', async () => {
+  const overrides = { ...environment, VITE_SUPABASE_URL: 'https://primary.supabase.co', GOOGLE_TOKEN_ENCRYPTION_KEY: Buffer.alloc(32, 1).toString('base64'), SESSION_SECRET: 'test-session-secret' };
+  const before = Object.fromEntries(Object.keys(overrides).map(key => [key, process.env[key]]));
+  const realFetch = globalThis.fetch;
+  Object.assign(process.env, overrides);
+  const calls: URL[] = [];
+  globalThis.fetch = (async (input: any, init: any = {}) => {
+    const url = new URL(String(input)); calls.push(url);
+    const json = (data: unknown) => new Response(JSON.stringify(data), { headers: { 'Content-Type': 'application/json' } });
+    assert.ok(!url.hostname.includes('primary'), 'Main database stays untouched');
+    if (url.pathname.endsWith('/gmail_connections')) return json({ id: 'system', email: 'operator@example.com', scopes: [READ_SCOPE, SEND_SCOPE], ...encryptRefreshToken('fake-refresh') });
+    if (url.hostname === 'oauth2.googleapis.com') return json({ access_token: 'fake-access' });
+    assert.equal(init.method || 'GET', 'GET', 'Listing never changes Gmail messages');
+    if (url.pathname.endsWith('/threads')) return json({ threads: [{id:'thread1'}], nextPageToken:'next-token', resultSizeEstimate:100 });
+    if (url.pathname.endsWith('/threads/thread1')) return json({messages:[{internalDate:'1720000000000',labelIds:['SENT'],snippet:'Sent reply',payload:{headers:[{name:'From',value:'operator@example.com'},{name:'To',value:'customer@example.com'},{name:'Subject',value:'Help'}]}}, {labelIds:['INBOX'],snippet:'Customer response',payload:{headers:[{name:'From',value:'customer@example.com'}]}}]});
+    throw new Error('Unexpected URL');
+  }) as typeof fetch;
+  const cookie = 'cargomove_session=' + signSession({id:'10000000-0000-4000-8000-000000000001', email:'admin@example.com', type:'ADMIN', exp:Date.now()+60000});
+  const invoke = async (query: any) => {
+    let code=200; let result:any;
+    await gmailThreads({method:'GET',headers:{cookie},query}, {setHeader(){},status(value:number){code=value;return this;},json(value:any){result=value;}});
+    return {code,result};
+  };
+  try {
+    const sent=await invoke({folder:'sent',q:'from:operator@example.com has:attachment',pageToken:'page+one'});
+    assert.equal(sent.code,200); assert.equal(sent.result.threads[0].snippet,'Sent reply'); assert.equal(sent.result.threads[0].to,'customer@example.com');
+    const listing=calls.find(url=>url.pathname.endsWith('/threads'))!;
+    assert.equal(listing.searchParams.get('labelIds'),'SENT'); assert.equal(listing.searchParams.get('q'),'from:operator@example.com has:attachment'); assert.equal(listing.searchParams.get('pageToken'),'page+one');
+    assert.equal(sent.result.nextPageToken,'next-token');
+    calls.length=0;
+    assert.equal((await invoke({})).result.threads[0].snippet,'Customer response');
+    assert.equal(calls.find(url=>url.pathname.endsWith('/threads'))!.searchParams.get('labelIds'),'INBOX');
+    assert.equal((await invoke({folder:'trash'})).code,400);
+    assert.equal((await invoke({q:['bad']})).code,400);
+    assert.equal((await invoke({q:'x'.repeat(501)})).code,400);
+  } finally {
+    globalThis.fetch=realFetch;
+    for(const key of Object.keys(overrides)){if(before[key]===undefined)delete process.env[key];else process.env[key]=before[key];}
+  }
+});
+
 test('Gmail migration protects secrets, enforces one delivery per source and detects reconnects', async () => {
   const db = new PGlite();
   try {

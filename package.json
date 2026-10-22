@@ -37,7 +37,8 @@
     "test:northport:review:ui": "tsx tests/northport-review-ui.ts",
     "northport:check": "tsx scripts/check-northport-ftp.ts",
     "api": "tsx server.ts",
-    "test:auto-mail:rich:ui": "tsx tests/auto-mail-rich-ui.ts"
+    "test:auto-mail:rich:ui": "tsx tests/auto-mail-rich-ui.ts",
+    "test:auto-mail:mailbox:ui": "tsx tests/auto-mail-mailbox-ui.ts"
   },
   "dependencies": {
     "@fontsource/inter": "^5.3.0",

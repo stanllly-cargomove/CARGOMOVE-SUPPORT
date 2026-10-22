@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { BookOpen, ExternalLink, MoreVertical, Settings } from 'lucide-react';
+import { AutoMailMailbox, type MailFolder, type MailSummary } from './AutoMailMailbox';
 import { GoogleConnectionButton } from '../common/GoogleConnectionButton';
 import { AutoMailKnowledgeMatches } from './AutoMailKnowledge';
 import { AutoMailAiDraft } from './AutoMailAiDraft';
@@ -9,7 +10,7 @@ import { plainMailHtml } from '../../services/autoMailFormatting';
 import type { AutoEmailConfigTab } from './AutoEmailConfig';
 
 type Status = { state: string; message: string; oauthReady?: boolean; mailboxConnected: boolean; mailbox?: string; knowledgeReady?: boolean; aiEnabled?: boolean; aiMessage?: string; learningReady?: boolean; richRepliesReady?: boolean };
-type Summary = { id: string; subject: string; from: string; snippet: string; unread: boolean };
+type Summary = MailSummary;
 type Thread = { id: string; subject: string; messages: MailMessage[]; recipient: string; replyBlocked: string; mailbox: string; connectionVersion: string; replyAll?: {to:string[];cc:string[]} };
 
 async function api<T>(path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
@@ -36,6 +37,10 @@ export function AutoMail({ onOpenConfig }: { onOpenConfig?: (tab: AutoEmailConfi
     return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape); };
   }, [menuOpen]);
   const [status, setStatus] = useState<Status | null>(null);
+  const [folder, setFolder] = useState<MailFolder>('inbox');
+  const [query, setQuery] = useState('');
+  const [reading, setReading] = useState(false);
+  const listPath = (page?: string) => `threads?${new URLSearchParams({folder, ...(query ? {q:query} : {}), ...(page ? {pageToken:page} : {})})}`;
   const [threads, setThreads] = useState<Summary[]>([]);
   const [thread, setThread] = useState<Thread | null>(null);
   const [nextPage, setNextPage] = useState<string | null>(null);
@@ -63,15 +68,18 @@ export function AutoMail({ onOpenConfig }: { onOpenConfig?: (tab: AutoEmailConfi
       if (controller.signal.aborted) return;
       setStatus(result);
       if (result.mailboxConnected && result.oauthReady) {
-        const inbox = await api<{ threads: Summary[]; nextPageToken: string | null }>('threads', undefined, controller.signal);
+        const inbox = await api<{ threads: Summary[]; nextPageToken: string | null }>(listPath(), undefined, controller.signal);
         if (!controller.signal.aborted) { setThreads(inbox.threads); setNextPage(inbox.nextPageToken); }
       }
     }).catch(reason => { if (!controller.signal.aborted) setError(reason.message); })
       .finally(() => { if (!controller.signal.aborted) setBusy(''); });
     return () => { controller.abort(); threadRequest.current++; };
-  }, [attempt]);
+  }, [attempt, folder, query]);
 
-  const openThread = async (id: string) => {
+  const openThread = async (id: string, reload = false) => {
+    if (thread?.id === id && !reload) { setReading(true); return; }
+    if ((body.trim() || files.length) && !window.confirm('Discard your unsent reply and load this conversation?')) return;
+    setReading(true);
     const serial = ++threadRequest.current;
     setBusy('thread'); setError(''); setNotice(''); setThread(null); setBody(''); setBodyHtml(''); setFiles([]); setSendBlocked(false); setAiDraftId(null); setLastDeliveryId(null); setLearningQueued(false);
     try {
@@ -92,20 +100,20 @@ export function AutoMail({ onOpenConfig }: { onOpenConfig?: (tab: AutoEmailConfi
       const latest = await api<Status>('status', undefined, controller.signal);
       if (!controller.signal.aborted) setStatus(latest);
       if (latest.mailboxConnected && latest.oauthReady) {
-        const inbox = await api<{ threads: Summary[]; nextPageToken: string | null }>('threads', undefined, controller.signal);
+        const inbox = await api<{ threads: Summary[]; nextPageToken: string | null }>(listPath(), undefined, controller.signal);
         if (!controller.signal.aborted) { setThreads(inbox.threads); setNextPage(inbox.nextPageToken); }
       }
       if (thread && (!latest.mailboxConnected || latest.mailbox !== thread.mailbox)) { setSendBlocked(true); setError('The connected mailbox changed. Reload the conversation before sending.'); }
-    } catch (reason) { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : 'Unable to refresh inbox.'); }
+    } catch (reason) { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : 'Unable to refresh mailbox.'); }
     finally { if (!controller.signal.aborted) setRefreshing(false); refreshController.current = null; }
   };
   const loadMore = async () => {
     if (!nextPage) return;
     setBusy('more'); setError('');
     try {
-      const result = await api<{ threads: Summary[]; nextPageToken: string | null }>(`threads?pageToken=${encodeURIComponent(nextPage)}`);
+      const result = await api<{ threads: Summary[]; nextPageToken: string | null }>(listPath(nextPage));
       setThreads(current => [...current, ...result.threads.filter(item => !current.some(existing => existing.id === item.id))]); setNextPage(result.nextPageToken);
-    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to load inbox.'); }
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to load mail.'); }
     finally { setBusy(''); }
   };
   const send = async () => {
@@ -140,21 +148,19 @@ export function AutoMail({ onOpenConfig }: { onOpenConfig?: (tab: AutoEmailConfi
       {onOpenConfig && <><button type="button" role="menuitem" onClick={() => { setMenuOpen(false); onOpenConfig('knowledge'); }} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm hover:bg-slate-50"><BookOpen className="h-4 w-4" />Manage knowledge</button><button type="button" role="menuitem" onClick={() => { setMenuOpen(false); onOpenConfig('agent'); }} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm hover:bg-slate-50"><Settings className="h-4 w-4" />Email config</button></>}
       {status?.mailboxConnected && <button type="button" role="menuitem" onClick={() => { setMenuOpen(false); void connect(); }} className="w-full rounded-md px-3 py-2 text-left text-sm hover:bg-slate-50">Reconnect Gmail</button>}
       </div>}</div></div></div>
-    {busy === 'setup' && <p role="status" className="text-sm text-slate-500">Loading inbox...</p>}
+    {busy === 'setup' && <p role="status" className="text-sm text-slate-500">Loading mailbox...</p>}
     {status && status.state !== 'READY' && <p role="status" className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">{status.message}</p>}
     {status?.state === 'READY' && !status.oauthReady && <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">Configure AUTO_MAIL_APP_URL, Google OAuth credentials, and GOOGLE_TOKEN_ENCRYPTION_KEY on the server, then refresh. See the Auto Mail development guide.</p>}
     {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
     {notice && <p role="status" className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
     <div>
-    {status?.mailboxConnected && <div className="grid min-h-[480px] gap-4 lg:grid-cols-[260px_minmax(0,1fr)] xl:grid-cols-[300px_minmax(0,1fr)]">
-      <aside aria-label="Inbox conversations" className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white"><h3 className="border-b border-slate-100 p-4 text-sm font-semibold">Inbox</h3>
-        {!threads.length && !busy && <p className="p-4 text-sm text-slate-500">No inbox conversations loaded. Refresh to check Gmail.</p>}
-        <div className="max-h-[650px] overflow-y-auto">{threads.map(item => <button key={item.id} type="button" disabled={!!busy} onClick={() => void openThread(item.id)} aria-pressed={thread?.id === item.id} className={`w-full border-b border-slate-100 p-4 text-left hover:bg-sky-50 disabled:opacity-60 ${thread?.id === item.id ? 'bg-sky-50' : ''}`}><p className={`truncate text-sm ${item.unread ? 'font-bold' : 'font-medium'}`}>{item.subject}</p><p className="mt-1 truncate text-xs text-slate-500">{item.from}</p><p className="mt-1 line-clamp-2 text-xs text-slate-400">{item.snippet}</p></button>)}</div>
-        {nextPage && <div className="p-3"><button className={`${button} w-full`} disabled={!!busy} onClick={() => void loadMore()}>Load more</button></div>}
-      </aside>
-      <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+    {status?.mailboxConnected && <AutoMailMailbox folder={folder} query={query} threads={threads} nextPage={nextPage} loading={!!busy || refreshing} disabled={!!busy || refreshing}
+      onFolder={value => { if (value === folder) { setReading(false); return; } if ((body.trim() || files.length) && !window.confirm('Discard your unsent reply and change folders?')) return; setReading(false); setFolder(value); setQuery(''); }}
+      onSearch={value => { if (value === query) { setReading(false); return; } if ((body.trim() || files.length) && !window.confirm('Discard your unsent reply and search mail?')) return; setReading(false); setQuery(value); }}
+      onMore={() => void loadMore()} reading={reading} onBack={() => setReading(false)} onOpen={id => void openThread(id)}>
+      <div className="min-w-0 bg-white p-4 sm:p-5">
         {busy === 'thread' ? <p role="status" className="text-sm text-slate-500">Loading conversation...</p> : !thread ? <p className="text-sm text-slate-500">Select a conversation to read and reply.</p> : <>
-          <div className="flex flex-wrap items-center justify-between gap-3"><h3 className="break-words font-semibold text-slate-900">{thread.subject}</h3><div className="flex items-center gap-3"><button className={button} disabled={!!busy} onClick={() => void openThread(thread.id)}>Reload conversation</button><a href={`https://mail.google.com/mail/?authuser=${encodeURIComponent(thread.mailbox)}#all/${encodeURIComponent(thread.id)}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-sky-700">Gmail <ExternalLink className="h-3 w-3" /></a></div></div>
+          <div className="flex flex-wrap items-center justify-between gap-3"><h3 className="break-words font-semibold text-slate-900">{thread.subject}</h3><div className="flex items-center gap-3"><button className={button} disabled={!!busy} onClick={() => void openThread(thread.id, true)}>Reload conversation</button><a href={`https://mail.google.com/mail/?authuser=${encodeURIComponent(thread.mailbox)}#all/${encodeURIComponent(thread.id)}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-sky-700">Gmail <ExternalLink className="h-3 w-3" /></a></div></div>
           <AutoMailReader key={thread.id} threadId={thread.id} messages={thread.messages} />
           {status?.knowledgeReady && !thread.replyBlocked && <AutoMailKnowledgeMatches key={thread.id + ':' + thread.messages.at(-1)?.id} subject={thread.subject} message={thread.messages.at(-1)?.body || ''} disabled={!!busy || sendBlocked} onInsert={answer => { appendAnswer(answer); setNotice('Approved KB answer added. Review and edit the reply before sending.'); }} />}
           {status?.knowledgeReady && !thread.replyBlocked && <AutoMailAiDraft key={'ai:' + thread.id + ':' + thread.messages.at(-1)?.id} threadId={thread.id} sourceMessageId={thread.messages.at(-1)?.id || ''} connectionVersion={thread.connectionVersion} enabled={!!status.aiEnabled} setupMessage={status.aiMessage || 'AI suggestions are not enabled yet.'} disabled={!!busy || sendBlocked} onBusyChange={value => setBusy(current => value ? 'ai' : current === 'ai' ? '' : current)} onUse={(answer, id) => { appendAnswer(answer); setAiDraftId(id); setNotice('AI draft added. Review and edit your reply before sending.'); }} />}
@@ -162,7 +168,7 @@ export function AutoMail({ onOpenConfig }: { onOpenConfig?: (tab: AutoEmailConfi
           {status?.learningReady && lastDeliveryId && <div className="mt-4 rounded-lg border border-emerald-100 bg-emerald-50/40 p-3">{learningQueued ? <p className="text-xs text-emerald-800">This reply has a learning suggestion. Review it in Auto Email Config before publishing to the KB.</p> : <button type="button" className={button} disabled={!!busy} onClick={() => void proposeLearning()}>Suggest this reply for the KB</button>}{onOpenConfig && <button type="button" className={`${button} mt-2`} disabled={!!busy} onClick={() => onOpenConfig('learning')}>Open Learning review</button>}</div>}
         </>}
       </div>
-    </div>}
+    </AutoMailMailbox>}
     </div>
     <p className="text-xs text-slate-500">Automatic replies are disabled. {status?.aiEnabled ? 'AI drafts require staff review and a separate click to send.' : 'AI suggestions are not enabled.'} Reading a conversation here does not mark it read in Gmail.</p>
   </section>;

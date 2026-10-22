@@ -258,6 +258,7 @@ try {
     assert.equal(learning.length, 1, 'Uncertain sends never create learning evidence');
     assert.equal(await page.getByRole('button', { name: 'Suggest this reply for the KB', exact: true }).count(), 0);
     uncertain = false;
+    page.once('dialog', dialog => dialog.accept()); // Explicitly discard the retained uncertain-send draft on reload.
     await page.getByRole('button', { name: 'Reload conversation' }).click();
     await editor.fill('Here are the instructions.');
     await page.getByRole('button', { name: 'Send reply', exact: true }).click();

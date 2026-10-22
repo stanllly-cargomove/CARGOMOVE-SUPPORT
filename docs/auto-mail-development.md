@@ -181,3 +181,13 @@ NOTIFY pgrst, 'reload schema';
 ```
 
 Include any additional schemas already used by that project when setting this list.
+
+## Mailbox interface
+
+Auto Mail has Inbox and Sent folder navigation, compact conversation rows, unread emphasis, sender/recipient, subject, snippet, dates and thread counts. Rows open the existing rich reader, CC/BCC composer, attachments and KB/AI review tools. Back to the list retains the current unsent reply; reopening that conversation restores it. Changing folders, search, conversation or explicitly reloading asks before discarding an unsent reply.
+
+Search submits to Gmail within the selected folder and supports Gmail operators such as `from:customer@example.com`, `has:attachment`, and `is:unread`. Pages contain up to 25 conversations. Load more retains the folder and search. Checkboxes select loaded rows, with Select all, Show selected, Open selected, and Clear selection. Selection is local to the current folder/search; it does not modify Gmail read status or labels. Click the Google logo to silently reload the current folder/search without clearing the reply.
+
+No migration or new OAuth scope is required. This uses the existing read/send connection and does not change the main database. Mail0 (https://github.com/Mail-0/Zero) was reviewed as an open-source interface reference; the implementation uses our existing React components and Gmail handlers without importing that application or its backend.
+
+Offline verification: `npm run test:auto-mail`, `npm run test:auto-mail:mailbox:ui`, `npm run test:auto-mail:rich:ui`, and `npm run test:auto-mail:ui`. Browser tests intercept requests and never send real email.
