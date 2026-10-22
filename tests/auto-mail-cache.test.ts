@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cachedMail, peekMail, clearMailSession, expireMail, MAIL_REFRESH_MS } from '../src/services/autoMailCache.js';
+import { cachedMail, peekMail, clearMailSession, expireMail, writeMail, refreshMailThreads, MAIL_REFRESH_MS } from '../src/services/autoMailCache.js';
+import { initializeMail, mailInitialized } from '../src/services/autoMailInitialization.js';
 import { startMailSend, mailSendSnapshot, type ComposeDraft } from '../src/services/autoMailSending.js';
 
 test('mail cache reuses requests for 120 seconds, deduplicates, isolates users/connections and handles unchanged history',async()=>{
@@ -36,4 +37,59 @@ test('background send survives view changes, keeps failed drafts and prevents au
     const failed=mailSendSnapshot().find(task=>task.id==='request3')!;assert.equal(failed.canEdit,true);assert.equal(failed.draft.requestId,'request3');
     startMailSend('admin',{...draft,requestId:'request4'});clearMailSession();done(new Response('{"status":"SENT"}'));await settle();assert.deepEqual(mailSendSnapshot(),[]);
   }finally{globalThis.fetch=original;clearMailSession();}
+});
+
+
+test('initialization shares requests, reports completed folders, isolates connections and retries only failed folders',async()=>{
+  clearMailSession();const original=globalThis.fetch;const calls:string[]=[];let fail=true;
+  const status={state:'READY',mailboxConnected:true,oauthReady:true,mailbox:'support@example.com',connectionVersion:'v1',composeReady:true};
+  globalThis.fetch=(async(input:any)=>{const path=new URL(String(input),'http://test').pathname+new URL(String(input),'http://test').search;calls.push(path);if(path.endsWith('/status'))return new Response(JSON.stringify(status));if(path.includes('/outbox'))return new Response(JSON.stringify(fail?{error:'Scheduled offline'}:{messages:[],nextOffset:null,workerReady:true}),{status:fail?503:200});return new Response(JSON.stringify({threads:[],nextPageToken:null}));}) as typeof fetch;
+  const progress:number[]=[];
+  try {
+    const pending=[initializeMail('admin',p=>progress.push(p.completed)),initializeMail('admin',()=>{})];
+    const result=await Promise.allSettled(pending);assert.ok(result.every(item=>item.status==='rejected'));
+    assert.equal(mailInitialized('admin'),false);assert.equal(calls.length,4);assert.ok(progress.includes(3));
+    fail=false;await initializeMail('admin',()=>{});assert.equal(calls.length,5,'Only the failed folder is retried');assert.equal(mailInitialized('admin'),true);
+    await initializeMail('admin',()=>{});assert.equal(calls.length,5,'Navigation never repeats the initialization');
+    assert.equal(mailInitialized('another-admin'),false);
+    writeMail('admin','status',{...status,connectionVersion:'v2'});assert.equal(mailInitialized('admin'),false);
+    await initializeMail('admin',()=>{});assert.equal(calls.length,8,'A new Gmail connection has separate folder data');
+    assert.equal(mailInitialized('admin'),true);
+  }finally{globalThis.fetch=original;clearMailSession();}
+});
+
+test('logout cancels initialization and prevents it from persisting a completed marker',async()=>{
+  clearMailSession();const original=globalThis.fetch;let resolve!:(value:Response)=>void;let calls=0;
+  globalThis.fetch=(()=>{calls++;return new Promise<Response>(done=>resolve=done);}) as typeof fetch;
+  try {
+    const job=initializeMail('admin',()=>{});clearMailSession();
+    resolve(new Response(JSON.stringify({state:'READY',mailboxConnected:true,oauthReady:true,connectionVersion:'v1',composeReady:true})));
+    await assert.rejects(job,/session ended/);assert.equal(calls,1);assert.equal(mailInitialized('admin'),false);assert.equal(peekMail('admin','status'),undefined);
+  }finally{globalThis.fetch=original;clearMailSession();}
+});
+
+test('refresh keeps the loaded page count and cannot repopulate the cache after logout',async()=>{
+  clearMailSession();const original=globalThis.fetch;const calls:string[]=[];
+  writeMail('admin','threads?folder=inbox',{threads:[{id:'old1'},{id:'old2'}],nextPageToken:null},'v1');
+  globalThis.fetch=(async(input:any)=>{const url=String(input);calls.push(url);return new Response(JSON.stringify({threads:[{id:url.includes('pageToken')?'new2':'new1'}],nextPageToken:url.includes('pageToken')?null:'page2'}));}) as typeof fetch;
+  try {
+    const updated=await refreshMailThreads('admin','threads?folder=inbox','v1');assert.deepEqual(updated.threads,[{id:'new1'},{id:'new2'}]);assert.equal(calls.length,2);
+    let resolve!:(value:Response)=>void;globalThis.fetch=(()=>new Promise<Response>(done=>resolve=done)) as typeof fetch;
+    const job=refreshMailThreads('admin','threads?folder=inbox','v1');clearMailSession();resolve(new Response('{"threads":[],"nextPageToken":null}'));
+    await assert.rejects(job,/session ended/);assert.equal(peekMail('admin','threads?folder=inbox','v1'),undefined);
+  }finally{globalThis.fetch=original;clearMailSession();}
+});
+
+
+test('cache eviction preserves initialization across many opened messages, and blocked storage falls back to memory',async()=>{
+  clearMailSession();const descriptor=Object.getOwnPropertyDescriptor(globalThis,'sessionStorage');
+  Object.defineProperty(globalThis,'sessionStorage',{configurable:true,get(){throw new Error('Storage blocked');}});
+  try {
+    writeMail('admin','status',{state:'READY',mailboxConnected:true,connectionVersion:'v1'});
+    writeMail('admin','initialized',{ready:true},'v1');
+    for(let i=0;i<100;i++)writeMail('admin',`thread?id=${i}`,{id:String(i)},'v1');
+    assert.equal(mailInitialized('admin'),true,'Opening many messages does not restart initialization');
+    assert.equal(peekMail('admin','thread?id=99','v1')!==undefined,true);
+    clearMailSession();assert.equal(mailInitialized('admin'),false);
+  }finally{if(descriptor)Object.defineProperty(globalThis,'sessionStorage',descriptor);else Reflect.deleteProperty(globalThis,'sessionStorage');clearMailSession();}
 });

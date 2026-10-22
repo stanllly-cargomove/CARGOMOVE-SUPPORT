@@ -39,7 +39,8 @@
     "api": "tsx server.ts",
     "test:auto-mail:rich:ui": "tsx tests/auto-mail-rich-ui.ts",
     "test:auto-mail:mailbox:ui": "tsx tests/auto-mail-mailbox-ui.ts",
-    "test:auto-mail:cache:ui": "tsx tests/auto-mail-cache-ui.ts"
+    "test:auto-mail:cache:ui": "tsx tests/auto-mail-cache-ui.ts",
+    "test:auto-mail:initialization:ui": "tsx tests/auto-mail-initialization-ui.ts"
   },
   "dependencies": {
     "@fontsource/inter": "^5.3.0",

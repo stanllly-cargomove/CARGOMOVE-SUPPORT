@@ -9,14 +9,17 @@ export default async function mailboxActions(request:any,response:any) {
   try {
     checkOrigin(request); const config=autoMailConfiguration(); if(!config.ready)throw new MailError(503,config.message);
     const body:any=await bodyOf(request);
-    if(!['trash','restore'].includes(body.action)||!Array.isArray(body.ids)||!body.ids.length||body.ids.length>25||new Set(body.ids).size!==body.ids.length||body.ids.some((id:any)=>typeof id!=='string'||!/^[a-zA-Z0-9_-]{1,128}$/.test(id)))throw new MailError(400,'Select up to 25 conversations.');
+    if(!['trash','restore','read','unread'].includes(body.action)||!Array.isArray(body.ids)||!body.ids.length||body.ids.length>25||new Set(body.ids).size!==body.ids.length||body.ids.some((id:any)=>typeof id!=='string'||!/^[a-zA-Z0-9_-]{1,128}$/.test(id)))throw new MailError(400,'Select up to 25 conversations.');
     const connection=await connected(autoMailClient(config));
     if(body.connectionVersion!==connection.version)throw new MailError(409,'The connected mailbox changed. Refresh before managing mail.');
-    if(!connection.scopes.includes(MODIFY_SCOPE))throw new MailError(409,'Reconnect Gmail and approve mailbox management to move or restore conversations.');
+    if(!connection.scopes.includes(MODIFY_SCOPE))throw new MailError(409,'Reconnect Gmail and approve mailbox management to change read status, move or restore conversations.');
     const token=await accessToken(connection); const completed:string[]=[];const failed:string[]=[];
     // At most 25 calls in parallel; return per-thread results on partial failure.
     await Promise.all(body.ids.map(async(id:string)=>{
-      try {await googleJson(`https://gmail.googleapis.com/gmail/v1/users/me/threads/${id}/${body.action==='trash'?'trash':'untrash'}`,{method:'POST',headers:{Authorization:`Bearer ${token}`}});completed.push(id);}catch{failed.push(id);}
+      try {
+        const labels = body.action === 'read' || body.action === 'unread';
+        await googleJson(`https://gmail.googleapis.com/gmail/v1/users/me/threads/${id}/${labels?'modify':body.action==='trash'?'trash':'untrash'}`,{method:'POST',headers:{Authorization:`Bearer ${token}`,...(labels?{'Content-Type':'application/json'}:{})},...(labels?{body:JSON.stringify(body.action==='unread'?{addLabelIds:['UNREAD']}:{removeLabelIds:['UNREAD']})}:{})});completed.push(id);
+      }catch{failed.push(id);}
     }));
     return response.json({completed,failed});
   }catch(error){return response.status(error instanceof MailError?error.status:503).json({error:error instanceof MailError?error.message:'Unable to manage Gmail conversations.'});}

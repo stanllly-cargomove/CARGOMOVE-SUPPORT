@@ -24,6 +24,7 @@ try {
         return route.fulfill({json:{threads:[{id:'thread1',subject:history==='41'?'Customer question':'New customer question',from:'Customer <customer@example.com>',snippet:'Please help.',unread:true}],nextPageToken:null,historyId:history}});
       }
       if(url.pathname==='/api/auto-mail/thread'){threadReads++;return route.fulfill({json:{id:'thread1',subject:'Customer question',recipient:'customer@example.com',mailbox:'support@example.com',connectionVersion:'v1',replyBlocked:'',messages:[{id:'m1',from:'customer@example.com',to:'support@example.com',body:'Please help.',date:'2026-10-22',outbound:false,attachments:false}]}});}
+      if(url.pathname==='/api/auto-mail/outbox')return route.fulfill({json:{messages:[],nextOffset:null,workerReady:true}});
       if(url.pathname==='/api/auto-mail/compose'){sends++;await gate;return route.fulfill(fail?{status:400,json:{error:'Check the CC addresses.',canEditReply:true}}:{json:{status:'SENT'}});}
       assert.ok(!url.pathname.startsWith('/api/'),'Unexpected API '+url.pathname);
       return route.fulfill({contentType:'text/html',body:`<meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/styles.css"><div id="root"></div><script>${bundle.outputFiles[0].text}</script>`});
@@ -34,7 +35,7 @@ try {
     await folders.getByRole('button',{name:'Inbox',exact:true}).click();await row().waitFor();assert.equal(lists,2);assert.equal(statuses,1,'Folder navigation reuses readiness');
     await row().click();await page.getByRole('textbox',{name:'Your reply',exact:true}).waitFor();
     await page.getByRole('button',{name:'Move conversation to Trash',exact:true}).click();
-    await page.getByRole('button',{name:'Reconnect Gmail for Trash',exact:true}).waitFor();assert.equal(sends,0,'Permission guidance never sends or trashes mail');
+    await page.getByRole('button',{name:'Reconnect Gmail for mailbox management',exact:true}).waitFor();assert.equal(sends,0,'Permission guidance never sends or trashes mail');
     await page.getByRole('button',{name:'Other menu',exact:true}).click();await page.getByRole('button',{name:'Open Auto Mail',exact:true}).click();await row().click();await page.getByRole('textbox',{name:'Your reply',exact:true}).waitFor();assert.equal(threadReads,1,'Conversation cache survives menu changes');assert.equal(lists,2);
     await page.getByRole('button',{name:'Back to Inbox',exact:true}).click();
     await page.clock.runFor(119000);assert.equal(lists,2,'No repeated requests before the interval');

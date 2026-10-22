@@ -45,7 +45,7 @@ test('compose, scheduled queue and Trash handlers enforce auth, origin, scopes a
   const env={AUTO_MAIL_ENABLED:'true',AUTO_MAIL_SUPABASE_URL:'https://outbox-dev.supabase.co',AUTO_MAIL_SUPABASE_SERVICE_ROLE_KEY:'test',SUPABASE_URL:'https://main.supabase.co',VITE_SUPABASE_URL:'https://main.supabase.co',AUTO_MAIL_APP_URL:'http://localhost:3000',GOOGLE_OAUTH_CLIENT_ID:'client',GOOGLE_OAUTH_CLIENT_SECRET:'secret',GOOGLE_TOKEN_ENCRYPTION_KEY:Buffer.alloc(32,1).toString('base64'),SESSION_SECRET:'outbox-test',AUTO_MAIL_SCHEDULER_SECRET:'x'.repeat(40)};
   const before=Object.fromEntries(Object.keys(env).map(key=>[key,process.env[key]]));Object.assign(process.env,env);const original=globalThis.fetch;
   const connection={mailbox_id:mailbox,version,email:'operator@example.com',scopes:[READ_SCOPE,SEND_SCOPE],...encryptMailboxToken('refresh')};
-  let job:any=null,bytes=Buffer.alloc(0),sends=0,heartbeat=true,trashCalls=0;const calls:string[]=[];
+  let job:any=null,bytes=Buffer.alloc(0),sends=0,heartbeat=true,trashCalls=0;const calls:string[]=[];const labelChanges:any[]=[];
   globalThis.fetch=(async(input:any,init:any={})=>{
     const url=new URL(String(input));calls.push(url.href);assert.ok(!url.hostname.includes('main.supabase'),'Main DB is untouched');
     const json=(value:any,status=200)=>new Response(JSON.stringify(value),{status,headers:{'Content-Type':'application/json'}});
@@ -59,6 +59,7 @@ test('compose, scheduled queue and Trash handlers enforce auth, origin, scopes a
     if(url.pathname.endsWith('/rpc/outbox_worker_heartbeat'))return json(null);
     if(url.hostname==='oauth2.googleapis.com')return json({access_token:'token'});
     if(url.pathname.endsWith('/messages/send')){sends++;const raw=Buffer.from(JSON.parse(init.body).raw,'base64url').toString();assert.ok(!raw.includes('In-Reply-To:'));assert.ok(!raw.includes('References:'));assert.match(raw,/To: customer@example.com/);assert.match(raw,/Cc: team@example.com/);assert.match(raw,/Bcc: hidden@example.com/);assert.ok(raw.includes(Buffer.from('New subject').toString('base64')));return json({id:'gmail1',threadId:'thread1'});}
+    if(url.pathname.endsWith('/modify')){assert.equal(init.method,'POST');assert.equal(init.headers['Content-Type'],'application/json');labelChanges.push(JSON.parse(init.body));return url.pathname.includes('badthread')?json({},500):json({id:'thread1'});}
     if(url.pathname.endsWith('/trash')||url.pathname.endsWith('/untrash')){trashCalls++;assert.equal(init.method,'POST');assert.ok(!url.pathname.endsWith('/delete'));return url.pathname.includes('badthread')?json({},500):json({id:'thread1'});}
     throw new Error('Unexpected URL '+url.pathname);
   }) as typeof fetch;
@@ -80,7 +81,16 @@ test('compose, scheduled queue and Trash handlers enforce auth, origin, scopes a
     assert.equal((await invoke(cancelOutbox,{id,connectionVersion:version})).result.status,'CANCELLED');
     assert.equal((await invoke(runOutbox,{}, {authorization:'Bearer '+env.AUTO_MAIL_SCHEDULER_SECRET})).result.processed,0);
     assert.equal((await invoke(mailboxActions,{ids:['thread1'],action:'trash',connectionVersion:version})).code,409);assert.equal(trashCalls,0);
+    for(const action of ['read','unread'])assert.equal((await invoke(mailboxActions,{ids:['thread1'],action,connectionVersion:version})).code,409);
+    assert.equal(labelChanges.length,0);
     connection.scopes.push(MODIFY_SCOPE);
+    assert.equal((await invoke(mailboxActions,{ids:['thread1'],action:'unread',connectionVersion:actor})).code,409);
+    assert.equal((await invoke(mailboxActions,{ids:['../thread'],action:'unread',connectionVersion:version})).code,400);
+    assert.equal(labelChanges.length,0);
+    for(const action of ['read','unread'])assert.deepEqual((await invoke(mailboxActions,{ids:['thread1'],action,connectionVersion:version})).result.completed,['thread1']);
+    assert.deepEqual(labelChanges,[{removeLabelIds:['UNREAD']},{addLabelIds:['UNREAD']}]);
+    const labelPartial=await invoke(mailboxActions,{ids:['thread1','badthread'],action:'unread',connectionVersion:version});
+    assert.deepEqual(labelPartial.result.completed,['thread1']);assert.deepEqual(labelPartial.result.failed,['badthread']);
     const partial=await invoke(mailboxActions,{ids:['thread1','badthread'],action:'trash',connectionVersion:version});assert.deepEqual(partial.result.completed,['thread1']);assert.deepEqual(partial.result.failed,['badthread']);
     assert.equal((await invoke(mailboxActions,{ids:['thread1'],action:'restore',connectionVersion:version})).result.completed.length,1);
   }finally{globalThis.fetch=original;for(const key of Object.keys(env)){if(before[key]===undefined)delete process.env[key];else process.env[key]=before[key];}}

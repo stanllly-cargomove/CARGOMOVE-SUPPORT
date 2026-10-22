@@ -7,6 +7,7 @@ type Props = {
   disabled?: boolean;
   onConnect: () => void;
   connectedAction?: 'reconnect' | 'refresh';
+  size?: 'default' | 'compact';
 };
 
 function GoogleIcon({ connected }: { connected: boolean }) {
@@ -21,7 +22,7 @@ function GoogleIcon({ connected }: { connected: boolean }) {
   );
 }
 
-export function GoogleConnectionButton({ email = '', connecting, disabled = false, onConnect, connectedAction = 'reconnect' }: Props) {
+export function GoogleConnectionButton({ email = '', connecting, disabled = false, onConnect, connectedAction = 'reconnect', size = 'default' }: Props) {
   const tooltipId = useId();
   return (
     <div className="group relative self-end sm:self-auto">
@@ -35,7 +36,7 @@ export function GoogleConnectionButton({ email = '', connecting, disabled = fals
         whileHover={{ y: -2, rotate: [0, -7, 7, 0], scale: 1.08 }}
         whileTap={{ scale: 0.94 }}
         transition={{ duration: 0.35 }}
-        className="relative inline-flex h-12 w-12 items-center justify-center rounded-full border border-slate-200 bg-white shadow-sm outline-none transition-shadow hover:shadow-lg focus-visible:ring-2 focus-visible:ring-blue-500 disabled:cursor-wait disabled:opacity-60"
+        className={`relative inline-flex ${size === 'compact' ? 'h-11 w-11' : 'h-12 w-12'} items-center justify-center rounded-full border border-slate-200 bg-white shadow-sm outline-none transition-shadow hover:shadow-lg focus-visible:ring-2 focus-visible:ring-blue-500 disabled:cursor-wait disabled:opacity-60`}
       >
         <GoogleIcon connected={!!email} />
         {email && <span className="absolute bottom-0.5 right-0.5 h-3 w-3 rounded-full border-2 border-white bg-emerald-500" aria-hidden="true" />}
