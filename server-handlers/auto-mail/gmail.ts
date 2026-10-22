@@ -4,13 +4,14 @@ import { decryptMailboxToken, encryptMailboxToken } from './token-encryption.js'
 import { autoMailClient, autoMailConfiguration } from './configuration.js';
 import { threadSignature } from './thread-signature.js';
 import { recordAcceptedReply } from './delivery-receipt.js';
+import { MailError } from './mail-error.js';
+export { MailError } from './mail-error.js';
+import { addressList, cleanMailHtml, fileParts, mailHtmlText, messageBodies, replyRecipients, richRawReply } from './mail-content.js';
+import { loadReplyFiles } from './file-storage.js';
 
 export const READ_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
 export const SEND_SCOPE = 'https://www.googleapis.com/auth/gmail.send';
 const GMAIL = 'https://gmail.googleapis.com/gmail/v1/users/me/';
-export class MailError extends Error {
-  constructor(public status: number, message: string) { super(message); }
-}
 
 export function portalOrigin(env: NodeJS.ProcessEnv = process.env) {
   const appUrl = env.AUTO_MAIL_APP_URL?.replace(/\/$/, '');
@@ -69,20 +70,16 @@ export function singleAddress(value: string) {
   return address;
 }
 
-function plainBody(part: any): string {
-  if (part.filename) return '';
-  if (part.mimeType === 'text/plain' && part.body?.data) return Buffer.from(part.body.data, 'base64url').toString('utf8');
-  return (part.parts || []).map(plainBody).filter(Boolean).join('\n');
-}
 export function presentThread(thread: any, email: string) {
   const messages = [...(thread.messages || [])].sort((a: any, b: any) => Number(a.internalDate) - Number(b.internalDate));
   return { id: thread.id, subject: header(messages[0] || {}, 'Subject') || '(No subject)',
-    messages: messages.map((m: any) => ({ id: m.id, from: header(m, 'From'), to: header(m, 'To'),
+    messages: messages.map((m: any) => { const bodies=messageBodies(m.payload||{}); return ({ id: m.id, from: header(m, 'From'), to: header(m, 'To'), cc: header(m, 'Cc'), bcc: header(m, 'Bcc'),
       date: new Date(Number(m.internalDate)).toISOString(),
       outbound: (m.labelIds || []).includes('SENT') || (() => { try { return singleAddress(header(m, 'From')) === email; } catch { return false; } })(),
-      body: plainBody(m.payload || {}).slice(0, 100000) || m.snippet || '(No plain-text content. Open Gmail to view the full message.)',
+      body: (bodies.text || mailHtmlText(bodies.html)).slice(0,100000) || m.snippet || '(No message content.)', html: bodies.html,
+      files: fileParts(m.payload||{}).map(({partId,name,type,size})=>({partId,name,type,size})),
       attachments: hasAttachments(m.payload || {}),
-    })) };
+    }); }) };
 }
 function hasAttachments(part: any): boolean { return !!part.filename || (part.parts || []).some(hasAttachments); }
 
@@ -211,22 +208,30 @@ export function createAutoMailHandler(action: 'connect' | 'callback' | 'threads'
         const deliveries = await client.from('reply_deliveries').select('status').eq('mailbox_id', connection.mailbox_id).eq('source_message_id', latestId).maybeSingle();
         dbCheck(deliveries.error);
         if (deliveries.data) replyBlocked = deliveries.data.status === 'SENT' ? 'A reply was already sent. Refresh this conversation.' : 'A send is pending or its outcome is uncertain. Check Sent in Gmail before taking further action.';
-        return response.json({ ...view, recipient, replyBlocked, mailbox: connection.email, connectionVersion: connection.version });
+        const latest=(thread.messages||[]).find((m:any)=>m.id===latestId);
+        const readAddresses=(name:string)=>{try{return addressList(header(latest||{},name)).filter(value=>value!==connection.email&&value!==recipient);}catch{return [];}};
+        return response.json({ ...view, recipient, replyBlocked, replyAll: {to:[recipient,...readAddresses('To')].filter(Boolean),cc:readAddresses('Cc')}, mailbox: connection.email, connectionVersion: connection.version });
       }
       if (body.connectionVersion !== connection.version) throw new MailError(409, 'The connected mailbox changed. Reload Auto Mail.');
-      const message = typeof body.body === 'string' ? body.body.trim() : '';
-      if (!message || message.length > 50000) throw new MailError(400, 'Enter a reply of up to 50,000 characters.');
+      const html=typeof body.bodyHtml==='string'?cleanMailHtml(body.bodyHtml):'';
+      const message=html?mailHtmlText(html):typeof body.body==='string'?body.body.trim():'';
+      if ((!message && !(Array.isArray(body.attachmentIds)&&body.attachmentIds.length)) || message.length>50000 || (typeof body.bodyHtml==='string'&&body.bodyHtml.length>200000)) throw new MailError(400,'Enter a reply of up to 50,000 characters or attach a file.');
       const context = replyContext(thread, connection.email, String(body.sourceMessageId || ''));
       if (body.recipient !== context.recipient) throw new MailError(409, 'The reply recipient changed. Reload the conversation.');
       const id = String(body.requestId || '');
       if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) throw new MailError(400, 'Invalid send request.');
-      const raw = rawReply(connection.email, context, message, id);
+      const recipients=replyRecipients(body,context.recipient,connection.email);
+      const files=await loadReplyFiles(client,body.attachmentIds,{id,actor:session.id,connection,threadId,sourceMessageId:String(body.sourceMessageId||'')});
+      const rich=!!html||files.length>0||recipients.to.length>1||recipients.cc.length>0||recipients.bcc.length>0;
+      const raw=rich?richRawReply(singleAddress(connection.email),context,recipients,message,html||cleanMailHtml('<p>'+message.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('\n','<br>')+'</p>'),files,id):rawReply(connection.email,context,message,id);
       const aiDraftId = body.aiDraftId == null ? null : String(body.aiDraftId);
       if (aiDraftId && !/^[0-9a-f-]{36}$/i.test(aiDraftId)) throw new MailError(400, 'Invalid AI draft reference.');
-      const claim = await client.rpc('claim_manual_reply', { p_delivery: { id, mailbox_id: connection.mailbox_id, connection_version: connection.version,
+      const delivery = { id, mailbox_id: connection.mailbox_id, connection_version: connection.version,
         gmail_thread_id: threadId, source_message_id: body.sourceMessageId, recipient: context.recipient, body_text: message, requested_by: session.id,
         ai_draft_id: aiDraftId, conversation_hash: aiDraftId ? threadSignature(presentThread(thread, connection.email)) : null,
-        subject: context.subject, customer_question: presentThread(thread, connection.email).messages.at(-1)?.body || '' } });
+        subject: context.subject, customer_question: presentThread(thread, connection.email).messages.at(-1)?.body || '' };
+      const claim = await client.rpc(rich?'claim_rich_reply':'claim_manual_reply', rich?{p_delivery:delivery,p_detail:{to:recipients.to,cc:recipients.cc,bcc:recipients.bcc,html,attachments:files.map(({data,...meta})=>meta)}}:{p_delivery:delivery});
+      if(claim.error && ['PGRST202','42P01','42883'].includes(claim.error.code))throw new MailError(503,'Apply the rich replies migration in the separate Auto Mail database to send formatted replies, CC/BCC or attachments.');
       if (claim.error) throw new MailError(409, aiDraftId ? 'The AI draft or its KB sources changed, or this conversation already has a reply request. Reload the conversation and check Gmail before trying again.' : 'This message already has a reply request, or the mailbox changed. Refresh the conversation and check Sent in Gmail.');
       // Never retry a Gmail send. Network failures may occur after Gmail accepts it.
       try {
@@ -243,7 +248,7 @@ export function createAutoMailHandler(action: 'connect' | 'callback' | 'threads'
       const status = error instanceof MailError ? error.status : 503;
       const message = error instanceof MailError ? error.message : 'Auto Mail could not complete the request. Check the connection and try again.';
       if (action === 'callback') return response.status(status).send(message);
-      return response.status(status).json({ error: message });
+      return response.status(status).json({ error: message, ...(action==='reply'&&status===400?{canEditReply:true}:{}) });
     }
   };
 }

@@ -1,0 +1,64 @@
+import React, { useEffect, useRef, useState } from 'react';
+import { AlignCenter, AlignLeft, AlignRight, Bold, Italic, Link, List, ListOrdered, Paperclip, Redo2, RemoveFormatting, Send, Strikethrough, Underline, Undo2, X } from 'lucide-react';
+import { knowledgeRequest } from '../../services/autoMailKnowledge';
+import { browserMailHtml, browserMailText, escapeMailText, fileSize, plainMailHtml } from '../../services/autoMailFormatting';
+
+export type ReplyUpload = { id: string; name: string; type: string; size: number };
+type Props = {
+  body: string; html: string; onChange: (text:string,html:string)=>void;
+  to: string; cc: string; bcc: string; onRecipients: (field:'to'|'cc'|'bcc',value:string)=>void;
+  replyAll: {to:string[];cc:string[]}; onReplyAll: ()=>void; mailbox:string;
+  files:ReplyUpload[];onFiles:(files:ReplyUpload[])=>void;
+  requestId:string;threadId:string;sourceMessageId:string;connectionVersion:string;
+  richReady:boolean;disabled:boolean;sending:boolean;onSend:()=>void;onBusyChange:(busy:boolean)=>void;
+};
+export function AutoMailComposer(props:Props){
+  const editor=useRef<HTMLDivElement>(null);const picker=useRef<HTMLInputElement>(null);
+  const [showCc,setShowCc]=useState(false);const [showBcc,setShowBcc]=useState(false);const [error,setError]=useState('');const [uploading,setUploading]=useState(false);
+  const [linkOpen,setLinkOpen]=useState(false);const [linkUrl,setLinkUrl]=useState('');const [linkText,setLinkText]=useState('');const savedRange=useRef<Range|null>(null);
+  useEffect(()=>{const html=props.html||(props.body?plainMailHtml(props.body):'');if(editor.current&&editor.current.innerHTML!==html)editor.current.innerHTML=browserMailHtml(html);},[props.html,props.richReady]);
+  const emit=()=>{const html=editor.current?.innerHTML||'';props.onChange(browserMailText(html),html);};
+  const command=(name:string,value?:string)=>{editor.current?.focus();document.execCommand(name,false,value);emit();};
+  const upload=async(list:FileList|null)=>{
+    if(!list||uploading)return;setError('');
+    const files=Array.from(list);if(files.length+props.files.length>10||files.reduce((sum,f)=>sum+f.size,0)+props.files.reduce((sum,f)=>sum+f.size,0)>15*1024*1024){setError('Use up to 10 files and 15 MB in total.');return;}
+    setUploading(true);props.onBusyChange(true);const ready=[...props.files];
+    try{
+      for(const file of files){
+        const registered=await knowledgeRequest<ReplyUpload&{uploadUrl:string}>('attachment-upload',{name:file.name,size:file.size,requestId:props.requestId,threadId:props.threadId,sourceMessageId:props.sourceMessageId,connectionVersion:props.connectionVersion});
+        try{
+          const response=await fetch(registered.uploadUrl,{method:'PUT',headers:{'Content-Type':registered.type,'x-upsert':'false','cache-control':'max-age=0'},body:file,credentials:'omit'});
+          if(!response.ok)throw new Error('Upload failed. Try attaching the file again.');
+          ready.push({id:registered.id,name:registered.name,type:registered.type,size:registered.size});props.onFiles([...ready]);
+        }catch(reason){await knowledgeRequest('attachment-remove',{id:registered.id}).catch(()=>{});throw reason;}
+      }
+    }catch(reason){setError(reason instanceof Error?reason.message:'Unable to attach file.');}
+    finally{setUploading(false);props.onBusyChange(false);if(picker.current)picker.current.value='';}
+  };
+  const remove=async(file:ReplyUpload)=>{setError('');props.onBusyChange(true);try{await knowledgeRequest('attachment-remove',{id:file.id});props.onFiles(props.files.filter(item=>item.id!==file.id));}catch(reason){setError(reason instanceof Error?reason.message:'Unable to remove attachment.');}finally{props.onBusyChange(false);}};
+  const buttons=[{label:'Undo',icon:Undo2,cmd:'undo'},{label:'Redo',icon:Redo2,cmd:'redo'},{label:'Bold',icon:Bold,cmd:'bold'},{label:'Italic',icon:Italic,cmd:'italic'},{label:'Underline',icon:Underline,cmd:'underline'},{label:'Strikethrough',icon:Strikethrough,cmd:'strikeThrough'},{label:'Bulleted list',icon:List,cmd:'insertUnorderedList'},{label:'Numbered list',icon:ListOrdered,cmd:'insertOrderedList'},{label:'Align left',icon:AlignLeft,cmd:'justifyLeft'},{label:'Align center',icon:AlignCenter,cmd:'justifyCenter'},{label:'Align right',icon:AlignRight,cmd:'justifyRight'},{label:'Clear formatting',icon:RemoveFormatting,cmd:'removeFormat'}];
+  const disabled=props.disabled||uploading;
+  return <form aria-label="Reply composer" onSubmit={event=>{event.preventDefault();props.onSend();}} className="mt-5 min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-slate-50 p-4"><h4 className="text-sm font-semibold text-slate-800">Reply</h4><p className="break-all text-xs text-slate-500">From {props.mailbox}</p></div>
+    <div className="space-y-3 p-4">
+      {props.richReady?<><div className="flex items-center gap-2"><label className="flex min-w-0 flex-1 items-center gap-3 text-xs font-medium text-slate-500">To<input aria-label="Reply To recipients" value={props.to} disabled={disabled} onChange={event=>props.onRecipients('to',event.target.value)} className="min-w-0 flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm font-normal text-slate-700"/></label><button type="button" disabled={disabled} onClick={()=>setShowCc(value=>!value)} className="text-xs text-slate-500 underline">CC</button><button type="button" disabled={disabled} onClick={()=>setShowBcc(value=>!value)} className="text-xs text-slate-500 underline">BCC</button></div>
+        {(showCc||props.cc)&&<label className="flex items-center gap-3 text-xs font-medium text-slate-500">CC<input aria-label="Reply CC recipients" value={props.cc} disabled={disabled} onChange={event=>props.onRecipients('cc',event.target.value)} placeholder="Separate addresses with commas" className="min-w-0 flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm font-normal"/></label>}
+        {(showBcc||props.bcc)&&<label className="flex items-center gap-3 text-xs font-medium text-slate-500">BCC<input aria-label="Reply BCC recipients" value={props.bcc} disabled={disabled} onChange={event=>props.onRecipients('bcc',event.target.value)} placeholder="Hidden from other recipients" className="min-w-0 flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm font-normal"/></label>}
+        <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-[11px] text-slate-400">Keep the original sender in To. Separate additional addresses with commas.</p>{props.replyAll.to.length+props.replyAll.cc.length>1&&<button type="button" disabled={disabled} onClick={()=>{props.onReplyAll();setShowCc(true);}} className="text-xs font-medium text-sky-700">Reply all</button>}</div></>:<><p className="break-all text-sm text-slate-600">Reply to: <strong>{props.to}</strong></p><p className="text-xs text-slate-500">Formatting, CC/BCC and attachments need the rich replies migration. Plain-text replies remain available.</p></>}
+      <div className="overflow-hidden rounded-lg border border-slate-300">
+        {props.richReady&&<div role="toolbar" aria-label="Reply formatting" className="flex flex-wrap items-center gap-1 border-b border-slate-200 bg-slate-50 p-2">
+          <select aria-label="Reply text style" disabled={disabled} defaultValue="p" onChange={event=>{command('formatBlock',event.target.value);event.target.value='p';}} className="h-8 max-w-32 rounded border border-slate-200 bg-white px-1 text-xs"><option value="p">Normal text</option><option value="h2">Heading</option><option value="h3">Subheading</option><option value="blockquote">Quote</option></select>
+          <select aria-label="Reply font size" disabled={disabled} defaultValue="3" onChange={event=>command('fontSize',event.target.value)} className="h-8 rounded border border-slate-200 bg-white px-1 text-xs"><option value="2">Small</option><option value="3">Normal</option><option value="4">Large</option><option value="5">Larger</option></select>
+          {buttons.map(item=><button key={item.cmd} type="button" title={item.label} aria-label={item.label} disabled={disabled} onMouseDown={event=>event.preventDefault()} onClick={()=>command(item.cmd)} className="rounded p-2 text-slate-500 hover:bg-slate-200 disabled:opacity-40"><item.icon className="h-4 w-4"/></button>)}
+          <button type="button" title="Insert link" aria-label="Insert reply link" disabled={disabled} onMouseDown={event=>event.preventDefault()} onClick={()=>{const selection=window.getSelection();savedRange.current=selection?.rangeCount?selection.getRangeAt(0).cloneRange():null;setLinkText(selection?.toString()||'');setLinkUrl('');setLinkOpen(value=>!value);}} className="rounded p-2 text-slate-500 hover:bg-slate-200"><Link className="h-4 w-4"/></button>
+          <label title="Text color" className="flex h-8 w-8 items-center justify-center"><input type="color" aria-label="Reply text color" defaultValue="#334155" disabled={disabled} onInput={event=>command('foreColor',event.currentTarget.value)} className="h-5 w-5 cursor-pointer border-0 bg-transparent p-0"/></label>
+        </div>}
+        {linkOpen&&<div className="space-y-2 border-b border-slate-200 bg-sky-50 p-3"><label className="block text-xs">Link text<input aria-label="Reply link text" value={linkText} onChange={event=>setLinkText(event.target.value)} className="mt-1 w-full rounded border border-slate-200 p-2 text-sm"/></label><label className="block text-xs">Link URL<input aria-label="Reply link URL" value={linkUrl} onChange={event=>setLinkUrl(event.target.value)} placeholder="https:// or mailto:" className="mt-1 w-full rounded border border-slate-200 p-2 text-sm"/></label><button type="button" disabled={!/^(https?:\/\/|mailto:)/i.test(linkUrl)} onClick={()=>{editor.current?.focus();if(savedRange.current&&editor.current?.contains(savedRange.current.commonAncestorContainer)){const selection=window.getSelection();selection?.removeAllRanges();selection?.addRange(savedRange.current);}command('insertHTML',`<a href="${escapeMailText(linkUrl)}">${escapeMailText(linkText||linkUrl)}</a>`);setLinkOpen(false);}} className="rounded bg-sky-600 px-3 py-1.5 text-xs text-white disabled:opacity-50">Insert link</button></div>}
+        {props.richReady?<div ref={editor} contentEditable={!disabled} suppressContentEditableWarning role="textbox" aria-label="Your reply" aria-multiline="true" aria-disabled={disabled} onInput={emit} onPaste={event=>{event.preventDefault();const html=event.clipboardData.getData('text/html');command('insertHTML',html?browserMailHtml(html):escapeMailText(event.clipboardData.getData('text/plain')).replaceAll('\n','<br>'));}} className="auto-mail-content min-h-56 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-inset focus:ring-sky-300" data-placeholder="Write your reply..."/>:<textarea aria-label="Your reply" value={props.body} onChange={event=>props.onChange(event.target.value,'')} disabled={disabled} maxLength={50000} rows={7} className="block w-full resize-y p-3 text-sm outline-none" placeholder="Write your reply..."/>}
+      </div>
+      {!!props.files.length&&<ul aria-label="Reply attachments" className="space-y-2">{props.files.map(file=><li key={file.id} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 p-2"><Paperclip className="h-4 w-4 shrink-0 text-sky-600"/><span className="min-w-0 flex-1 break-all text-xs">{file.name} <span className="text-slate-400">({fileSize(file.size)})</span></span><button type="button" aria-label={`Remove ${file.name}`} disabled={disabled} onClick={()=>void remove(file)} className="p-1 text-slate-400 hover:text-red-600"><X className="h-4 w-4"/></button></li>)}</ul>}
+      {error&&<p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+      <div className="flex flex-wrap items-center gap-3"><button type="submit" disabled={disabled||(!props.body.trim()&&!props.files.length)} className="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-sky-700 disabled:opacity-50"><Send className="h-4 w-4"/>{props.sending?'Sending...':'Send reply'}</button>{props.richReady&&<><input ref={picker} aria-label="Attach reply files" type="file" multiple accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,.txt,.zip" onChange={event=>void upload(event.target.files)} className="hidden"/><button type="button" disabled={disabled} onClick={()=>picker.current?.click()} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-2.5 text-xs text-slate-600"><Paperclip className="h-4 w-4"/>{uploading?'Uploading...':'Attach files'}</button><span className="text-[11px] text-slate-400">Up to 10 files / 15 MB total</span></>}</div>
+    </div>
+  </form>;
+}

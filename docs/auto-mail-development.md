@@ -109,6 +109,22 @@ Until this migration is applied, the app retains the earlier receipt-saving path
 
 ## Production deployment
 
+### Formatted reading, CC/BCC and attachments
+
+Run `supabase/auto-mail/migrations/20261022060000_rich_replies.sql` in the **separate Auto Mail project only**, after the reviewed-learning migration. It adds a private `auto-mail-attachments` Storage bucket, `reply_uploads`, `reply_details`, and an atomic rich-delivery claim function. Existing application tables and the main production database are unchanged. A restrictive policy limits the new bucket to server-authorized access even if the project already has broad Storage policies. No new Google OAuth scopes or API keys are required.
+
+The reader supports sanitized HTML, tables, clickable web/email links, To/CC/BCC headers, plain-text fallback, sender avatars, collapsed earlier messages and quoted history. Active content and remote images are removed. Inline images are available as attachment cards where Gmail supplies an attachment part. Attachments are matched to the actual Gmail message and thread for the currently connected mailbox before loading. PDF, PNG, JPEG, GIF and WebP previews are offered after checking the file signature; other types download. Incoming attachments larger than 15 MB remain available through the Gmail link. Signed preview/download links expire after five minutes.
+
+The reply composer supports text styles/sizes/colors, bold/italic/underline/strikethrough, lists, alignment, quotes, links, undo/redo and clear formatting. Use **Reply all** to populate the original To/CC recipients, excluding the support mailbox; edit/add addresses explicitly in To, CC and BCC. The primary Reply-To sender must remain in To. Duplicate recipients are removed across fields; the total is capped at 30. BCC is sent in the outgoing MIME headers and retained in the administrator-only delivery metadata. Original messages are not marked read in Gmail.
+
+Use **Attach files** for up to 10 files and **15 MB total**. Supported uploads are PDF, PNG/JPEG/GIF/WebP, Word, Excel, PowerPoint, text, CSV and ZIP. The server reserves an immutable object path for the administrator, reply request, mailbox connection, conversation and source message. The browser uploads directly to a signed Storage URL; API requests do not carry file bytes. Before sending, the server downloads each selected object, checks ownership/context/expiry and size, hashes its bytes, then atomically records the recipient lists, sanitized HTML and attachment metadata alongside the existing delivery claim. Gmail receives a threaded multipart/alternative or multipart/mixed message. The existing duplicate-send protection and uncertain-outcome handling remain in place; the app never automatically retries a Gmail send.
+
+Removing an unsent attachment deletes its object and upload registration. Uploads expire for sending after 24 hours; expiry does not automatically delete Storage objects. Sent file metadata and hashes remain with the delivery record, and files remain private in Storage until project maintenance removes them. Incoming files opened for preview/download are cached privately in the same bucket. Attachment contents are not supplied to OpenAI; AI drafts continue receiving only message text and attachment-presence flags.
+
+Before applying this migration, the enhanced reader remains available, the composer keeps the earlier plain-text sending path, and the attachment UI explains that setup is required. Apply the migration and click the Google logo to refresh capabilities, then reload the conversation if needed. No real mail is sent by automated tests.
+
+Implementation references: [Gmail MIME sending](https://developers.google.com/workspace/gmail/api/guides/sending), [Gmail attachment retrieval](https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.messages.attachments/get), [Supabase signed uploads](https://supabase.com/docs/reference/javascript/storage-from-createsigneduploadurl).
+
 ### Email agent model settings
 
 Run `supabase/auto-mail/migrations/20261022050000_agent_settings.sql` in the **separate Auto Mail project's SQL Editor only**. It creates `agent_settings` and `agent_setting_events`, with server-only reads and a versioned save function. It does not alter existing tables or the schema version. Before this migration, generation continues using the current server model and enable flag; the new settings form explains that saving needs setup.
