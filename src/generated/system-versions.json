@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "version": "1.8.2",
-  "updatedAt": "2026-10-22T04:31:08.992Z",
+  "version": "1.8.3",
+  "updatedAt": "2026-10-22T04:38:54.848Z",
   "entries": [
     {
       "id": "account-settings",
@@ -65,9 +65,9 @@
         "supabase/auto-mail",
         "api/mail.ts"
       ],
-      "version": "1.0.4",
-      "updatedAt": "2026-10-22T04:31:08.992Z",
-      "fingerprint": "1825998fbd24d460e7dd1d90555e5fa2f3dfbf0a862d23d6225c52488e1a80be"
+      "version": "1.0.5",
+      "updatedAt": "2026-10-22T04:38:54.848Z",
+      "fingerprint": "60145117bcb59addaa9201cbb5a47b28821267042af49a505ee80444627362c9"
     },
     {
       "id": "developer",
@@ -584,7 +584,7 @@
     "media/registration-depot-card.png": "de3a1dfdc105987f1400cdf87b836faa9b474ac0cd7344db6f1f2c2f9a293468",
     "media/registration-port-hero-fast.webp": "36830a87ccaf357ccfc531603d2937abbfd8ea8a819eeeb6f18d6aca2438d01a",
     "media/registration-port-hero.png": "2b6df14a930709895dc1f2a5572e4897545952bfd726f8cffde61727f7a1ced5",
-    "package.json": "78beef635bbd26cc13b3b3980bf93254f6f568e275f6099c4b30f2a50c21d450",
+    "package.json": "30cc64d67d932e14547ea2c698bf3e699174b4bcf9b31781af98d2515a35fc9b",
     "scripts/capture-push-version.ts": "1b4f1ef7ba558680dd94cede28b9f6046e49e8edffc0161d30bdee323f0dcb60",
     "scripts/system-version.ts": "6810696b603230f512405cb2fb37096682d17df1bfed169033bfa35f986b7c6c",
     "server-handlers/_email.ts": "9722520ad92b1e7adc090f6ff78b9b9a17df587b6af63a5f5284895911eb2eb8",
@@ -598,11 +598,14 @@
     "server-handlers/auto-mail/gmail.ts": "79697b49bcc5708c5e085381fad44cc9561fb83cbc74ac5a8c8b300ca7d58874",
     "server-handlers/auto-mail/knowledge.ts": "90f757630653b6fd6febc9c0203707280c74244726ad026a1f62edc7c90bc359",
     "server-handlers/auto-mail/learning.ts": "0678023569913c26c4452127bde06a63efaeba52c71430852efffad066c4e4c9",
-    "server-handlers/auto-mail/mail-content.ts": "4feb06fc6fbec7a0bbf4460826761ef45123614172ea797150ee1ea6b0187398",
+    "server-handlers/auto-mail/mail-content.ts": "f2112c12aa55b896fb72ca36f7784d9e4c45a609cf41e2e7e28410531a781998",
     "server-handlers/auto-mail/mail-error.ts": "24514ee1972ec1e4fcdb08fc329bc187ce7e79e2962cfd77f47338e167f30fa4",
     "server-handlers/auto-mail/status.ts": "df086638463fdbdbdced311792abab230ac0d0db765270cd72a40da12ddf06f2",
     "server-handlers/auto-mail/thread-signature.ts": "ec2eecf7f8c88c63615b2d3ba8ffeb8f19aa2334170a8eada6ba98055193f62b",
     "server-handlers/auto-mail/token-encryption.ts": "93baf89b6b98713630d7bb901bedc19fe19529e1802a98c673f593a551798104",
+    "server-handlers/auto-mail/vendor/sanitize-html.LICENSE.txt": "32fec388c9ad4ad31d33467edc81532e099a963d41ba5e39fa58d87c3ac1f162",
+    "server-handlers/auto-mail/vendor/sanitize-html.cjs": "9dba6250d8591182c59fac69b7354994146c184224816c3d8a9232f2efc631de",
+    "server-handlers/auto-mail/vendor/sanitize-html.d.cts": "d497c685ba1e5a42b6f1e500a2369a301430be91a7251a68ae36b902c5229da7",
     "server-handlers/email/attachments.ts": "d4ed64609286f0f5f95e5e1a528f37c431deaf62a38f55f4d807c32208289b8c",
     "server-handlers/email/logs.ts": "e4f0bc6ee994b1a295c63d87ad7fc95e4467a061942417855f149d9a36a2c424",
     "server-handlers/email/pdf-inter-font.ts": "4b7d76e9c6e695472be384cb1b5d2cee82fa37442ea1f8529352c7eeb480456d",
@@ -791,6 +794,41 @@
     "vite.config.ts": "167e03f4e2c3298d4e3cbe61c5c1f8712073bf15d56c63d992827e99d3b7601b"
   },
   "history": [
+    {
+      "sourceCommit": "76ff2a1f9dc76903803251b2def79f920d609ca1",
+      "pushedBy": "lumoratechent-beep",
+      "commits": [
+        {
+          "sha": "76ff2a1f9dc76903803251b2def79f920d609ca1",
+          "author": "cargomovemy",
+          "subject": "fix: package current HTML sanitizer for Vercel function startup"
+        }
+      ],
+      "authors": [
+        "cargomovemy"
+      ],
+      "version": "1.8.3",
+      "previousVersion": "1.8.2",
+      "date": "2026-10-22T04:38:54.848Z",
+      "summary": "Updated existing pages, tools or shared system files",
+      "files": [
+        "package.json",
+        "server-handlers/auto-mail/mail-content.ts",
+        "server-handlers/auto-mail/vendor/sanitize-html.LICENSE.txt",
+        "server-handlers/auto-mail/vendor/sanitize-html.cjs",
+        "server-handlers/auto-mail/vendor/sanitize-html.d.cts"
+      ],
+      "changes": [
+        {
+          "id": "auto-mail",
+          "name": "Auto Mail",
+          "kind": "tool",
+          "action": "updated",
+          "from": "1.0.4",
+          "to": "1.0.5"
+        }
+      ]
+    },
     {
       "sourceCommit": "07ba71cb5457535b3d04b91df54087418a26af27",
       "pushedBy": "lumoratechent-beep",
