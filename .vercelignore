@@ -8,8 +8,9 @@ coverage/
 tests/
 test-results/
 docs/
-# Keep build-time versioning available to vite.config.ts.
+# Keep install/build helpers available in the deployment upload.
 scripts/*
+!scripts/prepare-mail-preview.mjs
 !scripts/system-version-plugin.ts
 !scripts/system-version.ts
 *.log
