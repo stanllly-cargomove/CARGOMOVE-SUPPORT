@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "version": "1.9.0",
-  "updatedAt": "2026-10-23T06:08:04.895Z",
+  "version": "1.9.1",
+  "updatedAt": "2026-10-23T07:07:45.718Z",
   "entries": [
     {
       "id": "account-settings",
@@ -11,9 +11,9 @@
         "src/components/admin/AdminLayout.tsx"
       ],
       "kind": "page",
-      "version": "1.3.5",
-      "updatedAt": "2026-10-23T06:08:04.895Z",
-      "fingerprint": "6f170e3b6fff03eaf4286066b6b3afdba3e87a05d2a4d1947275fdd828a3fb88"
+      "version": "1.3.6",
+      "updatedAt": "2026-10-23T07:07:45.718Z",
+      "fingerprint": "bf3efc3ffe10250f11f81c62915f30754beaf8ba530809a3210be239f74c557b"
     },
     {
       "id": "admin",
@@ -23,9 +23,9 @@
         "src/components/admin/AdminLayout.tsx"
       ],
       "kind": "page",
-      "version": "1.3.5",
-      "updatedAt": "2026-10-23T06:08:04.895Z",
-      "fingerprint": "81c72f7332c0446796c76338cb0f3fc60a132c19a5c435cceca33a19aee1056e"
+      "version": "1.3.6",
+      "updatedAt": "2026-10-23T07:07:45.718Z",
+      "fingerprint": "aaee3afa57d082f125e2950132e7a2244f0e0ee12fe22da88a6e6306c1d87ac2"
     },
     {
       "id": "auto-email",
@@ -70,9 +70,9 @@
         "supabase/auto-mail",
         "api/mail.ts"
       ],
-      "version": "1.0.8",
-      "updatedAt": "2026-10-23T06:08:04.895Z",
-      "fingerprint": "d9def3909e551461a4c94a0be2bd8754c373c69a0d20da232fb28d829d1ca80d"
+      "version": "1.0.9",
+      "updatedAt": "2026-10-23T07:07:45.718Z",
+      "fingerprint": "e11288c5c67fdd4820c8b5090ba3ba8ebbe7284a81f6c2ba12ff416c7b568133"
     },
     {
       "id": "developer",
@@ -82,9 +82,9 @@
         "src/components/admin/AdminLayout.tsx"
       ],
       "kind": "page",
-      "version": "1.3.5",
-      "updatedAt": "2026-10-23T06:08:04.895Z",
-      "fingerprint": "b8fea6563a519324e116203bb56d7d4a15c0db59b0cbaafe76d1e4f79c24fc2c"
+      "version": "1.3.6",
+      "updatedAt": "2026-10-23T07:07:45.718Z",
+      "fingerprint": "c155d93453f2a887cb07e569075d64f2291504af6d94f8915e7ed191214e9d62"
     },
     {
       "id": "northport",
@@ -95,9 +95,9 @@
         "src/components/admin/NorthportRecovery.tsx",
         "server-handlers/northport"
       ],
-      "version": "1.2.1",
-      "updatedAt": "2026-10-21T15:54:23.433Z",
-      "fingerprint": "8ecaa1ae82aac0c3d04ac203fa61f265e182b83cae1e6d4894dec9f4259197a6"
+      "version": "1.2.2",
+      "updatedAt": "2026-10-23T07:07:45.718Z",
+      "fingerprint": "10d0474df2a31f122b62c6923178157c09f0977ee7cd16ca416d6d4075f9d376"
     },
     {
       "id": "queue-done",
@@ -290,9 +290,9 @@
         "src/components/admin/AutoMail.tsx"
       ],
       "kind": "page",
-      "version": "1.0.7",
-      "updatedAt": "2026-10-23T06:08:04.895Z",
-      "fingerprint": "a0e6b64e47b7bd81dfb9b26943e268812185ef8399a58230adb884e372c19613"
+      "version": "1.0.8",
+      "updatedAt": "2026-10-23T07:07:45.718Z",
+      "fingerprint": "4f13266636bd69fb26931e05b3943355b32e0c42e8be1d0235535c79856d06f1"
     },
     {
       "id": "src/components/admin/AutoMailAttachments.tsx",
@@ -362,9 +362,9 @@
         "src/components/admin/AutoMailInitialization.tsx"
       ],
       "kind": "page",
-      "version": "1.0.0",
-      "updatedAt": "2026-10-23T06:08:04.895Z",
-      "fingerprint": "d148136c8ad0c7db7dc51c357b1b6ba6e3a978be1f6309c0b42b8caeb48ed199"
+      "version": "1.0.1",
+      "updatedAt": "2026-10-23T07:07:45.718Z",
+      "fingerprint": "600b58aa4d67d7b2a7006bb4b601ad6851b682faf54aad30186099835f1d245f"
     },
     {
       "id": "src/components/admin/AutoMailMessageMenu.tsx",
@@ -554,9 +554,9 @@
         "src/components/admin/NorthportRecovery.tsx"
       ],
       "kind": "page",
-      "version": "1.2.0",
-      "updatedAt": "2026-10-21T15:54:23.433Z",
-      "fingerprint": "0e16286b1059d841fceffd8245c15974eaa2508a3c72ee44c62fe7b3889c8dc0"
+      "version": "1.2.1",
+      "updatedAt": "2026-10-23T07:07:45.718Z",
+      "fingerprint": "7bd45116108d540c2a99f8840a8f529e5133f49dcbce5f96eace71858f9a1a86"
     },
     {
       "id": "src/components/admin/NorthportScannedFiles.tsx",
@@ -733,7 +733,7 @@
     "media/registration-depot-card.png": "de3a1dfdc105987f1400cdf87b836faa9b474ac0cd7344db6f1f2c2f9a293468",
     "media/registration-port-hero-fast.webp": "36830a87ccaf357ccfc531603d2937abbfd8ea8a819eeeb6f18d6aca2438d01a",
     "media/registration-port-hero.png": "2b6df14a930709895dc1f2a5572e4897545952bfd726f8cffde61727f7a1ced5",
-    "package.json": "4c912c4f92e1362f0065e39a61df6b2addfd16137fc9ffda599f4d325e83770f",
+    "package.json": "d547f5ce7d325872146c914b80477f340a78b7091caf53a84300f3982ccb649c",
     "scripts/capture-push-version.ts": "1b4f1ef7ba558680dd94cede28b9f6046e49e8edffc0161d30bdee323f0dcb60",
     "scripts/system-version.ts": "32f56c2dee7dceb54a1eed7c11603c43750092d2d168c81e85c3d1f9380c3a56",
     "server-handlers/_email.ts": "9722520ad92b1e7adc090f6ff78b9b9a17df587b6af63a5f5284895911eb2eb8",
@@ -744,7 +744,7 @@
     "server-handlers/auto-mail/configuration.ts": "6b1ac310e7251f1f9ce3501e249cb3770d4d6f12bb4a85dec7a87d29c95eea31",
     "server-handlers/auto-mail/delivery-receipt.ts": "41a29c17f46d0757acfb94a123ed7d17599553af6c30fe03f961bd9e0e137716",
     "server-handlers/auto-mail/file-storage.ts": "e01d9ae6429b4185c46db336fe64a0e13cbe2e4db31faa93f27f7e94708354c7",
-    "server-handlers/auto-mail/gmail.ts": "c8f71dce0ba57fb11d63c25fde82c38aba40b09d43a86504f4d55f6f13c082da",
+    "server-handlers/auto-mail/gmail.ts": "fcf6bb795b6f6d9ebf5b1615f89fa713e4165c217677623f8620c7e374eca0f1",
     "server-handlers/auto-mail/incoming-ai.ts": "dbc2bce36304dac6a525ced470184493a9f53b7e2976b275ae8415c576c30a95",
     "server-handlers/auto-mail/knowledge.ts": "90f757630653b6fd6febc9c0203707280c74244726ad026a1f62edc7c90bc359",
     "server-handlers/auto-mail/learning.ts": "0678023569913c26c4452127bde06a63efaeba52c71430852efffad066c4e4c9",
@@ -798,12 +798,12 @@
     "src/App.tsx": "5fe8e4849c0d2aaed22dbd6eecf3bb37c8bfde7fcb99fb172256bd7f50ad4593",
     "src/components/admin/AccountSettings.tsx": "307eff35f85f7d44dac7be9d25dbb8d10ff8cacaf625bc1920439ddc9a9b0862",
     "src/components/admin/AdminDashboard.tsx": "1d7f3cfcac941b62fe4e159d48c4fbeb6dac370c9632eafe165fd1088c38ac0a",
-    "src/components/admin/AdminLayout.tsx": "e88f93045b9d07ab04eba1f0f89d6d8fde52403cb7733945188de7d33dbaa5a3",
+    "src/components/admin/AdminLayout.tsx": "6e47d690b7d02ebb6400a8439c3757730e8ea29f59f66782db45d6bd5f153050",
     "src/components/admin/AdminUser.tsx": "00957e103bffd351a3ac6ed3e3d98f7615fe3476b88406fe751997c715f0769c",
     "src/components/admin/AdminUserCreate.tsx": "8d314b35a609239dca04e94f2ad8268b5ebdf38e73bd4cfe94559e43d467bc3b",
     "src/components/admin/AssignIdModal.tsx": "d5d25d70259c5d45b455bd6572b5842aadb6645019f7cee71c938d6b1808716e",
     "src/components/admin/AutoEmailConfig.tsx": "278be1a72e64ac47f6e1f1fd32a8cadea77e84dbdbbdff55159450cfa96a2e5b",
-    "src/components/admin/AutoMail.tsx": "a4bc4d9ee06d7d8313240811c179d57af9dc9b87754c708e4fa58d67e91b7584",
+    "src/components/admin/AutoMail.tsx": "be6f7dbfd8a1de89639b63c0a8a5858b6c7d847a88f78eec0e4e3fe9484dc3f9",
     "src/components/admin/AutoMailAgentSettings.tsx": "0651a934fc6268e13ab87855ad1a1deb7bf73383657364534eabb27f5507fd00",
     "src/components/admin/AutoMailAiDraft.tsx": "d1f21c90ac0b0f6fe199749d40ba7d9e42d4e54691a792f6f590eb5c741a9c14",
     "src/components/admin/AutoMailAttachments.tsx": "7d95457365a3cd0c32333848fbc3ce470425f9c0cb8ad37fc4a84299b35523d8",
@@ -815,7 +815,7 @@
     "src/components/admin/AutoMailInitialization.tsx": "038c96280369ff12bc4316820e9bc0923ffaf337aae22758ea680d2544a27720",
     "src/components/admin/AutoMailKnowledge.tsx": "e336366620faf7617404c9ed7a796e043b746da3a7ec5b4c0447fba2ff85c807",
     "src/components/admin/AutoMailLearning.tsx": "dde7fefee03f2033eee9294b9289012fff8383f4ace0700ba0e9d712abab6d34",
-    "src/components/admin/AutoMailMailbox.tsx": "1b3c1e81afc8b2239c1af25ce4b5e2b49b8c74697a2ffa70a90904b8903ec1f1",
+    "src/components/admin/AutoMailMailbox.tsx": "1d4f90ef6b7bf7f25f1cd4c8e11b13ecfced95059eb0d597dcea4eec84591c1c",
     "src/components/admin/AutoMailMessageMenu.tsx": "61148b7d5f138312b4622ca843efb23f98b9f1da0502d72fb09e226a6c6d59f2",
     "src/components/admin/AutoMailNewMessage.tsx": "9bec09d26d6b39ffa92a4204d67cb8f119724b864e61dae7450ae272ecfda5c4",
     "src/components/admin/AutoMailReader.tsx": "9aa139b1afd192afc3affa2cdb1537172ce680a161332950a6b3a4884fa8296f",
@@ -834,7 +834,7 @@
     "src/components/admin/NorthportContainerPagination.tsx": "4e65be1bec3fe9b0b2619c489e15f0652930e8bd45e33dba620c9296c2c104a3",
     "src/components/admin/NorthportDateTimePicker.tsx": "52e97313d82848920e8911de7bb250e2787c6a9f76f525c674f5e239cce4e2f3",
     "src/components/admin/NorthportFileContainers.tsx": "9803b88a214f92f3541d1d32bc3dc593203d3ba36d3c9d8368738ee8d76d781e",
-    "src/components/admin/NorthportRecovery.tsx": "021ef4289e4570084bc28458519e24a8c9190343b99ffdf5bc3ff45be3f331e8",
+    "src/components/admin/NorthportRecovery.tsx": "92b4bab50b37f975c61a6d0df655198ecc52df006d69dbac2c63c47abddbb738",
     "src/components/admin/NorthportScannedFiles.tsx": "c50d61fc85a8ce616cf51ce082a3dc05063b0d531862ab5e98056c49dd4f5124",
     "src/components/admin/PdfAttachmentIcon.tsx": "4b65ea388a582c838e1782957115244f628de17b2f056cbae9ba39ef41afcc7d",
     "src/components/admin/PortDepotConfig.tsx": "0e0fb6700ba437b0709f80b51eb49e95337d6030a5fefef2bccdff66efed8bf6",
@@ -850,6 +850,7 @@
     "src/components/common/Badge.tsx": "2acfb2519973f5bd3ba8795fe36e013144705e5f53dd2882c5139a748486e34a",
     "src/components/common/GoogleConnectionButton.tsx": "6cdd3e35fa6d71a1339abc6a9dcc4e14f045172fe985bb5ac89650909dbecfa6",
     "src/components/common/Logo.tsx": "bbb8598a57ff447e56a8e162110350c51cfae5f4d583fc6e813a9e2d0117fb8c",
+    "src/components/common/NotificationToaster.tsx": "def31c196315a21dc0ec99ef784a65873050c4256a46064dc29b5825aaa3e1ac",
     "src/components/common/notifications.ts": "b02ba1a0fb4efeb4994b6d84a6e67ed754718730be0af382b066c6ebd37683a6",
     "src/components/customer/CompanyContextCard.tsx": "74e5ee26bb5937a49aeee32b33d1dc9579645c4017d161df0f74b3533ddf7a06",
     "src/components/customer/CompanyLookup.tsx": "8426dd8130cfdede178df93e583a9c09e0f586837f7f793be8979b3835908766",
@@ -877,7 +878,7 @@
     "src/components/customer/portalNavigation.ts": "6d84ef00bab14c4afbb6b01d91e8d6ecbc792fdd20ef2760f52c81e7db9c6060",
     "src/constants/companyLocations.ts": "8d2b5675aec95c90d7bd1c3582150e459008afb52ab3f5e68feb9b478385ec99",
     "src/constants/versions.ts": "87dab1269d27cb08f25d8eb288b7f62f70a325b91c1de420d652fc8ed35bc0e9",
-    "src/index.css": "1c52324f1f44eeccf4cbf25d16fe29a346df8b1e410083584fed45e7eb224b1d",
+    "src/index.css": "6404ca55216ffb47464e01c6aa2c56238bddbbf6647eb1d1851c9fb3c4870c20",
     "src/main.tsx": "f3d828b9fc5f49d6f93c3c84afb280871bd33e4af89edc020c0d57eb561c9dcb",
     "src/mammoth-browser.d.ts": "2e00349bdbb1a6c760d2d7ea1a73d5c4af74ff5b71e56a80630c41000ddf9a54",
     "src/services/auth.ts": "90ab3cc805589269ef558e029342b145cf2c96aceb94e71bd2203814e82ca94f",
@@ -887,7 +888,7 @@
     "src/services/autoMailDrafts.ts": "a056fbdad88bd57e54ed8ceb1bbde0e9e09d87b980626a4cf60a0ec69f2b18bc",
     "src/services/autoMailFormatting.ts": "486f01748b836fac2c7758ef941c01d15fad426d7ed7b020e460820291329323",
     "src/services/autoMailForward.ts": "da65ed037612f6710c71204dcfac69f9a38099754086c4fc44e42a9c29620a89",
-    "src/services/autoMailInitialization.ts": "d3e06a56d189f8b701d2737ffc2c6538436e7a3da011a26843a50e43167d4f0b",
+    "src/services/autoMailInitialization.ts": "e18d83bddc100e71d69bfb88ef53e2c59bce6bbebf0d89a2ba40ad9dc7070317",
     "src/services/autoMailKnowledge.ts": "1795db9b537076597b5e662c94cd4eed10c445f42630618b2ae394fc9eb5e425",
     "src/services/autoMailRecipients.ts": "3356e3434d1c63047c616c5b4e8b19e008e31d234b5214900ff7514534a543ef",
     "src/services/autoMailSending.ts": "6ba3944332b585b461f48430459ea6c2d57602edde88d18f150c5081bc0d84ed",
@@ -978,6 +979,101 @@
     "vite.config.ts": "167e03f4e2c3298d4e3cbe61c5c1f8712073bf15d56c63d992827e99d3b7601b"
   },
   "history": [
+    {
+      "sourceCommit": "582bf4e99052d1b9a0c3b68f2c2ee6593dcd0fdd",
+      "pushedBy": "lumoratechent-beep",
+      "commits": [
+        {
+          "sha": "582bf4e99052d1b9a0c3b68f2c2ee6593dcd0fdd",
+          "author": "cargomovemy",
+          "subject": "fix popup ui bug"
+        }
+      ],
+      "authors": [
+        "cargomovemy"
+      ],
+      "version": "1.9.1",
+      "previousVersion": "1.9.0",
+      "date": "2026-10-23T07:07:45.718Z",
+      "summary": "Updated existing pages, tools or shared system files",
+      "files": [
+        "package.json",
+        "server-handlers/auto-mail/gmail.ts",
+        "src/components/admin/AdminLayout.tsx",
+        "src/components/admin/AutoMail.tsx",
+        "src/components/admin/AutoMailMailbox.tsx",
+        "src/components/admin/NorthportRecovery.tsx",
+        "src/components/common/NotificationToaster.tsx",
+        "src/index.css",
+        "src/services/autoMailInitialization.ts"
+      ],
+      "changes": [
+        {
+          "id": "account-settings",
+          "name": "Account Settings",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.3.5",
+          "to": "1.3.6"
+        },
+        {
+          "id": "admin",
+          "name": "Admin Page",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.3.5",
+          "to": "1.3.6"
+        },
+        {
+          "id": "auto-mail",
+          "name": "Auto Mail",
+          "kind": "tool",
+          "action": "updated",
+          "from": "1.0.8",
+          "to": "1.0.9"
+        },
+        {
+          "id": "developer",
+          "name": "Dev Page",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.3.5",
+          "to": "1.3.6"
+        },
+        {
+          "id": "northport",
+          "name": "Northport Recovery",
+          "kind": "tool",
+          "action": "updated",
+          "from": "1.2.1",
+          "to": "1.2.2"
+        },
+        {
+          "id": "src/components/admin/AutoMail.tsx",
+          "name": "Auto Mail",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.7",
+          "to": "1.0.8"
+        },
+        {
+          "id": "src/components/admin/AutoMailInitialization.tsx",
+          "name": "Auto Mail Initialization",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.0",
+          "to": "1.0.1"
+        },
+        {
+          "id": "src/components/admin/NorthportRecovery.tsx",
+          "name": "Northport Recovery",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.2.0",
+          "to": "1.2.1"
+        }
+      ]
+    },
     {
       "sourceCommit": "1174a3c99810072dafff8728bf4e949bb025f6b1",
       "pushedBy": "lumoratechent-beep",
