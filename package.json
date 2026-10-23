@@ -7,6 +7,9 @@
     "node": "24.x"
   },
   "scripts": {
+    "postinstall": "node scripts/prepare-mail-preview.mjs",
+    "predev": "node scripts/prepare-mail-preview.mjs",
+    "prebuild": "node scripts/prepare-mail-preview.mjs",
     "generate:mail-sanitizer": "node scripts/build-mail-sanitizer.mjs",
     "dev": "vite --port=3000 --host=0.0.0.0",
     "dev:api": "tsx watch --include .env.local server.ts",
@@ -17,7 +20,7 @@
     "set:admin-password": "tsx scripts/set-admin-password.ts",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "test:auto-mail": "tsx --test tests/auto-mail.test.ts tests/auto-mail-knowledge.test.ts tests/auto-mail-ai.test.ts tests/auto-mail-learning.test.ts tests/auto-mail-agent.test.ts tests/auto-mail-rich.test.ts tests/auto-mail-outbox.test.ts tests/auto-mail-cache.test.ts",
+    "test:auto-mail": "tsx --test tests/auto-mail.test.ts tests/auto-mail-knowledge.test.ts tests/auto-mail-ai.test.ts tests/auto-mail-learning.test.ts tests/auto-mail-agent.test.ts tests/auto-mail-rich.test.ts tests/auto-mail-outbox.test.ts tests/auto-mail-cache.test.ts tests/auto-mail-scheduled-replies.test.ts tests/auto-mail-incoming.test.ts",
     "test:auto-mail:ui": "tsx tests/auto-mail-ui.ts",
     "test:auto-mail:navigation:ui": "tsx tests/auto-mail-navigation-ui.ts",
     "test:profile": "tsx --test tests/profile.test.ts",
@@ -37,10 +40,14 @@
     "test:northport:review:ui": "tsx tests/northport-review-ui.ts",
     "northport:check": "tsx scripts/check-northport-ftp.ts",
     "api": "tsx server.ts",
+    "test:auto-mail:attachments:ui": "tsx tests/auto-mail-attachments-ui.ts",
     "test:auto-mail:rich:ui": "tsx tests/auto-mail-rich-ui.ts",
     "test:auto-mail:mailbox:ui": "tsx tests/auto-mail-mailbox-ui.ts",
     "test:auto-mail:cache:ui": "tsx tests/auto-mail-cache-ui.ts",
-    "test:auto-mail:initialization:ui": "tsx tests/auto-mail-initialization-ui.ts"
+    "test:auto-mail:initialization:ui": "tsx tests/auto-mail-initialization-ui.ts",
+    "test:auto-mail:conversation:ui": "tsx tests/auto-mail-conversation-ui.ts",
+    "test:auto-mail:drafts:ui": "tsx tests/auto-mail-drafts-ui.ts",
+    "test:auto-mail:composer:ui": "tsx tests/auto-mail-composer-ui.ts"
   },
   "dependencies": {
     "@fontsource/inter": "^5.3.0",
@@ -59,7 +66,9 @@
     "fflate": "^0.8.3",
     "html-to-text": "^10.0.1",
     "lucide-react": "^0.546.0",
+    "mammoth": "1.13.0",
     "motion": "^12.23.24",
+    "pdfjs-dist": "6.4.299",
     "playwright-core": "1.63.0",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",

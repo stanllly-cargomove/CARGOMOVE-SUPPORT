@@ -29,11 +29,13 @@ try {
     const page = await browser.newPage({ viewport: { width, height: 1000 }, reducedMotion: 'reduce' });
     page.setDefaultTimeout(10000);
     const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
+    let incoming={enabled:false,scope:'ALL',version:1};
     await page.route('**/*', route => {
       const url = new URL(route.request().url());
       assert.equal(url.origin, 'http://localhost:3000');
       if (url.pathname === '/styles.css') return route.fulfill({ contentType: 'text/css', body: css });
       if (url.pathname.startsWith('/assets/')) return route.fulfill({ path: 'dist' + url.pathname });
+      if(url.pathname==='/api/auto-mail/incoming-settings'){if(route.request().method()==='POST'){const body=route.request().postDataJSON();assert.equal(body.enabled,true);assert.equal(body.scope,'NORTHPORT');incoming={...body,version:body.version+1};return route.fulfill({json:{settings:incoming}});}return route.fulfill({json:{storageReady:true,settings:incoming,worker:null}});}
       if (url.pathname === '/api/auto-mail/agent-settings') return route.fulfill({ json: { settings: { enabled: true, model: 'gpt-5.4-mini', enabled_models: ['gpt-5.4-mini'], version: 0 }, models: ['gpt-5.4-mini', 'gpt-4.1-mini'], storageReady: true, serverEnabled: true, keyConfigured: true } });
       if (url.pathname === '/api/auto-mail/status') return route.fulfill({ json: { state: 'READY', message: 'Database ready.', knowledgeReady: true, learningReady: true, mailboxConnected: false, oauthReady: true } });
       if (url.pathname === '/api/auto-mail/knowledge') return route.fulfill({ json: { articles: [], total: 0 } });
@@ -65,22 +67,19 @@ try {
     await nav('Return to Admin Portal');
     await nav('Auto Mail');
     assert.equal(await page.getByRole('tab').count(), 0, 'Configuration tabs are only in Developer settings');
-    await page.getByRole('button', { name: 'Auto Mail options', exact: true }).click();
-    await page.getByRole('menuitem', { name: 'Manage knowledge', exact: true }).click();
-    await page.getByRole('heading', { name: 'Auto Email Config', exact: true }).waitFor();
-    // Opening from Auto Mail must switch the actual portal and select Dev Setting.
-    const menu = page.getByRole('button', { name: 'Open navigation menu', exact: true });
-    if (await menu.isVisible()) await menu.click();
-    const developerNav = page.getByRole('navigation', { name: 'Developer navigation', exact: true });
-    await developerNav.waitFor();
-    assert.match(await developerNav.getByRole('button', { name: 'Dev Setting', exact: true }).getAttribute('class') || '', /bg-\[#0095e8\]/);
-    await nav('Return to Admin Portal');
-    await nav('Auto Mail');
+    const folders=page.getByRole('navigation',{name:'Mail folders',exact:true});
+    await folders.getByRole('button',{name:'Knowledge Base',exact:true}).click();
+    await page.getByRole('heading',{name:'Knowledge base',exact:true}).waitFor();
+    assert.equal(await page.getByRole('heading',{name:'Auto Email Config',exact:true}).count(),0,'Knowledge opens in the mailbox');
+    await folders.getByRole('button',{name:'Learning review',exact:true}).click();
+    await page.getByRole('heading',{name:'Learning review',exact:true}).waitFor();
+    await folders.getByRole('button',{name:'Inbox',exact:true}).click();
     await page.getByRole('button', { name: 'Auto Mail options', exact: true }).click();
     await page.getByRole('menuitem', { name: 'Email config', exact: true }).click();
     await page.getByRole('tab', { name: 'Email agent', exact: true }).waitFor();
     assert.equal(await page.getByRole('tab', { name: 'Email agent', exact: true }).getAttribute('aria-selected'), 'true');
     await page.getByRole('heading', { name: 'Email agent model', exact: true }).waitFor();
+    await page.locator('summary').filter({hasText:'Automatic incoming drafts'}).click();await page.getByLabel('Automatically prepare drafts for incoming emails',{exact:true}).check();await page.getByLabel('Authoritative KB scope',{exact:true}).fill('NORTHPORT');await page.getByRole('button',{name:'Save incoming draft settings',exact:true}).click();await page.getByText('Incoming draft settings saved. Emails still require staff review and Send.',{exact:true}).waitFor();assert.equal(incoming.enabled,true);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
     await page.screenshot({ path: `test-results/auto-email-agent-${width}.png`, fullPage: true });
     assert.deepEqual(errors, []);

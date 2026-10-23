@@ -1,3 +1,4 @@
+import { incomingSettings,runIncomingAi } from '../server-handlers/auto-mail/incoming-ai.js';
 import emailLogs from '../server-handlers/email/logs.js';
 import emailAttachments from '../server-handlers/email/attachments.js';
 import emailPreview from '../server-handlers/email/preview.js';
@@ -17,7 +18,7 @@ import mailboxActions from '../server-handlers/auto-mail/mailbox-actions.js';
 import { composeMessage, listOutbox, cancelOutbox, runOutbox } from '../server-handlers/auto-mail/outbox.js';
 import { attachmentUpload, attachmentRead, attachmentRemove } from '../server-handlers/auto-mail/attachments.js';
 import { learningList, learningDetail, learningPropose, learningReview } from '../server-handlers/auto-mail/learning.js';
-import { aiGenerate, aiUse } from '../server-handlers/auto-mail/ai.js';
+import { aiDraftList, aiGenerate, aiUse } from '../server-handlers/auto-mail/ai.js';
 import { knowledgeList, knowledgeDetail, knowledgeSave, knowledgeReview, knowledgeMatches } from '../server-handlers/auto-mail/knowledge.js';
 import { gmailConnect as autoMailConnect, gmailCallback as autoMailCallback, gmailThreads, gmailThread, gmailReply } from '../server-handlers/auto-mail/gmail.js';
 
@@ -25,6 +26,9 @@ import { gmailConnect as autoMailConnect, gmailCallback as autoMailCallback, gma
 type Handler = (request: any, response: any) => unknown;
 
 const handlers: Record<string, Handler> = {
+  'GET auto-mail/incoming-settings': incomingSettings,
+  'POST auto-mail/incoming-settings': incomingSettings,
+  'POST auto-mail/incoming-ai-run': runIncomingAi,
   'GET auto-mail/status': autoMailStatus,
   'POST auto-mail/mailbox-action': mailboxActions,
   'POST auto-mail/compose': composeMessage,
@@ -41,6 +45,7 @@ const handlers: Record<string, Handler> = {
   'GET auto-mail/learning-suggestion': learningDetail,
   'POST auto-mail/learning-propose': learningPropose,
   'POST auto-mail/learning-review': learningReview,
+  'GET auto-mail/ai-drafts': aiDraftList,
   'POST auto-mail/ai-generate': aiGenerate,
   'POST auto-mail/ai-use': aiUse,
   'GET auto-mail/knowledge': knowledgeList,

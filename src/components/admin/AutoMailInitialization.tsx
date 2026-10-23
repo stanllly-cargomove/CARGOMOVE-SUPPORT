@@ -14,8 +14,7 @@ export function AutoMailInitialization({ progress, error, onRetry }: { progress:
         <path d="M175 135V35" fill="none" stroke="#34a853" strokeWidth="28" strokeLinecap="round"/>
         <path d="M25 35L100 96L175 35" fill="none" stroke={`url(#${gradient})`} strokeWidth="30" strokeLinecap="round" strokeLinejoin="round"/>
       </svg>
-      <h2 className="text-2xl font-semibold tracking-tight text-slate-800">Auto Mail</h2>
-      <p aria-label={`Auto Mail version ${AUTO_MAIL_VERSION}`} className="mt-1 font-mono text-[11px] text-slate-400">v{AUTO_MAIL_VERSION}</p>
+      <div className="flex items-baseline justify-center gap-2"><h2 className="text-2xl font-semibold tracking-tight text-slate-800">AUTO MAIL</h2><span aria-label={`Auto Mail version ${AUTO_MAIL_VERSION}`} className="font-mono text-[11px] text-slate-400">v{AUTO_MAIL_VERSION}</span></div>
       <p className="mt-2 text-sm text-slate-500">Preparing your mailbox</p>
       <div role="progressbar" aria-label="Mailbox initialization progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent} aria-valuetext={`${progress.completed} of 4 steps complete`} className="mt-7 h-1.5 overflow-hidden rounded-full bg-slate-100">
         <div className="h-full rounded-full bg-sky-500 transition-[width] duration-300 motion-reduce:transition-none" style={{width:`${percent}%`}}/>

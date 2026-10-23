@@ -7,14 +7,17 @@ import { MailError } from './mail-error.js';
 export const MAX_ATTACHMENT_BYTES = 15 * 1024 * 1024;
 export const MAX_ATTACHMENTS = 10;
 export const ATTACHMENT_BUCKET = 'auto-mail-attachments';
-export const htmlTags = ['p','div','span','br','b','strong','i','em','u','s','strike','ul','ol','li','blockquote','h1','h2','h3','h4','hr','pre','code','a','table','thead','tbody','tfoot','tr','td','th','caption','sub','sup','font'];
+export const htmlTags = ['p','div','span','br','b','strong','i','em','u','s','strike','ul','ol','li','blockquote','h1','h2','h3','h4','hr','pre','code','a','table','thead','tbody','tfoot','tr','td','th','caption','sub','sup','font','img'];
 
+const spacingValue='(?:0(?:cm|in)?|(?:[0-9]|[1-4][0-9])(?:\\.\\d{1,2})?(?:px|pt)|(?:[0-3](?:\\.\\d{1,2})?|\\.\\d{1,2})(?:em|rem))';
+const verticalSpacing=new RegExp('^'+spacingValue+'$');
+const marginSpacing=new RegExp('^'+spacingValue+'(?:\\s+'+spacingValue+'){0,3}$');
 export function cleanMailHtml(value: string) {
   return sanitize(value.slice(0, 200000), {
-    allowedTags: htmlTags, allowedAttributes: { '*':['style'],font:['color','face','size'], a: ['href','target','rel'], td: ['colspan','rowspan'], th: ['colspan','rowspan'] },
-    allowedStyles: { '*': { color: [/^(?:#[0-9a-fA-F]{3,8}|[a-zA-Z]{1,20}|rgba?\([0-9.,% ]+\))$/], 'background-color': [/^(?:#[0-9a-fA-F]{3,8}|[a-zA-Z]{1,20}|rgba?\([0-9.,% ]+\))$/], 'text-align': [/^(left|right|center|justify)$/], 'font-size': [/^(?:[1-9]|[1-6][0-9])px$|^(small|medium|large|x-large|xx-large)$/], 'font-family': [/^[a-zA-Z ,"'-]{1,80}$/] } },
+    allowedTags: htmlTags, allowedAttributes: { '*':['style'],font:['color','face','size'], img:['data-mail-image','alt','width','height'], a: ['href','target','rel'], td: ['colspan','rowspan'], th: ['colspan','rowspan'] },
+    allowedStyles: { '*': { 'margin':[marginSpacing], 'margin-top':[verticalSpacing], 'margin-bottom':[verticalSpacing], color: [/^(?:#[0-9a-fA-F]{3,8}|[a-zA-Z]{1,20}|rgba?\([0-9.,% ]+\))$/], 'background-color': [/^(?:#[0-9a-fA-F]{3,8}|[a-zA-Z]{1,20}|rgba?\([0-9.,% ]+\))$/], 'text-align': [/^(left|right|center|justify)$/], 'font-size': [/^(?:[1-9]|[1-6][0-9])px$|^(small|medium|large|x-large|xx-large)$/], 'font-family': [/^[a-zA-Z ,"'-]{1,80}$/] } },
     allowedSchemes: ['http','https','mailto','tel'], allowProtocolRelative: false,
-    transformTags: { a: (_tag, attrs) => ({ tagName: 'a', attribs: { ...attrs, target: '_blank', rel: 'noopener noreferrer nofollow' } }) },
+    transformTags: { img:(_tag,attrs)=>{const ref=String(attrs.src||attrs['data-mail-image']||'').trim();const attribs:Record<string,string>={alt:String(attrs.alt||'Email image').slice(0,300)};if(ref&&ref.length<=2048&&!/^(?:data|javascript|file|blob):/i.test(ref)&&!ref.startsWith('//'))attribs['data-mail-image']=ref;for(const dimension of ['width','height'])if(/^\d{1,4}$/.test(attrs[dimension]||''))attribs[dimension]=String(Math.min(1200,Number(attrs[dimension])));return {tagName:'img',attribs};}, a: (_tag, attrs) => ({ tagName: 'a', attribs: { ...attrs, target: '_blank', rel: 'noopener noreferrer nofollow' } }) },
     nonTextTags: ['script','style','textarea','option','iframe','object','template','noscript'],
   });
 }
@@ -53,8 +56,15 @@ export function replyRecipients(body: Record<string, unknown>, primary: string, 
   return { to, cc, bcc };
 }
 export function fileParts(part: any, path = '0'): any[] {
-  const file = part.filename || (part.body?.attachmentId && !['text/plain','text/html'].includes(part.mimeType));
-  return [...(file ? [{ partId: part.partId || path, name: safeFilename(part.filename || 'attachment'), type: part.mimeType || 'application/octet-stream', size: Number(part.body?.size || 0), attachmentId: part.body?.attachmentId, data: part.body?.data }] : []), ...(part.parts || []).flatMap((p: any, i: number) => fileParts(p, `${path}.${i}`))];
+  const header=(name:string)=>String(part.headers?.find((item:any)=>String(item.name).toLowerCase()===name)?.value||'');
+  const contentId=header('content-id').trim().replace(/^<|>$/g,'');const contentLocation=header('content-location').trim();const disposition=header('content-disposition').split(';')[0].trim().toLowerCase();
+  const file = part.filename || ((part.body?.attachmentId||part.body?.data) && !['text/plain','text/html'].includes(part.mimeType)&&!String(part.mimeType).startsWith('multipart/'));
+  return [...(file ? [{ partId: part.partId || path, name: safeFilename(part.filename || 'attachment'), type: part.mimeType || 'application/octet-stream', size: Number(part.body?.size || 0), contentId,contentLocation,disposition,attachmentId: part.body?.attachmentId, data: part.body?.data }] : []), ...(part.parts || []).flatMap((p: any, i: number) => fileParts(p, `${path}.${i}`))];
+}
+export function normalizeImageReference(value:string){try{return decodeURIComponent(value.trim().replace(/^cid:/i,'').replace(/^<|>$/g,''));}catch{return value.trim().replace(/^cid:/i,'');}}
+export function embeddedImageParts(html:string,files:any[]){
+  const refs=[...html.matchAll(/data-mail-image="([^"]*)"/g)].map(match=>normalizeImageReference(convert(match[1],{wordwrap:false})));
+  return files.filter(file=>/^image\/(png|jpeg|gif|webp)$/i.test(file.type)&&refs.some(ref=>[file.contentId,file.contentLocation,...(file.disposition==='inline'?[file.name]:[])].filter(Boolean).some(value=>normalizeImageReference(value).toLowerCase()===ref.toLowerCase()))).slice(0,30);
 }
 export function messageBodies(part: any): { text: string; html: string } {
   if (part.filename) return { text: '', html: '' };

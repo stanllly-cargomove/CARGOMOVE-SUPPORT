@@ -59,7 +59,7 @@ interface AdminLayoutProps {
 }
 
 export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout, onUserChange, active = true }: AdminLayoutProps) {
-  const [activeTab, setActiveTab] = useState<string>(() => user?.type === 'ADMIN' && new URLSearchParams(window.location.search).get('auto_mail') === 'connected' ? 'auto-mail' : 'dashboard');
+  const [activeTab, setActiveTab] = useState<string>(() => user?.type === 'ADMIN' && (new URLSearchParams(window.location.search).get('auto_mail') === 'connected' || window.location.hash === '#auto-mail/signatures') ? 'auto-mail' : 'dashboard');
   const [autoEmailConfigTab, setAutoEmailConfigTab] = useState<AutoEmailConfigTab>('knowledge');
   const openAutoEmailConfig = (tab: AutoEmailConfigTab = 'knowledge') => {
     setAutoEmailConfigTab(tab); setPortalMode('developer'); setActiveTab('auto-email-config'); setIsMobileSidebarOpen(false);

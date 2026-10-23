@@ -2,6 +2,7 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "headers": [
+    { "source": "/auto-mail-preview/:path*", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
     {
       "source": "/sw.js",
       "headers": [
@@ -19,7 +20,7 @@
   ],
   "functions": {
     "api/mail.ts": {
-      "maxDuration": 60
+      "maxDuration": 120
     },
     "api/dev-tools.ts": {
       "maxDuration": 120,

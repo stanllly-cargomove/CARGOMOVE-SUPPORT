@@ -9,3 +9,6 @@ test-results/
 .env*
 !.env.example
 .vercel
+
+# Generated from the pinned PDF.js dependency before dev/build.
+public/auto-mail-preview/

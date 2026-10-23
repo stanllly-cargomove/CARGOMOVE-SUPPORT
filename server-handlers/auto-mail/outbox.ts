@@ -1,9 +1,10 @@
 import crypto from 'node:crypto';
 import { bodyOf, noStore, requireAdmin } from '../_email.js';
 import { autoMailClient, autoMailConfiguration } from './configuration.js';
-import { accessToken, checkOrigin, connected, googleJson, SEND_SCOPE, singleAddress } from './gmail.js';
+import { accessToken, checkOrigin, connected, googleJson, gmailGet, replyContext, SEND_SCOPE, singleAddress } from './gmail.js';
 import { cleanMailHtml, mailHtmlText, replyRecipients, addressList, richRawReply } from './mail-content.js';
 import { loadReplyFiles } from './file-storage.js';
+import { recordAcceptedReply } from './delivery-receipt.js';
 import { MailError } from './mail-error.js';
 
 const BUCKET='auto-mail-outbox';
@@ -26,6 +27,8 @@ export async function deliverOutbox(client:any,job:any) {
     const bytes=Buffer.from(await download.data.arrayBuffer());
     if(hash(bytes)!==job.raw_sha256)throw new Error('Prepared message failed its integrity check.');
     raw=bytes.toString('base64url'); token=await accessToken(connection);
+    if(job.reply_context){const context=job.reply_context;const current=await gmailGet(token,`threads/${encodeURIComponent(context.threadId)}?format=full`);if(replyContext(current,connection.email,context.sourceMessageId).recipient!==context.recipient)throw new Error('Reply recipient changed');if(context.aiDraftId){const checked=await client.rpc('validate_ai_draft',{p_id:context.aiDraftId,p_actor:context.actorId});if(checked.error)throw new Error('AI draft changed');}}
+
   }catch {
     const saved=await client.rpc('finish_outbox_message',{p_id:job.id,p_status:'FAILED',p_error:'Delivery stopped before sending. Mailbox access changed or prepared content is unavailable. Compose again after checking the connection.'});
     if(saved.error)throw new MailError(503,'Delivery stopped before sending, but its status could not be saved. Check Scheduled and Gmail Sent.');
@@ -33,14 +36,15 @@ export async function deliverOutbox(client:any,job:any) {
   }
   let sent:any;
   try {
-    sent=await googleJson('https://gmail.googleapis.com/gmail/v1/users/me/messages/send',{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({raw})});
+    sent=await googleJson('https://gmail.googleapis.com/gmail/v1/users/me/messages/send',{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({raw,...(job.reply_context?{threadId:job.reply_context.threadId}:{})})});
     if(!sent.id)throw new Error('Missing receipt');
   }catch {
     await client.rpc('finish_outbox_message',{p_id:job.id,p_status:'UNCERTAIN',p_error:'Gmail may have accepted this message. Check Sent; this request will never be retried automatically.'});
     return {status:'UNCERTAIN',id:job.id};
   }
+  const receipt=job.reply_context?await recordAcceptedReply(client,job.id,job.actor_id,sent.id):null;
   const saved=await client.rpc('finish_outbox_message',{p_id:job.id,p_status:'SENT',p_message_id:sent.id,p_thread_id:sent.threadId||null});
-  return {status:'SENT',id:job.id,...(saved.error?{warning:'Gmail accepted the message, but its local receipt could not be saved. Do not resend.'}:{})};
+  return {status:'SENT',id:job.id,...((saved.error||receipt&&!receipt.saved)?{warning:'Gmail accepted the message, but its local receipt could not be saved. Do not resend.'}:{})};
 }
 
 export function outboxHandler(action:'compose'|'list'|'cancel') {

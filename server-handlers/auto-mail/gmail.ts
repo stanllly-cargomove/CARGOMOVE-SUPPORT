@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import {embeddedImageParts} from './mail-content.js';
 import { createPkce, noStore, requireAdmin, bodyOf } from '../_email.js';
 import { decryptMailboxToken, encryptMailboxToken } from './token-encryption.js';
 import { autoMailClient, autoMailConfiguration } from './configuration.js';
@@ -74,15 +75,15 @@ export function singleAddress(value: string) {
 export function presentThread(thread: any, email: string) {
   const messages = [...(thread.messages || [])].sort((a: any, b: any) => Number(a.internalDate) - Number(b.internalDate));
   return { id: thread.id, subject: header(messages[0] || {}, 'Subject') || '(No subject)',
-    messages: messages.map((m: any) => { const bodies=messageBodies(m.payload||{}); return ({ id: m.id, from: header(m, 'From'), to: header(m, 'To'), cc: header(m, 'Cc'), bcc: header(m, 'Bcc'),
+    messages: messages.map((m: any) => { const bodies=messageBodies(m.payload||{});const allFiles=fileParts(m.payload||{});const images=embeddedImageParts(bodies.html,allFiles);const files=allFiles.filter(file=>!images.includes(file)); return ({ id: m.id, from: header(m, 'From'), to: header(m, 'To'), cc: header(m, 'Cc'), bcc: header(m, 'Bcc'),
       date: new Date(Number(m.internalDate)).toISOString(),
       outbound: (m.labelIds || []).includes('SENT') || (() => { try { return singleAddress(header(m, 'From')) === email; } catch { return false; } })(),
       body: (bodies.text || mailHtmlText(bodies.html)).slice(0,100000) || m.snippet || '(No message content.)', html: bodies.html,
-      files: fileParts(m.payload||{}).map(({partId,name,type,size})=>({partId,name,type,size})),
-      attachments: hasAttachments(m.payload || {}),
+      files: files.map(({partId,name,type,size})=>({partId,name,type,size})),
+      inlineImages:images.map(({partId,name,type,size,contentId,contentLocation,disposition})=>({partId,name,type,size,contentId,contentLocation,disposition})),
+      attachments: files.length>0,
     }); }) };
 }
-function hasAttachments(part: any): boolean { return !!part.filename || (part.parts || []).some(hasAttachments); }
 
 export function replyContext(thread: any, email: string, expectedMessage: string) {
   const messages = [...(thread.messages || [])].sort((a: any, b: any) => Number(a.internalDate) - Number(b.internalDate));
@@ -207,6 +208,13 @@ export function createAutoMailHandler(action: 'connect' | 'callback' | 'threads'
       const body = action === 'reply' ? await bodyOf(request) : {};
       const threadId = String(action === 'reply' ? body.threadId || '' : request.query?.id || '');
       if (!/^[a-zA-Z0-9_-]{1,128}$/.test(threadId)) throw new MailError(400, 'Invalid conversation.');
+      if(action==='reply'&&body.sendAt!=null){
+        if(body.connectionVersion!==connection.version)throw new MailError(409,'The connected mailbox changed. Reload Auto Mail.');
+        if(!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(body.requestId||'')))throw new MailError(400,'Invalid send request.');
+        const existing=await client.from('outbox_messages').select('id,status,actor_id,mailbox_id,reply_context').eq('id',body.requestId).maybeSingle();
+        if(existing.error)throw new MailError(503,'Apply the scheduled replies migration in the Auto Mail database, then refresh.');
+        if(existing.data){if(existing.data.actor_id!==session.id||existing.data.mailbox_id!==connection.mailbox_id||existing.data.reply_context?.threadId!==threadId)throw new MailError(409,'Scheduled reply request is unavailable.');return response.json({id:existing.data.id,status:existing.data.status});}
+      }
       const thread = await gmailGet(token, `threads/${encodeURIComponent(threadId)}?format=full`);
       if (action === 'thread') {
         const view = await persistThread(client, connection, thread);
@@ -239,6 +247,7 @@ export function createAutoMailHandler(action: 'connect' | 'callback' | 'threads'
         gmail_thread_id: threadId, source_message_id: body.sourceMessageId, recipient: context.recipient, body_text: message, requested_by: session.id,
         ai_draft_id: aiDraftId, conversation_hash: aiDraftId ? threadSignature(presentThread(thread, connection.email)) : null,
         subject: context.subject, customer_question: presentThread(thread, connection.email).messages.at(-1)?.body || '' };
+      if(body.sendAt!=null){const {queueScheduledReply}=await import('./scheduled-reply.js');return response.json(await queueScheduledReply(client,connection,body,delivery,{to:recipients.to,cc:recipients.cc,bcc:recipients.bcc,html,attachments:files.map(({data,...meta})=>meta)},raw));}
       const claim = await client.rpc(rich?'claim_rich_reply':'claim_manual_reply', rich?{p_delivery:delivery,p_detail:{to:recipients.to,cc:recipients.cc,bcc:recipients.bcc,html,attachments:files.map(({data,...meta})=>meta)}}:{p_delivery:delivery});
       if(claim.error && ['PGRST202','42P01','42883'].includes(claim.error.code))throw new MailError(503,'Apply the rich replies migration in the separate Auto Mail database to send formatted replies, CC/BCC or attachments.');
       if (claim.error) throw new MailError(409, aiDraftId ? 'The AI draft or its KB sources changed, or this conversation already has a reply request. Reload the conversation and check Gmail before trying again.' : 'This message already has a reply request, or the mailbox changed. Refresh the conversation and check Sent in Gmail.');
@@ -257,7 +266,7 @@ export function createAutoMailHandler(action: 'connect' | 'callback' | 'threads'
       const status = error instanceof MailError ? error.status : 503;
       const message = error instanceof MailError ? error.message : 'Auto Mail could not complete the request. Check the connection and try again.';
       if (action === 'callback') return response.status(status).send(message);
-      return response.status(status).json({ error: message, ...(action==='reply'&&status===400?{canEditReply:true}:{}) });
+      return response.status(status).json({ error: message, ...(action==='reply'&&(status===400||(status===503&&request.body?.sendAt))?{canEditReply:true}:{}) });
     }
   };
 }

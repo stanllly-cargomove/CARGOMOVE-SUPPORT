@@ -1,3 +1,4 @@
+import {AutoMailIncomingSettings} from './AutoMailIncomingSettings';
 import React, { useEffect, useState } from 'react';
 import { knowledgeRequest } from '../../services/autoMailKnowledge';
 
@@ -5,6 +6,7 @@ type Settings = { enabled: boolean; model: string; enabled_models: string[]; ver
 type Result = { settings: Settings; models: string[]; storageReady: boolean; serverEnabled: boolean; keyConfigured: boolean };
 
 export function AutoMailAgentSettings() {
+  const [incomingOpen,setIncomingOpen]=useState(false);
   const [result, setResult] = useState<Result | null>(null);
   const [form, setForm] = useState<Settings | null>(null);
   const [custom, setCustom] = useState('');
@@ -49,5 +51,6 @@ export function AutoMailAgentSettings() {
       {form.enabled && !form.enabled_models.includes(form.model) && <p role="alert" className="text-sm text-amber-800">Enable the active model or choose another enabled model before saving.</p>}
       <button type="submit" disabled={busy || !dirty || !result.storageReady || (form.enabled && !form.enabled_models.includes(form.model))} className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{busy ? 'Saving...' : 'Save agent settings'}</button>
     </form>}
+  <details onToggle={event=>{if(event.currentTarget.open)setIncomingOpen(true);}} className="border-t border-slate-200 pt-4"><summary className="cursor-pointer text-sm font-semibold text-slate-700">Automatic incoming drafts</summary>{incomingOpen&&<AutoMailIncomingSettings/>}</details>
   </section>;
 }

@@ -42,7 +42,7 @@ try {
     const checked=page.waitForResponse(response=>response.url().includes('/threads?')&&response.url().includes('historyId=41'));await page.clock.runFor(1100);await checked;
     assert.equal(checks,1);assert.equal(lists,3);await row().waitFor();
     history='42';await page.clock.runFor(120000);await page.getByRole('button',{name:/New customer question/}).waitFor();assert.equal(checks,2);
-    await folders.getByRole('button',{name:'Compose',exact:true}).click();await page.getByRole('textbox',{name:'Reply To recipients',exact:true}).fill('customer@example.com');await page.getByRole('textbox',{name:'Message subject',exact:true}).fill('Background test');await page.getByRole('textbox',{name:'Your reply',exact:true}).fill('Keep this draft');
+    await folders.getByRole('button',{name:'Compose',exact:true}).click();await page.getByRole('combobox',{name:'Reply To recipients',exact:true}).fill('customer@example.com');await page.getByRole('textbox',{name:'Message subject',exact:true}).fill('Background test');await page.getByRole('textbox',{name:'Your reply',exact:true}).fill('Keep this draft');
     await page.getByRole('button',{name:'Send message',exact:true}).click();
     assert.equal(await page.getByRole('region',{name:'Compose email'}).count(),0,'Composer closes before the server response');
     await folders.getByRole('button',{name:'Sent',exact:true}).click();await row().waitFor();

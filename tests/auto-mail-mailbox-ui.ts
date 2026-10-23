@@ -132,11 +132,12 @@ try {
     await page.getByRole('checkbox',{name:'Select Registration help',exact:true}).check();
     page.once('dialog',dialog=>dialog.accept());await page.getByRole('button',{name:'Restore selected',exact:true}).click();
     await page.getByText('1 conversation(s) restored.',{exact:true}).waitFor();assert.equal(managed,2);
-    const compose=async()=>{await folders.getByRole('button',{name:'Compose',exact:true}).click();await page.getByRole('textbox',{name:'Reply To recipients',exact:true}).fill('newcustomer@example.com');await page.getByRole('textbox',{name:'Message subject',exact:true}).fill('New registration');await page.getByRole('textbox',{name:'Your reply',exact:true}).fill('New instructions');};
+    const compose=async()=>{await folders.getByRole('button',{name:'Compose',exact:true}).click();await page.getByRole('combobox',{name:'Reply To recipients',exact:true}).fill('newcustomer@example.com');await page.getByRole('textbox',{name:'Message subject',exact:true}).fill('New registration');await page.getByRole('textbox',{name:'Your reply',exact:true}).fill('New instructions');};
     await compose();await page.getByRole('button',{name:'Send message',exact:true}).click();
     await page.getByText('Message sent through Gmail.',{exact:true}).waitFor();assert.equal(composeSends,1);
     await compose();
     const local=await page.evaluate(()=>{const date=new Date(Date.now()+600000);return new Date(date.getTime()-date.getTimezoneOffset()*60000).toISOString().slice(0,16);});
+    await page.getByRole('button',{name:'Send options',exact:true}).click();await page.getByRole('menuitem',{name:'Schedule send',exact:true}).click();
     await page.getByLabel('Scheduled send time',{exact:true}).fill(local);
     await page.getByRole('button',{name:'Schedule send',exact:true}).click();
     await page.getByText('Message scheduled. View or cancel it in Scheduled.',{exact:true}).waitFor();assert.equal(composeSends,1,'Scheduling never sends immediately');

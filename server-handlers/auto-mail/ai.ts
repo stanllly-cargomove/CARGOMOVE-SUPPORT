@@ -93,12 +93,16 @@ export function createAiHandler(action: 'generate' | 'use') {
       const config = await effectiveAiConfiguration(client);
       if (!config.ready) throw new MailError(503, config.message);
       const body = await bodyOf(request);
-      const id = String(action === 'generate' ? body.requestId || '' : body.draftId || '');
+      let id = String(action === 'generate' ? body.requestId || '' : body.draftId || '');
       if (!uuid.test(id)) throw new MailError(400, 'Invalid draft request.');
       const connection = await connected(client);
       const token = await accessToken(connection);
       if (action === 'use') {
-        const saved = await client.rpc('validate_ai_draft', { p_id: id, p_actor: session.id });
+        let saved = await client.rpc('validate_ai_draft', { p_id: id, p_actor: session.id });
+        if(saved.error&&String(saved.error.message).includes('AI_DRAFT_UNAVAILABLE')){
+          const adopted=await client.rpc('adopt_incoming_draft',{p_id:id,p_actor:session.id});
+          if(!adopted.error&&adopted.data&&adopted.data!==id){id=adopted.data;saved=await client.rpc('validate_ai_draft',{p_id:id,p_actor:session.id});}
+        }
         dbResult(saved.error);
         const draft = saved.data;
         const raw = await gmailGet(token, `threads/${encodeURIComponent(draft.gmail_thread_id)}?format=full`);
@@ -147,3 +151,23 @@ export function createAiHandler(action: 'generate' | 'use') {
 
 export const aiGenerate = createAiHandler('generate');
 export const aiUse = createAiHandler('use');
+
+
+export async function aiDraftList(request:any,response:any){
+  noStore(response);const session=requireAdmin(request,response);if(!session)return;
+  if(request.method!=='GET')return response.status(405).json({error:'Method not allowed.'});
+  try{
+    const config=autoMailConfiguration();if(!config.ready)throw new MailError(503,config.message);
+    const client=autoMailClient(config),connection=await connected(client);const offset=Number(request.query?.offset||0);
+    if(!Number.isSafeInteger(offset)||offset<0||offset>100000)throw new MailError(400,'Invalid draft page.');
+    const automatic=await client.from('incoming_agent_settings').select('id').eq('id','system').maybeSingle();
+    if(automatic.error&&!['42P01','PGRST205'].includes(automatic.error.code||''))dbResult(automatic.error);
+    let query=client.from('ai_reply_drafts').select('*').eq('mailbox_id',connection.mailbox_id).eq('connection_version',connection.version);
+    query=automatic.error?query.eq('requested_by',session.id):query.or(`requested_by.eq.${session.id},automatic.eq.true`);
+    if(!automatic.error)query=query.is('origin_draft_id',null);
+    const result=await query.order('created_at',{ascending:false}).range(offset,offset+25);
+    dbResult(result.error);
+    const jobs=automatic.error?{data:[],error:null}:await client.from('incoming_ai_jobs').select('id,subject,gmail_thread_id,status,classification,review_reason,created_at').eq('mailbox_id',connection.mailbox_id).eq('connection_version',connection.version).order('created_at',{ascending:false}).limit(25);dbResult(jobs.error);
+    return response.json({jobs:jobs.data||[],drafts:(result.data||[]).slice(0,25).map(draft=>({...publicDraft(draft),threadId:draft.gmail_thread_id,sourceMessageId:draft.source_message_id,createdAt:draft.created_at,scope:draft.scope,automatic:!!draft.automatic,draftKind:draft.draft_kind||'KB'})),nextOffset:(result.data||[]).length>25?offset+25:null});
+  }catch(error){return response.status(error instanceof MailError?error.status:503).json({error:error instanceof MailError?error.message:'Unable to load saved AI drafts.'});}
+}

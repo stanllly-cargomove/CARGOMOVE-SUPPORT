@@ -180,10 +180,11 @@ try {
     await page.getByRole('button', { name: /Click to refresh inbox/ }).hover();
     await page.getByRole('tooltip').getByText('operator@example.com', { exact: true }).waitFor();
     await page.getByRole('button', { name: 'Auto Mail options', exact: true }).click();
-    await page.getByRole('menuitem', { name: 'Manage knowledge', exact: true }).waitFor();
+    await page.getByRole('menuitem', { name: 'Email config', exact: true }).waitFor();
     await page.keyboard.press('Escape');
     assert.equal(await page.getByRole('menu').count(), 0);
     assert.equal(await page.getByRole('button', { name: 'Auto Mail options', exact: true }).evaluate(element => element === document.activeElement), true);
+    await page.getByRole('button', { name: 'Find an approved answer', exact: true }).click();
     await page.getByRole('button', { name: 'Find KB articles', exact: true }).click();
     await page.getByRole('complementary', { name: 'Approved knowledge search' }).locator('summary').filter({ hasText: 'Required registration documents' }).click();
     staleSource = true;
@@ -197,6 +198,7 @@ try {
     assert.equal(sends, 0, 'Inserting a KB answer requires a separate explicit send');
     assert.equal(aiRequests, 0, 'Opening an email does not automatically invoke AI');
     const previousBody = await editor.inputValue();
+    await page.getByRole('button', { name: 'AI reply suggestion', exact: true }).click();
     await page.getByRole('button', { name: 'Generate AI draft', exact: true }).click();
     await page.getByText('The KB does not support a reliable answer.', { exact: false }).waitFor();
     assert.equal(await page.getByRole('button', { name: 'Add AI draft to reply', exact: true }).count(), 0, 'Unsupported answers cannot be inserted');

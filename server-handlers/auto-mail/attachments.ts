@@ -1,3 +1,4 @@
+import {verifiedMailFileType} from '../../shared/autoMailFiles.js';
 import crypto from 'node:crypto';
 import { bodyOf, noStore, requireAdmin } from '../_email.js';
 import { autoMailClient, autoMailConfiguration } from './configuration.js';
@@ -54,7 +55,7 @@ export function createAttachmentHandler(action:'upload'|'read'|'remove') {
       if(typeof result.data!=='string'||result.data.length>MAX_ATTACHMENT_BYTES*1.4)throw new MailError(502,'The attachment could not be loaded. Open it in Gmail.');
       const data=Buffer.from(result.data,'base64url');if(data.length>MAX_ATTACHMENT_BYTES)throw new MailError(400,'Open Gmail for this large attachment.');
       // Only a small set of verified formats can be previewed. Everything else downloads.
-      const type = data.subarray(0,5).toString()==='%PDF-'?'application/pdf':data.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]))?'image/png':data[0]===255&&data[1]===216&&data[2]===255?'image/jpeg':data.subarray(0,6).toString().match(/^GIF8[79]a$/)?'image/gif':data.subarray(0,4).toString()==='RIFF'&&data.subarray(8,12).toString()==='WEBP'?'image/webp':'application/octet-stream';
+      const type=verifiedMailFileType(data,file.name);
       const path=`incoming/${connection.mailbox_id}/${messageId}/${crypto.createHash('sha256').update(partId).digest('hex')}`;
       const uploaded=await client.storage.from(ATTACHMENT_BUCKET).upload(path,data,{contentType:type,upsert:true});
       if(uploaded.error)throw new MailError(503,'Attachment storage is unavailable. Apply the rich replies migration, or open the attachment in Gmail.');

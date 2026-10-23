@@ -1,3 +1,5 @@
+import { parseMailRecipients, type MailRecipient } from './autoMailRecipients';
+
 // Per-tab snapshots survive reloads and are cleared with the authenticated session.
 export const MAIL_REFRESH_MS = 120_000;
 const SNAPSHOT_KEY = 'cargomove.auto-mail.v1';
@@ -109,4 +111,14 @@ export async function refreshMailThreads<T extends {id:string}>(scope:string, pa
   const result = {...first,threads,nextPageToken};
   writeMail(scope,path,result,context);
   return result;
+}
+
+export function mailContacts(scope:string,context:string):MailRecipient[] {
+  restoreSnapshot();const contacts=new Map<string,MailRecipient>();
+  const add=(value:unknown)=>{if(typeof value!=='string')return;for(const person of parseMailRecipients(value)){if(!/^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/.test(person.email))continue;const id=person.email.toLowerCase();const old=contacts.get(id);if(!old||(!old.name&&person.name))contacts.set(id,person);}};
+  for(const [id,entry] of entries){const [owner,connection,path]=JSON.parse(id);if(owner!==scope||connection!==context)continue;const value=entry.value as any;
+    if(path.startsWith('threads?'))for(const row of value.threads||[]){add(row.from);add(row.to);}
+    if(path.startsWith('thread?'))for(const row of value.messages||[]){add(row.from);add(row.to);add(row.cc);}
+  }
+  return [...contacts.values()];
 }

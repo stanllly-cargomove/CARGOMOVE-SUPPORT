@@ -8,6 +8,8 @@ import { loadReplyFiles, uploadMetadata } from '../server-handlers/auto-mail/fil
 import { attachmentRead, attachmentUpload, attachmentRemove } from '../server-handlers/auto-mail/attachments.js';
 import { encryptMailboxToken } from '../server-handlers/auto-mail/token-encryption.js';
 import { signSession } from '../api/_runtime.js';
+import { zipSync, strToU8 } from 'fflate';
+import { verifiedMailFileType } from '../shared/autoMailFiles.js';
 import { spawnSync } from 'node:child_process';
 
 const actor='10000000-0000-4000-8000-000000000001',mailbox='10000000-0000-4000-8000-000000000002',version='10000000-0000-4000-8000-000000000003',requestId='10000000-0000-4000-8000-000000000004',fileId='10000000-0000-4000-8000-000000000005';
@@ -21,11 +23,14 @@ test('shared email function starts without native require(ESM) support, matching
 test('HTML-only reading preserves tables and links, strips active content/tracking, and exposes CC and file metadata',()=>{
   const view=presentThread(incoming(),'operator@example.com');
   assert.match(view.messages[0].body,/Please read/);assert.match(view.messages[0].body,/https:\/\/example.com\/help/);
-  assert.ok(!view.messages[0].html.includes('script'));assert.ok(!view.messages[0].html.includes('tracker'));
+  assert.ok(!view.messages[0].html.includes('script'));assert.ok(!/\ssrc=/.test(view.messages[0].html));assert.match(view.messages[0].html,/data-mail-image="https:\/\/tracker/);
   assert.equal(view.messages[0].cc,'team@example.com');assert.deepEqual(view.messages[0].files,[{partId:'1',name:'guide.pdf',type:'application/pdf',size:12}]);
   const html=cleanMailHtml('<table><tr><td onclick="evil()" style="position:fixed;color:red;background-image:url(https://tracker.test)">A</td></tr></table><a href="javascript:evil()">Bad</a><iframe srcdoc="x"></iframe>');
   assert.match(html,/<table>/);assert.match(html,/color:red/);assert.ok(!/onclick|position|tracker|javascript|iframe/.test(html));
   assert.equal(mailHtmlText('<p>Hello <b>team</b></p>'),'Hello team');
+  const spaced=cleanMailHtml('<p style="margin:0 0 12pt">Paragraph</p><div style="margin-top:1.5em;margin-bottom:0cm;position:fixed">Signature</div><p></p>');
+  assert.match(spaced,/margin:0 0 12pt/);assert.match(spaced,/margin-top:1.5em/);assert.match(spaced,/margin-bottom:0cm/);assert.match(spaced,/<p><\/p>/);assert.ok(!spaced.includes('position'));
+
 });
 test('rich MIME includes verified recipients, alternatives, threading and exact attachment bytes',()=>{
   const recipients=replyRecipients({to:'"Customer, Team" <customer@example.com>, colleague@example.com',cc:'colleague@example.com, team@example.com',bcc:'hidden@example.com'},'customer@example.com','operator@example.com');
@@ -110,4 +115,30 @@ test('attachment and rich send endpoints enforce admin, origin, conversation own
     const invalid=await invoke(gmailReply,'POST',{...body,cc:'bad\r\nBCC: x@example.com'});assert.equal(invalid.code,400);assert.equal(invalid.value.canEditReply,true);assert.equal(claims,0);assert.equal(sends,0);
     const sent=await invoke(gmailReply,'POST',body);assert.equal(sent.value.status,'SENT',JSON.stringify(sent.value));assert.equal(sends,1);assert.match(raw,/Cc: team@example.com/);assert.match(raw,/Bcc: hidden@example.com/);assert.match(raw,/multipart\/alternative/);assert.match(raw,/multipart\/mixed/);assert.ok(raw.includes(Buffer.from('%PDF-hello!!').toString('base64')));
   }finally{globalThis.fetch=original;for(const key of Object.keys(env)){if(before[key]===undefined)delete process.env[key];else process.env[key]=before[key];}}
+});
+
+
+test('CID and Content-Location signature images render separately from ordinary attachments',()=>{
+ const raw=incoming();const parts:any[]=raw.messages[0].payload.parts;
+ parts[0].body.data=Buffer.from('<p>Regards</p><img src="cid:logo%40mail" width="120" height="40"><img src="signature/banner.png"><img src="javascript:evil()" onerror="evil()">').toString('base64url');
+ parts.push({partId:'2',mimeType:'image/png',filename:'image001.png',headers:[{name:'Content-ID',value:'<logo@mail>'}],body:{attachmentId:'logo',size:200}},
+ {partId:'3',mimeType:'image/jpeg',filename:'banner.jpg',headers:[{name:'Content-Location',value:'signature/banner.png'}],body:{data:'AA',size:2}},
+ {partId:'4',mimeType:'image/png',filename:'photo.png',headers:[{name:'Content-Disposition',value:'attachment'}],body:{attachmentId:'photo',size:300}});
+ const message=presentThread(raw,'operator@example.com').messages[0];
+ assert.deepEqual(message.files.map(file=>file.name),['guide.pdf','photo.png']);
+ assert.deepEqual(message.inlineImages.map(file=>file.name),['image001.png','banner.jpg']);
+ assert.match(message.html,/data-mail-image="cid:logo%40mail"/);assert.ok(!/\ssrc=|onerror|javascript/.test(message.html));
+ parts.splice(1,1);parts.pop();assert.equal(presentThread(raw,'operator@example.com').messages[0].attachments,false,'Signature images alone do not show an attachment indicator');
+});
+
+test('document MIME detection checks bytes and Office contents instead of trusting a filename',()=>{
+ assert.equal(verifiedMailFileType(Buffer.from('%PDF-1.7'),'photo.png'),'application/pdf');
+ assert.equal(verifiedMailFileType(Buffer.from('<script>bad()</script>'),'invoice.pdf'),'application/octet-stream');
+ for(const [extension,path,mime] of [['docx','word/document.xml','wordprocessingml.document'],['xlsx','xl/workbook.xml','spreadsheetml.sheet'],['pptx','ppt/presentation.xml','presentationml.presentation']]){
+  const bytes=zipSync({'[Content_Types].xml':strToU8('<Types/>'),[path]:strToU8('<document/>')});
+  assert.equal(verifiedMailFileType(bytes,'document.'+extension),'application/vnd.openxmlformats-officedocument.'+mime);
+ }
+ assert.equal(verifiedMailFileType(zipSync({'other.xml':strToU8('not a document')}),'file.docx'),'application/octet-stream');
+ assert.equal(verifiedMailFileType(Buffer.from('Name,Value\nContainer,25'),'report.csv'),'text/csv');
+ assert.equal(verifiedMailFileType(Buffer.from([0,1,2]),'report.csv'),'application/octet-stream');
 });

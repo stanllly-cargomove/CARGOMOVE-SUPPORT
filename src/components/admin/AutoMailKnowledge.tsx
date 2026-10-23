@@ -7,7 +7,7 @@ const blank = (): Form => ({ title: '', summary: '', content: '', category: 'Gen
 const button = 'rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium hover:bg-slate-50 disabled:opacity-50';
 const input = 'mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm disabled:bg-slate-50';
 
-export function AutoMailKnowledge({ ready, refreshToken = 0 }: { ready: boolean; refreshToken?: number }) {
+export function AutoMailKnowledge({ ready, refreshToken = 0,onDirtyChange }: { ready: boolean; refreshToken?: number;onDirtyChange?:(dirty:boolean)=>void }) {
   const [articles, setArticles] = useState<KnowledgeArticle[]>([]);
   const [total, setTotal] = useState(0);
   const [search, setSearch] = useState('');
@@ -22,6 +22,7 @@ export function AutoMailKnowledge({ ready, refreshToken = 0 }: { ready: boolean;
   const [editorOpen, setEditorOpen] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [form, setForm] = useState<Form>(blank);
+  useEffect(()=>{onDirtyChange?.(dirty);return()=>onDirtyChange?.(false);},[dirty,onDirtyChange]);
 
   useEffect(() => {
     if (!ready) return;

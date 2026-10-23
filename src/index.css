@@ -706,8 +706,11 @@ code, kbd, samp, pre {
   }
 }
 /* Isolated, sanitized message content and reply editor typography. */
-.auto-mail-content { overflow-wrap:anywhere; color:#334155; font-size:14px; line-height:1.8; min-width:0; }
-.auto-mail-content p,.auto-mail-content div { margin:0 0 .7em; }
+.auto-mail-content { overflow-wrap:anywhere; color:#334155; font-size:14px; line-height:1.5; min-width:0; }
+.auto-mail-content p { margin:0 0 1em; }
+.auto-mail-content div { margin:0; }
+.auto-mail-content img { display:inline-block; max-width:100%; vertical-align:middle; }
+.auto-mail-content p:empty,.auto-mail-content div:empty { min-height:1lh; margin:0; }
 .auto-mail-content a { color:#0369a1; text-decoration:underline; text-underline-offset:3px; }
 .auto-mail-content h1,.auto-mail-content h2,.auto-mail-content h3,.auto-mail-content h4 { font-weight:700; line-height:1.4; margin:1em 0 .5em; }
 .auto-mail-content h1 { font-size:1.6em; } .auto-mail-content h2 { font-size:1.35em; } .auto-mail-content h3 { font-size:1.15em; }
