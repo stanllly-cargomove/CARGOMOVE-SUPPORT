@@ -31,7 +31,7 @@ export async function initializeMail<T extends Readiness>(scope: string, report:
       const context = contextOf(status);
       if (peekMail<{ready:boolean}>(scope, 'initialized', context)?.ready) return {status, revalidate};
       update(0, 'ready');
-      const paths = ['threads?folder=inbox', 'threads?folder=sent', status.composeReady ? 'outbox?offset=0' : null];
+      const paths = ['threads?folder=inbox', 'threads?folder=sent&order=sent-time', status.composeReady ? 'outbox?offset=0' : null];
       const results = await Promise.allSettled(paths.map(async (path, index) => {
         if (!path) { update(index + 1, 'unavailable'); return; }
         update(index + 1, 'loading');

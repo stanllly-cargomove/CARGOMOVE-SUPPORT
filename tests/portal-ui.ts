@@ -19,7 +19,7 @@ const server = createServer((request, response) => {
 await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
 const address = server.address() as { port: number };
 const origin = `http://127.0.0.1:${address.port}`;
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({ channel: 'chrome', headless: true });
 const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, reducedMotion: 'reduce' });
 const page = await context.newPage();
 page.setDefaultTimeout(10_000);
@@ -50,6 +50,7 @@ await context.route('**/*', async route => {
   const reply = (json: unknown, status = 200) => route.fulfill({ status, json });
   switch (url.pathname) {
     case '/api/auth/session': return reply({ authenticated, user: authenticated ? user : null });
+    case '/api/auth/profile': return reply({ avatarUrl: null });
     case '/api/auth/login':
       assert.deepEqual(request.postDataJSON(), { identifier: 'admin@example.test', password: 'test-password' });
       if (loginFails) return reply({ error: 'Invalid login credentials.' }, 401);
@@ -280,16 +281,31 @@ try {
   assert.equal(await page.getByText('3 waiting', { exact: true }).count(), 1, 'Dashboard queue combines pending registrations and linked user access');
   await button('View Driver registrations: 1 pending and 0 registered').click();
   await heading('Pending Registration Submissions');
-  assert.equal(await page.getByText('CMREG410002', { exact: true }).count(), 1, 'Registration category opens the connected filtered submission');
+  assert.equal(await page.getByText('CMREG410002', { exact: true }).filter({ visible: true }).count(), 1, 'Registration category opens the connected filtered submission');
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  for (const width of [1100, 390]) {
+    await page.setViewportSize({ width, height: 800 });
+    await page.getByRole('button', { name: 'Actions for CMREG410002', exact: true }).filter({ visible: true }).click();
+    await button('Review').click();
+    const review = page.getByRole('dialog');
+    await review.waitFor();
+    assert.equal(await review.evaluate(dialog => {
+      const overlay = dialog.parentElement!;
+      return [[10,10],[200,20]].every(([x,y]) => overlay.contains(document.elementFromPoint(x,y)));
+    }), true, 'Review backdrop covers the sidebar and header with normal motion enabled');
+    await button('Close submission review').click();
+  }
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   await button('Go to Admin Portal home').click();
   await heading('Registration operations');
   await page.getByLabel('Search pending registrations').fill('Dashboard Connected');
-  assert.equal(await page.getByText('CMREG410001', { exact: true }).count(), 2, 'Dashboard search filters connected company and linked user records');
+  assert.equal(await page.getByText('CMREG410001', { exact: true }).filter({ visible: true }).count(), 2, 'Dashboard search filters connected company and linked user records');
   await page.getByLabel('Filter by registration type').selectOption('USER');
   assert.equal(await page.getByText('CMREG410002', { exact: true }).count(), 0, 'Queue type filter excludes other registration types');
   assert.equal(await page.getByRole('button', { name: 'Manage', exact: true }).count(), 1, 'Linked user access request opens its management action');
   await page.getByLabel('Search pending registrations').fill('no matching company');
-  await page.getByText('No pending registrations match the current filters.', { exact: true }).waitFor();
+  await page.getByText('No pending registrations match the current filters.', { exact: true }).filter({ visible: true }).waitFor();
   await page.getByLabel('Search pending registrations').fill('');
   await page.getByLabel('Filter by registration type').selectOption('ALL');
   await page.setViewportSize({ width: 390, height: 844 });

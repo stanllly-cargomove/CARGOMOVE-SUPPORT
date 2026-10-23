@@ -28,6 +28,7 @@
     "test:profile:ui": "tsx tests/account-settings-ui.ts",
     "test:versions": "node --experimental-strip-types --test --test-isolation=none tests/system-version.test.ts tests/push-version.test.ts",
     "test:portal": "tsx --test tests/registration-config.test.ts",
+    "test:notifications:ui": "tsx tests/notification-layer-ui.ts",
     "test:portal:ui": "npm run build && tsx tests/portal-ui.ts",
     "test:pwa": "npm run build && tsx tests/pwa-ui.ts",
     "test:companies:ui": "npm run build && tsx tests/company-mobile-ui.ts",

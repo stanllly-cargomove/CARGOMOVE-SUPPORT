@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Toaster } from 'react-hot-toast';
+import { NotificationToaster } from '../common/NotificationToaster';
 import {
   LayoutDashboard,
   Building2,
@@ -506,7 +506,7 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
             activeTab === 'auto-mail' ? 'max-w-none !p-0' : (activeQueueItem || activeTab === 'user-registration') && isSidebarCollapsed ? 'max-w-none' : 'mx-auto max-w-[1600px]'
           }`}
         >
-          <div key={`${portalMode}:${activeTab}`} className="admin-page-transition w-full min-w-0">
+          <div key={`${portalMode}:${activeTab}`} className="w-full min-w-0">
           {activeTab === 'dashboard' && (
             <AdminDashboard onNavigate={(tab, registrationType) => {
               const destination = tab === 'submissions' ? 'submissions-pending' : tab;
@@ -548,7 +548,7 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
         </main>
       </div>
 
-      <Toaster
+      <NotificationToaster
         position="top-center"
         gutter={10}
         containerStyle={{ top: 16 }}

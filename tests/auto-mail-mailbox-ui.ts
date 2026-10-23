@@ -103,6 +103,7 @@ try {
     await page.getByRole('button',{name:'Clear email search'}).click();
     await page.getByRole('button',{name:'Load more',exact:true}).click();
     await page.getByRole('button',{name:/Second page/}).waitFor();
+    assert.match(await page.locator('[aria-label="Sent conversations"]').getByRole('button').first().innerText(),/Second page/,'Loaded Sent rows remain ordered by outgoing timestamp');
     assert.equal(lists.at(-1)!.searchParams.get('folder'),'sent');assert.equal(lists.at(-1)!.searchParams.get('pageToken'),'next-page');
     await page.getByRole('checkbox',{name:'Select all loaded conversations'}).check();
     await page.getByText('2 selected',{exact:true}).waitFor();

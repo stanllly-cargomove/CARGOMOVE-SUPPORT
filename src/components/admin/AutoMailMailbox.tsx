@@ -34,7 +34,9 @@ export function AutoMailMailbox({ onCompose, composeReady, onAction, canManage, 
   useEffect(() => { setSelected(current => new Set([...current].filter(id => threads.some(item => item.id === id)))); }, [threads]);
   const allSelected = !!threads.length && threads.every(item => selected.has(item.id));
   useEffect(() => { if (allBox.current) allBox.current.indeterminate = selected.size > 0 && !allSelected; }, [selected, allSelected]);
-  const rows = selectedOnly ? threads.filter(item => selected.has(item.id)) : threads;
+  const orderedThreads = folder === 'sent' ? [...threads].sort((a, b) =>
+    (b.timestamp || Date.parse(b.date || '') || 0) - (a.timestamp || Date.parse(a.date || '') || 0)) : threads;
+  const rows = selectedOnly ? orderedThreads.filter(item => selected.has(item.id)) : orderedThreads;
   const renderRow = (item: MailSummary) => <div key={item.id} className={`group relative flex items-center gap-3 border-b border-slate-100 px-4 hover:relative hover:z-10 hover:shadow-sm ${selected.has(item.id) ? 'bg-sky-50' : item.unread && folder === 'inbox' ? 'bg-white' : 'bg-slate-50/70'}`}>
               <input type="checkbox" aria-label={`Select ${item.subject}`} checked={selected.has(item.id)} disabled={disabled} onChange={() => setSelected(current => { const next = new Set(current); if (next.has(item.id)) next.delete(item.id); else next.add(item.id); return next; })} className="h-4 w-4 shrink-0 accent-sky-600" />
               <button type="button" disabled={disabled} onClick={() => onOpen(item.id)} className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 py-2 text-left disabled:opacity-50 md:grid-cols-[160px_minmax(0,1fr)_auto] xl:grid-cols-[190px_minmax(0,1fr)_auto]">

@@ -196,13 +196,19 @@ export function createAutoMailHandler(action: 'connect' | 'callback' | 'threads'
         const historyId=String(profile.historyId||'');
         if(!pageToken&&!search.trim()&&knownHistory&&knownHistory===historyId)return response.json({notModified:true,historyId,mailbox:connection.email});
         const query = new URLSearchParams({ maxResults: '25', labelIds: label, ...(folder === 'trash' ? {includeSpamTrash:'true'} : {}), ...(search.trim() ? { q: search.trim() } : {}), ...(pageToken ? { pageToken } : {}) });
-        const list = await gmailGet(token, `threads?${query}`);
-        const threads = await Promise.all((list.threads || []).map(async (t: any) => {
+        // Sent pagination must follow outgoing messages: a thread's activity can
+        // be bumped by a newly received reply long after our last send.
+        const list = await gmailGet(token, `${folder === 'sent' ? 'messages' : 'threads'}?${query}`);
+        const references = folder === 'sent'
+          ? [...new Map((list.messages || []).map((m: any) => [m.threadId, { id: m.threadId }])).values()]
+          : list.threads || [];
+        const threads = await Promise.all(references.map(async (t: any) => {
           const thread = await gmailGet(token, `threads/${encodeURIComponent(t.id)}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Date`);
-          const messages = thread.messages || [];
+          const messages = [...(thread.messages || [])].sort((a: any, b: any) => (Number(a.internalDate) || 0) - (Number(b.internalDate) || 0));
           const latest = messages.filter((m: any) => m.labelIds?.includes(label)).at(-1) || messages.at(-1) || {};
           return { id: t.id, subject: header(messages[0] || {}, 'Subject') || '(No subject)', from: header(latest, 'From'), to: header(latest, 'To'), date: header(latest, 'Date'), timestamp: Number(latest.internalDate) || null, messageCount: messages.length, snippet: latest.snippet || t.snippet || '', unread: messages.some((m: any) => m.labelIds?.includes('UNREAD')) };
         }));
+        if (folder === 'sent') threads.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
         return response.json({ threads, nextPageToken: list.nextPageToken || null, resultSizeEstimate: list.resultSizeEstimate ?? null, folder, mailbox: connection.email, historyId });
       }
       const body = action === 'reply' ? await bodyOf(request) : {};

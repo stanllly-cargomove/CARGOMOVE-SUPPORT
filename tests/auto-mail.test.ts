@@ -167,6 +167,8 @@ test('mailbox listing scopes Gmail search and pagination to Inbox or Sent withou
     assert.equal(init.method || 'GET', 'GET', 'Listing never changes Gmail messages');
     if (url.pathname.endsWith('/profile')) return json({historyId:'42'});
     if (url.pathname.endsWith('/threads')) return json({ threads: [{id:'thread1'}], nextPageToken:'next-token', resultSizeEstimate:100 });
+    if (url.pathname.endsWith('/messages')) return json({ messages: [{id:'old-send',threadId:'thread1'},{id:'new-send',threadId:'thread2'},{id:'another-send',threadId:'thread2'}], nextPageToken:'next-sent-token' });
+    if (url.pathname.endsWith('/threads/thread2')) return json({messages:[{internalDate:'1730000000000',labelIds:['SENT'],snippet:'Newest sent reply',payload:{headers:[{name:'To',value:'newcustomer@example.com'}]}},{internalDate:'1710000000000',labelIds:['SENT'],snippet:'Older sent reply'},{internalDate:'1740000000000',labelIds:['INBOX'],snippet:'Later incoming response'}]});
     if (url.pathname.endsWith('/threads/thread1')) return json({messages:[{internalDate:'1720000000000',labelIds:['SENT'],snippet:'Sent reply',payload:{headers:[{name:'From',value:'operator@example.com'},{name:'To',value:'customer@example.com'},{name:'Subject',value:'Help'}]}}, {labelIds:['INBOX'],snippet:'Customer response',payload:{headers:[{name:'From',value:'customer@example.com'}]}}]});
     throw new Error('Unexpected URL');
   }) as typeof fetch;
@@ -178,10 +180,15 @@ test('mailbox listing scopes Gmail search and pagination to Inbox or Sent withou
   };
   try {
     const sent=await invoke({folder:'sent',q:'from:operator@example.com has:attachment',pageToken:'page+one'});
-    assert.equal(sent.code,200); assert.equal(sent.result.threads[0].snippet,'Sent reply'); assert.equal(sent.result.threads[0].to,'customer@example.com');
-    const listing=calls.find(url=>url.pathname.endsWith('/threads'))!;
+    assert.equal(sent.code,200);
+    assert.deepEqual(sent.result.threads.map((t:any)=>t.id),['thread2','thread1'],'Sent conversations sort by latest outgoing time, ignoring later incoming activity');
+    assert.equal(sent.result.threads[0].snippet,'Newest sent reply');
+    assert.equal(sent.result.threads[0].timestamp,1730000000000);
+    assert.equal(sent.result.threads[1].to,'customer@example.com');
+    assert.equal(calls.filter(url=>url.pathname.endsWith('/threads/thread2')).length,1,'Multiple sent messages in one thread load once');
+    const listing=calls.find(url=>url.pathname.endsWith('/messages'))!;
     assert.equal(listing.searchParams.get('labelIds'),'SENT'); assert.equal(listing.searchParams.get('q'),'from:operator@example.com has:attachment'); assert.equal(listing.searchParams.get('pageToken'),'page+one');
-    assert.equal(sent.result.nextPageToken,'next-token');
+    assert.equal(sent.result.nextPageToken,'next-sent-token');
     calls.length=0;
     assert.equal((await invoke({})).result.threads[0].snippet,'Customer response');
     assert.equal(calls.find(url=>url.pathname.endsWith('/threads'))!.searchParams.get('labelIds'),'INBOX');

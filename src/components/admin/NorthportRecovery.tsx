@@ -1,4 +1,4 @@
-import { Toaster } from 'react-hot-toast';
+import { NotificationToaster } from '../common/NotificationToaster';
 import { notifyError, notifySuccess } from '../common/notifications';
 import React, { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
@@ -13,7 +13,7 @@ import { NorthportFileContainers, type ContainerFileSource } from './NorthportFi
 import { NorthportDateTimePicker, NorthportTimeRangePicker } from './NorthportDateTimePicker';
 
 const notificationOptions = { toasterId: 'northport' };
-const northportToaster = <Toaster toasterId="northport" position="top-center" containerStyle={{top:16}} toastOptions={{duration:6000}}/>;
+const northportToaster = <NotificationToaster toasterId="northport" position="top-center" containerStyle={{top:16}} toastOptions={{duration:6000}}/>;
 const inputClass = 'min-h-11 w-full min-w-0 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-xs text-slate-900 shadow-sm outline-none placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-60';
 const buttonClass = 'inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-[#0095e8] px-5 py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-[#0078c8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50';
 const reprocessButtonClass = 'inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-5 py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50';
@@ -107,7 +107,6 @@ function FileEditorDialog({ children, busy, onClose, label = 'Container file edi
     <div className={'flex shrink-0 items-start justify-between gap-2 px-3 sm:px-5 '+(label==='Recovery details'?'border-b border-slate-200 py-3':'pt-3 sm:pt-5')}>{header&&<div className="min-w-0 flex-1">{header}</div>}{headerActions}</div>
     <div className={'northport-dialog-body min-h-0 min-w-0 overflow-y-auto overscroll-contain p-3 sm:p-5'+(footer?' flex-1':'')}>{children}</div>
     {footer&&<div className="northport-dialog-footer shrink-0 border-t border-slate-100 bg-white p-3 sm:p-5">{footer}</div>}
-    {northportToaster}
   </dialog>;
 }
 type RecoveryConfirmation = { action: 'scheduler' | 'resume-reprocess'; container: string; payload: Record<string,unknown> };
@@ -560,7 +559,7 @@ export function NorthportRecovery({ onBack, active = true }: { onBack: () => voi
   // Unmount the visible controls so native dialogs and popovers close too.
   if (!active) return null;
   return <div className="w-full min-w-0 space-y-5 text-slate-900">
-    {!selected&&northportToaster}
+    {northportToaster}
     <div className="northport-header flex flex-wrap items-center justify-between gap-4 py-1">
       <div className="min-w-0"><div className="flex items-center gap-2"><h2 className="text-xl font-bold tracking-tight text-slate-900">Northport Container Recovery</h2><div ref={infoRef} className="relative" onMouseEnter={()=>setInfoOpen(true)} onMouseLeave={()=>{if(!infoPinned)setInfoOpen(false)}}><button type="button" aria-label="How it works" title="How it works" aria-expanded={infoOpen} onClick={()=>{setInfoPinned(value=>!value);setInfoOpen(true)}} className="flex h-6 w-6 items-center justify-center rounded-full border border-blue-200 bg-blue-50 text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"><Info aria-hidden="true" className="h-3.5 w-3.5"/></button>{infoOpen&&<div className="fixed inset-x-4 top-24 z-40 max-h-[70dvh] overflow-y-auto sm:absolute sm:inset-x-auto sm:left-8 sm:top-0 sm:w-[26rem] rounded-xl border border-slate-200 bg-white p-5 text-xs shadow-xl" onMouseEnter={()=>setInfoOpen(true)}><p className="font-semibold text-slate-900">How to recover a container</p><ol className="mt-3 list-decimal space-y-2 pl-4 text-xs leading-relaxed text-slate-600"><li>Enter the container number, EIR time, type, and search window.</li><li>Start the FTP search and select the matching container record.</li><li>Review or edit the CSV fields, then save any changes for this session.</li><li>Review the record and approve it to generate a recovery CSV.</li><li>If enabled, reprocess the approved CSV and run the Northport scheduler.</li></ol><p className="mt-4 text-xs leading-relaxed text-slate-500">After processing is requested, GP recovery checks for an exact gatepass and container match in CargoMove. EX import verification is unavailable.</p>{!enabled&&gates.length>0&&<p className="mt-3 text-xs leading-relaxed text-amber-800">Pending verification: {gates.map(g=>g.toLowerCase().replaceAll('_',' ')).join(', ')}.</p>}</div>}</div></div><p className="mt-1 max-w-3xl text-xs text-slate-500">Search and recover containers from Northport FTP files using EIR times.</p></div>
       <div className="relative ml-auto flex shrink-0 items-center gap-3">

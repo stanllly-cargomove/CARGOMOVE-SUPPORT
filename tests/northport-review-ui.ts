@@ -61,7 +61,7 @@ try {
     await page.goto('http://northport.test');
     await page.getByLabel('Container No.',{exact:true}).fill(values[0]);
     await selectEirTime(page,'2026-10-18T00:53');
-    await page.getByRole('button',{name:'Search FTP',exact:true}).click();
+    await page.getByRole('button',{name:'Search',exact:true}).click();
     const editor=page.getByRole('dialog',{name:'Container file editor',exact:true});
     const openEditor=async()=>{
       await page.getByRole('button',{name:'Record actions',exact:true}).click();

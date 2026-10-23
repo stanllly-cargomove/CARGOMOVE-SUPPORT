@@ -70,7 +70,7 @@ export function AutoMail({ onOpenConfig, cacheScope = 'session', pollEnabled = t
   const [scheduledRefresh,setScheduledRefresh]=useState(0);const[workspaceDirty,setWorkspaceDirty]=useState(false);const[knowledgeRevision,setKnowledgeRevision]=useState(0);const[recoveredBlocked,setRecoveredBlocked]=useState(false);
   const mailboxFolder=['inbox','sent','trash'].includes(folder);
   const workspace=['drafts','knowledge','learning'].includes(folder);
-  const listPath = (page?: string) => `threads?${new URLSearchParams({folder, ...(query ? {q:query} : {}), ...(page ? {pageToken:page} : {})})}`;
+  const listPath = (page?: string) => `threads?${new URLSearchParams({folder, ...(folder === 'sent' ? {order:'sent-time'} : {}), ...(query ? {q:query} : {}), ...(page ? {pageToken:page} : {})})}`;
   const initialList = peekMail<{threads:Summary[];nextPageToken:string|null}>(cacheScope,'threads?folder=inbox',connectionKey);
   const [threads, setThreads] = useState<Summary[]>(()=>initialList?.threads||[]);
   const [thread, setThread] = useState<Thread | null>(null);

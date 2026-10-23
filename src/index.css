@@ -8,15 +8,6 @@
   --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
-@keyframes admin-page-enter {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-.admin-page-transition { animation: admin-page-enter 180ms ease-out both; }
-@media (prefers-reduced-motion: reduce) {
-  .admin-page-transition { animation: none; }
-}
-
 /* Fit recovery filters to the card's available width, including a collapsed sidebar. */
 .northport-search-card { container: northport-search / inline-size; }
 .northport-search-fields {
