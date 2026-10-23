@@ -12,3 +12,7 @@ test-results/
 
 # Generated from the pinned PDF.js dependency before dev/build.
 public/auto-mail-preview/
+
+# Machine-specific Codex settings and private Codebase Memory exports.
+.codex/
+.codebase-memory/

@@ -1,0 +1,46 @@
+# CargoMove developer code graph. Keep credentials and operational data out.
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+*credentials*.json
+*service-account*.json
+.codex/
+.codebase-memory/
+.vercel/
+.github/
+node_modules/
+dist/
+build/
+coverage/
+test-results/
+media/
+public/
+uploads/
+attachments/
+backups/
+dumps/
+exports/
+*.log
+*.db
+*.sqlite
+*.sqlite3
+*.csv
+*.xlsx
+*.xls
+*.pdf
+*.docx
+*.eml
+*.mbox
+*.zip
+*.gz
+*.zst
+*.lock
+package-lock.json
+.tmp-*
+# One-off production fixes and worker provisioning can contain live identifiers
+# or deployment credentials. Schema migrations remain available to the graph.
+supabase/patches/
+supabase/auto-mail/setup-*.sql

@@ -13,3 +13,7 @@ scripts/*
 !scripts/system-version-plugin.ts
 !scripts/system-version.ts
 *.log
+.codex/
+.codebase-memory/
+AGENTS.md
+.cbmignore

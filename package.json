@@ -22,6 +22,7 @@
     "lint": "tsc --noEmit",
     "test:auto-mail": "tsx --test tests/auto-mail.test.ts tests/auto-mail-knowledge.test.ts tests/auto-mail-ai.test.ts tests/auto-mail-learning.test.ts tests/auto-mail-agent.test.ts tests/auto-mail-rich.test.ts tests/auto-mail-outbox.test.ts tests/auto-mail-cache.test.ts tests/auto-mail-scheduled-replies.test.ts tests/auto-mail-incoming.test.ts",
     "test:auto-mail:ui": "tsx tests/auto-mail-ui.ts",
+    "test:auto-mail:knowledge-json:ui": "tsx tests/auto-mail-knowledge-json-ui.ts",
     "test:auto-mail:navigation:ui": "tsx tests/auto-mail-navigation-ui.ts",
     "test:profile": "tsx --test tests/profile.test.ts",
     "test:profile:ui": "tsx tests/account-settings-ui.ts",

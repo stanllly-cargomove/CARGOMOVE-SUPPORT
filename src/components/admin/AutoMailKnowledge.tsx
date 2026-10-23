@@ -4,6 +4,36 @@ import { KnowledgeArticle, KnowledgeRevision, knowledgeRequest } from '../../ser
 
 type Form = { title: string; summary: string; content: string; category: string; port: string; keywords: string };
 const blank = (): Form => ({ title: '', summary: '', content: '', category: 'General', port: 'ALL', keywords: '' });
+const jsonTemplate = JSON.stringify({
+  title: 'Customer question or issue',
+  summary: 'Brief description of this article',
+  category: 'General',
+  port: 'ALL',
+  keywords: ['keyword', 'search phrase'],
+  content: 'Write the answer or procedure here.\n1. First step\n2. Next step',
+}, null, 2);
+
+function readArticleJson(text: string): Form {
+  let value: unknown;
+  try { value = JSON.parse(text); }
+  catch { throw new Error('Invalid JSON. Use double quotes and remove trailing commas.'); }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Paste one JSON article object.');
+  const article = value as Record<string, unknown>;
+  const result = blank();
+  for (const [name, limit] of [['title', 160], ['summary', 400], ['category', 80], ['port', 80], ['content', 30000]] as const) {
+    if (article[name] === undefined && name !== 'title' && name !== 'content') continue;
+    if (typeof article[name] !== 'string') throw new Error(`The "${name}" field must be text.`);
+    const field = (article[name] as string).trim();
+    if ((!field && name !== 'summary') || field.length > limit) throw new Error(`The "${name}" field ${!field ? 'is required' : `must be at most ${limit.toLocaleString()} characters`}.`);
+    result[name] = name === 'port' ? field.toUpperCase() : field;
+  }
+  const keywords = article.keywords ?? [];
+  if (!Array.isArray(keywords) || keywords.some(tag => typeof tag !== 'string')) throw new Error('The "keywords" field must be an array of strings.');
+  const tags = [...new Set((keywords as string[]).flatMap(tag => tag.split(',')).map(tag => tag.trim()).filter(Boolean))];
+  if (tags.length > 20 || tags.some(tag => tag.length > 60)) throw new Error('Use up to 20 keywords, with at most 60 characters each.');
+  result.keywords = tags.join(', ');
+  return result;
+}
 const button = 'rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium hover:bg-slate-50 disabled:opacity-50';
 const input = 'mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm disabled:bg-slate-50';
 
@@ -22,7 +52,10 @@ export function AutoMailKnowledge({ ready, refreshToken = 0,onDirtyChange }: { r
   const [editorOpen, setEditorOpen] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [form, setForm] = useState<Form>(blank);
-  useEffect(()=>{onDirtyChange?.(dirty);return()=>onDirtyChange?.(false);},[dirty,onDirtyChange]);
+  const [jsonOpen, setJsonOpen] = useState(false);
+  const [jsonText, setJsonText] = useState('');
+  const [jsonError, setJsonError] = useState('');
+  useEffect(()=>{onDirtyChange?.(dirty || !!jsonText.trim());return()=>onDirtyChange?.(false);},[dirty,jsonText,onDirtyChange]);
 
   useEffect(() => {
     if (!ready) return;
@@ -37,6 +70,7 @@ export function AutoMailKnowledge({ ready, refreshToken = 0,onDirtyChange }: { r
   }, [ready, filter, attempt, refreshToken]);
 
   const applyArticle = (article: KnowledgeArticle) => {
+    setJsonOpen(false); setJsonText(''); setJsonError('');
     setSelected(article); setForm({ title: article.title, summary: article.summary, content: article.content, category: article.category, port: article.port, keywords: article.keywords.join(', ') });
     setEditorOpen(true); setDirty(false);
   };
@@ -67,10 +101,27 @@ export function AutoMailKnowledge({ ready, refreshToken = 0,onDirtyChange }: { r
     finally { setBusy(false); }
   };
   const field = (name: keyof Form, value: string) => { setForm(current => ({ ...current, [name]: value })); setDirty(true); setNotice(''); };
+  const fillFromJson = (text: string) => {
+    setJsonText(text); setJsonError(''); setNotice('');
+    try {
+      const imported = readArticleJson(text);
+      setForm(imported); setDirty(true); setJsonText(''); setError('');
+      setNotice('JSON loaded into the article fields. Review the details, then save the draft.');
+    } catch (reason) { setJsonError(reason instanceof Error ? reason.message : 'Unable to read JSON.'); }
+  };
+  const copyJsonTemplate = async () => {
+    try {
+      await navigator.clipboard.writeText(jsonTemplate);
+      setNotice('JSON template copied. Fill it in, then paste it into the JSON input.');
+    } catch {
+      setJsonOpen(true); setJsonText(jsonTemplate); setJsonError('');
+      setNotice('Clipboard is unavailable. Select and copy the template from the JSON input.');
+    }
+  };
 
   if (!ready) return <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">Knowledge base setup is pending. Apply the Milestone 3 KB migration to the Auto Mail database, then refresh Auto Mail. Gmail and manual replies are still available.</div>;
   return <section className="space-y-4" aria-label="Knowledge base management">
-    <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-semibold text-slate-900">Knowledge base</h3><p className="mt-1 text-xs text-slate-500">Build and approve reusable answers. AI configuration can come later.</p></div><button className={button} disabled={busy || dirty} onClick={() => { setSelected(null); setForm(blank()); setRevisions([]); setEditorOpen(true); setNotice(''); setError(''); }}><Plus className="mr-1 inline h-4 w-4" />New article</button></div>
+    <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-semibold text-slate-900">Knowledge base</h3><p className="mt-1 text-xs text-slate-500">Build and approve reusable answers. AI configuration can come later.</p></div><button className={button} disabled={busy || dirty} onClick={() => { setSelected(null); setForm(blank()); setRevisions([]); setEditorOpen(true); setNotice(''); setError(''); setJsonOpen(false); setJsonText(''); setJsonError(''); }}><Plus className="mr-1 inline h-4 w-4" />New article</button></div>
     {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
     {notice && <p role="status" className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
     <div className="grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
@@ -88,13 +139,22 @@ export function AutoMailKnowledge({ ready, refreshToken = 0,onDirtyChange }: { r
         {!editorOpen ? <div className="py-12 text-center text-slate-500"><BookOpen aria-hidden="true" className="mx-auto mb-3 h-7 w-7" /><p className="text-sm">Select an article or create a new answer.</p></div> : <>
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2"><h4 className="font-semibold">{selected ? `Edit article · v${selected.version}` : 'New article'}</h4><span className="rounded-full bg-slate-100 px-2 py-1 text-xs">{selected?.status || 'DRAFT'}</span></div>
           <form className="space-y-3" onSubmit={event => { event.preventDefault(); void save(); }}>
+            <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <div className="flex flex-wrap gap-2"><button type="button" className={button} disabled={busy} aria-expanded={jsonOpen} onClick={() => setJsonOpen(value => !value)}>Paste JSON</button><button type="button" className={button} disabled={busy} onClick={() => void copyJsonTemplate()}>Copy JSON template</button></div>
+              {jsonOpen && <>
+                <p className="text-xs text-slate-600">Paste one article to fill all fields below. Omitted optional fields use defaults. This replaces the current field values; review them before saving.</p>
+                <label className="block text-xs font-medium text-slate-700">Article JSON<textarea value={jsonText} disabled={busy} rows={9} spellCheck={false} className={`${input} font-mono`} placeholder={jsonTemplate} aria-invalid={!!jsonError} aria-describedby={jsonError ? 'knowledge-json-error' : undefined} onChange={event => { setJsonText(event.target.value); setJsonError(''); }} onPaste={event => { event.preventDefault(); fillFromJson(event.clipboardData.getData('text')); }} /></label>
+                {jsonError && <p id="knowledge-json-error" role="alert" className="text-xs text-red-700">{jsonError}</p>}
+                <button type="button" className={button} disabled={busy || !jsonText.trim()} onClick={() => fillFromJson(jsonText)}>Fill fields from JSON</button>
+              </>}
+            </div>
             <label className="block text-xs font-medium text-slate-700">Article title<input required maxLength={160} value={form.title} onChange={event => field('title', event.target.value)} className={input} disabled={busy} /></label>
             <label className="block text-xs font-medium text-slate-700">Short summary<textarea maxLength={400} rows={2} value={form.summary} onChange={event => field('summary', event.target.value)} className={input} disabled={busy} /></label>
             <div className="grid gap-3 sm:grid-cols-2"><label className="block text-xs font-medium text-slate-700">Category<input required maxLength={80} value={form.category} onChange={event => field('category', event.target.value)} className={input} disabled={busy} /></label><label className="block text-xs font-medium text-slate-700">Port or scope<input required maxLength={80} value={form.port} onChange={event => field('port', event.target.value)} className={input} placeholder="ALL, NORTHPORT, WESTPORT..." disabled={busy} /></label></div>
             <label className="block text-xs font-medium text-slate-700">Keywords (comma separated)<input value={form.keywords} onChange={event => field('keywords', event.target.value)} className={input} disabled={busy} placeholder="registration, required documents" /></label>
             <label className="block text-xs font-medium text-slate-700">Answer / procedure<textarea required maxLength={30000} rows={12} value={form.content} onChange={event => field('content', event.target.value)} className={input} disabled={busy} /></label>
             {selected?.status === 'APPROVED' && <p className="text-xs text-amber-700">Saving changes returns this article to draft. Approve the revised version before using it again.</p>}
-            <div className="flex flex-wrap gap-2"><button type="submit" disabled={busy || !form.title.trim() || !form.content.trim() || (!!selected && !dirty)} className="rounded-lg bg-sky-600 px-3 py-2 text-xs font-medium text-white disabled:opacity-50">{busy ? 'Working...' : 'Save draft'}</button><button type="button" className={button} disabled={busy} onClick={() => { setEditorOpen(false); setSelected(null); setDirty(false); setRevisions([]); setNotice(''); }}>Cancel edits</button>{selected && <button type="button" className={button} disabled={busy || dirty} onClick={() => void open(selected.id)}>Reload & history</button>}</div>
+            <div className="flex flex-wrap gap-2"><button type="submit" disabled={busy || !form.title.trim() || !form.content.trim() || (!!selected && !dirty)} className="rounded-lg bg-sky-600 px-3 py-2 text-xs font-medium text-white disabled:opacity-50">{busy ? 'Working...' : 'Save draft'}</button><button type="button" className={button} disabled={busy} onClick={() => { setEditorOpen(false); setSelected(null); setDirty(false); setRevisions([]); setNotice(''); setJsonOpen(false); setJsonText(''); setJsonError(''); }}>Cancel edits</button>{selected && <button type="button" className={button} disabled={busy || dirty} onClick={() => void open(selected.id)}>Reload & history</button>}</div>
           </form>
           {selected && <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4">{selected.status === 'DRAFT' && <button className={button} disabled={busy || dirty} onClick={() => void review('APPROVE')}>Approve article</button>}{selected.status !== 'ARCHIVED' && <button className={button} disabled={busy || dirty} onClick={() => void review('ARCHIVE')}>Archive article</button>}{selected.status !== 'DRAFT' && <button className={button} disabled={busy || dirty} onClick={() => void review('DRAFT')}>Return to draft</button>}{dirty && <p className="w-full text-xs text-amber-700">Save or cancel edits before reviewing or switching articles.</p>}</div>}
           {revisions.length > 0 && <div className="mt-5 border-t border-slate-100 pt-4"><h4 className="mb-2 text-sm font-semibold">Revision history (latest 20)</h4>{revisions.map(revision => <details key={revision.id} className="border-b border-slate-100 py-2"><summary className="cursor-pointer text-xs text-slate-600">v{revision.version} · {revision.action.replaceAll('_', ' ')} · {new Date(revision.created_at).toLocaleString()}</summary><p className="mt-2 break-words text-sm font-medium">{revision.snapshot.title}</p><p className="my-1 text-xs text-slate-500">{revision.snapshot.status} · {revision.snapshot.port}</p><p className="max-h-64 overflow-auto whitespace-pre-wrap break-words text-sm text-slate-700">{revision.snapshot.content}</p></details>)}</div>}
