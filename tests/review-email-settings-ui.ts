@@ -81,6 +81,7 @@ try {
   assert.equal(writes, 1);
   assert.equal(await page.getByRole('button', { name: 'Refresh email settings', exact: true }).count(), 0, 'The standalone refresh button is removed');
   assert.equal(await page.getByRole('button', { name: /Google.*Click to refresh email settings/ }).count(), 1);
+  await page.getByRole('button', { name: 'Reconnect Gmail', exact: true }).waitFor();
   const loadedReads = reads;
   await page.getByRole('button', { name: 'Leave', exact: true }).click();
   await page.getByRole('button', { name: 'Templates', exact: true }).click();

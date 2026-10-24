@@ -299,7 +299,7 @@ export function EmailTemplateManager({ onViewChange }: EmailTemplateManagerProps
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div><h2 className="text-xl font-bold tracking-tight text-slate-900">Email Templates</h2><p className="mt-1 text-xs text-slate-500">Manage acceptance and rejection codes, then assign each code to one or more ports.</p></div>
         <div className="flex shrink-0 items-center gap-2">
-          {!gmailEmail && <button type="button" disabled={connecting || refreshing} onClick={() => void connect()} className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">{connecting ? 'Connecting...' : 'Connect Gmail'}</button>}
+          <button type="button" disabled={connecting || refreshing} onClick={() => void connect()} className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">{connecting ? 'Connecting...' : gmailEmail ? 'Reconnect Gmail' : 'Connect Gmail'}</button>
           <GoogleConnectionButton email={gmailEmail} connecting={refreshing} disabled={saving || !!deletingId || connecting} connectedAction="refresh-settings" onConnect={() => void load(true)} />
         </div>
       </div>

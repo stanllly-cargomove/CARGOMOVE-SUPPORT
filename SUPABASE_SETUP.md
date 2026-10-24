@@ -12,7 +12,7 @@
 
 1. In Google Cloud Console, enable the Gmail API and configure the OAuth consent screen.
 2. Create an OAuth 2.0 **Web application** client.
-3. Add `<APP_URL>/api/gmail/callback` as an exact authorized redirect URI. For local development this is normally `http://localhost:3000/api/gmail/callback`.
+3. Add `<APP_URL>/api/gmail/callback` as an exact authorized redirect URI. For local development this is normally `http://localhost:3000/api/gmail/callback`. If Auto Mail also uses this OAuth client, keep its separate callback URI (`http://localhost:3000/api/auto-mail/callback`) as well; registering one callback does not register the other.
 4. Configure `APP_URL`, `GOOGLE_OAUTH_CLIENT_ID`, and `GOOGLE_OAUTH_CLIENT_SECRET` as server environment variables.
 5. Generate a 32-byte encryption key with `openssl rand -base64 32` and store it as `GOOGLE_TOKEN_ENCRYPTION_KEY`.
 6. Sign in as an administrator, open **Dev Tools → Registration Templates**, and select **Connect Gmail**.

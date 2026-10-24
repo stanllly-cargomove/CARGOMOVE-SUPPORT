@@ -6,7 +6,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { build } from 'esbuild';
 
-test('real local Express API serves incoming settings and all deployed Auto Mail routes with offline providers', async () => {
+test('real local Express API serves deployed email and Auto Mail routes with offline providers', async () => {
   await mkdir('test-results', { recursive: true });
   const directory = await mkdtemp(path.resolve('test-results/auto-mail-local-api-'));
   try {
@@ -23,7 +23,9 @@ test('real local Express API serves incoming settings and all deployed Auto Mail
     const { readFile } = await import('node:fs/promises');
     const deployed = await readFile('api/mail.ts', 'utf8');
     const routes = [...deployed.matchAll(/'([A-Z]+) (auto-mail\/[^']+)':/g)].map(match => [match[1], match[2]]);
+    const emailRoutes = [...deployed.matchAll(/'([A-Z]+) (email\/[^']+)':/g)].map(match => [match[1], match[2]]);
     assert.ok(routes.length > 25);
+    assert.ok(emailRoutes.length > 10);
     const runner = path.join(directory, 'check.mjs');
     await writeFile(runner, `
       import assert from 'node:assert/strict';
@@ -42,7 +44,7 @@ test('real local Express API serves incoming settings and all deployed Auto Mail
       const server=app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));
       try{
         const base='http://127.0.0.1:'+server.address().port;
-        for(const [method,route] of ${JSON.stringify(routes)}){
+        for(const [method,route] of ${JSON.stringify([...routes, ...emailRoutes])}){
           const response=await nativeFetch(base+'/api/'+route,{method});assert.equal(response.status,401,method+' '+route+' reaches auth, not HTML 404');await response.arrayBuffer();
         }
         assert.equal(providerCalls,0,'Authentication rejects requests before providers');
