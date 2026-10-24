@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';
-import { aiConfiguration, aiGenerate, aiUse, buildAiRequest, generateOpenAiDraft, validateAiOutput } from '../server-handlers/auto-mail/ai.js';
+import { aiConfiguration, aiGenerate, aiScope, aiUse, buildAiRequest, generateOpenAiDraft, validateAiOutput } from '../server-handlers/auto-mail/ai.js';
+import { recommendMailScope } from '../server-handlers/auto-mail/scope.js';
 import { encryptRefreshToken } from '../server-handlers/_email.js';
 import { signSession } from '../api/_runtime.js';
 import { presentThread } from '../server-handlers/auto-mail/gmail.js';
@@ -18,6 +19,29 @@ const output = { status: 'READY', body_text: 'Please provide the company certifi
 const rawThread = () => ({ id: 'thread1', messages: [{ id: 'incoming1', internalDate: '1720000000000', labelIds: ['INBOX'], payload: { mimeType: 'text/plain', headers: [
   { name: 'From', value: 'customer@example.com' }, { name: 'To', value: 'operator@example.com' }, { name: 'Subject', value: 'Registration documents' }, { name: 'Message-ID', value: '<customer@example.com>' },
 ], body: { data: Buffer.from('What registration documents do I need?').toString('base64url') } } }] });
+
+test('automatic scope uses approved scope names, word boundaries and current email evidence', () => {
+  const ports=['ALL','NORTHPORT','WESTPORT','DEPOT A'];
+  assert.equal(recommendMailScope('North Port registration','What documents?',ports).scope,'NORTHPORT');
+  assert.equal(recommendMailScope('Question','Help at depot-a',ports).scope,'DEPOT A');
+  assert.equal(recommendMailScope('Question','NORTHPORTAL',ports).scope,'ALL');
+  assert.equal(recommendMailScope('Question','EASTPORT registration',ports).scope,'ALL');
+  const conflict=recommendMailScope('Northport or Westport','Documents?',ports);
+  assert.equal(conflict.scope,'ALL');assert.equal(conflict.needsReview,true);
+  assert.equal(recommendMailScope('Question','Documents?\nOn yesterday wrote:\nNORTHPORT',ports).scope,'ALL');
+  assert.equal(recommendMailScope('Question','Documents?\n> WESTPORT',ports).scope,'ALL');
+  const tentative=recommendMailScope('Registration','What documents?',ports,['ALL','NORTHPORT']);assert.equal(tentative.scope,'NORTHPORT');assert.equal(tentative.needsReview,true);
+  assert.equal(recommendMailScope('Registration','What documents?',ports,['NORTHPORT','WESTPORT']).scope,'ALL');
+  const registration='PORT KLANG, NORTHPORT, WESTPORT';
+  const combined=[registration,'NORTHPORT, WESTPORT, JOHOR','WESTPORT, NORTHPORT'];
+  assert.equal(recommendMailScope('Port Klang registration','Company account',combined).scope,registration);
+  assert.equal(recommendMailScope('Question','Help at West Port',[registration]).scope,registration);
+  assert.equal(recommendMailScope('Question','Northport and Westport',[registration]).scope,registration);
+  assert.equal(recommendMailScope('Question','Westport',combined).scope,'ALL','Overlapping labels need more evidence');
+  const resolved=recommendMailScope('Company registration at Westport','Please help',combined,[registration]);
+  assert.equal(resolved.scope,registration);assert.equal(resolved.needsReview,true);
+  assert.equal(recommendMailScope('Question','Northport and Johor',combined,[registration]).scope,'NORTHPORT, WESTPORT, JOHOR','Keyword fallback cannot override conflicting named ports');
+});
 
 test('OpenAI configuration is opt-in, source IDs are validated, and prompt data is bounded', () => {
   assert.equal(aiConfiguration({ OPENAI_API_KEY: 'key', AUTO_MAIL_AI_MODEL: 'test-model' }).ready, false);
@@ -130,9 +154,10 @@ test('AI handlers use actual thread context, skip OpenAI without sources, and ca
     assert.ok(!url.includes('/messages/send'),'Draft handlers must never send email');
     if(url.includes('/agent_settings'))return storedSettings?json(storedSettings):json({code:'PGRST205',message:'Table not found'},404);
     if(url.includes('/gmail_connections'))return json(connection);
+    if(url.includes('/knowledge_articles'))return json([{port:'ALL'},{port:'NORTHPORT'},{port:'WESTPORT'}]);
     if(url==='https://oauth2.googleapis.com/token')return json({access_token:'fake-access'});
     if(url.includes('/threads/thread1')){const thread=rawThread();if(changed)thread.messages[0].id='new-message';return json(thread);}
-    if(url.includes('/match_knowledge_articles')){assert.equal(JSON.parse(init.body).p_port,'ALL');return json(noSources?[]:sources);}
+    if(url.includes('/match_knowledge_articles')){assert.ok(['ALL',''].includes(JSON.parse(init.body).p_port));return json(noSources?[]:sources);}
     if(url.includes('/claim_ai_draft')){claims++;const req=JSON.parse(init.body).p_request;saved={...req,status:'GENERATING',body_text:'',review_notes:'',cited_source_ids:[]};return json({claimed:true,draft:saved});}
     if(url==='https://api.openai.com/v1/responses'){
       providerCalls++;const request=JSON.parse(init.body);assert.equal(request.model,storedSettings?.model||'server-model');if(disableDuringProvider)storedSettings.enabled=false;assert.equal(request.store,false);assert.ok(!request.tools);assert.ok(request.input[0].content.includes('What registration documents'));
@@ -152,6 +177,10 @@ test('AI handlers use actual thread context, skip OpenAI without sources, and ca
     process.env.AUTO_MAIL_AI_ENABLED='false';assert.equal((await invoke(aiGenerate)).code,503);assert.equal(providerCalls,0);process.env.AUTO_MAIL_AI_ENABLED='true';
     assert.equal((await invoke(aiGenerate)).value.state,'NO_SOURCES');assert.equal(claims,0);assert.equal(providerCalls,0);
     noSources=false;const generated=await invoke(aiGenerate);assert.equal(generated.value.draft.status,'READY');assert.equal(providerCalls,1);
+    const preview=await invoke(aiScope,{threadId:'thread1',sourceMessageId:'incoming1',connectionVersion:version});
+    assert.equal(preview.value.recommendation.scope,'ALL');assert.equal(providerCalls,1,'Reading scope never calls the AI provider');
+    const automatic=await invoke(aiGenerate,{...body,scope:''});assert.equal(automatic.value.draft.status,'NEEDS_REVIEW');assert.equal(automatic.value.draft.scope,'ALL');
+    assert.match(automatic.value.draft.reviewNotes,/No clear port/);
     assert.equal((await invoke(aiUse,{draftId:requestId,threadId:'thread1',connectionVersion:version})).value.draft.body,output.body_text);
     changed=true;assert.equal((await invoke(aiUse,{draftId:requestId,threadId:'thread1',connectionVersion:version})).code,409);changed=false;
     dbSourceChanged=true;assert.equal((await invoke(aiGenerate)).code,409);assert.equal(failed,1,'Rejected generation is released without a second model call');

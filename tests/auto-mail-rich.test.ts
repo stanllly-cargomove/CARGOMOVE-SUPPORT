@@ -5,7 +5,7 @@ import { PGlite } from '@electric-sql/pglite';
 import { cleanMailHtml, mailHtmlText, replyRecipients, richRawReply } from '../server-handlers/auto-mail/mail-content.js';
 import { presentThread, gmailReply } from '../server-handlers/auto-mail/gmail.js';
 import { loadReplyFiles, uploadMetadata } from '../server-handlers/auto-mail/file-storage.js';
-import { attachmentRead, attachmentUpload, attachmentRemove } from '../server-handlers/auto-mail/attachments.js';
+import { attachmentRead, attachmentUpload, attachmentRemove, attachmentPreview } from '../server-handlers/auto-mail/attachments.js';
 import { encryptMailboxToken } from '../server-handlers/auto-mail/token-encryption.js';
 import { signSession } from '../api/_runtime.js';
 import { zipSync, strToU8 } from 'fflate';
@@ -40,6 +40,19 @@ test('rich MIME includes verified recipients, alternatives, threading and exact 
   const raw=Buffer.from(richRawReply('operator@example.com',{subject:'Documents',messageId:'<incoming@example.com>',references:'<incoming@example.com>'},recipients,'Hello','<p><b>Hello</b></p>',[{id:fileId,name:'guide.pdf',type:'application/pdf',size:12,data:Buffer.from('%PDF-hello!!')}],requestId),'base64url').toString();
   assert.match(raw,/Cc: team@example.com/);assert.match(raw,/Bcc: hidden@example.com/);assert.match(raw,/multipart\/mixed/);assert.match(raw,/multipart\/alternative/);assert.match(raw,/In-Reply-To: <incoming@example.com>/);assert.match(raw,/filename="guide.pdf"/);assert.ok(raw.includes(Buffer.from('%PDF-hello!!').toString('base64')));
 });
+test('pasted images become verified inline MIME parts and unrelated files remain attachments',()=>{
+  const data=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=','base64');
+  const image={id:fileId,name:'pasted.png',type:'image/png',size:data.length,data};
+  const html=cleanMailHtml(`<p>See image</p><img data-mail-image="cid:upload-${fileId}@auto-mail" alt="Screenshot">`);
+  const make=(files:any[],body=html)=>Buffer.from(richRawReply('operator@example.com',{subject:'Images',messageId:'<incoming@example.com>',references:''},{to:['customer@example.com'],cc:[],bcc:[]},'See image',body,files,requestId),'base64url').toString();
+  const raw=make([image]);assert.match(raw,/multipart\/related/);assert.match(raw,/Content-Disposition: inline/);assert.match(raw,new RegExp(`Content-ID: <upload-${fileId}@auto-mail>`));
+  const encoded=raw.split('Content-Type: text/html; charset=UTF-8')[1].split(/--auto_alt_/)[0].split('\r\n\r\n')[1];
+  assert.match(Buffer.from(encoded,'base64').toString(),/src="cid:upload-/);
+  const mixed=make([image,{...image,id:actor,name:'notes.txt',type:'text/plain',data:Buffer.from('Notes')}]);assert.match(mixed,/multipart\/mixed/);assert.match(mixed,/filename="notes.txt"/);
+  const fake=make([{...image,data:Buffer.from('<script>bad</script>')}]);assert.doesNotMatch(fake,/Content-ID:/);assert.match(fake,/Content-Disposition: attachment/);
+  assert.doesNotMatch(make([]),/Content-ID:/,'Unknown references cannot embed files');
+});
+
 test('uploaded files are bound to actor, mailbox, connection and reply request and must match stored sizes',async()=>{
   assert.equal(uploadMetadata({name:'guide.pdf',size:12}).mime_type,'application/pdf');assert.throws(()=>uploadMetadata({name:'script.html',size:12}));
   const row={id:fileId,request_id:requestId,mailbox_id:mailbox,connection_version:version,gmail_thread_id:'thread1',source_message_id:'message1',expires_at:new Date(Date.now()+60000).toISOString(),name:'guide.pdf',mime_type:'application/pdf',size:12,path:'private/file'};
@@ -77,7 +90,7 @@ test('rich delivery claim atomically snapshots recipients and files and rejects 
 test('attachment and rich send endpoints enforce admin, origin, conversation ownership and server-side MIME before Gmail',async()=>{
   const env={AUTO_MAIL_ENABLED:'true',AUTO_MAIL_SUPABASE_URL:'https://rich-dev.supabase.co',AUTO_MAIL_SUPABASE_SERVICE_ROLE_KEY:'test-key',SUPABASE_URL:'https://main.supabase.co',VITE_SUPABASE_URL:'https://main.supabase.co',AUTO_MAIL_APP_URL:'http://localhost:3000',GOOGLE_OAUTH_CLIENT_ID:'client',GOOGLE_OAUTH_CLIENT_SECRET:'secret',GOOGLE_TOKEN_ENCRYPTION_KEY:Buffer.alloc(32,1).toString('base64'),SESSION_SECRET:'rich-test-session'};
   const before=Object.fromEntries(Object.keys(env).map(key=>[key,process.env[key]]));Object.assign(process.env,env);const original=globalThis.fetch;
-  const connection={mailbox_id:mailbox,version,email:'operator@example.com',scopes:['https://www.googleapis.com/auth/gmail.readonly','https://www.googleapis.com/auth/gmail.send'],...encryptMailboxToken('refresh')};let sends=0;let raw='';let storageWrites=0;let claims=0;let upload:any=null;
+  const connection={mailbox_id:mailbox,version,email:'operator@example.com',scopes:['https://www.googleapis.com/auth/gmail.readonly','https://www.googleapis.com/auth/gmail.send'],...encryptMailboxToken('refresh')};let sends=0;let raw='';let storageWrites=0;let claims=0;let upload:any=null;let downloadBytes=Buffer.from('%PDF-hello!!');
   globalThis.fetch=(async(input:any,init:any={})=>{
     const url=String(input);assert.ok(!url.includes('main.supabase.co'));const json=(value:any,status=200)=>new Response(JSON.stringify(value),{status,headers:{'Content-Type':'application/json'}});
     if(url.includes('/gmail_connections'))return json(connection);
@@ -92,7 +105,7 @@ test('attachment and rich send endpoints enforce admin, origin, conversation own
     }
     if(url.includes('/reply_deliveries'))return json(null);
     if(url.includes('/object/upload/sign/'))return json({url:'/object/upload/sign/private/file?token=signed-upload'});
-    if(url.includes('/storage/v1/object/')&&(!init.method||init.method==='GET'))return new Response('%PDF-hello!!',{headers:{'Content-Type':'application/pdf'}});
+    if(url.includes('/storage/v1/object/')&&(!init.method||init.method==='GET'))return new Response(downloadBytes,{headers:{'Content-Type':'application/pdf'}});
     if(url.includes('/object/sign/'))return json({signedURL:'/object/sign/private/file?token=private'});
     if(url.includes('/storage/v1/object/')){storageWrites++;return json({Key:'private/file'});}
     if(url.includes('/claim_rich_reply')){claims++;const body=JSON.parse(init.body);assert.deepEqual(body.p_detail.cc,['team@example.com']);assert.ok(!body.p_detail.html.includes('script'));return json(requestId);}
@@ -103,14 +116,21 @@ test('attachment and rich send endpoints enforce admin, origin, conversation own
   const cookie='cargomove_session='+signSession({id:actor,email:'admin@example.com',type:'ADMIN',exp:Date.now()+60000});
   const invoke=async(handler:any,method:string,body:any={},query:any={},headers:any={cookie,origin:'http://localhost:3000'})=>{const res={code:200,value:null as any,setHeader(){},status(code:number){this.code=code;return this;},json(value:any){this.value=value;}};await handler({method,body,query,headers},res);return res;};
   try{
-    for(const handler of [attachmentRead,attachmentUpload,attachmentRemove])assert.equal((await invoke(handler,'POST',{},{},{})).code,401);
+    for(const handler of [attachmentRead,attachmentUpload,attachmentRemove,attachmentPreview])assert.equal((await invoke(handler,'POST',{},{},{})).code,401);
     assert.equal((await invoke(attachmentUpload,'POST',{}, {},{cookie,origin:'https://evil.test'})).code,403);
     const wrong=await invoke(attachmentRead,'GET',{}, {threadId:'thread1',messageId:'message1',partId:'wrong'});assert.equal(wrong.code,404);assert.equal(storageWrites,0);
     const read=await invoke(attachmentRead,'GET',{}, {threadId:'thread1',messageId:'message1',partId:'1'});assert.equal(read.code,200);assert.equal(read.value.type,'application/pdf');assert.equal(read.value.previewable,true);
     const registration={name:'guide.pdf',size:12,requestId,threadId:'thread1',sourceMessageId:'message1',connectionVersion:version,actor_id:'attacker'};
     const registered=await invoke(attachmentUpload,'POST',registration);assert.equal(registered.code,200);assert.equal(upload.actor_id,actor);assert.ok(upload.path.includes(actor));assert.ok(!JSON.stringify(registered.value).includes('test-key'));
     assert.equal((await invoke(attachmentRemove,'POST',{id:registered.value.id})).value.removed,true);
-    await invoke(attachmentUpload,'POST',registration);
+    const pixels=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=','base64');
+    await invoke(attachmentUpload,'POST',{...registration,name:'pasted.png',size:pixels.length});downloadBytes=pixels;
+    const previewQuery={id:upload.id,requestId,threadId:'thread1',sourceMessageId:'message1',connectionVersion:version};
+    assert.equal((await invoke(attachmentPreview,'GET',{},previewQuery)).code,200);
+    assert.equal((await invoke(attachmentPreview,'GET',{}, {...previewQuery,requestId:actor})).code,409);
+    assert.equal((await invoke(attachmentPreview,'GET',{}, {...previewQuery,connectionVersion:actor})).code,409);
+    downloadBytes=Buffer.alloc(pixels.length);assert.equal((await invoke(attachmentPreview,'GET',{},previewQuery)).code,400);
+    downloadBytes=Buffer.from('%PDF-hello!!');await invoke(attachmentUpload,'POST',registration);
     const body={threadId:'thread1',sourceMessageId:'message1',connectionVersion:version,requestId,recipient:'customer@example.com',body:'Hello',bodyHtml:'<p><b>Hello</b></p><script>evil()</script>',cc:'team@example.com',bcc:'hidden@example.com',attachmentIds:[upload.id]};
     const invalid=await invoke(gmailReply,'POST',{...body,cc:'bad\r\nBCC: x@example.com'});assert.equal(invalid.code,400);assert.equal(invalid.value.canEditReply,true);assert.equal(claims,0);assert.equal(sends,0);
     const sent=await invoke(gmailReply,'POST',body);assert.equal(sent.value.status,'SENT',JSON.stringify(sent.value));assert.equal(sends,1);assert.match(raw,/Cc: team@example.com/);assert.match(raw,/Bcc: hidden@example.com/);assert.match(raw,/multipart\/alternative/);assert.match(raw,/multipart\/mixed/);assert.ok(raw.includes(Buffer.from('%PDF-hello!!').toString('base64')));

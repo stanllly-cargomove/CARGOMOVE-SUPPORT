@@ -11,7 +11,7 @@ const browser=await chromium.launch({channel:'chrome',headless:true});
 const deferred=()=>{let resolve!:()=>void;const promise=new Promise<void>(done=>resolve=done);return {promise,resolve};};
 try {
   for(const width of [390,1440]) {
-    const page=await browser.newPage({viewport:{width,height:1000}});
+    const page=await browser.newPage({viewport:{width,height:1000}});await page.clock.install();
     const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
     let statusGate=deferred();const inboxGate=deferred(),sentGate=deferred(),scheduleGate=deferred();
     let version='v1',failScheduled=false,statuses=0,scheduled=0;const lists:URL[]=[];
@@ -36,17 +36,23 @@ try {
     const progress=page.getByRole('progressbar',{name:'Mailbox initialization progress',exact:true});
     await loader.waitFor();
     await page.getByText('Preparing your mailbox',{exact:true}).waitFor();
-    assert.equal(await progress.getAttribute('aria-valuenow'),'0');
+    assert.ok(Number(await progress.getAttribute('aria-valuenow'))<25,'Startup begins below the first checkpoint');
+    await page.clock.runFor(1000);
+    const estimate=Number(await progress.getAttribute('aria-valuenow'));assert.ok(estimate>0&&estimate<25,'Progress advances while the connection is pending');
     assert.equal(await page.getByRole('status',{name:'Loading emails',exact:true}).count(),0,'Startup uses its own screen, never a content skeleton');
     assert.equal(await folders.count(),0,'Mailbox opens after startup has prepared its data');
     await page.screenshot({path:`test-results/auto-mail-startup-${width}.png`,fullPage:true});
     const waitingForInbox=page.waitForRequest(request=>request.url().includes('threads?folder=inbox'));
     statusGate.resolve();await waitingForInbox;
-    await page.waitForFunction(()=>document.querySelector('[role=progressbar]')?.getAttribute('aria-valuenow')==='25');
+    await page.waitForFunction(()=>document.querySelector('[role=progressbar]')?.getAttribute('aria-valuetext')?.includes('1 of 4'));
+    const afterConnection=Number(await progress.getAttribute('aria-valuenow'));assert.ok(afterConnection<25,'A completed step does not jump to its percentage');
+    await page.clock.runFor(1000);assert.ok(Number(await progress.getAttribute('aria-valuenow'))>afterConnection);
     inboxGate.resolve();
-    await page.waitForFunction(()=>document.querySelector('[role=progressbar]')?.getAttribute('aria-valuenow')==='50');
+    await page.waitForFunction(()=>document.querySelector('[role=progressbar]')?.getAttribute('aria-valuetext')?.includes('2 of 4'));
+    assert.ok(Number(await progress.getAttribute('aria-valuenow'))<50);
     sentGate.resolve();
-    await page.waitForFunction(()=>document.querySelector('[role=progressbar]')?.getAttribute('aria-valuenow')==='75');
+    await page.waitForFunction(()=>document.querySelector('[role=progressbar]')?.getAttribute('aria-valuetext')?.includes('3 of 4'));
+    await page.clock.runFor(60000);assert.ok(Number(await progress.getAttribute('aria-valuenow'))<=95,'A slow final request never shows completion');
     assert.equal(await loader.isVisible(),true,'Startup waits for Scheduled as well as Inbox and Sent');
     await page.screenshot({path:`test-results/auto-mail-startup-progress-${width}.png`,fullPage:true});
     scheduleGate.resolve();
@@ -82,10 +88,11 @@ try {
     await page.getByRole('alert').filter({hasText:'Scheduled is temporarily unavailable.'}).waitFor();
     assert.equal(await folders.count(),0);
     assert.equal(await loader.count(),1,'Startup stays visible with failed-step status and retry');const beforeRetry=lists.length;
+    const paused=await progress.getAttribute('aria-valuenow');await page.clock.runFor(2000);assert.equal(await progress.getAttribute('aria-valuenow'),paused,'Errors pause simulated progress');
     failScheduled=false;await page.getByRole('button',{name:'Retry initialization',exact:true}).click();await page.getByRole('button',{name:/New mailbox email/}).waitFor();
     assert.equal(lists.length,beforeRetry,'Retry reuses successfully loaded folders');
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
     assert.deepEqual(errors,[]);await page.close();
   }
-  console.log('Startup screen and real progress, folder prefetch, cached navigation/reload, pagination, isolation, logout and retry passed on mobile/desktop.');
+  console.log('Startup screen with smooth simulated progress, truthful step status, folder prefetch, cached navigation/reload, pagination, isolation, logout and retry passed on mobile/desktop.');
 } finally {await browser.close();}

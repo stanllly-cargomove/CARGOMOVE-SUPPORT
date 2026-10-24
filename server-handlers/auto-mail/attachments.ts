@@ -4,20 +4,30 @@ import { bodyOf, noStore, requireAdmin } from '../_email.js';
 import { autoMailClient, autoMailConfiguration } from './configuration.js';
 import { accessToken, checkOrigin, connected, gmailGet } from './gmail.js';
 import { ATTACHMENT_BUCKET, MAX_ATTACHMENT_BYTES, fileParts } from './mail-content.js';
-import { uploadMetadata } from './file-storage.js';
+import { loadReplyFiles, uploadMetadata } from './file-storage.js';
 import { MailError } from './mail-error.js';
 
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const gmailId=/^[a-zA-Z0-9_-]{1,128}$/;
-export function createAttachmentHandler(action:'upload'|'read'|'remove') {
+export function createAttachmentHandler(action:'upload'|'read'|'remove'|'preview') {
   return async(request:any,response:any)=>{
     noStore(response);
     const session=requireAdmin(request,response); if(!session)return;
-    if(request.method!==(action==='read'?'GET':'POST'))return response.status(405).json({error:'Method not allowed.'});
+    if(request.method!==(['read','preview'].includes(action)?'GET':'POST'))return response.status(405).json({error:'Method not allowed.'});
     try{
-      if(action!=='read')checkOrigin(request);
+      if(!['read','preview'].includes(action))checkOrigin(request);
       const config=autoMailConfiguration(); if(!config.ready)throw new MailError(503,config.message);
       const client=autoMailClient(config);const connection=await connected(client);
+      if(action==='preview'){
+        const input=request.query||{};
+        if(input.connectionVersion!==connection.version)throw new MailError(409,'The mailbox changed. Reload this draft.');
+        const files=await loadReplyFiles(client,[input.id],{id:String(input.requestId||''),actor:session.id,connection,threadId:String(input.threadId||''),sourceMessageId:String(input.sourceMessageId||'')});
+        const file=files[0];
+        if(!file||!/^image\/(png|jpeg|gif|webp)$/.test(file.type)||verifiedMailFileType(file.data,file.name)!==file.type)throw new MailError(400,'This attachment is not a supported image.');
+        const signed=await client.storage.from(ATTACHMENT_BUCKET).createSignedUrl(file.path,300);
+        if(signed.error)throw new MailError(503,'Unable to preview this draft image.');
+        return response.json({url:signed.data.signedUrl});
+      }
       if(action==='upload'){
         const input=await bodyOf(request);const meta=uploadMetadata(input);
         if(!uuid.test(String(input.requestId))||!gmailId.test(String(input.threadId))||!gmailId.test(String(input.sourceMessageId))||input.connectionVersion!==connection.version)throw new MailError(409,'Reload the conversation before attaching files.');
@@ -68,3 +78,4 @@ export function createAttachmentHandler(action:'upload'|'read'|'remove') {
 export const attachmentUpload=createAttachmentHandler('upload');
 export const attachmentRead=createAttachmentHandler('read');
 export const attachmentRemove=createAttachmentHandler('remove');
+export const attachmentPreview=createAttachmentHandler('preview');

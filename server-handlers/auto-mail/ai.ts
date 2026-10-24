@@ -3,6 +3,7 @@ import { autoMailClient, autoMailConfiguration } from './configuration.js';
 import { accessToken, checkOrigin, connected, gmailGet, MailError, presentThread, replyContext } from './gmail.js';
 import { threadSignature } from './thread-signature.js';
 import { aiConfiguration, effectiveAiConfiguration } from './agent-config.js';
+import { recommendMailScope } from './scope.js';
 export { aiConfiguration } from './agent-config.js';
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -73,11 +74,11 @@ function dbResult(error: any) {
   throw new MailError(503, 'AI draft storage is unavailable. Check the AI draft migration and Auto Mail connection.');
 }
 function publicDraft(draft: any) {
-  return { id: draft.id, status: draft.status, body: draft.body_text, reviewNotes: draft.review_notes, provider: 'OpenAI', model: draft.model,
+  return { id: draft.id, scope: draft.scope, status: draft.status, body: draft.body_text, reviewNotes: draft.review_notes, provider: 'OpenAI', model: draft.model,
     sources: draft.sources.map((source: AiSource) => ({ ...source, cited: draft.cited_source_ids.includes(source.id) })) };
 }
 
-export function createAiHandler(action: 'generate' | 'use') {
+export function createAiHandler(action: 'generate' | 'use' | 'scope') {
   return async (request: any, response: any) => {
     noStore(response);
     const session = requireAdmin(request, response);
@@ -94,7 +95,7 @@ export function createAiHandler(action: 'generate' | 'use') {
       if (!config.ready) throw new MailError(503, config.message);
       const body = await bodyOf(request);
       let id = String(action === 'generate' ? body.requestId || '' : body.draftId || '');
-      if (!uuid.test(id)) throw new MailError(400, 'Invalid draft request.');
+      if (action !== 'scope' && !uuid.test(id)) throw new MailError(400, 'Invalid draft request.');
       const connection = await connected(client);
       const token = await accessToken(connection);
       if (action === 'use') {
@@ -112,18 +113,34 @@ export function createAiHandler(action: 'generate' | 'use') {
         return response.json({ draft: publicDraft(draft) });
       }
       const threadId = String(body.threadId || '');
-      const scope = typeof body.scope === 'string' ? body.scope.trim().toUpperCase() : 'ALL';
-      if (!/^[a-zA-Z0-9_-]{1,128}$/.test(threadId) || !scope || scope.length > 80) throw new MailError(400, 'Select a valid conversation and port or scope.');
+      let scope = typeof body.scope === 'string' ? body.scope.trim().toUpperCase() : '';
+      if (!/^[a-zA-Z0-9_-]{1,128}$/.test(threadId) || scope.length > 80) throw new MailError(400, 'Select a valid conversation and port or scope.');
       if (body.connectionVersion !== connection.version) throw new MailError(409, 'The connected mailbox changed. Reload Auto Mail.');
       const raw = await gmailGet(token, `threads/${encodeURIComponent(threadId)}?format=full`);
       const thread = presentThread(raw, connection.email);
       replyContext(raw, connection.email, String(body.sourceMessageId || ''));
+      let recommendation: ReturnType<typeof recommendMailScope> | undefined;
+      if (!scope || action === 'scope') {
+        const catalog = await client.from('knowledge_articles').select('port').eq('status', 'APPROVED').order('id').limit(1000);
+        dbResult(catalog.error);
+        recommendation = recommendMailScope(thread.subject, thread.messages.at(-1)?.body || '', (catalog.data || []).map(row => row.port));
+        if (recommendation.candidates.length !== 1) {
+          const related = await client.rpc('match_knowledge_articles', { p_query: `${thread.subject}\n${thread.messages.at(-1)?.body || ''}`.slice(0,4000), p_port: '' });
+          dbResult(related.error);
+          recommendation = recommendMailScope(thread.subject, thread.messages.at(-1)?.body || '', recommendation.scopes, (related.data || []).map((article:any)=>article.port));
+        }
+        if ((catalog.data || []).length >= 1000) {
+          recommendation = { ...recommendation, scope: 'ALL', needsReview: true, reason: 'Scope catalog is too large to check completely. Using general guidance; select a scope for specific advice.' };
+        }
+        scope = recommendation.scope;
+        if (action === 'scope') return response.json({ recommendation });
+      }
       const signature = threadSignature(thread);
       const query = `${thread.subject}\n${thread.messages.at(-1)?.body || ''}`.slice(0, 4000);
       const matched = await client.rpc('match_knowledge_articles', { p_query: query, p_port: scope });
       dbResult(matched.error);
       const sources: AiSource[] = (matched.data || []).slice(0, 5).map((source: any) => ({ id: source.id, version: source.version, title: source.title, port: source.port, content: String(source.content).slice(0, 6000) }));
-      if (!sources.length) return response.json({ state: 'NO_SOURCES', message: 'No approved KB articles matched this email and scope. Add approved knowledge or select the correct port before generating.' });
+      if (!sources.length) return response.json({ state: 'NO_SOURCES', recommendation, message: 'No approved KB articles matched this email and scope. Add approved knowledge or select a scope before generating.' });
       const claim = await client.rpc('claim_ai_draft', { p_request: { id, mailbox_id: connection.mailbox_id, connection_version: connection.version,
         gmail_thread_id: threadId, source_message_id: body.sourceMessageId, conversation_hash: signature, scope, provider: 'openai', model: config.model,
         requested_by: session.id, sources } });
@@ -134,6 +151,10 @@ export function createAiHandler(action: 'generate' | 'use') {
       }
       activeId = id;
       const output = await generateOpenAiDraft(config, scope, thread, sources);
+      if (recommendation?.needsReview && output.status !== 'NO_ANSWER') {
+        output.status = 'NEEDS_REVIEW';
+        output.review_notes = `${recommendation.reason}\n${output.review_notes}`.slice(0, 2000);
+      }
       const currentConfig = await effectiveAiConfiguration(client);
       if (!currentConfig.ready || currentConfig.model !== config.model) throw new MailError(409, 'Email agent settings changed during generation. Review the settings before generating again.');
       const latest = await gmailGet(token, `threads/${encodeURIComponent(threadId)}?format=full`);
@@ -151,6 +172,7 @@ export function createAiHandler(action: 'generate' | 'use') {
 
 export const aiGenerate = createAiHandler('generate');
 export const aiUse = createAiHandler('use');
+export const aiScope = createAiHandler('scope');
 
 
 export async function aiDraftList(request:any,response:any){

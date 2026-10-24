@@ -16,9 +16,9 @@ import autoMailStatus from '../server-handlers/auto-mail/status.js';
 import agentSettings from '../server-handlers/auto-mail/agent-settings.js';
 import mailboxActions from '../server-handlers/auto-mail/mailbox-actions.js';
 import { composeMessage, listOutbox, cancelOutbox, runOutbox } from '../server-handlers/auto-mail/outbox.js';
-import { attachmentUpload, attachmentRead, attachmentRemove } from '../server-handlers/auto-mail/attachments.js';
+import { attachmentUpload, attachmentRead, attachmentRemove, attachmentPreview } from '../server-handlers/auto-mail/attachments.js';
 import { learningList, learningDetail, learningPropose, learningReview } from '../server-handlers/auto-mail/learning.js';
-import { aiDraftList, aiGenerate, aiUse } from '../server-handlers/auto-mail/ai.js';
+import { aiDraftList, aiGenerate, aiScope, aiUse } from '../server-handlers/auto-mail/ai.js';
 import { knowledgeList, knowledgeDetail, knowledgeSave, knowledgeReview, knowledgeMatches } from '../server-handlers/auto-mail/knowledge.js';
 import { gmailConnect as autoMailConnect, gmailCallback as autoMailCallback, gmailThreads, gmailThread, gmailReply } from '../server-handlers/auto-mail/gmail.js';
 
@@ -38,6 +38,7 @@ const handlers: Record<string, Handler> = {
   'GET auto-mail/outbox-run': runOutbox,
   'POST auto-mail/attachment-upload': attachmentUpload,
   'GET auto-mail/attachment': attachmentRead,
+  'GET auto-mail/draft-attachment': attachmentPreview,
   'POST auto-mail/attachment-remove': attachmentRemove,
   'GET auto-mail/agent-settings': agentSettings,
   'POST auto-mail/agent-settings': agentSettings,
@@ -47,6 +48,7 @@ const handlers: Record<string, Handler> = {
   'POST auto-mail/learning-review': learningReview,
   'GET auto-mail/ai-drafts': aiDraftList,
   'POST auto-mail/ai-generate': aiGenerate,
+  'POST auto-mail/ai-scope': aiScope,
   'POST auto-mail/ai-use': aiUse,
   'GET auto-mail/knowledge': knowledgeList,
   'POST auto-mail/knowledge': knowledgeSave,

@@ -66,7 +66,7 @@ try {
     await page.getByText('1 selected',{exact:true}).waitFor();
     await page.getByRole('button',{name:'Show selected',exact:true}).click();
     await page.getByRole('button',{name:'Open selected',exact:true}).click();
-    const editor=page.getByRole('textbox',{name:'Your reply',exact:true}); await editor.fill('Unsent draft');
+    await page.getByRole('button',{name:'Reply',exact:true}).click();const editor=page.getByRole('textbox',{name:'Your reply',exact:true}); await editor.fill('Unsent draft');
     await page.getByRole('button',{name:'Mark as unread',exact:true}).waitFor();
     assert.deepEqual(readChanges,['read'],'Opening an unread email marks it read automatically');
     assert.equal(await page.getByRole('button',{name:'Mark as read',exact:true}).count(),0);
@@ -135,7 +135,7 @@ try {
     const mailboxBox=page.locator('nav[aria-label="Mail folders"]').locator('..').locator('..');
     const listHeight=(await mailboxBox.boundingBox())!.height;
     await page.getByRole('button',{name:/Customer.*Registration help/}).click();
-    await page.getByRole('textbox',{name:'Your reply',exact:true}).waitFor();
+    await page.getByRole('group',{name:'Conversation actions',exact:true}).waitFor();assert.equal(await page.getByRole('textbox',{name:'Your reply',exact:true}).count(),0,'Reader keeps the reply card closed');
     assert.equal(await page.getByRole('search',{name:'Search mail'}).count(),0,'Reader hides the search header');
     assert.equal((await mailboxBox.boundingBox())!.height,listHeight,'Reader keeps the mailbox height');
     page.once('dialog',dialog=>dialog.accept());await page.getByRole('button',{name:'Move conversation to Trash',exact:true}).click();

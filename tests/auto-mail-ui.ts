@@ -74,10 +74,11 @@ try {
         suggestion.status = data.action === 'APPROVE' ? 'APPROVED' : 'REJECTED'; suggestion.version++; suggestion.review_note = data.note;
         return route.fulfill({ json: { suggestion } });
       }
+      if(url.pathname==='/api/auto-mail/ai-scope')return route.fulfill({json:{recommendation:{scope:'ALL',reason:'General guidance',scopes:[]}}});
       if (url.pathname === '/api/auto-mail/ai-generate') {
         aiRequests++;
         const data = route.request().postDataJSON();
-        assert.equal(data.threadId, 'thread1'); assert.equal(data.scope, 'ALL');
+        assert.equal(data.threadId, 'thread1'); assert.equal(data.scope, '');
         return route.fulfill({ json: { draft: aiDraft() } });
       }
       if (url.pathname === '/api/auto-mail/ai-use') return route.fulfill(aiUseStale ? { status: 409, json: { error: 'A KB source changed or is no longer approved. Generate a new draft.' } } : { json: { draft: aiDraft() } });
@@ -163,6 +164,7 @@ try {
     assert.equal(sends, 0, 'KB operations cannot send mail');
     await page.getByRole('navigation', { name: 'Mail folders', exact: true }).getByRole('button', { name: 'Inbox', exact: true }).click();
     await page.getByRole('button', { name: /Registration help/ }).click();
+    await page.getByRole('button',{name:'Reply',exact:true}).click();
     const editor = page.getByRole('textbox', { name: 'Your reply' });
     await editor.waitFor();
     assert.equal(sends, 0, 'Opening inbox and conversation never sends mail');
@@ -195,31 +197,32 @@ try {
     assert.equal(sends, 0, 'Inserting a KB answer requires a separate explicit send');
     assert.equal(aiRequests, 0, 'Opening an email does not automatically invoke AI');
     const previousBody = await editor.inputValue();
-    await page.getByRole('button', { name: 'AI reply suggestion', exact: true }).click();
+    if(await page.getByRole('button', { name: 'AI reply suggestion', exact: true }).getAttribute('aria-expanded')!=='true')await page.getByRole('button', { name: 'AI reply suggestion', exact: true }).click();
     await page.getByRole('button', { name: 'Generate AI draft', exact: true }).click();
     await page.getByText('The KB does not support a reliable answer.', { exact: false }).waitFor();
-    assert.equal(await page.getByRole('button', { name: 'Add AI draft to reply', exact: true }).count(), 0, 'Unsupported answers cannot be inserted');
+    assert.equal(await page.getByRole('button', { name: 'Insert AI draft', exact: true }).count(), 0, 'Unsupported answers cannot be inserted');
     assert.equal(await editor.inputValue(), previousBody);
     noAiAnswer = false;
     await page.getByRole('button', { name: 'Generate AI draft', exact: true }).click();
     await page.getByText('Additional review or information is needed.', { exact: false }).waitFor();
     aiUseStale = true;
-    await page.getByRole('button', { name: 'Add AI draft to reply', exact: true }).click();
+    await page.getByRole('button', { name: 'Insert AI draft', exact: true }).click();
     await page.getByText('A KB source changed or is no longer approved. Generate a new draft.').waitFor();
     assert.equal(await editor.inputValue(), previousBody, 'Stale AI sources cannot change the composer');
     aiUseStale = false;
-    await page.getByRole('button', { name: 'Add AI draft to reply', exact: true }).click();
+    await page.getByRole('button', { name: 'Insert AI draft', exact: true }).click();
     await page.getByText('AI draft added. Review and edit your reply before sending.').waitFor();
     assert.equal(await editor.inputValue(), previousBody + '\n\nPlease provide your company certificate and authorization letter.');
     assert.ok(!(await editor.inputValue()).includes('Confirm the port requirements'), 'Internal review notes are never copied into customer reply');
     assert.equal(sends, 0, 'Generating or using an AI draft does not send email');
+    if(!await editor.count())await page.getByRole('button',{name:'Reply',exact:true}).click();
     await editor.fill('Here are the instructions.');
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, 'No horizontal overflow');
     await page.screenshot({ path: `test-results/auto-mail-${width}.png`, fullPage: true });
     await page.getByRole('button', { name: 'Send reply', exact: true }).click();
     await page.getByText(/Reply sent through Gmail/).waitFor();
     assert.equal(sends, 1);
-    assert.equal(await editor.isDisabled(), true, 'Successful sends block repeat clicks');
+    assert.equal(await editor.count(), 0, 'Successful sends close the reply card');
     await page.getByRole('button', { name: 'Open Learning review', exact: true }).click();
     const reviewPanel = page.getByRole('region', { name: 'Learning review queue', exact: true });
     await reviewPanel.getByRole('button', { name: 'Learning from registration reply', exact: true }).click();
@@ -248,6 +251,7 @@ try {
     await page.getByRole('navigation', { name: 'Mail folders', exact: true }).getByRole('button', { name: 'Inbox', exact: true }).click();
     await page.getByRole('button', { name: /Registration help/ }).click();
     uncertain = true;
+    if(!await editor.count())await page.getByRole('button',{name:'Reply',exact:true}).click();
     await editor.fill('Here are the instructions.');
     await page.getByRole('button', { name: 'Send reply', exact: true }).click();
     await page.getByRole('alert').waitFor();
@@ -259,6 +263,7 @@ try {
     await page.getByRole('button', { name: 'Back to Inbox', exact: true }).click();
     page.once('dialog', dialog => dialog.accept()); // Discard the uncertain-send draft and verify fresh server state.
     await page.getByRole('button', { name: /Registration help/ }).click();
+    if(!await editor.count())await page.getByRole('button',{name:'Reply',exact:true}).click();
     await editor.fill('Here are the instructions.');
     await page.getByRole('button', { name: 'Send reply', exact: true }).click();
     await page.getByRole('button', { name: 'Suggest this reply for the KB', exact: true }).click();

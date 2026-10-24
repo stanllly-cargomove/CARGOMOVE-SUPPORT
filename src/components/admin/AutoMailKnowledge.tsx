@@ -1,3 +1,4 @@
+import { AutoMailScopePicker } from './AutoMailScopePicker';
 import { AutoMailListTools } from './AutoMailListTools';
 import { AutoMailRelatedKnowledge } from './AutoMailRelatedKnowledge';
 import React, { useEffect, useRef, useState } from 'react';
@@ -123,7 +124,7 @@ export function AutoMailKnowledge({ ready, refreshToken = 0,onDirtyChange,onView
     setJsonText(text); setJsonError(''); setNotice('');
     try {
       const imported = readArticleJson(text);
-      setForm(imported); setDirty(true); setJsonText(''); setError('');
+      setForm(imported); setDirty(true); setError('');
       setNotice('JSON loaded into the article fields. Review the details, then save the draft.');
     } catch (reason) { setJsonError(reason instanceof Error ? reason.message : 'Unable to read JSON.'); }
   };
@@ -178,7 +179,7 @@ export function AutoMailKnowledge({ ready, refreshToken = 0,onDirtyChange,onView
             </div>}
             <label className="block text-xs font-medium text-slate-700">Article title<input required maxLength={160} value={form.title} onChange={event => field('title', event.target.value)} className={input} disabled={busy} /></label>
             <label className="block text-xs font-medium text-slate-700">Short summary<textarea maxLength={400} rows={2} value={form.summary} onChange={event => field('summary', event.target.value)} className={input} disabled={busy} /></label>
-            <div className="grid gap-3 sm:grid-cols-2"><label className="block text-xs font-medium text-slate-700">Category<input required maxLength={80} value={form.category} onChange={event => field('category', event.target.value)} className={input} disabled={busy} /></label><label className="block text-xs font-medium text-slate-700">Port or scope<input required maxLength={80} value={form.port} onChange={event => field('port', event.target.value)} className={input} placeholder="ALL, NORTHPORT, WESTPORT..." disabled={busy} /></label></div>
+            <div className="grid items-start gap-3 sm:grid-cols-2"><label className="block text-xs font-medium text-slate-700">Category<input required maxLength={80} value={form.category} onChange={event => field('category', event.target.value)} className={input} disabled={busy} /></label><AutoMailScopePicker label="Port or scope" value={form.port} onChange={value => field('port', value)} disabled={busy} /></div>
             <label className="block text-xs font-medium text-slate-700">Keywords (comma separated)<input value={form.keywords} onChange={event => field('keywords', event.target.value)} className={input} disabled={busy} placeholder="registration, required documents" /></label>
             <label className="block text-xs font-medium text-slate-700">Answer / procedure<textarea required maxLength={30000} rows={12} value={form.content} onChange={event => field('content', event.target.value)} className={input} disabled={busy} /></label>
             <AutoMailRelatedKnowledge key={selected?.id || 'new'} query={[form.title, form.summary, form.keywords].join('\n')} excludeId={selected?.id} disabled={busy} />

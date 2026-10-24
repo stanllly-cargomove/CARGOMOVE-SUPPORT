@@ -91,11 +91,11 @@ export async function cachedMail<T>(scope:string,path:string,options:{context?:s
 }
 
 // Revalidate every already-loaded page so a reload does not collapse a long list to page one.
-export async function refreshMailThreads<T extends {id:string}>(scope:string, path:string, context:string) {
+export async function refreshMailThreads<T extends {id:string}>(scope:string, path:string, context:string, options:{conditional?:boolean}={}) {
   type Page = {threads:T[];nextPageToken:string|null;historyId?:string};
   const started = generation;
   const loaded = peekMail<Page>(scope,path,context)?.threads.length || 0;
-  const first = await cachedMail<Page>(scope,path,{context,force:true,conditional:true});
+  const first = await cachedMail<Page>(scope,path,{context,force:true,conditional:options.conditional??true});
   if (started !== generation) throw new Error('Your session ended. Sign in again.');
   const threads = [...first.threads];
   const ids = new Set(threads.map(item=>item.id));

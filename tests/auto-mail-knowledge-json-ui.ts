@@ -43,9 +43,11 @@ try {
     const article = { title: 'Registration help', summary: 'Documents to prepare', category: 'Registration', port: 'northport', keywords: ['registration', 'documents'], content: '1. Prepare documents.\n2. Submit the request.' };
     await paste(JSON.stringify(article));
     await page.getByText('JSON loaded into the article fields.', { exact: false }).waitFor();
-    for (const [label, value] of [['Article title', article.title], ['Short summary', article.summary], ['Category', article.category], ['Port or scope', 'NORTHPORT'], ['Keywords (comma separated)', 'registration, documents'], ['Answer / procedure', article.content]]) {
+    for (const [label, value] of [['Article title', article.title], ['Short summary', article.summary], ['Category', article.category], ['Keywords (comma separated)', 'registration, documents'], ['Answer / procedure', article.content]]) {
       assert.equal(await page.getByRole('textbox', { name: label, exact: true }).inputValue(), value);
     }
+    assert.equal(await page.getByRole('group',{name:'Port or scope',exact:true}).getByRole('checkbox',{name:'NORTHPORT',exact:true}).isChecked(),true);
+    assert.equal(await json.inputValue(),JSON.stringify(article),'Pasted JSON remains visible after filling fields');
     assert.equal(saves, 0, 'Pasting must not save or approve an article');
     for (const invalid of ['{bad', '[]', JSON.stringify({ ...article, content: 42 }), JSON.stringify({ ...article, title: 'x'.repeat(161) }), JSON.stringify({ ...article, keywords: ['x'.repeat(61)] })]) {
       await paste(invalid);
@@ -56,7 +58,7 @@ try {
     await json.fill(JSON.stringify({ title: 'General help', content: 'Contact support.' }));
     await page.getByRole('button', { name: 'Fill fields from JSON' }).click();
     assert.equal(await page.getByRole('textbox', { name: 'Category', exact: true }).inputValue(), 'General');
-    assert.equal(await page.getByRole('textbox', { name: 'Port or scope', exact: true }).inputValue(), 'ALL');
+    assert.equal(await page.getByRole('group', { name: 'Port or scope', exact: true }).getByRole('checkbox', { name: 'ALL - general guidance', exact: true }).isChecked(), true);
     assert.equal(await page.getByRole('textbox', { name: 'Short summary', exact: true }).inputValue(), '');
     await page.getByRole('button', { name: 'Save draft', exact: true }).click();
     await page.getByText('Draft saved.', { exact: false }).waitFor();
@@ -64,9 +66,28 @@ try {
     await page.getByRole('button',{name:'Article options',exact:true}).click();
     await page.getByRole('menuitem', { name: 'Paste JSON', exact: true }).click();
     await paste(JSON.stringify({ ...article, id: 'other-article', version: 99, status: 'APPROVED' }));
+    const scope=page.getByRole('group',{name:'Port or scope',exact:true});
+    await scope.getByRole('checkbox',{name:'WESTPORT',exact:true}).check();
+    assert.equal(await scope.getByRole('checkbox',{name:'NORTHPORT',exact:true}).isChecked(),true);
+    assert.equal(await scope.getByRole('checkbox',{name:'ALL - general guidance',exact:true}).isChecked(),false);
     await page.getByRole('button', { name: 'Save draft', exact: true }).click();
     await page.getByText('Draft saved.', { exact: false }).waitFor();
+    assert.equal(saved.port,'NORTHPORT, WESTPORT');
     assert.equal(saved.id, 'article-1'); assert.equal(saved.version, 2); assert.equal(saved.status, 'DRAFT');
+    // Existing scope strings prefill individual ports without silently rewriting saved data.
+    await page.getByRole('button',{name:'Article options',exact:true}).click();
+    await page.getByRole('menuitem',{name:'Paste JSON',exact:true}).click();
+    await paste(JSON.stringify({...article,port:'WESTPORT, NORTHPORT'}));
+    assert.equal(await scope.getByRole('checkbox',{name:'NORTHPORT',exact:true}).isChecked(),true);
+    assert.equal(await scope.getByRole('checkbox',{name:'WESTPORT',exact:true}).isChecked(),true);
+    await page.getByRole('button',{name:'Save draft',exact:true}).click();
+    await page.getByText('Draft saved.',{exact:false}).waitFor();assert.equal(saved.port,'WESTPORT, NORTHPORT');
+    await scope.getByRole('checkbox',{name:'NORTHPORT',exact:true}).uncheck();
+    await scope.getByRole('checkbox',{name:'WESTPORT',exact:true}).uncheck();
+    assert.equal(await scope.getByRole('checkbox',{name:'ALL - general guidance',exact:true}).isChecked(),true);
+    await scope.getByRole('checkbox',{name:'JOHOR',exact:true}).check();
+    await scope.getByRole('checkbox',{name:'ALL - general guidance',exact:true}).check();
+    assert.equal(await scope.getByRole('checkbox',{name:'JOHOR',exact:true}).isChecked(),false);
     await page.evaluate(() => Object.defineProperty(navigator, 'clipboard', { value: undefined }));
     await page.getByRole('button',{name:'Article options',exact:true}).click();
     await page.getByRole('menuitem', { name: 'Copy JSON template' }).click();

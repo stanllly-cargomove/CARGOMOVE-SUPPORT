@@ -53,11 +53,13 @@
     "test:auto-mail:attachments:ui": "tsx tests/auto-mail-attachments-ui.ts",
     "test:auto-mail:rich:ui": "tsx tests/auto-mail-rich-ui.ts",
     "test:auto-mail:mailbox:ui": "tsx tests/auto-mail-mailbox-ui.ts",
+    "test:auto-mail:inbox-state:ui": "tsx tests/auto-mail-inbox-state-ui.ts",
     "test:auto-mail:cache:ui": "tsx tests/auto-mail-cache-ui.ts",
     "test:auto-mail:initialization:ui": "tsx tests/auto-mail-initialization-ui.ts",
     "test:auto-mail:conversation:ui": "tsx tests/auto-mail-conversation-ui.ts",
     "test:auto-mail:drafts:ui": "tsx tests/auto-mail-drafts-ui.ts",
-    "test:auto-mail:composer:ui": "tsx tests/auto-mail-composer-ui.ts"
+    "test:auto-mail:composer:ui": "tsx tests/auto-mail-composer-ui.ts",
+    "test:auto-mail:smart-composer:ui": "tsx tests/auto-mail-smart-composer-ui.ts"
   },
   "dependencies": {
     "@fontsource/inter": "^5.3.0",

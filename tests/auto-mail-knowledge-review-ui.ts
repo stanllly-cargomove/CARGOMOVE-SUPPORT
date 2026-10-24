@@ -42,7 +42,7 @@ try {
         reviews++;
         const data = route.request().postDataJSON();
         assert.equal(data.targetId, article.id); assert.equal(data.targetVersion, article.version);
-        assert.equal(data.content, 'Reviewed reusable instructions.');
+        assert.equal(data.content, 'Reviewed reusable instructions.');assert.equal(data.port,'NORTHPORT, WESTPORT');
         if (targetConflict) return route.fulfill({ status: 409, json: { error: 'The target KB article changed. Refresh its version.' } });
         suggestion.status = 'APPROVED'; suggestion.version++;
         writes++;
@@ -103,6 +103,8 @@ try {
     await learning.getByRole('region', { name: 'Current KB answer', exact: true }).waitFor();
     assert.equal(await learning.getByRole('combobox', { name: 'Publish as' }).inputValue(), 'UPDATE');
     await answer.fill('Reviewed reusable instructions.');
+    const scope=learning.getByRole('group',{name:'Port / scope',exact:true});
+    await scope.getByRole('checkbox',{name:'NORTHPORT',exact:true}).check();await scope.getByRole('checkbox',{name:'WESTPORT',exact:true}).check();
     await learning.getByRole('region', { name: 'Proposed KB answer', exact: true }).getByText('Reviewed reusable instructions.').waitFor();
     targetConflict = true;
     await learning.getByRole('button', { name: 'Approve and publish KB' }).click();

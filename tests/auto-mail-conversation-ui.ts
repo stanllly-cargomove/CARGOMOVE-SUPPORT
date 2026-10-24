@@ -24,6 +24,7 @@ try {
         return route.fulfill({contentType:'application/pdf',body:Buffer.from('%PDF-forwarded original')});
       }
       if(url.pathname==='/api/auto-mail/status'){await gate;return route.fulfill({json:{state:'READY',mailboxConnected:true,oauthReady:true,mailbox:'support@example.com',connectionVersion:'v1',canManageMail:true,composeReady:true,richRepliesReady:true,knowledgeReady:true,aiEnabled:true}});}
+      if(url.pathname==='/api/auto-mail/ai-scope')return route.fulfill({json:{recommendation:{scope:'ALL',reason:'General guidance',scopes:[]}}});
       if(url.pathname==='/api/auto-mail/threads')return route.fulfill({json:{threads:[{id:'thread1',subject:'Forwarding and replies',from:'Jane <jane@example.com>',snippet:'Please review.',unread:false}],nextPageToken:null}});
       if(url.pathname==='/api/auto-mail/outbox')return route.fulfill({json:{messages:[],nextOffset:null,workerReady:true}});
       if(url.pathname==='/api/auto-mail/thread')return route.fulfill({json:{id:'thread1',subject:'Forwarding and replies',recipient:'jane@example.com',mailbox:'support@example.com',connectionVersion:'v1',replyBlocked:'',replyAll:{to:['jane@example.com'],cc:['john@example.com','azhar@example.com','ahmad@example.com','li@example.com']},messages:[{id:'m1',from:'"Doe, Jane" <jane@example.com>',to,cc,date:'2026-10-23T02:00:00Z',body:'Please review the original documents.',html:'<p>Please review the <strong>original documents</strong>.</p>',outbound:false,attachments:true,files:[{partId:'part1',name:'original.pdf',type:'application/pdf',size:23}]}]}});
@@ -37,7 +38,7 @@ try {
     });
     await page.goto('http://localhost:3000/');await page.getByRole('region',{name:'Initializing Auto Mail',exact:true}).waitFor();
     release();await page.getByRole('navigation',{name:'Mail folders'}).waitFor();
-    const open=()=>page.getByRole('button',{name:/Jane.*Forwarding and replies/}).click();await open();await page.getByRole('textbox',{name:'Your reply',exact:true}).waitFor();
+    const open=()=>page.getByRole('button',{name:/Jane.*Forwarding and replies/}).click();await open();await page.getByRole('heading',{name:'Forwarding and replies',exact:true}).waitFor();assert.equal(await page.getByRole('region',{name:'Reply box',exact:true}).count(),0,'Opening a conversation does not open a reply card');
     const count=page.getByText('1 message',{exact:true});await count.waitFor();const gmail=page.getByRole('link',{name:'Gmail',exact:true});const countBox=(await count.boundingBox())!,gmailBox=(await gmail.boundingBox())!;assert.ok(Math.abs(countBox.y+countBox.height/2-gmailBox.y-gmailBox.height/2)<2);
     assert.equal(await page.getByText(/message in this conversation/).count(),0);
     const message=page.locator('section[aria-label="Conversation messages"] details[open]').first();
@@ -69,7 +70,7 @@ try {
     assert.equal(await popup.getByRole('region',{name:'To recipients',exact:true}).locator('li').count(),3);
     assert.equal(await popup.getByRole('region',{name:'CC recipients',exact:true}).locator('li').count(),2);
     await popup.getByText('Doe, John - john@example.com',{exact:true}).waitFor();await popup.getByText('\u674e\u660e - li@example.com',{exact:true}).waitFor();await page.keyboard.press('Escape');
-    const box=page.getByRole('region',{name:'Reply box',exact:true});await box.getByRole('button',{name:'AI reply suggestion',exact:true}).click();await box.getByRole('complementary',{name:'AI reply suggestion'}).waitFor();assert.equal(await page.getByRole('button',{name:'Generate AI draft',exact:true}).isEnabled(),true);await box.getByRole('button',{name:'Find an approved answer',exact:true}).click();await box.getByRole('complementary',{name:'Approved knowledge search'}).waitFor();await box.getByRole('button',{name:'Find an approved answer',exact:true}).click();
+    const box=page.getByRole('region',{name:'Reply box',exact:true});if(await box.getByRole('button',{name:'AI reply suggestion',exact:true}).getAttribute('aria-expanded')!=='true')await box.getByRole('button',{name:'AI reply suggestion',exact:true}).click();await box.getByRole('complementary',{name:'AI reply suggestion'}).waitFor();assert.equal(await page.getByRole('button',{name:'Generate AI draft',exact:true}).isEnabled(),true);await box.getByRole('button',{name:'Find an approved answer',exact:true}).click();await box.getByRole('complementary',{name:'Approved knowledge search'}).waitFor();await box.getByRole('button',{name:'Find an approved answer',exact:true}).click();
     assert.equal(await page.locator('form form').count(),0,'Helper forms do not nest inside the send form');
     const editor=page.getByRole('textbox',{name:'Your reply',exact:true});await editor.fill('Keep this reply draft');
     await page.getByRole('button',{name:'Reply all',exact:true}).click();await page.getByRole('button',{name:'Remove john@example.com from Reply CC recipients',exact:true}).waitFor();
@@ -106,8 +107,8 @@ try {
     assert.equal(await readerLoader.count(),0,'Back navigation works before the conversation request finishes');
     await page.getByRole('button',{name:/Already replied/}).click();await page.getByRole('heading',{name:'Already replied',exact:true}).waitFor();
     assert.equal(await page.getByText(outgoingNotice,{exact:true}).count(),0);
-    await page.getByRole('textbox',{name:'Your reply',exact:true}).waitFor();
-    await page.getByRole('button',{name:'AI reply suggestion',exact:true}).click();
+    await page.getByRole('button',{name:'Reply',exact:true}).click();await page.getByRole('textbox',{name:'Your reply',exact:true}).waitFor();
+    if(await page.getByRole('button',{name:'AI reply suggestion',exact:true}).getAttribute('aria-expanded')!=='true')await page.getByRole('button',{name:'AI reply suggestion',exact:true}).click();
     await page.getByText('AI reply generation is available for incoming customer messages. This selected message was sent by us.',{exact:true}).waitFor();
     assert.equal(await page.getByRole('button',{name:'Generate AI draft',exact:true}).isDisabled(),true);
     const options=page.getByRole('button',{name:'Message options',exact:true});

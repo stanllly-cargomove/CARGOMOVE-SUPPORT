@@ -33,10 +33,10 @@ try {
     const folders=page.getByRole('navigation',{name:'Mail folders'});
     await folders.getByRole('button',{name:'Sent',exact:true}).click();await row().waitFor();
     await folders.getByRole('button',{name:'Inbox',exact:true}).click();await row().waitFor();assert.equal(lists,2);assert.equal(statuses,1,'Folder navigation reuses readiness');
-    await row().click();await page.getByRole('textbox',{name:'Your reply',exact:true}).waitFor();
+    await row().click();await page.getByRole('button',{name:'Reply',exact:true}).click();await page.getByRole('textbox',{name:'Your reply',exact:true}).waitFor();
     await page.getByRole('button',{name:'Move conversation to Trash',exact:true}).click();
     await page.getByRole('button',{name:'Reconnect Gmail for mailbox management',exact:true}).waitFor();assert.equal(sends,0,'Permission guidance never sends or trashes mail');
-    await page.getByRole('button',{name:'Other menu',exact:true}).click();await page.getByRole('button',{name:'Open Auto Mail',exact:true}).click();await row().click();await page.getByRole('textbox',{name:'Your reply',exact:true}).waitFor();assert.equal(threadReads,1,'Conversation cache survives menu changes');assert.equal(lists,2);
+    await page.getByRole('button',{name:'Other menu',exact:true}).click();await page.getByRole('button',{name:'Open Auto Mail',exact:true}).click();await row().click();await page.getByRole('button',{name:'Reply',exact:true}).click();await page.getByRole('textbox',{name:'Your reply',exact:true}).waitFor();assert.equal(threadReads,1,'Conversation cache survives menu changes');assert.equal(lists,2);
     await page.getByRole('button',{name:'Back to Inbox',exact:true}).click();
     await page.clock.runFor(119000);assert.equal(lists,2,'No repeated requests before the interval');
     const checked=page.waitForResponse(response=>response.url().includes('/threads?')&&response.url().includes('historyId=41'));await page.clock.runFor(1100);await checked;

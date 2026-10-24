@@ -1,3 +1,4 @@
+import { AutoMailScopePicker } from './AutoMailScopePicker';
 import { AutoMailListTools } from './AutoMailListTools';
 import { AutoMailRelatedKnowledge } from './AutoMailRelatedKnowledge';
 import React, { useEffect, useState } from 'react';
@@ -114,7 +115,7 @@ export function AutoMailLearning({ ready, refreshToken, onReviewed,onDirtyChange
             <p className="rounded-lg bg-amber-50 p-3 text-xs text-amber-800">Generalize names, email addresses, reference numbers and one-off details before approval. Confirm that the procedure applies to the selected port or scope.</p>
             <label className="block text-xs font-medium">Article title<input required maxLength={160} disabled={busy} className={input} value={form.title} onChange={event => field('title', event.target.value)} /></label>
             <label className="block text-xs font-medium">Summary<textarea rows={2} maxLength={400} disabled={busy} className={input} value={form.summary} onChange={event => field('summary', event.target.value)} /></label>
-            <div className="grid gap-3 sm:grid-cols-2"><label className="block text-xs font-medium">Category<input required maxLength={80} disabled={busy} className={input} value={form.category} onChange={event => field('category', event.target.value)} /></label><label className="block text-xs font-medium">Port / scope<input required maxLength={80} disabled={busy} className={input} value={form.port} onChange={event => field('port', event.target.value)} /></label></div>
+            <div className="grid items-start gap-3 sm:grid-cols-2"><label className="block text-xs font-medium">Category<input required maxLength={80} disabled={busy} className={input} value={form.category} onChange={event => field('category', event.target.value)} /></label><AutoMailScopePicker label="Port / scope" value={form.port} onChange={value => field('port', value)} disabled={busy} /></div>
             <label className="block text-xs font-medium">Keywords (comma separated)<input disabled={busy} className={input} value={form.keywords} onChange={event => field('keywords', event.target.value)} /></label>
             <label className="block text-xs font-medium">Reusable answer<textarea required rows={9} maxLength={30000} disabled={busy} className={input} value={form.content} onChange={event => field('content', event.target.value)} /></label>
             <AutoMailRelatedKnowledge key={selected.id} query={[form.title, form.summary, form.keywords].join('\n')} disabled={busy} onSelect={id => void chooseTarget(id)} />

@@ -46,7 +46,7 @@ try {
     for (const saveName of ['Save agent settings', 'Save incoming draft settings']) {
       assert.equal((await page.getByRole('button', { name: saveName, exact: true }).boundingBox())!.height, 36);
     }
-    const toggles = page.getByRole('checkbox');
+    const toggles = page.getByRole('checkbox',{name:/Enable AI reply suggestions|Automatically prepare drafts for incoming emails|Let AI send eligible replies automatically/});
     const positions = await toggles.evaluateAll(inputs => inputs.filter(input => input.getBoundingClientRect().width > 0).map(input => input.getBoundingClientRect().right));
     assert.equal(positions.length, 3); assert.ok(Math.max(...positions) - Math.min(...positions) < 1, 'All primary toggles align');
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
@@ -58,13 +58,17 @@ try {
     await page.getByRole('button', { name: 'Save agent settings', exact: true }).click();
     await page.getByText('Email agent settings saved. New drafts use these settings.', { exact: true }).waitFor();
     assert.equal(model.model, 'another-model');
+    const scope=page.getByRole('group',{name:'Authoritative KB scope',exact:true});
+    await scope.getByRole('checkbox',{name:'WESTPORT',exact:true}).check();
+    await scope.getByRole('checkbox',{name:'NORTHPORT',exact:true}).check();
+    assert.equal(await scope.getByRole('checkbox',{name:'ALL - general guidance',exact:true}).isChecked(),false);
     await page.getByRole('spinbutton', { name: 'Minimum confidence (%)', exact: true }).fill('98');
     page.once('dialog', dialog => void dialog.dismiss());
     await page.getByRole('button', { name: 'Refresh AI settings', exact: true }).click();
     assert.equal(await page.getByRole('spinbutton', { name: 'Minimum confidence (%)', exact: true }).inputValue(), '98');
     await page.getByRole('button', { name: 'Save incoming draft settings', exact: true }).click();
     await page.getByText('Automatic replies are OFF. Replies require staff review and Send.', { exact: true }).waitFor();
-    assert.equal(incoming.min_confidence, 0.98); assert.equal(incoming.auto_reply_enabled, false);
+    assert.equal(incoming.scope,'NORTHPORT, WESTPORT'); assert.equal(incoming.min_confidence, 0.98); assert.equal(incoming.auto_reply_enabled, false);
     await page.getByRole('combobox', { name: 'Active reply model', exact: true }).selectOption('configured-model');
     await page.getByRole('spinbutton', { name: 'Minimum confidence (%)', exact: true }).fill('99');
     page.once('dialog', dialog => void dialog.accept());

@@ -17,7 +17,7 @@ const bundle = await build({
       return { contents: `import React from 'react';export function ${name}(){return <div>${name}</div>;} ${extra}`, loader: 'tsx' };
     });
     builder.onLoad({ filter: /[\\/]services[\\/]auth\.ts$/ }, () => ({ contents: 'export const getExternalUserAccess=async()=>[];export const subscribeToExternalUserAccess=()=>()=>{};' }));
-    builder.onLoad({ filter: /[\\/]services[\\/]storage\.ts$/ }, () => ({ contents: 'export const getSubmissions=()=>[];export const subscribeToStorage=()=>()=>{};' }));
+    builder.onLoad({ filter: /[\\/]services[\\/]storage\.ts$/ }, () => ({ contents: 'export const getPorts=()=>[];export const getSubmissions=()=>[];export const subscribeToStorage=()=>()=>{};' }));
     builder.onLoad({ filter: /[\\/]services[\\/]supabaseAuth\.ts$/ }, () => ({ contents: 'export const browserSupabaseAuth=null;' }));
   } }],
 });
@@ -152,9 +152,9 @@ try {
     await breadcrumb.locator('[aria-current="page"]').filter({hasText:/^Review$/}).waitFor();
     assert.equal(await reviewTable.count(),0);
     await page.getByRole('textbox',{name:'Article title',exact:true}).fill('Unsaved review title');
-    page.once('dialog',dialog=>dialog.dismiss());await page.getByRole('button',{name:'Back to Learning review',exact:true}).click();
+    page.once('dialog',dialog=>dialog.dismiss());await folders.getByRole('button',{name:'Learning review',exact:true}).click();
     assert.equal(await page.getByRole('textbox',{name:'Article title',exact:true}).inputValue(),'Unsaved review title');
-    page.once('dialog',dialog=>dialog.accept());await page.getByRole('button',{name:'Back to Learning review',exact:true}).click();await reviewTable.waitFor();
+    page.once('dialog',dialog=>dialog.accept());await folders.getByRole('button',{name:'Learning review',exact:true}).click();await reviewTable.waitFor();
     await breadcrumb.locator('[aria-current="page"]').filter({hasText:'Learning review'}).waitFor();
     await folders.getByRole('button',{name:'Inbox',exact:true}).click();
     await page.getByRole('button', { name: 'Auto Mail options', exact: true }).click();
@@ -162,7 +162,7 @@ try {
     await page.getByRole('heading', { name: 'AI model', exact: true }).waitFor();
     await page.getByRole('heading', { name: 'Incoming email', exact: true }).waitFor();
     assert.equal(await page.getByRole('tab').count(),0);
-    await page.getByLabel('Automatically prepare drafts for incoming emails',{exact:true}).check();await page.getByLabel('Authoritative KB scope',{exact:true}).fill('NORTHPORT');await page.getByRole('button',{name:'Save incoming draft settings',exact:true}).click();await page.getByText('Automatic replies are OFF. Replies require staff review and Send.',{exact:true}).waitFor();assert.equal(incoming.enabled,true);
+    await page.getByLabel('Automatically prepare drafts for incoming emails',{exact:true}).check();await page.getByRole('group',{name:'Authoritative KB scope',exact:true}).getByRole('checkbox',{name:'NORTHPORT',exact:true}).check();await page.getByRole('button',{name:'Save incoming draft settings',exact:true}).click();await page.getByText('Automatic replies are OFF. Replies require staff review and Send.',{exact:true}).waitFor();assert.equal(incoming.enabled,true);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
     await page.screenshot({ path: `test-results/auto-email-agent-${width}.png`, fullPage: true });
     assert.deepEqual(errors, []);

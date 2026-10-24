@@ -3,6 +3,7 @@ import sanitize from './vendor/sanitize-html.cjs';
 import { convert } from 'html-to-text';
 import addresses from 'email-addresses';
 import { MailError } from './mail-error.js';
+import { verifiedMailFileType } from '../../shared/autoMailFiles.js';
 
 export const MAX_ATTACHMENT_BYTES = 15 * 1024 * 1024;
 export const MAX_ATTACHMENTS = 10;
@@ -92,10 +93,24 @@ function mimeFilename(name:string){
 export function richRawReply(email: string, context: { subject: string; messageId: string; references: string; compose?: boolean }, recipients: ReturnType<typeof replyRecipients>, text: string, html: string, files: ReplyFile[], id: string) {
   const alt = `auto_alt_${crypto.randomBytes(16).toString('hex')}`;
   const mixed = `auto_mix_${crypto.randomBytes(16).toString('hex')}`;
+  const related = `auto_related_${crypto.randomBytes(16).toString('hex')}`;
+  const embedded = new Set<string>();
+  // Only embed verified, authenticated uploads supplied by loadReplyFiles.
+  // Stored HTML keeps stable references; browser blob URLs never enter MIME.
+  html = html.replace(/<img\b[^>]*>/gi, tag => {
+    const reference = tag.match(/data-mail-image="cid:upload-([a-zA-Z0-9-]+)@auto-mail"/);
+    const file = reference && files.find(file => file.id === reference[1]);
+    if (!file || !/^image\/(png|jpeg|gif|webp)$/.test(file.type) || verifiedMailFileType(file.data,file.name)!==file.type) return '';
+    embedded.add(file.id);
+    return tag.replace(/data-mail-image="[^"]*"/, `src="cid:upload-${file.id}@auto-mail"`);
+  });
   const subject = context.compose || /^re:/i.test(context.subject) ? context.subject : `Re: ${context.subject}`;
   const parts = [`Content-Type: multipart/alternative; boundary="${alt}"`, '', `--${alt}`, 'Content-Type: text/plain; charset=UTF-8','Content-Transfer-Encoding: base64','',base64(text),`--${alt}`,'Content-Type: text/html; charset=UTF-8','Content-Transfer-Encoding: base64','',base64(html),`--${alt}--`];
   const headers = [`From: ${email}`, `To: ${recipients.to.join(',\r\n ')}`, ...(recipients.cc.length ? [`Cc: ${recipients.cc.join(',\r\n ')}`] : []), ...(recipients.bcc.length ? [`Bcc: ${recipients.bcc.join(',\r\n ')}`] : []), `Subject: ${mimeSubject(subject)}`, ...(!context.compose ? [`In-Reply-To: ${context.messageId}`, `References: ${context.references}`] : []), `Message-ID: <auto-mail-${id}@${email.split('@')[1]}>`, 'MIME-Version: 1.0'];
   if (!files.length) return Buffer.from([...headers,...parts].join('\r\n')).toString('base64url');
-  const attached = files.flatMap(file => [`--${mixed}`, `Content-Type: ${file.type}`, 'Content-Transfer-Encoding: base64', `Content-Disposition: attachment; ${mimeFilename(file.name)}`, '', base64(file.data)]);
-  return Buffer.from([...headers,`Content-Type: multipart/mixed; boundary="${mixed}"`,'',`--${mixed}`,...parts,...attached,`--${mixed}--`].join('\r\n')).toString('base64url');
+  const filePart = (file:ReplyFile, boundary:string, inline:boolean) => [`--${boundary}`, `Content-Type: ${file.type}`, 'Content-Transfer-Encoding: base64', ...(inline?[`Content-ID: <upload-${file.id}@auto-mail>`]:[]), `Content-Disposition: ${inline?'inline':'attachment'}; ${mimeFilename(file.name)}`, '', base64(file.data)];
+  const body = embedded.size ? [`Content-Type: multipart/related; boundary="${related}"`,'',`--${related}`,...parts,...files.filter(file=>embedded.has(file.id)).flatMap(file=>filePart(file,related,true)),`--${related}--`] : parts;
+  const attachments = files.filter(file=>!embedded.has(file.id));
+  if (!attachments.length) return Buffer.from([...headers,...body].join('\r\n')).toString('base64url');
+  return Buffer.from([...headers,`Content-Type: multipart/mixed; boundary="${mixed}"`,'',`--${mixed}`,...body,...attachments.flatMap(file=>filePart(file,mixed,false)),`--${mixed}--`].join('\r\n')).toString('base64url');
 }

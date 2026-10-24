@@ -1,3 +1,4 @@
+import { AutoMailScopePicker } from './AutoMailScopePicker';
 import React, { useEffect, useState } from 'react';
 import { Mail, Clock3 } from 'lucide-react';
 import { type SettingsStatus, SettingsCard, SettingsToggle, SettingsActions, settingsInput } from './AutoMailSettingsUi';
@@ -54,8 +55,8 @@ export function AutoMailIncomingSettings({ onDirtyChange, refreshToken = 0, onSt
           {result?.autoReplyReady && !result.autoReplyServerEnabled && <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">Automatic sending is disabled on the server. Draft preparation remains available.</p>}
         </div>
         <div className="grid items-center gap-3 px-4 py-4 sm:grid-cols-[minmax(180px,1fr)_minmax(0,1.4fr)] sm:px-5">
-          <div><label htmlFor="auto-mail-knowledge-scope" className="text-xs font-semibold text-slate-800">Knowledge scope</label><p className="mt-1 text-xs leading-5 text-slate-500">Use ALL for general answers, or choose this mailbox's port.</p></div>
-          <input id="auto-mail-knowledge-scope" aria-label="Authoritative KB scope" value={form.scope} maxLength={80} required disabled={busy || !result?.storageReady} onChange={event => change({ scope: event.target.value })} className={settingsInput} />
+          <div><p className="text-xs font-semibold text-slate-800">Knowledge scope</p><p className="mt-1 text-xs leading-5 text-slate-500">Use ALL for general answers, or select the ports covered by this mailbox.</p></div>
+          <AutoMailScopePicker id="auto-mail-knowledge-scope" label="Authoritative KB scope" value={form.scope} disabled={busy || !result?.storageReady} onChange={scope => change({ scope })} />
         </div>
         <div className="grid gap-4 px-4 py-4 sm:grid-cols-2 sm:px-5">
           <label className="block text-xs font-semibold text-slate-800">Minimum confidence (%)<input aria-label="Minimum confidence (%)" type="number" min={80} max={100} step={1} required value={Number.isFinite(form.min_confidence) ? Math.round(form.min_confidence * 100) : ''} disabled={busy || !result?.autoReplyReady} onChange={event => change({ min_confidence: event.target.value === '' ? NaN : Number(event.target.value) / 100 })} className={`${settingsInput} mt-2`} /><span className="mt-1.5 block text-[11px] font-normal leading-5 text-slate-500">80-100%. Start with 95% for stricter matching.</span></label>
