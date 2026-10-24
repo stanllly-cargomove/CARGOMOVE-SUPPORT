@@ -38,10 +38,13 @@ export default async function submissionPreview(request: any, response: any) {
   const portId = String(body.portId || '').trim();
   if (!submissionId || !['DONE', 'REJECTED'].includes(status) || !templateId || !portId) return response.status(400).json({ error: 'A submission, port, and email code are required.' });
 
-  const result = await client.from('registration_submissions').select('id,reference_no,registration_type,company_id,company_name,port_id,status,submitted_by_name,submitted_by_email,notification_email,rejection_detail,data').eq('id', submissionId).maybeSingle();
+  const result = await client.from('registration_submissions').select('id,reference_no,registration_type,company_id,company_name,port_id,status,cargomove_upload,submitted_by_name,submitted_by_email,notification_email,rejection_detail,data').eq('id', submissionId).maybeSingle();
   if (result.error) return response.status(502).json({ error: result.error.message });
   const submission = result.data;
   if (!submission || !['COMPANY', 'DRIVER', 'TRAILER', 'VEHICLE'].includes(submission.registration_type)) return response.status(404).json({ error: 'Registration submission not found.' });
+  const pendingUploadId = status === 'DONE' && submission.status === 'PENDING' && submission.registration_type !== 'COMPANY'
+    && submission.cargomove_upload?.state === 'SUCCESS' ? submission.cargomove_upload.id : undefined;
+  if (status === 'DONE' && submission.status !== 'DONE' && !pendingUploadId) return response.status(409).json({ error: 'Verify the CargoMove upload before previewing its acceptance email.' });
   if (submission.registration_type === 'COMPANY' && status === 'DONE' && submission.status !== 'DONE') {
     return response.status(409).json({ error: 'Register the company before previewing its acceptance email.' });
   }
@@ -93,7 +96,7 @@ export default async function submissionPreview(request: any, response: any) {
       templateCode: template.template_code,
       portId,
       attachments: [...(template.attachments || []), ...(submission.registration_type === 'COMPANY' ? [] : [{ path: `/api/email/submission-attachment?submissionIds=${encodeURIComponent(submission.id)}`, name: assetRegistrationPdfName([submission]), content_type: 'application/pdf', size: 0 }])],
-      previewToken: createSubmissionPreviewToken(session, submission.id, status as 'DONE' | 'REJECTED', recipient, template, portId),
+      previewToken: createSubmissionPreviewToken(session, submission.id, status as 'DONE' | 'REJECTED', recipient, template, portId, pendingUploadId),
     });
   } catch (error) {
     response.status(400).json({ error: error instanceof Error ? error.message : 'Unable to render the email code.' });

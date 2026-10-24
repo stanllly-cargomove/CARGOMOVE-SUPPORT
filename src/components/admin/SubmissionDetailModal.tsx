@@ -101,6 +101,10 @@ export function SubmissionDetailModal({
     if (!result.success) {
       notifyError(summarizeError(result.error || 'Export failed.'));
     } else {
+        if (result.downloaded.length) {
+          notifySuccess('Company Excel downloaded. Complete its manual registration using the Register action.');
+          return;
+        }
       notifySuccess(submission.registration_type === 'COMPANY' ? 'Submission exported successfully.' : 'CargoMove processing verified.');
       onStatusChange?.();
       onExportSuccess?.(result.verified[0] || submission);

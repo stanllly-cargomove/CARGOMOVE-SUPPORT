@@ -168,7 +168,7 @@ export async function sendSubmissionEmail(preview: EmailPreview) {
   const response = await fetch('/api/email/submission-send', {
     method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(preview),
   });
-  return parse<{ status: 'SENT'; sentAt: string; gmailMessageId: string }>(response);
+  return parse<{ status: 'SENT'; sentAt: string; gmailMessageId: string; warning?: string }>(response);
 }
 
 export async function generateSubmissionBatchEmailPreviews(submissionIds: string[]) {
@@ -183,7 +183,7 @@ export async function sendSubmissionBatchEmail(preview: EmailPreview) {
   const response = await fetch('/api/email/submission-batch-send', {
     method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(preview),
   });
-  return parse<{ status: 'SENT'; sentAt: string; gmailMessageId: string }>(response);
+  return parse<{ status: 'SENT'; sentAt: string; gmailMessageId: string; warning?: string }>(response);
 }
 
 export async function getEmailLogs(offset = 0, limit = 30, snapshotAt = '') {

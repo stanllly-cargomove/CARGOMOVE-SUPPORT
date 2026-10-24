@@ -215,6 +215,7 @@ test('company registration status backfills and follows the queue while imported
 
 test('server and database block unregistered companies before upload and recheck approval before scheduler dispatch', async () => {
   const f = await fixture();
+  await f.db.exec(readFileSync(new URL('../supabase/migrations/20261025010000_registration_upload_batches.sql', import.meta.url), 'utf8'));
   const previous = { origin: process.env.SCHEDULER_PORTAL_URL, username: process.env.CARGOMOVE_USERNAME, password: process.env.CARGOMOVE_PASSWORD };
   process.env.SCHEDULER_PORTAL_URL = 'https://portal.example.test'; process.env.CARGOMOVE_USERNAME = 'fixture'; process.env.CARGOMOVE_PASSWORD = 'fixture';
   let uploads = 0, runs = 0;
@@ -233,13 +234,13 @@ test('server and database block unregistered companies before upload and recheck
         await f.db.query(`update registration_submissions set registration_type=$1 where id='driver'`, [type]);
         await assert.rejects(() => f.db.exec(`update registration_submissions set status='DONE' where id='driver'`), /Company registration status must be Registered/, 'A manual admin upsert cannot bypass registration approval');
         const blocked = await call({ action: 'start', submissionId: 'driver' });
-        assert.equal(blocked.code, 409); assert.equal(blocked.body.error, COMPANY_REGISTRATION_REQUIRED);
+        assert.equal(blocked.code, 409); assert.ok(blocked.body.error.includes(COMPANY_REGISTRATION_REQUIRED));
       }
     }
     assert.equal(uploads, 0); assert.equal(runs, 0);
     assert.equal((await f.db.query<any>('select count(*)::int as count from registration_uploads')).rows[0].count, 0);
     await f.db.exec(`update registration_submissions set status='DONE' where id='company-registration'; update registration_submissions set registration_type='DRIVER' where id='driver'; delete from registration_submissions where id='company-registration'`);
-    assert.equal((await call({ action: 'start', submissionId: 'driver' })).body.error, COMPANY_REGISTRATION_REQUIRED);
+    assert.ok((await call({ action: 'start', submissionId: 'driver' })).body.error.includes(COMPANY_REGISTRATION_REQUIRED));
     await f.db.exec(`insert into registration_submissions(id,reference_no,registration_type,company_id,status) values('company-registration','CMREG400000','COMPANY','company','DONE')`);
     const preparing = await f.begin();
     await f.db.exec(`update registration_submissions set status='PENDING' where id='company-registration'`);
@@ -320,6 +321,7 @@ test('expired dispatch leases become Unknown and partial successes cannot accide
 
 test('API uploads server-resolved Excel once, invokes the saved scheduler UUID, and finishes only after file verification', async () => {
   const f = await fixture();
+  await f.db.exec(readFileSync(new URL('../supabase/migrations/20261025010000_registration_upload_batches.sql', import.meta.url), 'utf8'));
   const previous = { origin: process.env.SCHEDULER_PORTAL_URL, username: process.env.CARGOMOVE_USERNAME, password: process.env.CARGOMOVE_PASSWORD };
   process.env.SCHEDULER_PORTAL_URL = 'https://portal.example.test'; process.env.CARGOMOVE_USERNAME = 'fixture'; process.env.CARGOMOVE_PASSWORD = 'fixture';
   let uploads = 0, runs = 0, checked = false, active = false;
@@ -355,7 +357,7 @@ test('API uploads server-resolved Excel once, invokes the saved scheduler UUID, 
     const jobId = started.body.submission.cargomove_upload.id;
     const triggered = await call({ action: 'check', jobId }); assert.equal(triggered.body.submission.cargomove_upload.state, 'PROCESSING'); assert.equal(runs, 1);
     checked = true;
-    const finished = await call({ action: 'check', jobId }); assert.equal(finished.body.submission.status, 'DONE');
+    const finished = await call({ action: 'check', jobId }); assert.equal(finished.body.submission.status, 'PENDING');
     await call({ action: 'check', jobId }); assert.equal(runs, 1); assert.equal(uploads, 1);
   } finally {
     for (const [key, value] of Object.entries({ SCHEDULER_PORTAL_URL: previous.origin, CARGOMOVE_USERNAME: previous.username, CARGOMOVE_PASSWORD: previous.password }))
@@ -366,6 +368,7 @@ test('API uploads server-resolved Excel once, invokes the saved scheduler UUID, 
 
 test('API failure paths keep each reference Pending and do not replay uploads or uncertain schedulers', async () => {
   const f = await fixture();
+  await f.db.exec(readFileSync(new URL('../supabase/migrations/20261025010000_registration_upload_batches.sql', import.meta.url), 'utf8'));
   const previous = { origin: process.env.SCHEDULER_PORTAL_URL, username: process.env.CARGOMOVE_USERNAME, password: process.env.CARGOMOVE_PASSWORD };
   process.env.SCHEDULER_PORTAL_URL = 'https://portal.example.test'; process.env.CARGOMOVE_USERNAME = 'fixture'; process.env.CARGOMOVE_PASSWORD = 'fixture';
   let uploads = 0, runs = 0, mode = 'failed', admin = true;
@@ -414,4 +417,66 @@ test('API failure paths keep each reference Pending and do not replay uploads or
       if (value === undefined) delete process.env[key]; else process.env[key] = value;
     await f.db.close();
   }
+});
+
+
+test('merged uploads filter incomplete references, share a single file and stay Pending until email completion', async () => {
+  const f = await fixture();
+  const sql = readFileSync(new URL('../supabase/migrations/20261025010000_registration_upload_batches.sql', import.meta.url), 'utf8');
+  const previous = { ...process.env };
+  process.env.SCHEDULER_PORTAL_URL = 'https://portal.example.test'; process.env.CARGOMOVE_USERNAME = 'fixture'; process.env.CARGOMOVE_PASSWORD = 'fixture';
+  let uploads = 0;
+  try {
+    await f.db.exec(sql); await f.db.exec(sql);
+    await f.db.exec(`insert into registration_submissions select 'driver-2','CMREG400019',registration_type,company_id,company_type,port_id,port_location,status,data,null,null,null,null,now(),null from registration_submissions where id='driver'`);
+    await f.db.exec(`insert into registration_submissions select 'incomplete','CMREG400020',registration_type,company_id,company_type,port_id,port_location,status,'{"drivers":[{"name":"Missing licence"}]}'::jsonb,null,null,null,null,now(),null from registration_submissions where id='driver'`);
+    const handler = createRegistrationUploadsHandler({ adminClient: () => f.client as any,
+      readSession: () => ({ id: actor, email: 'admin@example.test', type: 'ADMIN', exp: Date.now() + 60000 }),
+      uploadWorkbook: async (_credentials, job, buffer, before) => {
+        uploads++;
+        assert.equal(job.filename, 'CMREG400001 - CMREG400019_DRIVER_ BY:cargomove-register.vercel.app.xlsx');
+        assert.equal(XLSX.utils.sheet_to_json(XLSX.read(buffer).Sheets.Sheet1).length, 2);
+        await before({ existingUploadIds: ['old-upload'], startedAt: '2026-10-25T01:00:00Z' });
+        return { state: 'UPLOADED', message: 'Accepted' };
+      },
+      verifyWorkbook: async (_credentials, job) => {
+        assert.deepEqual(job.existing_upload_ids, ['old-upload']);
+        return { state: 'SUCCESS', message: 'Verified', uploadId: 'new-upload', successCount: 2, errorCount: 0 };
+      },
+      runScheduler: async () => { assert.fail('Already verified files do not request the scheduler'); },
+    });
+    const call = async (body: any) => { const res = response(); await handler({ method: 'POST', body, headers: { origin: 'https://portal.example.test', 'x-cargomove-confirm': 'registration-upload' } }, res); return res; };
+    const started = await call({ action: 'start', submissionIds: ['driver', 'driver-2', 'incomplete'] });
+    assert.equal(started.code, 200, JSON.stringify(started.body));
+    assert.equal(started.body.incomplete.length, 1); assert.equal(started.body.submissions.length, 2);
+    const jobId = started.body.submission.cargomove_upload.id;
+    assert.ok(started.body.submissions.every((sub: any) => sub.status === 'PENDING' && sub.cargomove_upload.id === jobId));
+    await assert.rejects(() => f.db.exec(`update registration_submissions set status='REJECTED' where id='driver-2'`), /Check the existing/);
+    const finished = await call({ action: 'check', jobId });
+    assert.equal(finished.body.submissions.length, 2);
+    assert.ok(finished.body.submissions.every((sub: any) => sub.status === 'PENDING' && sub.cargomove_upload.state === 'SUCCESS'));
+    await call({ action: 'start', submissionIds: ['driver-2'] }); assert.equal(uploads, 1);
+    assert.ok((await f.rpc('complete_registration_email', { p_submission_id: 'driver', p_upload_id: scheduler })).error);
+    assert.equal((await f.rpc('complete_registration_email', { p_submission_id: 'driver', p_upload_id: jobId })).error, null);
+    assert.equal((await f.db.query<any>(`select status from registration_submissions where id='driver'`)).rows[0].status, 'DONE');
+    assert.equal((await f.db.query<any>(`select status from registration_submissions where id='driver-2'`)).rows[0].status, 'PENDING');
+    await f.db.exec(`update registration_submissions set status='REJECTED' where id='driver-2'`);
+    assert.ok((await f.rpc('complete_registration_email', { p_submission_id: 'driver-2', p_upload_id: jobId })).error);
+    await f.db.exec(sql);
+    const states = (await f.db.query<any>(`select id,status from registration_submissions where id in ('driver','driver-2') order by id`)).rows;
+    assert.deepEqual(states.map(row => row.status), ['DONE','REJECTED']);
+    assert.equal((await f.db.query<any>(`select has_function_privilege('authenticated','complete_registration_email(text,uuid)','EXECUTE') as allowed`)).rows[0].allowed, false);
+  } finally {
+    for (const key of ['SCHEDULER_PORTAL_URL', 'CARGOMOVE_USERNAME', 'CARGOMOVE_PASSWORD']) if (previous[key] === undefined) delete process.env[key]; else process.env[key] = previous[key];
+    await f.db.close();
+  }
+});
+
+test('stable human filenames cannot verify a historical upload with the same name', () => {
+  const job = { entity: 'driver', filename: 'CMREG400001_DRIVER_ BY:cargomove-register.vercel.app.xlsx', expected_rows: 1,
+    existing_upload_ids: ['old'], upload_started_at: '2026-10-25T01:00:00Z' };
+  const row = { _id: 'old', original_name: job.filename, status: 'success', t: { uploaded: '2026-10-25T00:59:59Z' }, message: { success: 'SuccessCount: 1, ErrorCount: 0' } };
+  assert.equal(verifyUploadRows([row], job).state, 'MISSING');
+  assert.equal(verifyUploadRows([{ ...row, _id: 'new', t: { uploaded: '2026-10-24T01:00:00Z' } }], job).state, 'MISSING');
+  assert.equal(verifyUploadRows([row, { ...row, _id: 'new', t: { uploaded: { $date: '2026-10-25T01:00:01Z' } } }], job).state, 'SUCCESS');
 });

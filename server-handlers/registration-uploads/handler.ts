@@ -23,32 +23,64 @@ export function createRegistrationUploadsHandler(deps = dependencies) {
       || request.headers['sec-fetch-site'] === 'cross-site') return fail(403, 'Request origin or confirmation is invalid.');
     const body = await requestBody(request).catch(() => null) as Record<string, unknown> | null;
     if (!body || Array.isArray(body) || !['start', 'check'].includes(String(body.action))
-      || Object.keys(body).some(key => !['action', 'submissionId', 'jobId'].includes(key))) return fail(400, 'Choose a registration upload action.');
+      || Object.keys(body).some(key => !['action', 'submissionId', 'submissionIds', 'jobId'].includes(key))) return fail(400, 'Choose a registration upload action.');
     const username = process.env.CARGOMOVE_USERNAME, password = process.env.CARGOMOVE_PASSWORD;
     if (!username || !password) return fail(503, 'CargoMove server credentials are not configured.');
     const credentials = { username, password };
     const { client, session } = access;
     let job: Job | undefined;
     let token: string | undefined;
+    const incomplete: string[] = [];
     const transition = async (state: string, message: string, extra: Record<string, unknown> = {}) => {
-      const result = await client.rpc<Job>('transition_registration_upload', {
+      const result = await client.rpc<Job>('transition_registration_upload_batch', {
         p_id: job!.id, p_token: token, p_state: state, p_message: message, ...extra,
       });
       if (result.error || !result.data) throw new Error();
       job = result.data;
     };
     const reply = async (nextCheckMs = 3000, download?: { filename: string; base64: string }, blocked = false) => {
-      const row = await client.from('registration_submissions').select('*').eq('id', job!.submission_id).timeout(8000).maybeSingle();
-      if (row.error || !row.data) return fail(503, 'Upload progress was saved, but the registration could not be refreshed. Check its existing upload.');
+      const members = await client.from('registration_uploads').select('submission_id').eq('batch_id', job!.id).timeout(8000);
+      const ids = members.data?.length ? members.data.map((member: any) => member.submission_id) : [job!.submission_id];
+      const rows = await Promise.all(ids.map((id: string) => client.from('registration_submissions').select('*').eq('id', id).timeout(8000).maybeSingle()));
+      if (members.error || rows.some((row: any) => row.error || !row.data)) return fail(503, 'Upload progress was saved, but the registration could not be refreshed. Check its existing upload.');
       // Lease tokens and upstream account/session data never reach the browser.
-      return response.status(200).json({ submission: row.data, nextCheckMs, ...(download ? { download } : {}), ...(blocked ? { blocked: true } : {}) });
+      return response.status(200).json({ submission: rows[0].data, submissions: rows.map((row: any) => row.data), incomplete, nextCheckMs, ...(download ? { download } : {}), ...(blocked ? { blocked: true } : {}) });
     };
     try {
       if (body.action === 'start') {
-        if (typeof body.submissionId !== 'string' || !body.submissionId || body.submissionId.length > 150 || body.jobId !== undefined)
+        const ids = body.submissionIds ?? (body.submissionId ? [body.submissionId] : []);
+        if (!Array.isArray(ids) || ids.length < 1 || ids.length > 100 || ids.some(id => typeof id !== 'string' || !id || id.length > 150) || body.jobId !== undefined)
           return fail(400, 'Select a registration.');
-        const acquired = await client.rpc<{ job: Job; token?: string; submission?: RegistrationSubmission; existing: boolean }>('begin_registration_upload', {
-          p_actor: session.id, p_submission_id: body.submissionId,
+        const eligible: string[] = [];
+        const preflightPorts = await client.from('port_configs').select('*').limit(1000).timeout(8000);
+        if (preflightPorts.error) return fail(503, 'Port configuration could not be loaded.');
+        const uniqueIds = [...new Set(ids)] as string[];
+        // Bound concurrency so a larger selection fits the function's time budget.
+        for (let offset = 0; offset < uniqueIds.length; offset += 8) {
+          const checked = await Promise.all(uniqueIds.slice(offset, offset + 8).map(async id => {
+            const source = await client.from('registration_submissions').select('*').eq('id', id).timeout(8000).maybeSingle();
+            const sub = source.data as RegistrationSubmission | null;
+            if (source.error || !sub) { incomplete.push(`${id}: registration unavailable.`); return null; }
+            const approval = await client.rpc<string>('registration_upload_company_block_reason', { p_company_id: sub.company_id });
+            const company = await client.from('companies').select('*').eq('id', sub.company_id).timeout(8000).maybeSingle();
+            let reason = approval.error || company.error ? 'Company registration could not be verified.' : approval.data;
+            if (!reason) {
+              const context: ExcelContext = { companies: company.data ? [company.data] : [], ports: preflightPorts.data || [], depots: [] };
+              const validation = validateSubmissionsForExport([sub], context);
+              const { rows } = buildExcelRowData([sub], context);
+              const required = sub.registration_type === 'DRIVER' ? ['DRIVINGLICENSE', 'MOBILENO', 'NAME'] : ['REGISTRATION', 'WEIGHT'];
+              if (!validation.valid || !rows.length || rows.some(row => required.some(key => !String(row[key] ?? '').trim())
+                || sub.registration_type !== 'DRIVER' && (!Number.isFinite(Number(row.WEIGHT)) || Number(row.WEIGHT) < 0)
+                || row.PORTS.split(',').filter(Boolean).some(portId => !/^[a-f0-9]{24}$/i.test(portId)))) reason = 'Check CargoMove IDs, required fields, weights and port configuration.';
+            }
+            if (reason) { incomplete.push(`${sub.reference_no}: ${reason}`); return null; }
+            return id;
+          }));
+          eligible.push(...checked.filter((id): id is string => !!id));
+        }
+        if (!eligible.length) return fail(409, incomplete.join('\n'));
+        const acquired = await client.rpc<{ job: Job; token?: string; submissions: RegistrationSubmission[]; existing: boolean }>('begin_registration_upload_batch', {
+          p_actor: session.id, p_submission_ids: eligible,
         });
         if (acquired.error || !acquired.data) {
           const reason = [COMPANY_REGISTRATION_REQUIRED].find(message => acquired.error?.message?.includes(message));
@@ -57,21 +89,26 @@ export function createRegistrationUploadsHandler(deps = dependencies) {
         job = acquired.data.job;
         token = acquired.data.token;
         if (acquired.data.existing || !token) return reply();
-        const sub = acquired.data.submission!;
-        const approval = await client.rpc<string>('registration_upload_company_block_reason', { p_company_id: sub.company_id });
-        if (approval.error || approval.data) {
-          await transition('FAILED', approval.error ? 'Company registration could not be verified. No file was uploaded.' : approval.data!);
-          return reply(3000, undefined, true);
+        const subs = acquired.data.submissions;
+        const companies = [];
+        for (const companyId of new Set(subs.map(sub => sub.company_id))) {
+          const approval = await client.rpc<string>('registration_upload_company_block_reason', { p_company_id: companyId });
+          if (approval.error || approval.data) {
+            await transition('FAILED', approval.data || 'Company registration could not be verified. No file was uploaded.');
+            return reply(3000, undefined, true);
+          }
+          const company = await client.from('companies').select('*').eq('id', companyId).timeout(8000).maybeSingle();
+          if (company.error || !company.data) throw new Error('Company unavailable');
+          companies.push(company.data);
         }
-        const company = await client.from('companies').select('*').eq('id', sub.company_id).timeout(8000).maybeSingle();
         const ports = await client.from('port_configs').select('*').limit(1000).timeout(8000);
-        if (company.error || ports.error || !company.data) {
+        if (ports.error) {
           await transition('FAILED', 'Failed to prepare the CargoMove upload. The company or port configuration could not be loaded.');
           return reply();
         }
-        const context: ExcelContext = { companies: [company.data], ports: ports.data || [], depots: [] };
-        const validation = validateSubmissionsForExport([sub], context);
-        const { headers, rows } = buildExcelRowData([sub], context);
+        const context: ExcelContext = { companies, ports: ports.data || [], depots: [] };
+        const validation = validateSubmissionsForExport(subs, context);
+        const { headers, rows } = buildExcelRowData(subs, context);
         const validRows = rows.length > 0 && rows.length <= 1000 && rows.every(row => {
           const required = job!.entity === 'driver' ? ['DRIVINGLICENSE', 'MOBILENO', 'NAME'] : ['REGISTRATION', 'WEIGHT'];
           return required.every(key => String(row[key] || '').trim())
@@ -89,15 +126,16 @@ export function createRegistrationUploadsHandler(deps = dependencies) {
           await transition('FAILED', 'The registration workbook exceeds the 2 MB upload limit. Split the registration before uploading.');
           return reply();
         }
-        const outcome = await deps.uploadWorkbook(credentials, job, buffer, async () => {
-          await transition('UPLOADING', 'Uploading this reference file to CargoMove.', { p_expected_rows: rows.length });
+        const outcome = await deps.uploadWorkbook(credentials, job, buffer, async (evidence) => {
+          await transition('UPLOADING', 'Uploading the merged registration workbook to CargoMove.', { p_expected_rows: rows.length,
+            ...(evidence ? { p_existing_upload_ids: evidence.existingUploadIds, p_upload_started_at: evidence.startedAt } : {}) });
         });
         await transition(outcome.state, outcome.message, outcome.state === 'FAILED' ? { p_success_count: 0, p_error_count: 0 } : {});
         return reply(1000, { filename: job.filename, base64: buffer.toString('base64') });
       }
-      if (typeof body.jobId !== 'string' || !SCHEDULER_ID.test(body.jobId) || body.submissionId !== undefined)
+      if (typeof body.jobId !== 'string' || !SCHEDULER_ID.test(body.jobId) || body.submissionId !== undefined || body.submissionIds !== undefined)
         return fail(400, 'Choose an existing upload to verify.');
-      const acquired = await client.rpc<{ job: Job; token?: string; busy?: boolean }>('claim_registration_upload', { p_actor: session.id, p_id: body.jobId });
+      const acquired = await client.rpc<{ job: Job; token?: string; busy?: boolean }>('claim_registration_upload_batch', { p_actor: session.id, p_id: body.jobId });
       if (acquired.error || !acquired.data) return fail(409, 'Unable to verify this upload. Refresh the registration queue.');
       job = acquired.data.job;
       token = acquired.data.token;
@@ -112,12 +150,16 @@ export function createRegistrationUploadsHandler(deps = dependencies) {
       }
       // Only a known accepted upload can request a scheduler. UNKNOWN never redispatches.
       if (job.state === 'UPLOADED' && result.readyForScheduler) {
-        const source = await client.from('registration_submissions').select('company_id').eq('id', job.submission_id).timeout(8000).maybeSingle();
-        const approval = source.error || !source.data ? null
-          : await client.rpc<string>('registration_upload_company_block_reason', { p_company_id: source.data.company_id });
-        if (!approval || approval.error || approval.data) {
-          await transition('UPLOADED', approval?.data || 'Company registration could not be verified. Processing is blocked until its registration is Done/Registered.');
-          return reply(3000, undefined, true);
+        const members = await client.from('registration_uploads').select('submission_id').eq('batch_id', job.id).timeout(8000);
+        if (members.error) throw new Error('Batch unavailable');
+        for (const member of members.data?.length ? members.data : [{ submission_id: job.submission_id }]) {
+          const source = await client.from('registration_submissions').select('company_id,status').eq('id', member.submission_id).timeout(8000).maybeSingle();
+          const approval = source.error || !source.data ? null
+            : await client.rpc<string>('registration_upload_company_block_reason', { p_company_id: source.data.company_id });
+          if (!approval || approval.error || approval.data || source.data?.status !== 'PENDING') {
+            await transition('UPLOADED', approval?.data || 'Processing is blocked because a registration or its parent company changed.');
+            return reply(3000, undefined, true);
+          }
         }
         const saved = await client.from('cargomove_schedulers').select('id,worker_name,enabled').eq('id', job.scheduler_id).timeout(8000).maybeSingle();
         if (saved.error || !saved.data?.enabled || saved.data.worker_name !== 'process_file_uploads') {

@@ -9,11 +9,13 @@ import {
   rejectCompanySubmission,
   revertSubmissionToPending,
   subscribeToStorage,
+  refreshProtectedStorage,
 } from '../../services/storage';
 import { getExternalUserAccess } from '../../services/auth';
 import { EmailPreview, EmailTemplate, generateSubmissionEmailPreview, generateWelcomeEmailPreview, getEmailTemplateCatalog, sendSubmissionEmail, sendWelcomeEmail } from '../../services/email';
 import { getCompanyExternalId } from '../../services/companyHelper';
 import { generateRegistrationExcel } from '../../services/registrationUploads';
+import { downloadRegistrationExcel } from '../../services/excelExport';
 import { RegistrationReference } from './RegistrationReference';
 import { QueueCompanyName } from './QueueCompanyName';
 import { assetCompanyBlockReason } from '../../../shared/registration-eligibility';
@@ -149,6 +151,9 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
   const [submissionEmailPreviewIndex, setSubmissionEmailPreviewIndex] = useState(0);
   const [emailSendMode, setEmailSendMode] = useState<'SUBMISSION' | 'USER'>('SUBMISSION');
   const [sendingSubmissionEmail, setSendingSubmissionEmail] = useState(false);
+  const [bulkMenuOpen, setBulkMenuOpen] = useState(false);
+  const [batchCodes, setBatchCodes] = useState<Array<CodeSelection & { templateId: string }>>([]);
+  const [batchCodePage, setBatchCodePage] = useState(0);
 
   const refreshList = () => {
     setSubmissions(getSubmissions());
@@ -310,21 +315,15 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
     const res = await generateRegistrationExcel(selectedSubs, setUploadProgress);
     setExporting(false);
     refreshList();
-    if (!res.success) {
-      notifyError(summarizeError(res.error || 'Export failed.'));
-    }
+    if (res.downloaded.length) notifySuccess(`${res.downloaded.length} Company registration(s) downloaded. Complete their manual registration using the Register action.`);
+    const summary = `${res.verified.length} successful, ${res.incompleteCount} incomplete. Successful registrations stay Pending until their email is sent.`;
+    if (res.incompleteCount) notifyWarning(`${summary}\n${res.error}`);
+    else if (res.verified.length) notifySuccess(summary);
     if (res.verified.length) {
-      notifySuccess(`${res.count} record(s) exported or verified in CargoMove.`);
       refreshList();
       setSelectedIds([]);
       const assets = res.verified.filter((submission) => submission.registration_type !== 'COMPANY');
-      if (assets.length) void openSubmissionBatchEmailPreview(assets);
-      const companies = res.verified.filter((submission) => submission.registration_type === 'COMPANY');
-      if (companies.length === 1 && !assets.length) {
-        void startCodeFlow(companies[0], 'DONE', { alreadyUpdated: true });
-      } else if (companies.length) {
-        notifyWarning('Company acceptance emails are available from each row after its linked User Registration is done.');
-      }
+      if (assets.length) void openSubmissionBatchEmailPreview(assets, 'DONE');
     }
   };
 
@@ -373,6 +372,10 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
     options: { alreadyUpdated?: boolean; adminNotes?: string } = {},
   ) => {
     setOpenActionMenu(null);
+    if (nextStatus === 'DONE' && submission.registration_type !== 'COMPANY'
+      && submission.status === 'PENDING' && submission.cargomove_upload?.state === 'SUCCESS') {
+      options = { ...options, alreadyUpdated: true };
+    }
     setSavingCode(true);
     try {
       let linkedUserId: string | undefined;
@@ -432,27 +435,51 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
     }
   };
 
-  const openSubmissionBatchEmailPreview = async (selected: RegistrationSubmission[]) => {
+  const openSubmissionBatchEmailPreview = async (selected: RegistrationSubmission[], outcome: 'DONE' | 'REJECTED') => {
+    setBulkMenuOpen(false);
+    setSavingCode(true);
     try {
       const catalog = await getEmailTemplateCatalog();
-      const choices = selected.map((submission) => {
+      const choices: Array<CodeSelection & { templateId: string }> = [];
+      const incomplete: string[] = [];
+      for (const submission of selected) {
         const portId = ['jh-pg-ics', 'jh-pg-depot'].includes(submission.port_id) ? 'johor-port' : submission.port_id;
-        const templates = catalog.templates.filter((template) => template.active && template.template_code && template.trigger_status === 'DONE' && template.port_ids?.includes(portId) && isEmailTemplateForRegistration(template, submission.registration_type));
-        if (!templates.length) throw new Error(`Excel exported. ${submission.reference_no} has no active acceptance code for its registration type and port. Assign a code in Registration Templates, then use Preview Email on that row.`);
-        if (templates.length > 1) throw new Error(`Excel exported. ${submission.reference_no} has ${templates.length} acceptance codes for its port. Use Preview Email on that row to select the code.`);
-        return { submission, template: templates[0], portId };
-      });
-      const previews: EmailPreview[] = [];
-      for (let index = 0; index < choices.length; index += 4) {
-        const batch = choices.slice(index, index + 4);
-        previews.push(...await Promise.all(batch.map(({ submission, template, portId }) => generateSubmissionEmailPreview(submission.id, 'DONE', template.id, portId))));
+        const templates = catalog.templates.filter((template) => template.active && template.template_code && template.trigger_status === outcome && template.port_ids?.includes(portId) && isEmailTemplateForRegistration(template, submission.registration_type));
+        if (!templates.length) { incomplete.push(`${submission.reference_no}: no ${outcome === 'DONE' ? 'acceptance' : 'rejection'} code assigned to this port.`); continue; }
+        choices.push({ submission, status: outcome, portId, portName: catalog.ports.find(port => port.id === portId)?.display_name || portId,
+          templates, templateId: templates.length === 1 ? templates[0].id : '', alreadyUpdated: outcome === 'DONE' });
       }
-      setSubmissionEmailPreviews(previews);
-      setSubmissionEmailPreviewIndex(0);
-      setEmailSendMode('SUBMISSION');
+      if (incomplete.length) notifyWarning(`${incomplete.length} email(s) incomplete. ${incomplete.join('\n')}`);
+      if (!choices.length) return;
+      if (outcome === 'DONE' && choices.every(choice => choice.templateId)) await prepareBatchEmails(choices);
+      else { setBatchCodes(choices); setBatchCodePage(0); }
     } catch (error) {
       notifyError(error instanceof Error ? error.message : 'Unable to prepare the registration email.');
+    } finally { setSavingCode(false); }
+  };
+
+  const prepareBatchEmails = async (choices = batchCodes) => {
+    setSavingCode(true);
+    const previews: EmailPreview[] = [];
+    const incomplete: string[] = [];
+    for (const choice of choices) {
+      try {
+        const template = choice.templates.find(item => item.id === choice.templateId);
+        if (!template) throw new Error('Select an email code.');
+        if (choice.status === 'REJECTED' && !choice.alreadyUpdated) {
+          if (choice.submission.registration_type === 'COMPANY') await rejectCompanySubmission(choice.submission.id, template.rejection_reason || 'OTHER', template.name);
+          else await updateSubmissionStatusPersisted(choice.submission.id, 'REJECTED', template.name);
+          choice.alreadyUpdated = true;
+        }
+        previews.push(await generateSubmissionEmailPreview(choice.submission.id, choice.status, template.id, choice.portId));
+      } catch (error) { incomplete.push(`${choice.submission.reference_no}: ${error instanceof Error ? error.message : 'Email preview unavailable.'}`); }
     }
+    refreshList();
+    setBatchCodes([]);
+    setSubmissionEmailPreviews(previews); setSubmissionEmailPreviewIndex(0); setEmailSendMode('SUBMISSION');
+    setSavingCode(false);
+    if (incomplete.length) notifyWarning(`${previews.length} email preview(s) ready, ${incomplete.length} incomplete. ${incomplete.join('\n')}`);
+    else if (choices[0]?.status === 'REJECTED') notifySuccess(`${choices.length} registration(s) moved to Rejected. Review the emails before sending.`);
   };
 
   const submissionEmailPreview = submissionEmailPreviews[submissionEmailPreviewIndex] || null;
@@ -468,8 +495,11 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
       if (emailSendMode === 'USER') {
         await sendWelcomeEmail(submissionEmailPreview);
       } else {
-        await sendSubmissionEmail(submissionEmailPreview);
+        const result = await sendSubmissionEmail(submissionEmailPreview);
+        if (result.warning) notifyWarning(result.warning);
       }
+      await refreshProtectedStorage().catch(() => {});
+      refreshList();
       const remaining = submissionEmailPreviews.filter((_, index) => index !== submissionEmailPreviewIndex);
       if (remaining.length) {
         setSubmissionEmailPreviews(remaining);
@@ -583,15 +613,25 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
               <option value="MISSING">MISSING ID</option>
               <option value="WITH_ID">WITH ID</option>
             </select>
+          <div className="relative flex min-w-0 flex-1">
           <button
             type="button"
             onClick={handleBulkExport}
-            disabled={selectedIds.length === 0 || exporting || selectedCompanyBlocked.length === selectedIds.length}
-            className="inline-flex h-9 min-w-0 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-emerald-600 px-2 text-[10px] font-bold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40 sm:px-3"
+            disabled={selectedIds.length === 0 || exporting || savingCode}
+            className="inline-flex h-9 min-w-0 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-l-lg bg-emerald-600 px-2 text-[10px] font-bold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40 sm:px-3"
           >
             <FileSpreadsheet className="h-3.5 w-3.5" />
-            {exporting ? 'UPLOADING & VERIFYING...' : 'GENERATE EXCEL'}
+            {exporting ? 'UPLOADING & VERIFYING...' : 'Register and Email'}
           </button>
+          <button type="button" aria-label="More registration actions" aria-expanded={bulkMenuOpen} onClick={() => setBulkMenuOpen(open => !open)} disabled={exporting || savingCode || !selectedIds.length} className="h-9 rounded-r-lg border-l border-emerald-500 bg-emerald-600 px-2 text-white hover:bg-emerald-700 disabled:opacity-40"><MoreVertical className="h-4 w-4" /></button>
+          {bulkMenuOpen && <>
+            <button type="button" aria-label="Close registration actions" className="fixed inset-0 z-30 cursor-default" onClick={() => setBulkMenuOpen(false)} />
+            <div role="menu" className="absolute right-0 top-10 z-40 w-64 rounded-lg border border-slate-200 bg-white p-1 shadow-xl">
+              <button role="menuitem" type="button" className="w-full rounded px-3 py-2 text-left text-xs text-slate-700 hover:bg-slate-100" onClick={() => { setBulkMenuOpen(false); downloadRegistrationExcel(submissions.filter(sub => selectedIds.includes(sub.id))); notifySuccess('Excel downloaded. Registration statuses unchanged.'); }}>Download Excel without register</button>
+              {status === 'PENDING' && <button role="menuitem" type="button" className="w-full rounded px-3 py-2 text-left text-xs text-red-600 hover:bg-red-50" onClick={() => void openSubmissionBatchEmailPreview(submissions.filter(sub => selectedIds.includes(sub.id)), 'REJECTED')}>Reject selected registrations</button>}
+            </div>
+          </>}
+          </div>
         </div>
         </div>
       </div>
@@ -653,7 +693,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
               <col style={{ width: '96px' }} />
               <col style={{ width: '90px' }} />
               <col style={{ width: '112px' }} />
-              <col style={{ width: '88px' }} />
+              <col style={{ width: '120px' }} />
               <col style={{ width: '96px' }} />
               <col style={{ width: '56px' }} />
             </colgroup>
@@ -938,7 +978,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
           </button>
           {menuSubmission.status === 'PENDING' && (
             <>
-              <button type="button" onClick={() => void startCodeFlow(menuSubmission, 'DONE')} disabled={savingCode || !!menuCompanyBlockReason} title={menuCompanyBlockReason || undefined} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50">Register</button>
+              <button type="button" onClick={() => void startCodeFlow(menuSubmission, 'DONE')} disabled={savingCode || !!menuCompanyBlockReason} title={menuCompanyBlockReason || undefined} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50">{menuSubmission.cargomove_upload?.state === 'SUCCESS' ? 'Preview Email' : 'Register'}</button>
               <button type="button" onClick={() => void startCodeFlow(menuSubmission, 'REJECTED')} disabled={savingCode} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50">Reject</button>
             </>
           )}
@@ -1038,6 +1078,17 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
           </div>
         </div>
       )}
+
+      {batchCodes.length > 0 && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 p-4">
+        <div role="dialog" aria-modal="true" aria-label="Batch email codes" className="w-full max-w-xl rounded-2xl bg-white p-5 shadow-2xl">
+          <div className="flex items-center justify-between"><h3 className="font-bold text-slate-900">Select {batchCodes[0].status === 'REJECTED' ? 'rejection' : 'acceptance'} codes</h3><button type="button" aria-label="Close batch email codes" disabled={savingCode} onClick={() => setBatchCodes([])}><X className="h-5 w-5" /></button></div>
+          <p className="mt-3 text-sm font-semibold">{batchCodes[batchCodePage].submission.reference_no} · {batchCodes[batchCodePage].submission.company_name}</p>
+          <p className="mt-1 text-xs text-slate-500">{batchCodes[batchCodePage].portName}</p>
+          <label className="mt-4 block text-xs font-semibold">Email code<select aria-label="Batch email code" disabled={savingCode} value={batchCodes[batchCodePage].templateId} onChange={event => setBatchCodes(current => current.map((choice, index) => index === batchCodePage ? { ...choice, templateId: event.target.value } : choice))} className="mt-2 w-full rounded-lg border border-slate-300 p-2 text-sm"><option value="">Select a code</option>{batchCodes[batchCodePage].templates.map(template => <option key={template.id} value={template.id}>{template.template_code} — {template.name}</option>)}</select></label>
+          <nav aria-label="Batch email code pagination" className="my-5 flex justify-center gap-1">{getVisiblePageNumbers(batchCodePage + 1, batchCodes.length).map(page => <button type="button" key={page} disabled={savingCode} aria-label={`Batch code page ${page}`} aria-current={batchCodePage + 1 === page ? 'page' : undefined} onClick={() => setBatchCodePage(page - 1)} className={`rounded border px-3 py-2 text-xs ${batchCodePage + 1 === page ? 'bg-blue-600 text-white' : 'text-slate-700'}`}>{page}</button>)}</nav>
+          <div className="flex justify-end gap-2"><button type="button" disabled={savingCode} onClick={() => setBatchCodes([])} className="px-3 py-2 text-xs text-slate-600">Cancel</button><button type="button" onClick={() => void prepareBatchEmails()} disabled={savingCode || batchCodes.some(choice => !choice.templateId)} className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white disabled:opacity-40">{savingCode ? 'Preparing...' : batchCodes[0].status === 'REJECTED' ? 'Reject and preview emails' : 'Preview emails'}</button></div>
+        </div>
+      </div>}
 
       {submissionEmailPreview && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 p-4 backdrop-blur-xs">

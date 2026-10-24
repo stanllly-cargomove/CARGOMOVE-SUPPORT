@@ -235,8 +235,8 @@
 .registration-queue-table td:not([colspan]) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .registration-queue-table .admin-registration-copy-text { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .registration-queue-table td:nth-child(7) { text-align: center; }
-.registration-queue-table td:nth-child(7) > .admin-registration-copy-text { display: inline-flex; justify-content: center; }
-.registration-queue-table td:nth-child(7) .admin-registration-copy-text > span { width: 80px; justify-content: center; }
+.registration-queue-table td:nth-child(7) > .admin-registration-copy-text { display: inline-flex; max-width: none; overflow: visible; justify-content: center; }
+.registration-queue-table td:nth-child(7) .admin-registration-copy-text > span { width: 104px; flex-shrink: 0; justify-content: center; }
 .overview-queue-table td:nth-child(7) { text-align: center; }
 @media (max-width: 767px) {
   .admin-dashboard { padding-bottom: 64px; }

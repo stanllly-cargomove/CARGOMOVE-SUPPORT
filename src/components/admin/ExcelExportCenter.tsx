@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { RegistrationType, RegistrationSubmission, Company } from '../../types';
-import { getSubmissions, getCompanies, getCompanyById } from '../../services/storage';
+import { getSubmissions, getCompanies, getCompanyById, refreshProtectedStorage } from '../../services/storage';
 import { getCompanyExternalId } from '../../services/companyHelper';
 import { EXCEL_TEMPLATES } from '../../services/excelExport';
 import { generateRegistrationExcel } from '../../services/registrationUploads';
@@ -62,6 +62,7 @@ export function ExcelExportCenter() {
     setExporting(true);
     const res = await generateRegistrationExcel(filteredSubmissions, setUploadProgress);
     setExporting(false);
+    if (res.downloaded.length) notifySuccess(`${res.downloaded.length} Company registration(s) downloaded. Complete their manual registration using the Register action.`);
     if (!res.success) {
       notifyError(summarizeError(res.error || 'Export failed.'));
     }
@@ -81,7 +82,9 @@ export function ExcelExportCenter() {
   const sendPreview = async (preview: EmailPreview) => {
     setSendingPreview(preview.previewToken);
     try {
-      await sendSubmissionBatchEmail(preview);
+      const result = await sendSubmissionBatchEmail(preview);
+      if (result.warning) notifyWarning(result.warning);
+      await refreshProtectedStorage().catch(() => {});
       setEmailPreviews((current) => {
         const next = current.filter((item) => item.previewToken !== preview.previewToken);
         setPreviewPage((page) => Math.min(page, Math.max(0, next.length - 1)));

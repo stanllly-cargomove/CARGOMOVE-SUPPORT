@@ -48,14 +48,23 @@ in driving licences and phone numbers.
 `shared/registration-excel.ts` provides the same pure mapping and validation for
 browser downloads and server generation. The upload endpoint loads submissions,
 company IDs and port configuration from the main application database; the client
-supplies only a submission/job ID, never workbook rows or scheduler targets.
+supplies only submission IDs or a job ID, never workbook rows or scheduler targets.
 
-Phase one wires **Generate Excel** in the submission queue, review dialog and
-Excel Export Center to the asset upload flow. Bulk export produces one workbook
-per registration reference. Filenames follow
-`<reference>_<type>_<attempt-UUID>.xlsx`. Company registration remains a manual
-Excel download, also named by its registration reference. Draft downloads retain
-a `DRAFT_` prefix and do not start uploads.
+Phase one wires **Register and Email** in the submission queue to asset uploads.
+Fresh selections of the same type share one workbook, for example
+`CMREG400184 - CMREG400195_DRIVER_ BY:cargomove-register.vercel.app.xlsx`.
+A single reference omits the range. UUIDs remain internal audit identifiers.
+Browser downloads replace `BY:` with `BY-` to support Windows filenames.
+Company data entry remains a manual Excel download in this phase.
+
+The adjacent three-dot menu offers **Download Excel without register** (one
+workbook per type, including incomplete draft rows, without any status changes)
+and **Reject selected registrations**. Batch rejection presents a paginated code
+selector, then moves confirmed items to Rejected and opens paginated email
+previews. Multiple acceptance/rejection codes are choices rather than errors.
+Missing codes or recipients are reported per reference without hiding previews
+that were successfully prepared. Draft downloads from the public confirmation
+screen retain their `DRAFT_` prefix.
 
 ## Processing and result tracking
 
@@ -102,7 +111,7 @@ The importer also accepts DONE, PENDING and REJECTED. New records default to
 Pending until approved or explicitly imported as Registered. The legacy activity
 field in cached company data is stripped from outgoing master writes.
 
-The unapplied migration performs the requested one-time conversion: existing
+The Company status migration performs the requested one-time conversion: existing
 Company queue requests that are Pending become Registered, existing master
 records become Registered, and latest Rejected company requests remain Rejected.
 Driver/trailer/vehicle and user requests retain their statuses. Future Company
@@ -124,17 +133,25 @@ the company becomes Registered again.
 
 ## Lifecycle and queue behavior
 
-1. An atomic per-submission admission creates a persisted upload attempt. Duplicate
-   clicks and page reloads reuse an active or successful attempt.
+1. Server preflight excludes incomplete references, including unregistered parents
+   or missing CargoMove IDs. Atomic batch admission locks selected submissions and
+   creates one audit row per reference with a shared workbook ID and filename.
+   Duplicate clicks and page reloads reuse an active or successful physical upload.
 2. The server generates Excel from current saved data, validates required fields,
    records dispatch intent and attaches an in-memory workbook to the correct tab.
    The returned workbook is also downloaded in the browser.
-3. After upload acceptance, the next check finds the exact unique filename, saves
+3. Before uploading, the worker records existing upload IDs and the upload start
+   time. After acceptance, checks match the filename and exclude historical uploads
+   with the same human-readable name. The check saves
    its CargoMove upload ID when available, and requests the saved scheduler through
    the existing scheduler handler. Shared admission/cooldown failures wait safely.
 4. Further requests check the exact upload. Only a terminal success with
-   `SuccessCount == expected workbook rows` and `ErrorCount == 0` marks it Done and
-   records export metadata. Email previews use only verified registrations.
+   `SuccessCount == expected workbook rows` and `ErrorCount == 0` records verified
+   processing and export metadata. Items remain Pending until Gmail acknowledges
+   their acceptance email; only then does the server move them to Done. Failed
+   email sends stay Pending. If the email was sent but queue completion fails,
+   the response reports Sent with a review warning, avoiding an automatic resend.
+   Email previews use only verified registrations.
 5. Failures return/remain Pending. Their references are red with an accessible
    information button on desktop, mobile and the review dialog. Unverified outcomes
    also remain Pending and explain the uncertainty. The popup can check the
@@ -148,7 +165,7 @@ replace authoritative summaries or mark an unsuccessful attempt Done. Active
 registrations cannot be edited or deleted until verification finishes.
 
 The browser checks for up to three minutes per batch; an interrupted or longer
-operation can resume from its reference popup or Generate Excel. A server check
+operation can resume from its reference popup or Register and Email. A server check
 marks processing unverified after ten minutes. It can still reconcile a later
 terminal result. Closing the browser stops advancement; this phase has no
 background job runner. A saved UPLOADED attempt resumes the scheduler stage on
@@ -160,8 +177,8 @@ operator reconciliation first, preserving their successful rows and original
 counts. UNKNOWN never requests the scheduler again. After checking CargoMove and
 correcting the registration to avoid resubmitting successful records, an operator
 may record a `resolution_note` and change the old attempt to FAILED through the
-normal database maintenance process. A new Generate Excel request then creates a
-new attempt. Do not resolve active work or an uncertain scheduler audit without
+normal database maintenance process. A new Register and Email request then creates a
+new attempt. For a merged file, reconcile every audit row with that batch ID. Do not resolve active work or an uncertain scheduler audit without
 checking CargoMove; scheduler UNKNOWN resolution remains separate.
 
 ## Deployment and validation
@@ -172,10 +189,13 @@ after the scheduler gallery and latest 30-second scheduler migration, then deplo
 1. `supabase/migrations/20261024010000_registration_cargomove_uploads.sql`
 2. `supabase/migrations/20261024020000_registration_upload_registered_company.sql`
 3. `supabase/migrations/20261025000000_company_registration_status.sql`
+4. `supabase/migrations/20261025010000_registration_upload_batches.sql`
 
-Skip migrations already applied. The last migration backfills queue-based company
+Skip migrations already applied. The Company status migration backfills queue-based company
 approval using the one-time conversion above, removes the company activity field,
-and keeps queue-linked and imported-company approvals protected.
+and keeps queue-linked and imported-company approvals protected. The new batch
+migration is safe to retry; it preserves existing queue decisions and adds shared
+workbook audits plus the server-only email-completion operation.
 No migration is run by builds or tests. This change has not applied migrations or
 deployed code.
 
@@ -205,12 +225,14 @@ on conflict (purpose) do update set scheduler_id=excluded.scheduler_id;
 
 Use the existing server-only `CARGOMOVE_USERNAME`, `CARGOMOVE_PASSWORD` and
 scheduler origin/session configuration. No new provider credentials or Auto Mail
-schema changes are needed. Workbook limits are 1,000 rows and 2 MiB per reference.
+schema changes are needed. Workbook limits are 100 selected references, 1,000 rows
+and 2 MiB per file.
 
 Run:
 
 ```text
 npm run test:registration-uploads
+npm run test:registration-uploads:ui
 npm run test:scheduler
 npm run lint
 npm run build

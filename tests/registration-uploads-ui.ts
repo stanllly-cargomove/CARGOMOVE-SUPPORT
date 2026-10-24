@@ -41,13 +41,13 @@ try {
         const body = request.postDataJSON();
         assert.equal(body.schedulerId, undefined);
         if (body.action === 'start') {
-          starts++; assert.equal(body.submissionId, 'driver');
-          sub = { ...sub, cargomove_upload: { ...summary, state: starts === 1 ? 'FAILED' : 'UNKNOWN', message: starts === 1 ? 'CargoMove rejected the fixture file.' : 'File upload response was interrupted. Check the existing upload.' } };
+          starts++; assert.deepEqual(body.submissionIds, ['driver']);
+          sub = { ...sub, cargomove_upload: { ...summary, state: starts === 1 ? 'FAILED' : 'UNKNOWN', successCount: starts === 1 ? 0 : null, message: starts === 1 ? 'CargoMove rejected the fixture file.' : 'File upload response was interrupted. Check the existing upload.' } };
           const book = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([['DRIVINGLICENSE'], ['00123']]), 'Sheet1');
           return route.fulfill({ json: { submission: sub, nextCheckMs: 1000, download: { filename: summary.filename, base64: XLSX.write(book, { type: 'base64', bookType: 'xlsx' }) } } });
         }
         assert.equal(body.jobId, summary.id); checks++;
-        sub = { ...sub, status: checks >= 2 ? 'DONE' : 'PENDING', cargomove_upload: { ...summary, state: checks >= 2 ? 'SUCCESS' : 'PROCESSING',
+        sub = { ...sub, status: 'PENDING', cargomove_upload: { ...summary, state: checks >= 2 ? 'SUCCESS' : 'PROCESSING',
           message: checks >= 2 ? 'All fixture rows verified.' : 'Processing fixture.', successCount: checks >= 2 ? 1 : null, errorCount: checks >= 2 ? 0 : null } };
         return route.fulfill({ json: { submission: sub, nextCheckMs: 1000 } });
       }
@@ -58,7 +58,7 @@ try {
     await page.getByText('CMREG400001', { exact: true }).filter({ visible: true }).waitFor();
     if (width < 768) await page.getByRole('checkbox', { name: 'Select CMREG400001', exact: true }).check();
     else await page.locator('tbody tr').filter({ hasText: 'CMREG400001' }).getByRole('checkbox').check();
-    assert.equal(await page.getByRole('button', { name: 'GENERATE EXCEL', exact: true }).isDisabled(), true);
+    assert.equal(await page.getByRole('button', { name: 'Register and Email', exact: true }).isDisabled(), false);
     assert.equal(starts, 0);
     await page.getByRole('button', { name: 'Single review fixture', exact: true }).click();
     assert.equal(await page.getByRole('button', { name: 'Generate Excel & Upload', exact: true }).isDisabled(), true);
@@ -71,7 +71,7 @@ try {
     if (width < 768) await page.getByRole('checkbox', { name: 'Select CMREG400001', exact: true }).check();
     else await page.locator('tbody tr').filter({ hasText: 'CMREG400001' }).getByRole('checkbox').check();
     const downloadPromise = page.waitForEvent('download');
-    await page.getByRole('button', { name: 'GENERATE EXCEL', exact: true }).click();
+    await page.getByRole('button', { name: 'Register and Email', exact: true }).click();
     assert.equal((await downloadPromise).suggestedFilename(), summary.filename);
     const info = () => page.getByRole('button', { name: 'CargoMove upload information for CMREG400001', exact: true }).filter({ visible: true });
     await info().waitFor();

@@ -2,6 +2,7 @@ import * as XLSX from 'xlsx';
 import type { RegistrationSubmission } from '../types';
 import { getCompanies, getPorts, getDepots, markSubmissionsExported } from './storage';
 import { buildExcelRowData as buildRows, validateSubmissionsForExport as validateRows } from '../../shared/registration-excel';
+import { registrationFilename } from '../../shared/registration-filename';
 export { EXCEL_TEMPLATES, resolveSubmissionPorts } from '../../shared/registration-excel';
 export type { ExportValidationResult } from '../../shared/registration-excel';
 
@@ -15,7 +16,7 @@ export const validateSubmissionsForExport = (submissions: RegistrationSubmission
  */
 export function exportSubmissionsToExcel(
   submissions: RegistrationSubmission[],
-  options?: { customFilename?: string; bypassValidation?: boolean }
+  options?: { customFilename?: string; bypassValidation?: boolean; downloadOnly?: boolean }
 ): { success: boolean; filename: string; count?: number; error?: string } {
   if (submissions.length === 0) {
     return { success: false, filename: '', count: 0, error: 'No registrations selected.' };
@@ -33,10 +34,10 @@ export function exportSubmissionsToExcel(
     }
   }
 
-  const { headers, rows, type } = buildExcelRowData(submissions);
+  const { headers, rows } = buildExcelRowData(submissions);
 
   // Registration references remain visible in every generated workbook filename.
-  const filename = options?.customFilename || `${submissions.map(submission => submission.reference_no).join('_')}_${type}.xlsx`;
+  const filename = options?.customFilename || registrationFilename(submissions, true);
 
   // Convert to SheetJS WorkBook
   // Construct sheet with exact ordered headers
@@ -57,12 +58,19 @@ export function exportSubmissionsToExcel(
   XLSX.writeFile(workbook, filename, { bookType: 'xlsx', type: 'binary' });
 
   // Update submission record export statuses
-  markSubmissionsExported(
+  if (!options?.downloadOnly) markSubmissionsExported(
     submissions.map((s) => s.id),
     filename
   );
 
   return { success: true, filename, count: rows.length };
+}
+
+/** One workbook per type, with no upload, scheduler, or registration status change. */
+export function downloadRegistrationExcel(submissions: RegistrationSubmission[]) {
+  const groups = new Map<string, RegistrationSubmission[]>();
+  for (const sub of submissions) groups.set(sub.registration_type, [...(groups.get(sub.registration_type) || []), sub]);
+  return [...groups.values()].map(group => exportSubmissionsToExcel(group, { downloadOnly: true, bypassValidation: true }));
 }
 
 /** Downloads a draft export without changing any registration/export status. */

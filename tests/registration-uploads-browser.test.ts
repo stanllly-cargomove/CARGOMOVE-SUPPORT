@@ -10,7 +10,7 @@ test('Playwright selects each pane, attaches the workbook, reads a locked picker
     const workbook = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([['REGISTRATION'], ['T/123']]), 'Sheet1');
     const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
     let marker = 0, uploads = 0, aborted = 0;
-    const filename = `CMREG400001_${entity.toUpperCase()}_fixture.xlsx`;
+    const filename = `CMREG400001 - CMREG400019_${entity.toUpperCase()}_ BY:cargomove-register.vercel.app.xlsx`;
     const launch = async () => {
       const browser = await chromium.launch({ channel: 'chrome', headless: true });
       const originalNewContext = browser.newContext.bind(browser);

@@ -29,11 +29,12 @@ export default async function submissionBatchPreview(request: any, response: any
   const body: Record<string, unknown> = await bodyOf(request).catch(() => ({}));
   const ids = Array.from(new Set(Array.isArray(body.submissionIds) ? body.submissionIds.map((id) => String(id).trim()).filter(Boolean) : [])).slice(0, 100);
   if (!ids.length) return response.status(400).json({ error: 'Select at least one asset registration.' });
-  const results = await Promise.all(ids.map((id) => client.from('registration_submissions').select('id,reference_no,registration_type,company_id,company_name,submitted_by_email,notification_email,data').eq('id', id).maybeSingle()));
+  const results = await Promise.all(ids.map((id) => client.from('registration_submissions').select('id,status,cargomove_upload,reference_no,registration_type,company_id,company_name,submitted_by_email,notification_email,data').eq('id', id).maybeSingle()));
   const resultError = results.find((result) => result.error)?.error;
   if (resultError) return response.status(502).json({ error: resultError.message });
   const submissions = results.map((result) => result.data).filter(Boolean);
   if (submissions.length !== ids.length || submissions.some((submission: any) => !['DRIVER', 'TRAILER', 'VEHICLE'].includes(submission.registration_type))) return response.status(400).json({ error: 'Only Driver, Trailer, and Vehicle registrations can be emailed together.' });
+  if (submissions.some((sub: any) => sub.status !== 'DONE' && !(sub.status === 'PENDING' && sub.cargomove_upload?.state === 'SUCCESS'))) return response.status(409).json({ error: 'Verify the CargoMove uploads before previewing acceptance emails.' });
   const companyIds = Array.from(new Set(submissions.map((submission: any) => submission.company_id).filter(Boolean)));
   const companyResults = await Promise.all(companyIds.map((id) => client.from('companies').select('id,contact_email,details').eq('id', id).maybeSingle()));
   const companyError = companyResults.find((result) => result.error)?.error;
@@ -48,7 +49,7 @@ export default async function submissionBatchPreview(request: any, response: any
     const plural = group.length > 1;
     const references = [...new Set(group.map((submission) => submission.reference_no))];
     const bodyHtml = `<p>Dear Customer,</p><p>Your ${type} registration${plural ? 's' : ''} for <strong>${escapeHtml(group[0].company_name)}</strong> ${plural ? 'have' : 'has'} been approved. Your registration${plural ? 's are' : ' is'} now complete.</p><p>Reference number${references.length > 1 ? 's' : ''}: <strong>${escapeHtml(references.join(', '))}</strong></p><p>Registered ${type}${plural ? 's' : ''}:</p><ul>${group.map(itemSummary).join('')}</ul><p>If you notice an issue, error, or incorrect registration data, please contact CargoMove Support through our <strong>Official WhatsApp:</strong> 018-266 0085</p><p>Regards,<br>CargoMove Support Team</p>`;
-    return { recipient, subject: `CargoMove registration approval — ${group[0].company_name}`, body: sanitizeEmailHtml(bodyHtml), templateName: `${group[0].company_name} — ${group.length} approved registration${group.length === 1 ? '' : 's'}`, attachments: [{ path: `/api/email/submission-attachment?submissionIds=${group.map((submission) => encodeURIComponent(submission.id)).join(',')}`, name: assetRegistrationPdfName(group), content_type: 'application/pdf', size: 0 }], previewToken: createSubmissionBatchPreviewToken(session, group.map((submission) => submission.id), recipient) };
+    return { recipient, subject: `CargoMove registration approval — ${group[0].company_name}`, body: sanitizeEmailHtml(bodyHtml), templateName: `${group[0].company_name} — ${group.length} approved registration${group.length === 1 ? '' : 's'}`, attachments: [{ path: `/api/email/submission-attachment?submissionIds=${group.map((submission) => encodeURIComponent(submission.id)).join(',')}`, name: assetRegistrationPdfName(group), content_type: 'application/pdf', size: 0 }], previewToken: createSubmissionBatchPreviewToken(session, group.map((submission) => submission.id), recipient, Object.fromEntries(group.filter(sub => sub.status === 'PENDING').map(sub => [sub.id, sub.cargomove_upload.id]))) };
   });
   response.json({ previews });
 }

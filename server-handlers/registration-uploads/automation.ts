@@ -1,7 +1,7 @@
 import type { Browser, Page } from 'playwright-core';
 import { launchBrowser, ORIGIN } from '../scheduler/automation.js';
 
-export type UploadIdentity = { entity: string; filename: string; upload_id?: string | null; expected_rows: number };
+export type UploadIdentity = { entity: string; filename: string; upload_id?: string | null; expected_rows: number; existing_upload_ids?: string[]; upload_started_at?: string | null };
 export type UploadResult = { state: 'UPLOADED' | 'FAILED' | 'UNKNOWN'; message: string };
 export type Verification = { state: 'SUCCESS' | 'FAILED' | 'PROCESSING' | 'UNKNOWN' | 'MISSING'; message: string;
   uploadId?: string; successCount?: number; errorCount?: number; readyForScheduler?: boolean };
@@ -17,7 +17,13 @@ export function cleanMessage(value: unknown): string {
 
 export function verifyUploadRows(results: unknown[], job: UploadIdentity): Verification {
   const matches = results.filter((row: any) => row && (row.original_name === job.filename || row.filename === job.filename)
-    && (!job.upload_id || String(row._id) === job.upload_id)) as any[];
+    && (!job.upload_id || String(row._id) === job.upload_id)
+    && !(job.existing_upload_ids || []).includes(String(row._id))
+    && (!job.upload_started_at || (() => {
+      const uploaded = row.t?.uploaded?.$date || row.t?.uploaded || row.uploaded;
+      const timestamp = Date.parse(String(uploaded || ''));
+      return Number.isFinite(timestamp) && timestamp >= Date.parse(job.upload_started_at!) - 5000;
+    })())) as any[];
   if (!matches.length) return { state: 'MISSING', message: 'Waiting for this reference file to appear in CargoMove.' };
   if (matches.length !== 1) return { state: 'UNKNOWN', message: 'Multiple matching CargoMove uploads were found. Review the file before retrying.' };
   const row = matches[0];
@@ -89,17 +95,24 @@ async function portal<T>(credentials: Credentials, work: (page: Page, armUpload:
 }
 
 export async function uploadWorkbook(credentials: Credentials, job: UploadIdentity, buffer: Buffer,
-  beforeUpload: () => Promise<void>, launch = launchBrowser): Promise<UploadResult> {
+  beforeUpload: (evidence?: { existingUploadIds: string[]; startedAt: string }) => Promise<void>, launch = launchBrowser): Promise<UploadResult> {
   let dispatched = false;
   try {
-    if (!['vehicle', 'trailer', 'driver'].includes(job.entity) || !/^[\w-]+\.xlsx$/.test(job.filename)) throw new Error();
+    if (!['vehicle', 'trailer', 'driver'].includes(job.entity) || !/^[A-Za-z0-9_ .:\-]+\.xlsx$/.test(job.filename)) throw new Error();
     return await portal(credentials, async (page, armUpload) => {
       await page.locator('#jmd-country').selectOption('MY');
       await page.locator(`a[href="#pane-${job.entity}"]`).click();
       const pane = page.locator(`#pane-${job.entity}`);
       await pane.waitFor({ state: 'visible' });
       await pane.locator(`#file-${job.entity}`).setInputFiles({ name: job.filename, mimeType: MIME, buffer });
-      await beforeUpload();
+      const baseline = await page.evaluate(async ({ endpoint, entity }) => {
+        const response = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ entity, country: 'MY' }).toString() });
+        if (!response.ok) throw new Error('Listing unavailable');
+        const data = await response.json();
+        if (!data.state || !Array.isArray(data.results)) throw new Error('Listing unavailable');
+        return data.results.map((row: { _id?: unknown }) => String(row._id || '')).filter(Boolean);
+      }, { endpoint: LIST, entity: job.entity });
+      await beforeUpload({ existingUploadIds: baseline, startedAt: new Date().toISOString() });
       dispatched = true;
       armUpload();
       const [response] = await Promise.all([
