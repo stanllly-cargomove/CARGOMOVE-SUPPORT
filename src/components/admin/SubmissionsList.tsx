@@ -65,11 +65,6 @@ interface BulkMenuPosition {
   left: number;
 }
 
-interface CompanyExportTooltipPosition {
-  top: number;
-  left: number;
-}
-
 interface CodeSelection {
   submission: RegistrationSubmission;
   status: 'DONE' | 'REJECTED';
@@ -135,6 +130,47 @@ const registrationTypeTabs: Array<{ value: RegistrationType; label: string }> = 
   { value: 'VEHICLE', label: 'Vehicle' },
 ];
 
+function CompanyExportActions({ enabled, children }: { enabled: boolean; children: React.ReactNode }) {
+  const [tooltipPosition, setTooltipPosition] = useState<{ top: number; left: number } | null>(null);
+  const containerRef = React.useRef<HTMLDivElement | null>(null);
+
+  const showTooltip = () => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const width = 320;
+    setTooltipPosition({
+      top: rect.top - ACTION_MENU_GAP,
+      left: Math.max(VIEWPORT_EDGE_PADDING, Math.min(rect.left, window.innerWidth - width - VIEWPORT_EDGE_PADDING)),
+    });
+  };
+
+  return (
+    <div
+      ref={containerRef}
+      className="relative flex min-w-0 flex-1"
+      onMouseEnter={enabled ? showTooltip : undefined}
+      onMouseLeave={enabled ? () => setTooltipPosition(null) : undefined}
+      onFocusCapture={enabled ? showTooltip : undefined}
+      onBlurCapture={enabled ? (event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setTooltipPosition(null);
+      } : undefined}
+    >
+      {children}
+      {enabled && tooltipPosition && createPortal(
+        <div
+          id="company-export-manual-registration-tooltip"
+          role="tooltip"
+          className="fixed z-[80] w-80 -translate-y-full rounded-lg bg-slate-900 px-3 py-2 text-xs leading-5 text-white shadow-xl transition-opacity duration-75"
+          style={{ top: tooltipPosition.top, left: tooltipPosition.left }}
+        >
+          Downloads the company registration Excel for manual processing. Selected submissions are moved to Closed/Done. No email is sent.
+        </div>,
+        document.body,
+      )}
+    </div>
+  );
+}
+
 export function SubmissionsList({ status, initialType = 'COMPANY' }: SubmissionsListProps) {
   const [submissions, setSubmissions] = useState<RegistrationSubmission[]>(getSubmissions());
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -165,8 +201,6 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
   const [sendingSubmissionEmail, setSendingSubmissionEmail] = useState(false);
   const [bulkMenuOpen, setBulkMenuOpen] = useState(false);
   const [bulkMenuPosition, setBulkMenuPosition] = useState<BulkMenuPosition | null>(null);
-  const [companyExportTooltip, setCompanyExportTooltip] = useState<CompanyExportTooltipPosition | null>(null);
-  const companyExportButtonRef = React.useRef<HTMLDivElement | null>(null);
   const [batchCodes, setBatchCodes] = useState<Array<CodeSelection & { templateId: string }>>([]);
   const [batchCodePage, setBatchCodePage] = useState(0);
 
@@ -414,16 +448,6 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
       left: Math.max(VIEWPORT_EDGE_PADDING, Math.min(rect.right - width, window.innerWidth - width - VIEWPORT_EDGE_PADDING)),
     });
     setBulkMenuOpen(true);
-  };
-
-  const showCompanyExportTooltip = () => {
-    const rect = companyExportButtonRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const width = 320;
-    setCompanyExportTooltip({
-      top: rect.top - ACTION_MENU_GAP,
-      left: Math.max(VIEWPORT_EDGE_PADDING, Math.min(rect.left, window.innerWidth - width - VIEWPORT_EDGE_PADDING)),
-    });
   };
 
   const handleBulkExport = async () => {
@@ -786,16 +810,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
               <option value="MISSING">MISSING ID</option>
               <option value="WITH_ID">WITH ID</option>
             </select>
-          <div
-            ref={companyManualRegistration ? companyExportButtonRef : undefined}
-            className="relative flex min-w-0 flex-1"
-            onMouseEnter={companyManualRegistration ? showCompanyExportTooltip : undefined}
-            onMouseLeave={companyManualRegistration ? () => setCompanyExportTooltip(null) : undefined}
-            onFocusCapture={companyManualRegistration ? showCompanyExportTooltip : undefined}
-            onBlurCapture={companyManualRegistration ? (event) => {
-              if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setCompanyExportTooltip(null);
-            } : undefined}
-          >
+          <CompanyExportActions enabled={companyManualRegistration}>
           <button
             type="button"
             onClick={handleBulkExport}
@@ -811,7 +826,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
               : 'Export Excel'}
           </button>
           <button ref={bulkActionButtonRef} type="button" aria-label="More registration actions" aria-expanded={bulkMenuOpen} onClick={toggleBulkActionMenu} disabled={exporting || savingCode || !selectedIds.length} className="h-9 rounded-r-lg border-l border-emerald-500 bg-emerald-600 px-2 text-white hover:bg-emerald-700 disabled:opacity-40"><MoreVertical className="h-4 w-4" /></button>
-          </div>
+          </CompanyExportActions>
         </div>
         </div>
       </div>
@@ -1192,18 +1207,6 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
             {status !== 'PENDING' && <button role="menuitem" type="button" disabled={reverting} className="w-full rounded px-3 py-2 text-left text-xs text-amber-700 hover:bg-amber-50 disabled:opacity-50" onClick={() => void handleBulkRevertToPending()}>Revert selected to Pending</button>}
           </div>
         </>,
-        document.body,
-      )}
-
-      {companyExportTooltip && companyManualRegistration && createPortal(
-        <div
-          id="company-export-manual-registration-tooltip"
-          role="tooltip"
-          className="fixed z-[80] w-80 -translate-y-full rounded-lg bg-slate-900 px-3 py-2 text-xs leading-5 text-white shadow-xl"
-          style={{ top: companyExportTooltip.top, left: companyExportTooltip.left }}
-        >
-          Downloads the company registration Excel for manual processing. Selected submissions are moved to Closed/Done. No email is sent.
-        </div>,
         document.body,
       )}
 

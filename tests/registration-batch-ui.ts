@@ -199,6 +199,8 @@ try {
   await moreActionsButton.hover();
   await companyExportTooltip.waitFor();
   assert.equal(await page.getByRole('button', { name: 'Close registration actions', exact: true }).count(), 0);
+  await page.mouse.move(0, 0);
+  await companyExportTooltip.waitFor({ state: 'hidden' });
   const companyDownload = page.waitForEvent('download');
   await companyExportButton.focus();
   await companyExportButton.press('Enter');
