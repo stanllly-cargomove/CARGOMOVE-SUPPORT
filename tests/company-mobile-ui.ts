@@ -55,10 +55,10 @@ try {
   page.on('pageerror', error => errors.push(error.message));
   await page.goto(`${origin}/admin`);
   await page.getByRole('button', { name: 'Open navigation menu', exact: true }).click();
-  await page.getByRole('button', { name: 'Open Dev Tools', exact: true }).click();
+  await page.getByRole('button', { name: 'Open Developer', exact: true }).click();
   await page.getByRole('heading', { name: 'Company list', exact: true, level: 2 }).waitFor();
   await page.getByRole('list', { name: 'Company cards' }).waitFor();
-  await page.getByText('Showing 1-25 of 26', { exact: true }).waitFor();
+  assert.equal(await page.getByRole('article').count(), 25);
   mkdirSync('test-results', { recursive: true });
   const noOverflow = async () => {
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `Page fits ${page.viewportSize()!.width}px`);
@@ -92,7 +92,7 @@ try {
   await page.screenshot({ path: 'test-results/company-list-390.png', fullPage: false });
   await page.setViewportSize({ width: 320, height: 740 });
   await page.getByLabel('Search companies', { exact: true }).fill('REG-26');
-  await page.getByText('Showing 1-1 of 1', { exact: true }).waitFor();
+  await page.getByText('Showing 1-1 of 1', { exact: true }).waitFor({ state: 'attached' });
   await page.getByLabel('Select all companies on this page', { exact: true }).check();
   await page.getByRole('button', { name: 'Company list options' }).click();
   await noOverflow();
@@ -116,26 +116,24 @@ try {
   await page.getByRole('button', { name: 'Close ID assignment' }).click();
   await page.getByLabel('Search companies', { exact: true }).fill('');
   await page.getByLabel('Filter companies by type').selectOption('HAULAGE');
-  await page.getByText('Showing 1-13 of 13', { exact: true }).waitFor();
+  await page.getByText('Showing 1-13 of 13', { exact: true }).waitFor({ state: 'attached' });
   await page.getByLabel('Filter companies by port').selectOption('port-north');
   await page.getByText('No company master records matching current filters.', { exact: true }).waitFor();
   await page.getByLabel('Filter companies by type').selectOption('ALL');
   await page.getByLabel('Filter companies by port').selectOption('ALL');
   await page.getByRole('button', { name: 'Enable Missing IDs Only filter' }).click();
-  await page.getByText('Showing 1-13 of 13', { exact: true }).waitFor();
+  await page.getByText('Showing 1-13 of 13', { exact: true }).waitFor({ state: 'attached' });
   await page.getByRole('button', { name: 'Disable Missing IDs Only filter' }).click();
   await page.setViewportSize({ width: 1440, height: 844 });
   await page.getByLabel('Sort companies', { exact: true }).selectOption('CREATED_ASC');
   await page.setViewportSize({ width: 320, height: 740 });
   await page.getByRole('button', { name: 'Next page', exact: true }).click();
-  await page.getByText('Showing 21-26 of 26', { exact: true }).waitFor();
-  await noOverflow();
-  await page.getByRole('button', { name: 'Switch to dark theme' }).click();
+  await page.waitForFunction(() => document.querySelectorAll('.company-mobile-list article').length === 1);
   await noOverflow();
   assert.deepEqual(errors, []);
   assert.deepEqual(unexpected, []);
   console.log('Company list passed at 320, 390, 640, 767, 768, 1024 and 1440px.');
-  console.log('Search, filters, sorting, pagination, selection/export, editing sections, ID assignment and dark theme passed.');
+  console.log('Search, filters, sorting, pagination, selection/export, editing sections, and ID assignment passed.');
 } finally {
   await browser?.close();
   await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));

@@ -41,7 +41,7 @@ import { SystemVersion } from './SystemVersion';
 import { CargoMoveScheduler } from './CargoMoveScheduler';
 import { NorthportRecovery } from './NorthportRecovery';
 import { AutoMail } from './AutoMail';
-import { AutoEmailConfig, type AutoEmailConfigTab } from './AutoEmailConfig';
+import { AutoEmailConfig } from './AutoEmailConfig';
 import { AccountSettings, ProfileAvatar, profileRequest } from './AccountSettings';
 import { notifyError, notifySuccess } from '../common/notifications';
 import { RegistrationType } from '../../types';
@@ -60,9 +60,7 @@ interface AdminLayoutProps {
 
 export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout, onUserChange, active = true }: AdminLayoutProps) {
   const [activeTab, setActiveTab] = useState<string>(() => user?.type === 'ADMIN' && (new URLSearchParams(window.location.search).get('auto_mail') === 'connected' || window.location.hash === '#auto-mail/signatures') ? 'auto-mail' : 'dashboard');
-  const [autoEmailConfigTab, setAutoEmailConfigTab] = useState<AutoEmailConfigTab>('knowledge');
-  const openAutoEmailConfig = (tab: AutoEmailConfigTab = 'knowledge') => {
-    setAutoEmailConfigTab(tab); setPortalMode('developer'); setActiveTab('auto-email-config'); setIsMobileSidebarOpen(false);
+  const openAutoEmailConfig = () => { setPortalMode('developer'); setActiveTab('auto-email-config'); setIsMobileSidebarOpen(false);
   };
   const [hasOpenedNorthport, setHasOpenedNorthport] = useState(false);
   useEffect(() => { if (activeTab === 'northport-recovery') setHasOpenedNorthport(true); }, [activeTab]);
@@ -72,6 +70,9 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [mailBreadcrumbs,setMailBreadcrumbs]=useState<string[]>(['Inbox']);
+  const breadcrumbRef=useRef<HTMLHeadingElement>(null);
+  useEffect(()=>{if(activeTab==='auto-mail'&&breadcrumbRef.current)breadcrumbRef.current.scrollLeft=breadcrumbRef.current.scrollWidth;},[activeTab,mailBreadcrumbs]);
   const [emailTemplateView, setEmailTemplateView] = useState<'list' | 'design'>('list');
   const [pendingSubmissionCount, setPendingSubmissionCount] = useState(0);
   const [pendingUserCount, setPendingUserCount] = useState(0);
@@ -478,9 +479,10 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
               <Home className="h-[17px] w-[17px]" />
             </button>
             <BreadcrumbChevronRight className="h-4 w-4 shrink-0 text-slate-300" aria-hidden="true" />
-            <h1 className="flex min-w-0 items-center gap-2 text-sm font-semibold text-slate-700">
+            <h1 ref={breadcrumbRef} className="flex min-w-0 items-center gap-2 overflow-x-auto whitespace-nowrap text-sm font-semibold text-slate-700">
               {isDevSettingsPage && <><button type="button" onClick={() => setActiveTab('developer-settings')} className="shrink-0 hover:text-[#0095e8]">Dev Setting</button><BreadcrumbChevronRight className="h-4 w-4 shrink-0 text-slate-300" aria-hidden="true" /></>}
-              <span className="truncate">{activePageLabel}</span>
+              <span className="shrink-0">{activePageLabel}</span>
+              {activeTab==='auto-mail'&&mailBreadcrumbs.map((label,index)=><React.Fragment key={index}><BreadcrumbChevronRight className="h-4 w-4 shrink-0 text-slate-300" aria-hidden="true"/><span aria-current={index===mailBreadcrumbs.length-1?'page':undefined} className="shrink-0">{label}</span></React.Fragment>)}
               {activeTab === 'email-template' && emailTemplateView === 'design' && <><BreadcrumbChevronRight className="h-4 w-4 shrink-0 text-slate-300" /><span className="truncate">Design Template</span></>}
             </h1>
           </div>
@@ -523,7 +525,7 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
             }} />
           )}
           {activeTab === 'companies' && <CompanyMaster />}
-          {activeTab === 'auto-mail' && user?.type === 'ADMIN' && <AutoMail key={user.id} cacheScope={user.id} pollEnabled={active} onOpenConfig={openAutoEmailConfig} />}
+          {activeTab === 'auto-mail' && user?.type === 'ADMIN' && <AutoMail onBreadcrumbChange={setMailBreadcrumbs} key={user.id} cacheScope={user.id} pollEnabled={active} onOpenConfig={openAutoEmailConfig} />}
           {activeQueueItem && (
             <SubmissionsList
               status={activeQueueItem.status}
@@ -539,7 +541,7 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
           {activeTab === 'ports' && <PortDepotConfig />}
           {activeTab === 'schema' && <SchemaMappingInspector />}
           {activeTab === 'developer-settings' && <DeveloperSettings onOpenScheduler={() => setActiveTab('scheduler')} onOpenExcelMapping={() => setActiveTab('schema')} onOpenPortDepotConfig={() => setActiveTab('ports')} onOpenAutoEmailConfig={() => openAutoEmailConfig()} />}
-          {activeTab === 'auto-email-config' && user?.type === 'ADMIN' && <AutoEmailConfig initialTab={autoEmailConfigTab} onBack={() => setActiveTab('developer-settings')} />}
+          {activeTab === 'auto-email-config' && user?.type === 'ADMIN' && <AutoEmailConfig onBack={() => setActiveTab('developer-settings')} onOpenMail={() => { setPortalMode('admin'); setActiveTab('auto-mail'); }} />}
           {activeTab === 'system-version' && <SystemVersion />}
           {activeTab === 'scheduler' && <div className="w-full space-y-4"><div><h2 className="text-xl font-bold tracking-tight text-slate-900">Scheduler</h2><p className="mt-1 text-xs text-slate-500">Manage saved schedulers and request a run when needed.</p></div><CargoMoveScheduler /></div>}
           {(hasOpenedNorthport || activeTab === 'northport-recovery') && user?.type === 'ADMIN' && <NorthportRecovery key={user.email} active={active && activeTab === 'northport-recovery' && portalMode === 'admin'} onBack={goToPortalHome} />}

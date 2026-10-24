@@ -7,7 +7,7 @@ import { createMailAttachmentLoader, type MailFile } from '../../services/autoMa
 export type { MailFile } from '../../services/autoMailAttachments';
 import { AutoMailRecipients } from './AutoMailRecipients';
 
-export type MailMessage = { id: string; from: string; to: string; cc?: string; bcc?: string; date: string; body: string; html?: string; outbound: boolean; attachments: boolean; files?: MailFile[]; inlineImages?: MailFile[] };
+export type MailMessage = { recipient?: string; replyBlocked?: string; replyAll?: {to:string[];cc:string[]}; id: string; from: string; to: string; cc?: string; bcc?: string; date: string; body: string; html?: string; outbound: boolean; attachments: boolean; files?: MailFile[]; inlineImages?: MailFile[] };
 
 function LinkedText({ text }: { text: string }) {
   return <>{text.split(/(https?:\/\/[^\s<>"']+|www\.[^\s<>"']+|[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g).map((part,index)=>{
@@ -36,10 +36,9 @@ export function AutoMailReader({ threadId, messages, onAction, disabled, replyBl
     {messages.map((message,index)=><div key={message.id} className="relative flex min-w-0 items-start gap-2 sm:gap-3"><span aria-hidden="true" className={`mt-3 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold ${message.outbound?'bg-sky-100 text-sky-700':'bg-indigo-100 text-indigo-700'}`}>{message.from.replace(/["<>]/g,'').slice(0,2).toUpperCase()}</span><details open={index===messages.length-1} className="group/message min-w-0 flex-1 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       <summary className={`flex cursor-pointer list-none items-center gap-3 px-4 py-2.5 ${message.outbound?'bg-sky-50/60':'bg-slate-50/70'}`}>
         <div className="min-w-0 flex-1"><p className="break-words text-sm font-semibold text-slate-800">{message.from}</p><p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-slate-500">{message.outbound?<><Reply className="h-3 w-3"/>Sent reply</>:'Incoming message'}<span aria-hidden="true">/</span><time dateTime={message.date}>{new Date(message.date).toLocaleString()}</time>{message.attachments&&<Paperclip className="h-3 w-3"/>}</p></div>
-        <span className="flex shrink-0 items-center gap-1"><ChevronDown aria-label="Expand or collapse message" className="h-4 w-4 text-slate-400 transition-transform group-open/message:rotate-180"/>{onAction&&<AutoMailMessageMenu disabled={disabled} forwardBlocked={forwardBlocked} replyBlocked={replyBlocked||(index!==messages.length-1?'Reply from the latest incoming message.':'')} onAction={action=>onAction(message,action)}/>}</span>
+        <span className="flex shrink-0 items-center gap-1"><ChevronDown aria-label="Expand or collapse message" className="h-4 w-4 text-slate-400 transition-transform group-open/message:rotate-180"/>{(onAction||message.html)&&<AutoMailMessageMenu onTogglePlain={message.html?()=>setPlain(current=>current.includes(message.id)?current.filter(id=>id!==message.id):[...current,message.id]):undefined} plain={plain.includes(message.id)} disabled={disabled} forwardBlocked={forwardBlocked} replyBlocked={replyBlocked || message.replyBlocked} onAction={action=>onAction?.(message,action)}/>}</span>
       </summary>
       <div className="min-w-0 px-4 pb-3 pt-1.5"><AutoMailRecipients to={message.to} cc={message.cc} bcc={message.bcc}/>
-        {message.html&&<button type="button" onClick={()=>setPlain(current=>current.includes(message.id)?current.filter(id=>id!==message.id):[...current,message.id])} className="mb-2 rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-500">{plain.includes(message.id)?'Formatted view':'Plain text view'}</button>}
         {message.html&&!plain.includes(message.id)?<AutoMailHtmlBody html={message.html} messageId={message.id} images={message.inlineImages} loader={loader}/>:<PlainBody text={message.body}/>}
         {!!message.files?.length&&<AutoMailAttachments files={message.files} messageId={message.id} loader={loader}/>}
         {message.attachments&&!message.files?.length&&<p className="mt-4 text-xs text-slate-500">Open this message in Gmail to view its attachments.</p>}

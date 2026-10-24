@@ -53,10 +53,16 @@ export function createKnowledgeHandler(action: 'list' | 'detail' | 'save' | 'rev
         const query = typeof request.query?.q === 'string' ? request.query.q.trim() : '';
         const status = typeof request.query?.status === 'string' ? request.query.status : '';
         const offset = Number(request.query?.offset || 0);
-        if (query.length > 200 || !['', 'DRAFT', 'APPROVED', 'ARCHIVED'].includes(status) || !Number.isSafeInteger(offset) || offset < 0 || offset > 100000) throw new MailError(400, 'Invalid knowledge search or page.');
+        const pageSize = Number(request.query?.pageSize ?? 25);
+        if (![20,25,30,50].includes(pageSize) || query.length > 200 || !['', 'DRAFT', 'APPROVED', 'ARCHIVED'].includes(status) || !Number.isSafeInteger(offset) || offset < 0 || offset > 100000) throw new MailError(400, 'Invalid knowledge search or page.');
         const result = await client.rpc('list_knowledge_articles', { p_query: query, p_status: status, p_offset: offset });
         checkResult(result.error);
-        return response.json(result.data);
+        const articles = (result.data?.articles || []).slice(0,pageSize);
+        if(pageSize>25 && result.data?.total>offset+25){
+          const next=await client.rpc('list_knowledge_articles',{p_query:query,p_status:status,p_offset:offset+25});
+          checkResult(next.error);articles.push(...(next.data?.articles||[]).slice(0,pageSize-25));
+        }
+        return response.json({articles,total:result.data?.total || 0});
       }
       if (action === 'detail') {
         const id = articleId(request.query?.id);

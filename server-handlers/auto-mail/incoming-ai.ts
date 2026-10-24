@@ -5,6 +5,7 @@ import { accessToken,checkOrigin,connected,gmailGet,MailError,presentThread,repl
 import { effectiveAiConfiguration,readAgentSettings } from './agent-config.js';
 import { generateOpenAiDraft,type AiSource } from './ai.js';
 import { threadSignature } from './thread-signature.js';
+import { autoReplyBlock, deliverAutoReply, evaluateAutoReply } from './auto-reply.js';
 
 export const incomingCategories=['SUPPORT_REQUEST','NEW_TECHNICAL_ISSUE','REGISTRATION_QUERY','MARKETING','SPAM','OTHER','UNCERTAIN'] as const;
 export type IncomingClassification={category:typeof incomingCategories[number];confidence:number;language:'en'|'ms'|'zh';kb_match:'STRONG'|'WEAK'|'NONE';source_ids:string[];reason:string};
@@ -38,12 +39,20 @@ export async function incomingSettings(request:any,response:any){
    const result=await client.from('incoming_agent_settings').select('*').eq('id','system').maybeSingle();
    if(['42P01','PGRST205'].includes(result.error?.code||''))return response.json({storageReady:false,settings:{enabled:false,scope:'ALL',version:0},worker:null});
    if(result.error)throw new Error();const worker=await client.from('incoming_worker_state').select('last_seen,lease_until').eq('id','system').maybeSingle();
-   return response.json({storageReady:true,settings:result.data,worker:worker.data});
+   return response.json({storageReady:true,autoReplyReady:typeof result.data?.auto_reply_enabled==='boolean',autoReplyServerEnabled:process.env.AUTO_MAIL_AUTO_REPLY_ENABLED==='true',settings:result.data,worker:worker.data});
   }
   const body=await bodyOf(request);if(typeof body.enabled!=='boolean'||typeof body.scope!=='string'||!body.scope.trim()||body.scope.length>80||!Number.isSafeInteger(body.version)||Number(body.version)<1)throw new MailError(400,'Check incoming draft settings.');
-  if(body.enabled){const agent=await readAgentSettings(client);if(!agent.storageReady||agent.settings.version===0)throw new MailError(409,'Save the email agent model settings before enabling incoming drafts.');}
-  if(body.enabled&&!(await effectiveAiConfiguration(client)).ready)throw new MailError(409,'Enable and configure AI reply suggestions before automatic drafting.');
-  const saved=await client.rpc('save_incoming_settings',{p_enabled:body.enabled,p_scope:body.scope,p_version:body.version,p_actor:session.id});
+  const autoReply=body.auto_reply_enabled??false,minConfidence=body.min_confidence??0.95,maxPerHour=body.max_auto_replies_per_hour??5;
+  if(typeof autoReply!=='boolean'||typeof minConfidence!=='number'||!Number.isFinite(minConfidence)||minConfidence<0.8||minConfidence>1||typeof maxPerHour!=='number'||!Number.isSafeInteger(maxPerHour)||maxPerHour<1||maxPerHour>20||(autoReply&&!body.enabled))throw new MailError(400,'Auto-reply requires incoming drafting, confidence from 80 to 100%, and 1 to 20 replies per hour.');
+  const stored=await client.from('incoming_agent_settings').select('*').eq('id','system').maybeSingle();
+  if(stored.error)throw new MailError(503,'Incoming settings are unavailable.');
+  const autoReplyReady=typeof stored.data?.auto_reply_enabled==='boolean';
+  if(autoReply&&(!autoReplyReady||process.env.AUTO_MAIL_AUTO_REPLY_ENABLED!=='true'))throw new MailError(409,'Apply the controlled auto-replies migration and enable AUTO_MAIL_AUTO_REPLY_ENABLED on the server first.');
+  if(body.enabled&&(!stored.data?.enabled||autoReply)){
+   const agent=await readAgentSettings(client);if(!agent.storageReady||agent.settings.version===0)throw new MailError(409,'Save the email agent model settings before enabling incoming drafts.');
+   if(!(await effectiveAiConfiguration(client)).ready)throw new MailError(409,'Enable and configure AI reply suggestions before automatic drafting.');
+  }
+  const saved=await client.rpc('save_incoming_settings',{p_enabled:body.enabled,p_scope:body.scope,p_version:body.version,p_actor:session.id,...(autoReplyReady?{p_auto_reply_enabled:autoReply,p_min_confidence:minConfidence,p_max_auto_replies_per_hour:maxPerHour}:{})});
   if(saved.error)throw new MailError(String(saved.error.message).includes('AGENT_CONFLICT')?409:503,'Incoming draft settings changed or are unavailable. Reload before saving.');
   return response.json({settings:saved.data});
  }catch(error){return response.status(error instanceof MailError?error.status:503).json({error:error instanceof MailError?error.message:'Incoming draft settings are unavailable. Check the workflow migration.'});}
@@ -85,17 +94,29 @@ export async function runIncomingAi(request:any,response:any){
     const ack=await client.rpc('acknowledgement_body',{p_language:classification.language});if(ack.error)throw new Error();result.body_text=ack.data;
     if(decision==='KB'){
      const selected=sources.filter(source=>classification.source_ids.includes(source.id));
-     try{const output=await generateOpenAiDraft(config,started.data.scope,thread,selected);if(output.status!=='NO_ANSWER')result={...result,...output,status:'DRAFT_READY',draft_kind:'KB',sources:selected,review_notes:[classification.reason,output.review_notes,'Staff approval required.'].filter(Boolean).join(' ').slice(0,2000)};}catch{result.review_notes+=' KB drafting could not be verified; using a clarification draft.';}
+     try{
+      const output=await generateOpenAiDraft(config,started.data.scope,thread,selected);
+      if(output.status!=='NO_ANSWER'){
+       result={...result,...output,status:'DRAFT_READY',draft_kind:'KB',sources:selected,auto_send_eligible:false,review_notes:[classification.reason,output.review_notes,'Staff approval required unless the configured auto-reply checks pass.'].filter(Boolean).join(' ').slice(0,2000)};
+       if(started.data.auto_reply_enabled&&process.env.AUTO_MAIL_AUTO_REPLY_ENABLED==='true'&&output.status==='READY'&&Date.parse(latest.date)>=Date.parse(started.data.auto_reply_enabled_at)&&!autoReplyBlock(raw,connection.email)&&classification.confidence>=started.data.min_confidence){
+        try{const evaluation=await evaluateAutoReply(config,thread,selected,output.body_text,output.review_notes);result.auto_reply_evaluation=evaluation;result.auto_send_eligible=evaluation.grounded&&!evaluation.needs_human&&evaluation.confidence>=started.data.min_confidence;}catch{result.review_notes+=' Answer evaluation unavailable; staff review required.';}
+       }
+      }
+     }catch{result.review_notes+=' KB drafting could not be verified; using a clarification draft.';}
     }
    }
+   result.source_received_at=latest.date;
    const latestRaw=await gmailGet(access,`threads/${encodeURIComponent(thread.id)}?format=full`);if(threadSignature(presentThread(latestRaw,connection.email))!==job.conversation_hash)throw new Error('Conversation changed');
    const latestConfig=await effectiveAiConfiguration(client);if(!latestConfig.ready||latestConfig.model!==config.model)throw new Error('Agent changed');
-   const finished=await client.rpc('finish_incoming_message',{p_token:token,p_id:job.id,p_result:result});if(finished.error)throw new Error();job=null;processed=true;break;
+   const finished=await client.rpc('finish_incoming_message',{p_token:token,p_id:job.id,p_result:result});if(finished.error)throw new Error();
+   const completedJob=job;job=null;processed=true;
+   if(result.auto_send_eligible)await deliverAutoReply(client,token,completedJob,access,config.model!).catch(()=>{});
+   break;
   }
   if(scan.offset>=candidates.length)cursor=JSON.stringify(page.nextPageToken?{...scan,pageToken:page.nextPageToken,offset:0}:{after:scan.before,before:null,offset:0});
   return response.json({processed:processed?1:0});
  }catch{
   if(client&&job)await Promise.resolve(client.rpc('finish_incoming_message',{p_token:token,p_id:job.id,p_result:{status:'FAILED',review_notes:'Draft processing interrupted or context changed. Staff review required; no automatic retry.'}})).catch(()=>{});
-  return response.status(503).json({error:'Incoming draft worker needs review. No email was sent.'});
+  return response.status(503).json({error:'Incoming worker needs review. Check AI history and Gmail Sent before taking further action.'});
  }finally{if(client&&lease)await Promise.resolve(client.rpc('end_incoming_tick',{p_token:token,p_cursor:cursor})).catch(()=>{});}
 }

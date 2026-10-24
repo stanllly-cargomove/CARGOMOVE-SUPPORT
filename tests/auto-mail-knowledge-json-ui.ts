@@ -28,11 +28,13 @@ try {
     await page.evaluate(() => Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async (text: string) => { (window as any).copiedTemplate = text; } } }));
     await page.addScriptTag({ content: bundle.outputFiles[0].text });
     await page.getByRole('button', { name: 'New article' }).click();
-    await page.getByRole('button', { name: 'Copy JSON template' }).click();
+    await page.getByRole('button',{name:'Article options',exact:true}).click();
+    await page.getByRole('menuitem', { name: 'Copy JSON template' }).click();
     await page.getByText('JSON template copied.', { exact: false }).waitFor();
     const template = JSON.parse(await page.evaluate(() => (window as any).copiedTemplate));
     assert.deepEqual(Object.keys(template).sort(), ['category', 'content', 'keywords', 'port', 'summary', 'title']);
-    await page.getByRole('button', { name: 'Paste JSON', exact: true }).click();
+    await page.getByRole('button',{name:'Article options',exact:true}).click();
+    await page.getByRole('menuitem', { name: 'Paste JSON', exact: true }).click();
     const json = page.getByRole('textbox', { name: 'Article JSON', exact: true });
     const paste = async (text: string) => json.evaluate((element, value) => {
       const data = new DataTransfer(); data.setData('text', value);
@@ -59,13 +61,15 @@ try {
     await page.getByRole('button', { name: 'Save draft', exact: true }).click();
     await page.getByText('Draft saved.', { exact: false }).waitFor();
     assert.equal(saves, 1); assert.equal(saved.status, 'DRAFT');
-    await page.getByRole('button', { name: 'Paste JSON', exact: true }).click();
+    await page.getByRole('button',{name:'Article options',exact:true}).click();
+    await page.getByRole('menuitem', { name: 'Paste JSON', exact: true }).click();
     await paste(JSON.stringify({ ...article, id: 'other-article', version: 99, status: 'APPROVED' }));
     await page.getByRole('button', { name: 'Save draft', exact: true }).click();
     await page.getByText('Draft saved.', { exact: false }).waitFor();
     assert.equal(saved.id, 'article-1'); assert.equal(saved.version, 2); assert.equal(saved.status, 'DRAFT');
     await page.evaluate(() => Object.defineProperty(navigator, 'clipboard', { value: undefined }));
-    await page.getByRole('button', { name: 'Copy JSON template' }).click();
+    await page.getByRole('button',{name:'Article options',exact:true}).click();
+    await page.getByRole('menuitem', { name: 'Copy JSON template' }).click();
     await page.getByText('Clipboard is unavailable.', { exact: false }).waitFor();
     assert.deepEqual(JSON.parse(await json.inputValue()), template, 'Copy failure offers a selectable template');
     assert.deepEqual(errors, []);

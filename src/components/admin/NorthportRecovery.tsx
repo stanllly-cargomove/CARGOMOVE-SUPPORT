@@ -109,14 +109,14 @@ function FileEditorDialog({ children, busy, onClose, label = 'Container file edi
     {footer&&<div className="northport-dialog-footer shrink-0 border-t border-slate-100 bg-white p-3 sm:p-5">{footer}</div>}
   </dialog>;
 }
-type RecoveryConfirmation = { action: 'scheduler' | 'resume-reprocess'; container: string; payload: Record<string,unknown> };
+type RecoveryConfirmation = { action: 'resume-reprocess'; container: string; payload: Record<string,unknown> };
 function RecoveryConfirmationDialog({ confirmation, onCancel, onConfirm }: { confirmation: RecoveryConfirmation; onCancel: () => void; onConfirm: () => void }) {
   const ref=useRef<HTMLDialogElement>(null);
   useEffect(()=>{const dialog=ref.current;dialog?.showModal();return()=>dialog?.close();},[]);
   return <dialog ref={ref} role="alertdialog" aria-labelledby="northport-confirm-title" aria-describedby="northport-confirm-description" onCancel={event=>{event.preventDefault();onCancel();}} className="northport-confirm-dialog m-auto w-[calc(100vw-2rem)] max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl backdrop:bg-slate-950/50">
-    <h3 id="northport-confirm-title" className="text-base font-bold text-slate-900">{confirmation.action==='resume-reprocess'?'Resume reprocessing?':'Run Northport scheduler?'}</h3>
-    <p id="northport-confirm-description" className="mt-2 text-sm leading-6 text-slate-600">{confirmation.action==='resume-reprocess'?`Upload the previously approved file for ${confirmation.container}, then request Northport processing? The saved approval and source file will be verified first.`:`Run the Northport scheduler for the uploaded recovery for ${confirmation.container}?`}</p>
-    <div className="mt-5 grid grid-cols-2 gap-2"><button type="button" autoFocus className={secondaryClass} onClick={onCancel}>Cancel</button><button type="button" className={reprocessButtonClass} onClick={onConfirm}>{confirmation.action==='resume-reprocess'?'Upload & Reprocess':'Run scheduler'}</button></div>
+    <h3 id="northport-confirm-title" className="text-base font-bold text-slate-900">Resume reprocessing?</h3>
+    <p id="northport-confirm-description" className="mt-2 text-sm leading-6 text-slate-600">{`Upload the previously approved file for ${confirmation.container}, then request Northport processing? The saved approval and source file will be verified first.`}</p>
+    <div className="mt-5 grid grid-cols-2 gap-2"><button type="button" autoFocus className={secondaryClass} onClick={onCancel}>Cancel</button><button type="button" className={reprocessButtonClass} onClick={onConfirm}>Upload & Reprocess</button></div>
   </dialog>;
 }
 function FileZillaIcon() {
@@ -250,7 +250,8 @@ function rangeTime(value: string, minutes: number) {
   return Number.isFinite(ms) ? displayTime(new Date(ms+8*3600000).toISOString().slice(0,16)) : 'Enter a timestamp';
 }
 export function NorthportRecovery({ onBack, active = true }: { onBack: () => void; active?: boolean }) {
-  const [form,setForm] = useState({unit:'',timestamp:'',type:'GP',before:10,after:30,sourceFilename:'',mode:'standard' as SearchMode});
+  const emptySearch = () => ({unit:'',timestamp:'',type:'GP',before:10,after:30,sourceFilename:'',mode:'standard' as SearchMode});
+  const [form,setForm] = useState(emptySearch);
   const [showExactFilename,setShowExactFilename] = useState(false);
   const [connectionOptions,setConnectionOptions] = useState(false);
   const [filenameOptions,setFilenameOptions] = useState(false);
@@ -376,7 +377,12 @@ export function NorthportRecovery({ onBack, active = true }: { onBack: () => voi
       const requested={...row,in_progress:true};
       activeRecovery.current=requested;
       setHistory(previous=>[requested,...previous.filter(item=>item.id!==row.id)]);
-      setSelected(null);setReview(false);setApproved(null);setHistoryDetail(null);
+      // The submitted payload belongs to this recovery; discard every lookup token/draft
+      // before notifying so later searches or closing an editor cannot cancel that attempt.
+      setForm(emptySearch());setShowExactFilename(false);setFilenameOptions(false);setConnectionOptions(false);
+      lastSearchSetup.current=null;setResults([]);setSearchSummary(null);setDisplayProgress(0);
+      setSelected(null);setValues([]);setDrafts({});setEditorFile(null);setEditorError('');setContainerFile(null);
+      setReview(false);setIdentityConfirmed(false);setApproved(null);setHistoryDetail(null);
       setMessage(`${row.container} recovery requested.`);
     };
     const checkGpAfterScheduler = async (id:string,containerType?:string) => {
@@ -461,7 +467,6 @@ export function NorthportRecovery({ onBack, active = true }: { onBack: () => voi
         const admitted={...activeRecovery.current!,id:approval.recovery.id,status:'Approved'};
         activeRecovery.current=admitted;
         setHistory(previous=>[admitted,...previous.filter(row=>row.id!==temporaryId&&row.id!==approval.recovery.id)]);
-        setApproved({id:approval.recovery.id});
         if(approval.uploadsEnabled!==true){setEnabled(false);throw new Error('The file was approved, but production uploads are disabled. No file was sent.');}
         setBusy('reprocess-cooldown');setReprocessAvailableAt(Date.now()+5100);setCooldownClock(Date.now());
         await batchPause(5100,controller.signal);
@@ -600,7 +605,7 @@ export function NorthportRecovery({ onBack, active = true }: { onBack: () => voi
           </div></div>
           <div className="northport-search-actions flex items-center gap-2">
             <button disabled={!!busy} className={buttonClass+' min-h-11 whitespace-nowrap'} type="submit">{busy==='search'?<Loader2 aria-hidden="true" className="h-4 w-4 animate-spin"/>:<Search aria-hidden="true" className="h-4 w-4"/>}Search</button>
-            {busy==='search'?<button type="button" aria-label="Cancel Search" title="Cancel Search" className="inline-flex h-11 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" onClick={()=>searchController.current?.abort()}><X aria-hidden="true" className="h-4 w-4"/></button>:<button type="button" aria-label="Clear" title="Clear search" className="inline-flex h-11 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-50" disabled={!!busy} onClick={()=>{if(pending.current)return;setForm({unit:'',timestamp:'',type:'GP',before:10,after:30,sourceFilename:'',mode:'standard'});setShowExactFilename(false);setFilenameOptions(false);setResults([]);setSearchSummary(null);setDisplayProgress(0);setSelected(null);setApproved(null);setError('');setMessage('');}}><RefreshCw aria-hidden="true" className="h-4 w-4"/></button>}
+            {busy==='search'?<button type="button" aria-label="Cancel Search" title="Cancel Search" className="inline-flex h-11 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" onClick={()=>searchController.current?.abort()}><X aria-hidden="true" className="h-4 w-4"/></button>:<button type="button" aria-label="Clear" title="Clear search" className="inline-flex h-11 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-50" disabled={!!busy} onClick={()=>{if(pending.current)return;setForm(emptySearch());setShowExactFilename(false);setFilenameOptions(false);setResults([]);setSearchSummary(null);setDisplayProgress(0);setSelected(null);setApproved(null);setError('');setMessage('');}}><RefreshCw aria-hidden="true" className="h-4 w-4"/></button>}
           </div>
         </div>
       </form>
@@ -666,9 +671,8 @@ export function NorthportRecovery({ onBack, active = true }: { onBack: () => voi
           <p className="truncate text-xs text-slate-600" title={row.source_filename}>{row.source_filename}</p>
           <time className="mt-1 block text-[11px] text-slate-500" dateTime={row.created_at}>{new Date(row.created_at).toLocaleString('en-GB',{timeZone:'Asia/Kuala_Lumpur',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})} MYT</time>
         </button>
-        {row.status==='Uploaded'&&!row.scheduler_status&&row.manual_review?.outcome!=='SUCCESS'&&<button type="button" disabled={!!busy} className={secondaryClass+' mt-3 w-full'} onClick={()=>{setConfirmation({action:'scheduler',container:row.container,payload:{id:row.id}});}}>Run scheduler</button>}
       </article>)}</div>
-      <div className="northport-history-table-wrap hidden min-w-0 md:block"><table className="northport-history-table text-left text-xs"><thead className="border-y border-slate-100 bg-slate-50"><tr>{['Container','Type','Source file','Submitted by','Time','Modification','Status'].map(h=><th scope="col" key={h} className={tableHeadingClass+' whitespace-nowrap '+(['Type','Submitted by','Time','Modification','Status'].includes(h)?'text-center':'')}>{h}</th>)}</tr></thead><tbody>{history.map(row=><tr key={row.id} className="border-b border-slate-100 last:border-0"><td className="px-4 py-2 align-middle"><button type="button" className="font-semibold text-blue-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" onClick={()=>setHistoryDetail(row)}>{row.container}</button></td><td className="px-2 py-2 align-middle text-center text-slate-600">{row.container_type}</td><td className="px-4 py-2 align-middle text-slate-600" title={row.source_filename}><span className="block">{row.source_filename}</span></td><td className="px-2 py-2 align-middle text-center text-slate-600">{row.submitted_by.split('@')[0]}</td><td className="whitespace-nowrap px-2 py-2 align-middle text-center text-slate-600"><time dateTime={row.created_at}><span className="inline-block whitespace-nowrap">{new Date(row.created_at).toLocaleDateString('en-GB',{timeZone:'Asia/Kuala_Lumpur'})}</span>{' '}<span className="inline-block whitespace-nowrap">{new Date(row.created_at).toLocaleTimeString('en-GB',{timeZone:'Asia/Kuala_Lumpur'})} MYT</span></time></td><td className="px-2 py-2 align-middle text-center text-slate-600">{row.changed_fields.join(', ')||'None'}</td><td className="px-2 py-2 align-middle text-center"><HistoryStatus recovery={row}/>{row.status==='Uploaded'&&!row.scheduler_status&&row.manual_review?.outcome!=='SUCCESS'&&<div className="mt-1 flex flex-col items-center gap-0.5"><button className="text-[10px] text-blue-700 hover:underline" disabled={!!busy} onClick={()=>{setConfirmation({action:'scheduler',container:row.container,payload:{id:row.id}});}}>Run scheduler</button><button className="text-[10px] text-slate-500 hover:underline" disabled={!!busy} onClick={()=>setMessage('Process Later selected. The existing production scheduler may process the uploaded file on its normal schedule. Import verification is unavailable.')}>Process later</button></div>}</td></tr>)}</tbody></table></div>
+      <div className="northport-history-table-wrap hidden min-w-0 md:block"><table className="northport-history-table text-left text-xs"><thead className="border-y border-slate-100 bg-slate-50"><tr>{['Container','Type','Source file','Submitted by','Time','Modification','Status'].map(h=><th scope="col" key={h} className={tableHeadingClass+' whitespace-nowrap '+(['Type','Submitted by','Time','Modification','Status'].includes(h)?'text-center':'')}>{h}</th>)}</tr></thead><tbody>{history.map(row=><tr key={row.id} className="border-b border-slate-100 last:border-0"><td className="px-4 py-2 align-middle"><button type="button" className="font-semibold text-blue-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" onClick={()=>setHistoryDetail(row)}>{row.container}</button></td><td className="px-2 py-2 align-middle text-center text-slate-600">{row.container_type}</td><td className="px-4 py-2 align-middle text-slate-600" title={row.source_filename}><span className="block">{row.source_filename}</span></td><td className="px-2 py-2 align-middle text-center text-slate-600">{row.submitted_by.split('@')[0]}</td><td className="whitespace-nowrap px-2 py-2 align-middle text-center text-slate-600"><time dateTime={row.created_at}><span className="inline-block whitespace-nowrap">{new Date(row.created_at).toLocaleDateString('en-GB',{timeZone:'Asia/Kuala_Lumpur'})}</span>{' '}<span className="inline-block whitespace-nowrap">{new Date(row.created_at).toLocaleTimeString('en-GB',{timeZone:'Asia/Kuala_Lumpur'})} MYT</span></time></td><td className="px-2 py-2 align-middle text-center text-slate-600">{row.changed_fields.join(', ')||'None'}</td><td className="px-2 py-2 align-middle text-center"><HistoryStatus recovery={row}/></td></tr>)}</tbody></table></div>
       {!history.length&&!historyError&&<div className="flex flex-col items-center gap-2 py-3 text-center text-xs text-slate-500"><span aria-hidden="true" className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-400"><FileClock className="h-5 w-5"/></span><p>No recovery approvals yet.</p></div>}
       </div>
     </section>
@@ -680,7 +684,6 @@ export function NorthportRecovery({ onBack, active = true }: { onBack: () => voi
           {historyDetail.status==='Approved'&&recoveryFlow(historyDetail).label!=='CANCELLED'&&<button type="button" disabled={!!busy} className={cancelButtonClass} onClick={()=>void action('cancel-approved',{id:historyDetail.id})}>Cancel recovery</button>}
           {recoveryFlow(historyDetail).label==='PROCESSING'&&['Uploaded','Scheduler Triggered','Processing','Verification Unavailable'].includes(historyDetail.status)&&<button type="button" disabled={!!busy} className={buttonClass} onClick={()=>void action('verify-result',{id:historyDetail.id})}>{historyDetail.container_type==='GP'?'Check GP in CargoMove':'Check scheduler in CargoMove'}</button>}
           {historyDetail.status==='Approved'&&<button type="button" disabled={!enabled||!!busy} className={reprocessButtonClass} onClick={()=>setConfirmation({action:'resume-reprocess',container:historyDetail.container,payload:{id:historyDetail.id}})}><RefreshCw className="h-4 w-4"/>Resume reprocessing</button>}
-          {historyDetail.status==='Uploaded'&&!historyDetail.scheduler_status&&historyDetail.manual_review?.outcome!=='SUCCESS'&&<button type="button" disabled={!!busy} className={buttonClass} onClick={()=>setConfirmation({action:'scheduler',container:historyDetail.container,payload:{id:historyDetail.id}})}>Run scheduler</button>}
         </>}
       </div>
       }>

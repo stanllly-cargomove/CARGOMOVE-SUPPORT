@@ -5,7 +5,7 @@ import type { MailInitializationProgress } from '../../services/autoMailInitiali
 
 export function AutoMailInitialization({ progress, error, onRetry }: { progress: MailInitializationProgress; error: string; onRetry: () => void }) {
   const gradient = useId();
-  const percent = progress.completed * 25;
+  const percent = Math.round(progress.completed / Math.max(1, progress.steps.length) * 100);
   return <section aria-label="Initializing Auto Mail" className="flex h-[calc(100dvh-48px)] min-h-[400px] items-center justify-center bg-white px-6">
     <div className="w-full max-w-sm text-center">
       <svg viewBox="0 0 200 160" aria-hidden="true" className="mx-auto mb-10 h-32 w-40 sm:h-40 sm:w-48">
@@ -16,7 +16,7 @@ export function AutoMailInitialization({ progress, error, onRetry }: { progress:
       </svg>
       <div className="flex items-baseline justify-center gap-2"><h2 className="text-2xl font-semibold tracking-tight text-slate-800">AUTO MAIL</h2><span aria-label={`Auto Mail version ${AUTO_MAIL_VERSION}`} className="font-mono text-[11px] text-slate-400">v{AUTO_MAIL_VERSION}</span></div>
       <p className="mt-2 text-sm text-slate-500">Preparing your mailbox</p>
-      <div role="progressbar" aria-label="Mailbox initialization progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent} aria-valuetext={`${progress.completed} of 4 steps complete`} className="mt-7 h-1.5 overflow-hidden rounded-full bg-slate-100">
+      <div role="progressbar" aria-label="Mailbox initialization progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent} aria-valuetext={`${progress.completed} of ${progress.steps.length} steps complete`} className="mt-7 h-1.5 overflow-hidden rounded-full bg-slate-100">
         <div className="h-full rounded-full bg-sky-500 transition-[width] duration-300 motion-reduce:transition-none" style={{width:`${percent}%`}}/>
       </div>
       <p aria-live="polite" className="mt-2 text-xs text-slate-400">{percent}%</p>

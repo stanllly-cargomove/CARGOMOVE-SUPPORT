@@ -22,16 +22,18 @@ try {
     const sibling=Array(20).fill('');sibling[0]='OTHER123';sibling[1]='000123';
     const original=Buffer.from(NORTHPORT_COLUMNS.join(',')+'\r\n'+sibling.join(',')+'\r\n'+values.join(',')+'\r\n');
     let downloads=0;
-    let approvals=0,uploads=0,schedulers=0,editorLoads=0;
+    let approvals=0,uploads=0,schedulers=0,editorLoads=0,cancellations=0;
+    const savedHistory:any[]=[];
+    let holdSearch=false;let finishSearch:(()=>void)|undefined;
     let mode:'success'|'approval-failed'|'upload-failed'|'scheduler-failed'|'disabled'|'rate-limit'='success';
     let rateDenied=false;
     const order:string[]=[];
     await page.route('**/*',async route=>{
       const url=new URL(route.request().url());assert.equal(url.origin,'http://northport.test');
       if(url.pathname==='/api/dev-tools/northport-recovery') {
-        if(route.request().method()==='GET')return route.fulfill({json:{history:[],uploadsEnabled:true,missingGates:[]}});
+        if(route.request().method()==='GET')return route.fulfill({json:{history:savedHistory,uploadsEnabled:true,missingGates:[]}});
         const body=route.request().postDataJSON();
-        if(body.action==='search')return route.fulfill({json:{matches:[{filename:'CM_CONTAINER_20261018005309_GP.csv',type:'GP',timestamp:'2026-10-18T00:53:09',record:2,totalRecords:2,values,token:'test-token'}],errors:[],complete:true,candidates:1,listed:1}});
+        if(body.action==='search'){if(holdSearch)await new Promise<void>(resolve=>{finishSearch=resolve;});return route.fulfill({json:{matches:[{filename:'CM_CONTAINER_20261018005309_GP.csv',type:'GP',timestamp:'2026-10-18T00:53:09',record:2,totalRecords:2,values,token:'test-token'}],errors:[],complete:true,candidates:1,listed:1}});}
         if(body.action==='editor-records'){editorLoads++;return route.fulfill({json:{filename:'CM_CONTAINER_20261018005309_GP.csv',rows:[sibling,values],editorToken:'editor-token'}});}
         if(body.action==='download-reprocess'){
           downloads++;assert.equal(body.sourceKind,'editor');assert.equal(body.record,2);
@@ -41,18 +43,19 @@ try {
           if(mode==='rate-limit'&&!rateDenied){rateDenied=true;return route.fulfill({status:429,json:{error:'Please wait a few seconds.'}});}
           approvals++;order.push('approve');assert.equal(body.approved,true);assert.equal(body.values[0],values[0]);
           if(mode==='approval-failed')return route.fulfill({status:503,json:{error:'Approval outcome unavailable. Check history.'}});
+          savedHistory.unshift({id:'approved-'+approvals,container:values[0],container_type:'GP',source_filename:'CM_CONTAINER_20261018005300_GP.csv',submitted_by:'test@example.test',created_at:new Date().toISOString(),changed_fields:['SRV'],status:'Approved'});
           return route.fulfill({json:{recovery:{id:'approved-'+approvals},uploadsEnabled:mode!=='disabled'}});
         }
         if(body.action==='upload'){
-          uploads++;order.push('upload');assert.equal(body.id,'approved-'+approvals);
+          uploads++;savedHistory[0].status='Uploaded';order.push('upload');assert.equal(body.id,'approved-'+approvals);
           return mode==='upload-failed'?route.fulfill({status:502,json:{error:'Upload outcome uncertain.'}}):route.fulfill({json:{status:'Uploaded'}});
         }
         if(body.action==='scheduler'){
-          schedulers++;order.push('scheduler');assert.deepEqual(Object.keys(body).sort(),['action','id']);
+          schedulers++;savedHistory[0].status='Scheduler Triggered';order.push('scheduler');assert.deepEqual(Object.keys(body).sort(),['action','id']);
           return mode==='scheduler-failed'?route.fulfill({status:502,json:{message:'Scheduler request failed.'}}):route.fulfill({json:{status:'Scheduler Triggered',executionId:'hidden-execution-id'}});
         }
-        if(body.action==='verify-gp'){order.push('verify-gp');return route.fulfill({json:{status:'Pending Verification',message:'GP result not verified yet.'}});}
-        if(body.action==='cancel')return route.fulfill({json:{status:'Cancelled',message:'Container recovery cancelled. No file was uploaded.'}});
+        if(body.action==='verify-gp'){savedHistory[0].status='Import Verified';savedHistory[0].gp_verification={status:'VERIFIED'};order.push('verify-gp');return route.fulfill({json:{status:'Pending Verification',message:'GP result not verified yet.'}});}
+        if(body.action==='cancel'){cancellations++;return route.fulfill({json:{status:'Cancelled',message:'Container recovery cancelled. No file was uploaded.'}});}
         throw new Error('Unexpected action '+body.action);
       }
       if(url.pathname==='/styles.css')return route.fulfill({contentType:'text/css',body:css});
@@ -64,6 +67,11 @@ try {
     await page.getByRole('button',{name:'Search',exact:true}).click();
     const editor=page.getByRole('dialog',{name:'Container file editor',exact:true});
     const openEditor=async()=>{
+      if(await page.getByRole('button',{name:'Record actions',exact:true}).count()===0) {
+        await page.getByLabel('Container No.',{exact:true}).fill(values[0]);
+        await selectEirTime(page,'2026-10-18T00:53');
+        await page.getByRole('button',{name:'Search',exact:true}).click();
+      }
       await page.getByRole('button',{name:'Record actions',exact:true}).click();
       await page.getByRole('button',{name:'Reprocess',exact:true}).click();
       await editor.getByRole('heading',{name:`View/Edit File — ${values[0]}`,exact:true}).waitFor();
@@ -134,11 +142,32 @@ try {
     await saveAndApprove();
     await editor.waitFor({state:'hidden'});
     await page.getByText(`${values[0]} recovery requested.`,{exact:true}).waitFor();
+    assert.equal(await page.getByLabel('Container No.',{exact:true}).inputValue(),'');
+    assert.match(await page.getByRole('button',{name:'EIR time (Malaysia)',exact:true}).textContent()||'',/Select date & time/);
+    assert.equal(await page.getByRole('button',{name:'Record actions',exact:true}).count(),0,'Submitted lookup results are discarded immediately');
+    assert.equal(await page.getByRole('progressbar').count(),0);
+
     assert.equal(await page.getByRole('alertdialog').count(),0,'No extra confirmation is needed');
     const processingHistory=page.locator(width<768?'.northport-history-cards':'.northport-history-table');
     await processingHistory.getByText('PROCESSING',{exact:true}).waitFor();
     await finishProcessing();
     assert.deepEqual(order,['approve','upload','scheduler','verify-gp']);
+    assert.equal(cancellations,0);
+    assert.equal(await page.getByRole('button',{name:'Run scheduler',exact:true}).count(),0);
+    assert.equal(await page.getByRole('button',{name:'Process later',exact:true}).count(),0);
+    const processedStatus=savedHistory[0].status;
+    await page.getByRole('button',{name:'Clear',exact:true}).click();
+    await page.getByLabel('Container No.',{exact:true}).fill('OTHER123');
+    await selectEirTime(page,'2026-10-18T00:53');
+    holdSearch=true;
+    await page.getByRole('button',{name:'Search',exact:true}).click();
+    await page.getByRole('button',{name:'Cancel Search',exact:true}).click();
+    finishSearch?.();holdSearch=false;
+    await page.getByRole('button',{name:'Refresh History',exact:true}).waitFor();
+    await page.waitForFunction(()=>!(document.querySelector('button[title="Clear search"]') as HTMLButtonElement)?.disabled);
+    assert.equal(cancellations,0,'Clearing or cancelling a new search cannot cancel a submitted recovery');
+    assert.equal(savedHistory[0].status,processedStatus);
+
     assert.equal((await page.locator('body').innerText()).includes('hidden-execution-id'),false);
     for(const failure of ['approval-failed','upload-failed','scheduler-failed','disabled'] as const) {
       mode=failure;const beforeUploads=uploads,beforeSchedulers=schedulers;

@@ -110,3 +110,21 @@ test('KB endpoints require ADMIN and same origin, use session actor and never ca
     for (const key of Object.keys(overrides)) { if (originals[key] === undefined) delete process.env[key]; else process.env[key] = originals[key]; }
   }
 });
+
+
+test('KB page sizes preserve literal search and return exact slices across the legacy 25-row boundary',async()=>{
+  const env={AUTO_MAIL_ENABLED:'true',AUTO_MAIL_SUPABASE_URL:'https://kb-development.supabase.co',AUTO_MAIL_SUPABASE_SERVICE_ROLE_KEY:'test-key',SUPABASE_URL:'https://main.supabase.co',VITE_SUPABASE_URL:'https://main.supabase.co',VERCEL_ENV:'development',SESSION_SECRET:'kb-test-session'};
+  const before=Object.fromEntries(Object.keys(env).map(key=>[key,process.env[key]]));Object.assign(process.env,env);const original=globalThis.fetch;
+  const articles=Array.from({length:67},(_,index)=>({id:'article-'+index,title:'Registration '+index,status:'APPROVED'}));
+  const calls:any[]=[];
+  globalThis.fetch=(async(input:any,init:any)=>{assert.equal(new URL(String(input)).hostname,'kb-development.supabase.co');const body=JSON.parse(init.body);calls.push(body);assert.equal(body.p_query,'Registration');assert.equal(body.p_status,'APPROVED');return new Response(JSON.stringify({articles:articles.slice(body.p_offset,body.p_offset+25),total:articles.length}));}) as typeof fetch;
+  const cookie='cargomove_session='+signSession({id:actor,email:'admin@example.com',type:'ADMIN',exp:Date.now()+60000});
+  try{
+    for(const pageSize of [20,30,50])for(const offset of [0,pageSize,pageSize*2]){
+      const res={code:200,value:null as any,setHeader(){},status(code:number){this.code=code;return this;},json(value:any){this.value=value;}};
+      await knowledgeList({method:'GET',headers:{cookie},query:{q:' Registration ',status:'APPROVED',pageSize,offset}},res);
+      assert.equal(res.code,200);assert.equal(res.value.total,67);assert.deepEqual(res.value.articles,articles.slice(offset,offset+pageSize));
+    }
+    assert.ok(calls.length>0);
+  }finally{globalThis.fetch=original;for(const key of Object.keys(env)){if(before[key]===undefined)delete process.env[key];else process.env[key]=before[key];}}
+});

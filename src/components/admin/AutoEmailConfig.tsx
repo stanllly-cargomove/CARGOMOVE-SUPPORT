@@ -1,63 +1,53 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, BookOpen, GraduationCap, RefreshCw, Settings } from 'lucide-react';
-import { AutoMailKnowledge } from './AutoMailKnowledge';
-import { AutoMailLearning } from './AutoMailLearning';
+import React, { useId, useState } from 'react';
+import { ArrowLeft, ArrowUpRight, Loader2 } from 'lucide-react';
 import { AutoMailAgentSettings } from './AutoMailAgentSettings';
-import { knowledgeRequest } from '../../services/autoMailKnowledge';
+import { AutoMailIncomingSettings } from './AutoMailIncomingSettings';
+import { motion, useReducedMotion } from 'motion/react';
+import { type SettingsStatus, settingsSecondary } from './AutoMailSettingsUi';
 
-export type AutoEmailConfigTab = 'knowledge' | 'learning' | 'agent';
-const tabs = [
-  { id: 'knowledge', label: 'Knowledge Base', icon: BookOpen },
-  { id: 'learning', label: 'Learning review', icon: GraduationCap },
-  { id: 'agent', label: 'Email agent', icon: Settings },
-] as const;
+// ChatGPT mark: https://commons.wikimedia.org/wiki/File:ChatGPT_logo.svg (OpenAI / Zhing Za).
+const chatgptPath = 'M1107.3 299.1c-197.999 0-373.9 127.3-435.2 315.3L650 743.5v427.9c0 21.4 11 40.4 29.4 51.4l344.5 198.515V833.3h.1v-27.9L1372.7 604c33.715-19.52 70.44-32.857 108.47-39.828L1447.6 450.3C1361 353.5 1237.1 298.5 1107.3 299.1zm0 117.5-.6.6c79.699 0 156.3 27.5 217.6 78.4-2.5 1.2-7.4 4.3-11 6.1L952.8 709.3c-18.4 10.4-29.4 30-29.4 51.4V1248l-155.1-89.4V755.8c-.1-187.099 151.601-338.9 339-339.2z';
 
-export function AutoEmailConfig({ onBack, initialTab = 'knowledge' }: { onBack: () => void; initialTab?: AutoEmailConfigTab }) {
-  const [tab, setTab] = useState<AutoEmailConfigTab>(initialTab);
-  const [status, setStatus] = useState<{ knowledgeReady: boolean; learningReady: boolean; message: string } | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [attempt, setAttempt] = useState(0);
-  const [revision, setRevision] = useState(0);
-  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
-  useEffect(() => {
-    tabRefs.current[tabs.findIndex(item => item.id === tab)]?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-  }, [tab]);
-  useEffect(() => {
-    const controller = new AbortController(); setLoading(true); setError('');
-    void knowledgeRequest<NonNullable<typeof status>>('status', undefined, controller.signal)
-      .then(result => { if (!controller.signal.aborted) setStatus(result); })
-      .catch(reason => { if (!controller.signal.aborted) { setStatus(null); setError(reason.message); } })
-      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
-    return () => controller.abort();
-  }, [attempt]);
-
-  return <section className="space-y-4">
-    <div><h2 className="text-xl font-bold text-slate-900">Auto Email Config</h2><p className="mt-1 text-sm text-slate-500">Manage approved support knowledge and review learning from sent replies.</p></div>
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <button type="button" onClick={onBack} className="inline-flex items-center gap-2 text-sm text-slate-600 hover:text-sky-700"><ArrowLeft className="h-4 w-4" />Dev Setting</button>
-      <button type="button" disabled={loading} onClick={() => setAttempt(value => value + 1)} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs disabled:opacity-50"><RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />Check connection</button>
+export function AutoEmailConfig({ onBack, onOpenMail }: { onBack: () => void; onOpenMail?: () => void }) {
+  const [modelDirty, setModelDirty] = useState(false);
+  const [incomingDirty, setIncomingDirty] = useState(false);
+  const [refreshToken, setRefreshToken] = useState(0);
+  const [modelStatus, setModelStatus] = useState<SettingsStatus>({ busy: true, ready: false, error: false });
+  const [incomingStatus, setIncomingStatus] = useState<SettingsStatus>({ busy: true, ready: false, error: false });
+  const tooltipId = useId();
+  const reducedMotion = useReducedMotion();
+  const busy = modelStatus.busy || incomingStatus.busy;
+  const failed = modelStatus.error || incomingStatus.error;
+  const ready = modelStatus.ready && incomingStatus.ready;
+  const status = busy ? 'Checking AI settings...' : failed ? 'Unable to refresh AI settings' : ready ? 'AI configured' : 'AI is off or needs setup';
+  const leave = (action: () => void) => {
+    if (!(modelDirty || incomingDirty) || window.confirm('Discard unsaved email settings?')) action();
+  };
+  return <section aria-label="Auto Email configuration" className="min-w-0 space-y-5">
+    <div className="flex items-start justify-between gap-4">
+      <div><h2 className="text-xl font-bold tracking-tight text-slate-900">Auto Email Config</h2><p className="mt-1 text-xs leading-5 text-slate-500">Choose how AI prepares and sends support replies.</p></div>
+      <div className="group relative shrink-0">
+        <motion.button type="button" aria-label="Refresh AI settings" aria-describedby={tooltipId} aria-busy={busy} disabled={busy}
+          onClick={() => leave(() => {
+            setModelStatus(current => ({ ...current, busy: true }));
+            setIncomingStatus(current => ({ ...current, busy: true }));
+            setRefreshToken(value => value + 1);
+          })}
+          whileHover={reducedMotion ? undefined : { y: -2, rotate: [0, -7, 7, 0], scale: 1.08 }} whileTap={reducedMotion ? undefined : { scale: 0.94 }} transition={{ duration: 0.35 }}
+          className="relative inline-flex h-12 w-12 items-center justify-center rounded-full border border-slate-200 bg-white shadow-sm outline-none transition-shadow hover:shadow-lg focus-visible:ring-2 focus-visible:ring-blue-500 disabled:cursor-wait disabled:opacity-60">
+          {busy ? <Loader2 aria-hidden="true" className="h-7 w-7 animate-spin motion-reduce:animate-none text-slate-500" /> : <svg viewBox="0 0 2406 2406" aria-hidden="true" className="h-7 w-7 text-slate-900">{[0, 60, 120, 180, 240, 300].map(angle => <path key={angle} d={chatgptPath} fill="currentColor" transform={`rotate(${angle} 1203 1203)`} />)}</svg>}
+          <span aria-hidden="true" data-ai-status={busy ? 'loading' : failed ? 'error' : ready ? 'ready' : 'inactive'} className={`absolute bottom-0.5 right-0.5 h-3 w-3 rounded-full border-2 border-white ${busy ? 'bg-slate-400' : failed ? 'bg-rose-500' : ready ? 'bg-emerald-500' : 'bg-amber-400'}`} />
+        </motion.button>
+        <div id={tooltipId} role="tooltip" className="pointer-events-none absolute right-0 top-full z-30 mt-2 w-56 rounded-lg bg-slate-900 px-3 py-2 text-xs text-white opacity-0 shadow-xl transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+          <span className="block font-semibold">ChatGPT: {status}</span><span className="mt-1 block text-slate-300">Click to refresh both settings cards. Status reflects saved configuration.</span>
+        </div>
+      </div>
     </div>
-    {loading && <p role="status" className="text-sm text-slate-500">Checking Auto Email configuration...</p>}
-    {error && <p role="alert" className="rounded-lg bg-amber-50 p-4 text-sm text-amber-800">{error}</p>}
-    <div>
-    <div className="overflow-x-auto"><div role="tablist" aria-label="Auto Email Config" className="ml-[0.5px] flex w-fit items-end pt-1">
-      {tabs.map((item, index) => <button key={item.id} ref={element => { tabRefs.current[index] = element; }} type="button" id={`auto-email-config-tab-${item.id}`} role="tab" aria-selected={tab === item.id} aria-controls={`auto-email-config-panel-${item.id}`} tabIndex={tab === item.id ? 0 : -1}
-        onClick={() => setTab(item.id)} onKeyDown={event => {
-          const next = event.key === 'ArrowRight' ? (index + 1) % tabs.length : event.key === 'ArrowLeft' ? (index + tabs.length - 1) % tabs.length : event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : null;
-          if (next !== null) { event.preventDefault(); setTab(tabs[next].id); tabRefs.current[next]?.focus(); }
-        }} className={`admin-registration-tab relative -mr-px inline-flex h-10 min-w-[152px] shrink-0 items-center justify-center gap-2 rounded-t-lg border px-3 text-xs font-bold uppercase tracking-wider transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky-500 ${tab === item.id ? 'z-10 border-slate-400 border-b-transparent bg-[#CBD5E1] text-slate-900' : 'border-slate-300 bg-[#F1F5F9] text-slate-500 hover:bg-slate-200 hover:text-slate-900'}`}><item.icon className="h-4 w-4 shrink-0" />{item.label}</button>)}
-    </div></div>
-    <div className="rounded-b-xl rounded-tr-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-    {/* Keep both editors mounted across tab changes so unsaved review work is preserved. */}
-    <div id="auto-email-config-panel-knowledge" role="tabpanel" aria-labelledby="auto-email-config-tab-knowledge" hidden={tab !== 'knowledge'} tabIndex={0}>
-      {status && (status.knowledgeReady ? <AutoMailKnowledge ready refreshToken={attempt + revision} /> : <p className="rounded-lg bg-amber-50 p-4 text-sm text-amber-800">{status.message || 'Knowledge base setup is not ready. Check the Auto Mail database configuration.'}</p>)}
-    </div>
-    <div id="auto-email-config-panel-learning" role="tabpanel" aria-labelledby="auto-email-config-tab-learning" hidden={tab !== 'learning'} tabIndex={0}>
-      {status && <AutoMailLearning ready={!!status.learningReady} refreshToken={attempt} onReviewed={() => setRevision(value => value + 1)} />}
-    </div>
-    <div id="auto-email-config-panel-agent" role="tabpanel" aria-labelledby="auto-email-config-tab-agent" hidden={tab !== 'agent'} tabIndex={0}><AutoMailAgentSettings /></div>
-    </div>
-    </div>
+    <nav aria-label="Email settings navigation" className="flex flex-nowrap items-center justify-between gap-2">
+      <button type="button" aria-label="Dev Setting" onClick={() => leave(onBack)} className={settingsSecondary}><ArrowLeft aria-hidden="true" className="h-4 w-4" />Back</button>
+      {onOpenMail && <button type="button" onClick={() => leave(onOpenMail)} className={settingsSecondary}>Auto Mail<ArrowUpRight aria-hidden="true" className="h-4 w-4" /></button>}
+    </nav>
+    <AutoMailAgentSettings onDirtyChange={setModelDirty} refreshToken={refreshToken} onStateChange={setModelStatus} />
+    <AutoMailIncomingSettings onDirtyChange={setIncomingDirty} refreshToken={refreshToken} onStateChange={setIncomingStatus} />
   </section>;
 }

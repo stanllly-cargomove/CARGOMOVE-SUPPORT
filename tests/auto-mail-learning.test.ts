@@ -113,3 +113,46 @@ test('learning routes require ADMIN and same origin; reviews use the session act
     assert.equal(result.code,409);assert.match(result.value.error,/unsaved text is preserved/);
   }finally{globalThis.fetch=original;for(const key of Object.keys(overrides)){if(before[key]===undefined)delete process.env[key];else process.env[key]=before[key];}}
 });
+
+
+test('All statuses lists pending first across page boundaries and omits evidence from list requests',async()=>{
+  const env={AUTO_MAIL_ENABLED:'true',AUTO_MAIL_SUPABASE_URL:'https://learning-dev.supabase.co',AUTO_MAIL_SUPABASE_SERVICE_ROLE_KEY:'test-key',SUPABASE_URL:'https://primary.supabase.co',VITE_SUPABASE_URL:'https://primary.supabase.co',VERCEL_ENV:'development',SESSION_SECRET:'test-learning-session'};
+  const before=Object.fromEntries(Object.keys(env).map(key=>[key,process.env[key]]));Object.assign(process.env,env);
+  const original=globalThis.fetch;
+  const pending=Array.from({length:30},(_,index)=>({id:'pending-'+index,status:'PENDING',created_at:new Date(Date.UTC(2020,0,30-index)).toISOString()}));
+  const reviewed=Array.from({length:40},(_,index)=>({id:'reviewed-'+index,status:index%2?'APPROVED':'REJECTED',created_at:new Date(Date.UTC(2030,0,40-index)).toISOString()}));
+  const ordered=[...pending,...reviewed];let requests=0;
+  globalThis.fetch=(async(input:any,init:any={})=>{
+    requests++;const url=new URL(String(input));assert.equal(url.hostname,'learning-dev.supabase.co');
+    if(url.pathname.endsWith('/rpc/list_learning_suggestions')){
+      const body=JSON.parse(init.body);assert.equal(body.p_status,'APPROVED');const approved=reviewed.filter(item=>item.status==='APPROVED');
+      return new Response(JSON.stringify({suggestions:approved.slice(body.p_offset,body.p_offset+25),total:approved.length}));
+    }
+    assert.ok(url.pathname.endsWith('/learning_suggestions'));
+    const status=url.searchParams.get('status');let rows=status==='eq.PENDING'?pending:status==='neq.PENDING'?reviewed:status==='eq.APPROVED'?reviewed.filter(item=>item.status==='APPROVED'):ordered;
+    if(url.searchParams.has('or')){assert.ok(url.searchParams.get('or')!.includes('proposed_title.ilike."%match%"'));rows=rows.filter(item=>item.id.endsWith('1'));}
+    if(init.method==='HEAD')return new Response(null,{headers:{'content-range':`0-0/${rows.length}`}});
+    assert.ok(!url.searchParams.get('select')?.includes('evidence'));assert.ok(!url.searchParams.get('select')?.includes('proposed_content'));
+    assert.equal(url.searchParams.get('order'),'created_at.desc,id.asc');
+    const offset=Number(url.searchParams.get('offset')||0),limit=Number(url.searchParams.get('limit')||25);
+    assert.ok(offset<rows.length,'Do not issue an out-of-range request against an exhausted partition');
+    return new Response(JSON.stringify(rows.slice(offset,offset+limit)),{headers:{'content-range':`${offset}-${Math.min(rows.length-1,offset+limit-1)}/${rows.length}`}});
+  }) as typeof fetch;
+  const cookie='cargomove_session='+signSession({id:actor,email:'admin@example.com',type:'ADMIN',exp:Date.now()+60000});
+  const list=async(query:any)=>{const res={code:200,value:null as any,setHeader(){},status(code:number){this.code=code;return this;},json(value:any){this.value=value;}};await learningList({method:'GET',headers:{cookie},query},res);assert.equal(res.code,200);return res.value;};
+  try{
+    for(const offset of [0,25,50,75]){
+      const result=await list(offset?{status:'',offset}:{});assert.equal(result.total,70);
+      assert.deepEqual(result.suggestions.map((item:any)=>item.id),ordered.slice(offset,offset+25).map(item=>item.id));
+    }
+    for(const pageSize of [20,30,50])for(const offset of [0,pageSize,pageSize*2]){
+      const result=await list({pageSize,offset});assert.equal(result.total,70);
+      assert.deepEqual(result.suggestions.map((item:any)=>item.id),ordered.slice(offset,offset+pageSize).map(item=>item.id));
+    }
+    const searched=await list({pageSize:20,q:'match'});
+    assert.equal(searched.total,7);assert.deepEqual(searched.suggestions.map((item:any)=>item.id),ordered.filter(item=>item.id.endsWith('1')).map(item=>item.id));
+    const filtered=await list({status:'APPROVED',pageSize:30,q:'match'});assert.equal(filtered.total,4);assert.ok(filtered.suggestions.every((item:any)=>item.status==='APPROVED'));
+    const result=await list({status:'APPROVED'});assert.equal(result.total,20);assert.ok(result.suggestions.every((item:any)=>item.status==='APPROVED'));
+    assert.ok(requests>0);
+  }finally{globalThis.fetch=original;for(const key of Object.keys(env)){if(before[key]===undefined)delete process.env[key];else process.env[key]=before[key];}}
+});

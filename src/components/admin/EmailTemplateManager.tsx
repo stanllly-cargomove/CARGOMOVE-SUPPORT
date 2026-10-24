@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { GoogleConnectionButton } from '../common/GoogleConnectionButton';
-import { ArrowLeft, Paperclip, Pencil, Plus, Save, Trash2 } from 'lucide-react';
+import { ArrowLeft, Paperclip, Pencil, Plus, Save, Trash2, Mail } from 'lucide-react';
 import {
   connectGmail,
   deleteEmailTemplate,
@@ -8,11 +8,10 @@ import {
   EmailTemplate,
   EmailTemplatePort,
   getEmailLogs,
-  getEmailTemplateCatalog,
-  getGmailStatus,
   saveEmailTemplate,
   uploadEmailAttachment,
 } from '../../services/email';
+import { getCachedEmailTemplateSettings, loadEmailTemplateSettings, clearEmailTemplateSettingsCache } from '../../services/emailTemplateSettings';
 import { notifyError, notifySuccess } from '../common/notifications';
 import { RichTextEmailEditor } from './RichTextEmailEditor';
 import { formatAdminDate, formatAdminDateTime } from '../../utils/date';
@@ -80,37 +79,54 @@ const newTemplate = (active: boolean, triggerStatus: 'DONE' | 'REJECTED' = 'DONE
 });
 
 export function EmailTemplateManager({ onViewChange }: EmailTemplateManagerProps) {
-  const [templates, setTemplates] = useState<EmailTemplate[]>([]);
-  const [ports, setPorts] = useState<EmailTemplatePort[]>([]);
-  const [apiSupportsPortCodes, setApiSupportsPortCodes] = useState(true);
+  const [initialSettings] = useState(getCachedEmailTemplateSettings);
+  const [templates, setTemplates] = useState<EmailTemplate[]>(initialSettings?.catalog.templates ?? []);
+  const [ports, setPorts] = useState<EmailTemplatePort[]>(initialSettings?.catalog.ports ?? []);
+  const [apiSupportsPortCodes, setApiSupportsPortCodes] = useState(initialSettings?.catalog.apiSupportsPortCodes ?? true);
   const [activeCodeTab, setActiveCodeTab] = useState<'DONE' | 'REJECTED'>('DONE');
   const [editing, setEditing] = useState<EmailTemplate | null>(null);
   const [isCreating, setIsCreating] = useState(false);
-  const [gmailEmail, setGmailEmail] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [gmailEmail, setGmailEmail] = useState(initialSettings?.gmail.connected ? initialSettings.gmail.connection?.email ?? '' : '');
+  const [loading, setLoading] = useState(!initialSettings);
+  const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState('');
+  const [hasLoaded, setHasLoaded] = useState(!!initialSettings);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState('');
   const [connecting, setConnecting] = useState(false);
-  const [logs, setLogs] = useState<EmailLog[]>([]);
-  const [logTotal, setLogTotal] = useState(0);
+  const [logs, setLogs] = useState<EmailLog[]>(initialSettings?.emailLogs.logs ?? []);
+  const [logTotal, setLogTotal] = useState(initialSettings?.emailLogs.total ?? 0);
   const [logPage, setLogPage] = useState(1);
   const [prefetchingLogs, setPrefetchingLogs] = useState(false);
   const [logPrefetchError, setLogPrefetchError] = useState(false);
   const prefetchInFlight = useRef(false);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
 
-  const load = async () => {
-    const [catalog, gmail, emailLogs] = await Promise.all([getEmailTemplateCatalog(), getGmailStatus(), getEmailLogs()]);
+  const applySettings = ({ catalog, gmail, emailLogs }: Awaited<ReturnType<typeof loadEmailTemplateSettings>>) => {
     setTemplates(catalog.templates);
     setPorts(catalog.ports);
     setApiSupportsPortCodes(catalog.apiSupportsPortCodes);
     setGmailEmail(gmail.connected && gmail.connection ? gmail.connection.email : '');
     setLogs(emailLogs.logs);
     setLogTotal(emailLogs.total ?? emailLogs.logs.length);
+    setLogPage(1);
+    setHasLoaded(true);
+    setLoadError('');
+  };
+  const load = async (force = false) => {
+    setRefreshing(true);
+    try { applySettings(await loadEmailTemplateSettings(force)); }
+    catch (error) { setLoadError(error instanceof Error ? error.message : 'Unable to load email settings.'); }
+    finally { setLoading(false); setRefreshing(false); }
   };
 
   useEffect(() => {
-    void load().catch((error) => notifyError(error instanceof Error ? error.message : 'Unable to load email settings.')).finally(() => setLoading(false));
+    let active = true;
+    setRefreshing(true);
+    void loadEmailTemplateSettings().then(value => { if (active) applySettings(value); })
+      .catch(error => { if (active) setLoadError(error instanceof Error ? error.message : 'Unable to load email settings.'); })
+      .finally(() => { if (active) { setLoading(false); setRefreshing(false); } });
+    return () => { active = false; };
   }, []);
 
   const openDesigner = (template: EmailTemplate, create = false) => {
@@ -146,7 +162,8 @@ export function EmailTemplateManager({ onViewChange }: EmailTemplateManagerProps
       const uploaded = [];
       for (const file of pendingFiles) uploaded.push(await uploadEmailAttachment(file, editing.id));
       const saved = await saveEmailTemplate({ ...editing, attachments: [...editing.attachments, ...uploaded] }, isCreating);
-      setTemplates((await getEmailTemplateCatalog()).templates);
+      clearEmailTemplateSettingsCache();
+      await load(true);
       notifySuccess(`${saved.name} saved.`);
       closeDesigner();
     } catch (error) {
@@ -161,7 +178,8 @@ export function EmailTemplateManager({ onViewChange }: EmailTemplateManagerProps
     setDeletingId(template.id);
     try {
       await deleteEmailTemplate(template.id);
-      setTemplates((await getEmailTemplateCatalog()).templates);
+      clearEmailTemplateSettingsCache();
+      await load(true);
       notifySuccess(`${template.name} removed.`);
     } catch (error) {
       notifyError(error instanceof Error ? error.message : 'Unable to remove the template.');
@@ -212,7 +230,13 @@ export function EmailTemplateManager({ onViewChange }: EmailTemplateManagerProps
     }
   };
 
-  if (loading) return <div className="text-sm text-slate-500">Loading email settings...</div>;
+  if (loading) return <div role="status" aria-label="Loading email settings" aria-busy="true" className="space-y-5">
+    <div className="flex items-center gap-3"><span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-sky-100 bg-sky-50 text-sky-600"><Mail aria-hidden="true" className="h-6 w-6" /></span><div><h2 className="text-xl font-bold tracking-tight text-slate-900">Email Templates</h2><p className="mt-1 text-xs text-slate-500">Loading your templates and email settings...</p></div></div>
+    <div aria-hidden="true" className="space-y-5 motion-safe:animate-pulse">
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"><div className="flex gap-3 border-b border-slate-200 bg-slate-50 px-5 py-4"><span className="h-8 w-36 rounded-lg bg-slate-200" /><span className="h-8 w-36 rounded-lg bg-slate-100" /></div><div className="divide-y divide-slate-100 px-5">{[0, 1, 2].map(row => <div key={row} className="flex items-center gap-5 py-5"><span className="h-4 w-14 rounded bg-slate-200" /><span className="h-4 flex-1 rounded bg-slate-100" /><span className="h-4 w-20 rounded bg-slate-100" /></div>)}</div></div>
+      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"><div className="mb-5 h-4 w-36 rounded bg-slate-200" /><div className="h-20 rounded-lg bg-slate-50" /></div>
+    </div>
+  </div>;
 
   if (editing) return (
     <div className="space-y-5">
@@ -274,8 +298,13 @@ export function EmailTemplateManager({ onViewChange }: EmailTemplateManagerProps
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div><h2 className="text-xl font-bold tracking-tight text-slate-900">Email Templates</h2><p className="mt-1 text-xs text-slate-500">Manage acceptance and rejection codes, then assign each code to one or more ports.</p></div>
-        <GoogleConnectionButton email={gmailEmail} connecting={connecting} onConnect={() => void connect()} />
+        <div className="flex shrink-0 items-center gap-2">
+          {!gmailEmail && <button type="button" disabled={connecting || refreshing} onClick={() => void connect()} className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">{connecting ? 'Connecting...' : 'Connect Gmail'}</button>}
+          <GoogleConnectionButton email={gmailEmail} connecting={refreshing} disabled={saving || !!deletingId || connecting} connectedAction="refresh-settings" onConnect={() => void load(true)} />
+        </div>
       </div>
+      {loadError && <div role="alert" className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900"><span>{hasLoaded ? 'Showing saved settings. ' : ''}{loadError}</span><button type="button" disabled={refreshing} onClick={() => void load(true)} className="shrink-0 rounded-lg border border-amber-300 px-3 py-2 font-semibold hover:bg-amber-100 disabled:opacity-50">Retry</button></div>}
+      {!hasLoaded ? <p className="rounded-xl border border-slate-200 bg-white p-8 text-center text-xs text-slate-500">Email settings could not be loaded. Please retry.</p> : <>
       <section className="rounded-xl">
         <div className="flex flex-wrap items-end justify-between gap-2">
           <div className="ml-[0.5px] flex w-fit items-end" role="tablist" aria-label="Email template code type">
@@ -331,6 +360,7 @@ export function EmailTemplateManager({ onViewChange }: EmailTemplateManagerProps
           </nav>
         </div>
       </div>
+      </>}
     </div>
   );
 }

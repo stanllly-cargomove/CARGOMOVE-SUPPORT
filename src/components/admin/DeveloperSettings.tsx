@@ -21,7 +21,7 @@ export function DeveloperSettings({ onOpenScheduler, onOpenExcelMapping, onOpenP
     <div className="w-full space-y-6">
       <div>
         <h2 className="text-xl font-bold tracking-tight text-slate-900">Developer Settings</h2>
-        <p className="mt-1 text-xs text-slate-500">Manage registration testing, ports and depots, schedulers, Excel mappings and support knowledge.</p>
+        <p className="mt-1 text-xs text-slate-500">Manage registration testing, ports and depots, schedulers, Excel mappings and email automation.</p>
       </div>
       <section aria-label="Developer settings" className="w-full divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="flex w-full items-center gap-4 p-4 sm:p-5">
@@ -35,7 +35,7 @@ export function DeveloperSettings({ onOpenScheduler, onOpenExcelMapping, onOpenP
           </button>
         </div>
         {[
-          { title: 'Auto Email Config', description: 'Manage the knowledge base and review learning from sent replies.', icon: BookOpen, onClick: onOpenAutoEmailConfig },
+          { title: 'Auto Email Config', description: 'Configure AI models, incoming drafts and automatic replies.', icon: BookOpen, onClick: onOpenAutoEmailConfig },
           { title: 'Ports & Depots', description: 'Manage the ports and depots available for registration.', icon: Settings, onClick: onOpenPortDepotConfig },
           { title: 'Scheduler', description: 'View saved schedulers and request a run.', icon: Clock3, onClick: onOpenScheduler },
           { title: 'Excel Mapping', description: 'Review how registration details map to Excel templates and database fields.', icon: TableProperties, onClick: onOpenExcelMapping },

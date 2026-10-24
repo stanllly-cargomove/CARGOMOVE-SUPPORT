@@ -167,7 +167,7 @@ export async function aiDraftList(request:any,response:any){
     if(!automatic.error)query=query.is('origin_draft_id',null);
     const result=await query.order('created_at',{ascending:false}).range(offset,offset+25);
     dbResult(result.error);
-    const jobs=automatic.error?{data:[],error:null}:await client.from('incoming_ai_jobs').select('id,subject,gmail_thread_id,status,classification,review_reason,created_at').eq('mailbox_id',connection.mailbox_id).eq('connection_version',connection.version).order('created_at',{ascending:false}).limit(25);dbResult(jobs.error);
-    return response.json({jobs:jobs.data||[],drafts:(result.data||[]).slice(0,25).map(draft=>({...publicDraft(draft),threadId:draft.gmail_thread_id,sourceMessageId:draft.source_message_id,createdAt:draft.created_at,scope:draft.scope,automatic:!!draft.automatic,draftKind:draft.draft_kind||'KB'})),nextOffset:(result.data||[]).length>25?offset+25:null});
+    const jobs=automatic.error?{data:[],error:null}:await client.from('incoming_ai_jobs').select('*').eq('mailbox_id',connection.mailbox_id).eq('connection_version',connection.version).order('created_at',{ascending:false}).limit(25);dbResult(jobs.error);
+    return response.json({jobs:jobs.data||[],drafts:(result.data||[]).slice(0,25).map(draft=>({...publicDraft(draft),threadId:draft.gmail_thread_id,sourceMessageId:draft.source_message_id,createdAt:draft.created_at,scope:draft.scope,automatic:!!draft.automatic,draftKind:draft.draft_kind||'KB',autoReplyState:jobs.data?.find((job:any)=>job.draft_id===draft.id)?.auto_reply_state||'REVIEW'})),nextOffset:(result.data||[]).length>25?offset+25:null});
   }catch(error){return response.status(error instanceof MailError?error.status:503).json({error:error instanceof MailError?error.message:'Unable to load saved AI drafts.'});}
 }

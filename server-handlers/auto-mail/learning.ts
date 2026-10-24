@@ -37,12 +37,46 @@ export function createLearningHandler(action: 'list' | 'detail' | 'propose' | 'r
       if (!config.ready) throw new MailError(503, config.message);
       const client = autoMailClient(config);
       if (action === 'list') {
-        const status = typeof request.query?.status === 'string' ? request.query.status : 'PENDING';
+        const status = typeof request.query?.status === 'string' ? request.query.status : '';
         const offset = Number(request.query?.offset || 0);
-        if (!['', 'PENDING', 'APPROVED', 'REJECTED'].includes(status) || !Number.isSafeInteger(offset) || offset < 0 || offset > 100000) throw new MailError(400, 'Invalid learning queue filter or page.');
-        const result = await client.rpc('list_learning_suggestions', { p_status: status, p_offset: offset });
-        check(result.error);
-        return response.json(result.data);
+        const pageSize = Number(request.query?.pageSize ?? 25);
+        const query = typeof request.query?.q==='string'?request.query.q.trim():'';
+        if (query.length>200 || ![20,25,30,50].includes(pageSize) || !['', 'PENDING', 'APPROVED', 'REJECTED'].includes(status) || !Number.isSafeInteger(offset) || offset < 0 || offset > 100000) throw new MailError(400, 'Invalid learning queue filter or page.');
+        if (status && !query && pageSize===25) {
+          const result = await client.rpc('list_learning_suggestions', { p_status: status, p_offset: offset });
+          check(result.error);
+          return response.json(result.data);
+        }
+        // Partition before pagination so older pending suggestions precede every reviewed item.
+        // Select list metadata only: evidence and answer snapshots belong to the detail route.
+        const fields = 'id,version,status,reason,proposed_title,proposed_summary,proposed_category,proposed_port,proposed_keywords,review_note,created_at';
+        // Quote the filter value and escape wildcard characters so search is literal text.
+        const pattern = '%'+query.replace(/[\\%_"]/g,character=>'\\'+character)+'%';
+        const searched=(builder:any)=>query?builder.or(['proposed_title','proposed_summary','proposed_category','proposed_port'].map(field=>`${field}.ilike."${pattern}"`).join(',')):builder;
+        if(status){
+          const result=await searched(client.from('learning_suggestions').select(fields,{count:'exact'})).eq('status',status).order('created_at',{ascending:false}).order('id',{ascending:true}).range(offset,offset+pageSize-1);
+          check(result.error);return response.json({suggestions:result.data||[],total:result.count||0});
+        }
+        const [pending, count] = await Promise.all([
+          searched(client.from('learning_suggestions').select('id',{count:'exact',head:true})).eq('status','PENDING'),
+          searched(client.from('learning_suggestions').select('id',{count:'exact',head:true})),
+        ]);
+        check(pending.error); check(count.error);
+        const total = count.count || 0;
+        const pendingCount = pending.count || 0;
+        if (offset >= total) return response.json({suggestions:[],total});
+        const suggestions: any[] = [];
+        if (offset < pendingCount) {
+          const page = await searched(client.from('learning_suggestions').select(fields)).eq('status','PENDING').order('created_at',{ascending:false}).order('id',{ascending:true}).range(offset,Math.min(offset+pageSize-1,pendingCount-1));
+          check(page.error); suggestions.push(...(page.data || []));
+        }
+        if (suggestions.length < pageSize && total > pendingCount) {
+          const reviewedOffset = Math.max(0,offset-pendingCount);
+          const reviewed = await searched(client.from('learning_suggestions').select(fields)).neq('status','PENDING').order('created_at',{ascending:false}).order('id',{ascending:true}).range(reviewedOffset,Math.min(reviewedOffset+pageSize-1-suggestions.length,total-pendingCount-1));
+          check(reviewed.error);
+          suggestions.push(...(reviewed.data || []));
+        }
+        return response.json({suggestions,total});
       }
       if (action === 'detail') {
         const suggestionId = id(request.query?.id);

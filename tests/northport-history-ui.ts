@@ -153,10 +153,13 @@ try {
   ];
   await page.getByRole('button',{name:'Refresh History',exact:true}).click();
   await page.locator('table').getByText('SUCCESS123',{exact:true}).waitFor();
+  assert.equal(await page.getByRole('button',{name:'Run scheduler',exact:true,includeHidden:true}).count(),0,'Uploaded rows have no scheduler action on desktop or mobile');
+  assert.equal(await page.getByRole('button',{name:'Process later',exact:true,includeHidden:true}).count(),0);
   for(const [label,color] of [['SUCCESS','rgb(236, 253, 245)'],['PROCESSING','rgb(239, 246, 255)'],['CANCELLED','rgb(243, 244, 246)'],['FAIL','rgb(254, 242, 242)']])await checkStatusTag(label,color);
   let sharedDetailsSize:{width:number;height:number}|null=null;
   for(const container of ['SUCCESS123','PROCESS123','CANCEL123','FAIL123']) {
     await page.getByRole('button',{name:container,exact:true}).click();
+    assert.equal(await details.getByRole('button',{name:'Run scheduler',exact:true}).count(),0,'Recovery status details omit the scheduler action');
     const box=await details.boundingBox();assert.ok(box);
     const size={width:box.width,height:box.height};
     if(!sharedDetailsSize)sharedDetailsSize=size;else assert.deepEqual(size,sharedDetailsSize,`${container} uses the SUCCESS popup size`);

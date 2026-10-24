@@ -25,7 +25,9 @@ export async function initializeMail<T extends Readiness>(scope: string, report:
     };
     current.promise = (async () => {
       const revalidate = takeMailRevalidation(scope);
-      const status = await cachedMail<Readiness>(scope, 'status', {force:revalidate});
+      let status: Readiness;
+      try { status = await cachedMail<Readiness>(scope, 'status', {force:revalidate}); }
+      catch (error) { update(0, 'error'); throw error; }
       if (current.cancelled) throw new Error('Your session ended. Sign in again.');
       if (status.state !== 'READY' || !status.mailboxConnected || !status.oauthReady) return {status, revalidate};
       const context = contextOf(status);

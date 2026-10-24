@@ -6,7 +6,7 @@ type Props = {
   connecting: boolean;
   disabled?: boolean;
   onConnect: () => void;
-  connectedAction?: 'reconnect' | 'refresh';
+  connectedAction?: 'reconnect' | 'refresh' | 'refresh-settings';
   size?: 'default' | 'compact';
 };
 
@@ -30,7 +30,7 @@ export function GoogleConnectionButton({ email = '', connecting, disabled = fals
         type="button"
         onClick={onConnect}
         disabled={connecting || disabled}
-        aria-label={email ? `Google connected as ${email}. Click to ${connectedAction === 'refresh' ? 'refresh inbox' : 'reconnect'}.` : 'Google is not connected. Click to connect.'}
+        aria-label={connectedAction === 'refresh-settings' ? `Google${email ? ` connected as ${email}` : ' is not connected'}. Click to refresh email settings.` : email ? `Google connected as ${email}. Click to ${connectedAction === 'refresh' ? 'refresh inbox' : 'reconnect'}.` : 'Google is not connected. Click to connect.'}
         aria-busy={connecting}
         aria-describedby={tooltipId}
         whileHover={{ y: -2, rotate: [0, -7, 7, 0], scale: 1.08 }}
@@ -43,8 +43,8 @@ export function GoogleConnectionButton({ email = '', connecting, disabled = fals
       </motion.button>
       <div id={tooltipId} role="tooltip" className="pointer-events-none absolute right-full top-1/2 z-30 mr-3 w-max max-w-72 -translate-y-1/2 translate-x-2 rounded-lg bg-slate-900 px-3 py-2 text-xs text-white opacity-0 shadow-xl transition-all duration-200 group-hover:translate-x-0 group-hover:opacity-100 group-focus-within:translate-x-0 group-focus-within:opacity-100">
         <span className="block font-semibold">{email ? 'Google connected' : 'Google not connected'}</span>
-        <span className="mt-0.5 block text-slate-300">{email || 'Click to connect'}</span>
-        {connecting && <span className="mt-1 block text-slate-300">{email && connectedAction === 'refresh' ? 'Refreshing inbox...' : 'Connecting...'}</span>}
+        <span className="mt-0.5 block text-slate-300">{connectedAction === 'refresh-settings' ? 'Click to refresh email settings' : email || 'Click to connect'}</span>
+        {connecting && <span className="mt-1 block text-slate-300">{connectedAction === 'refresh-settings' ? 'Refreshing email settings...' : email && connectedAction === 'refresh' ? 'Refreshing inbox...' : 'Connecting...'}</span>}
         <span className="absolute -right-1 top-1/2 h-2 w-2 -translate-y-1/2 rotate-45 bg-slate-900" />
       </div>
     </div>

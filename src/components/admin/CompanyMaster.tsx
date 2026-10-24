@@ -821,8 +821,8 @@ function CompanyEditModal({
     setImported('short_name', 'short name', 'shortname', 'company short name', 'trade name');
     const importedType = valueFor('type', 'company type', 'company category');
     if (importedType) imported.company_type = normalizeCompanyType(importedType);
-    setImported('registration_number_old', 'registration', 'ids.registration', 'registration old', 'old registration number', 'company registration number');
-    setImported('registration_number_new', 'registration new', 'new registration number', 'ssm number');
+    setImported('registration_number_old', 'registration_number_old', 'registration', 'ids.registration', 'registration old', 'old registration number', 'company registration number');
+    setImported('registration_number_new', 'registration_number_new', 'ids.registration_new', 'registration new', 'new registration number', 'ssm number');
     setImported('haulier_id', 'haulierid', 'haulier id', 'haulier', 'ids.haulier');
     setImported('forwarding_agent_id', 'forwarding agent id', 'forwarding agent_id', 'ids.forwarding_agent_id', 'ids.forwardingagentid');
     setImported('ledger_codes', 'ledgercodes', 'ledger codes', 'ledger_code', 'ledger code');
@@ -900,6 +900,9 @@ function CompanyEditModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Only the final Save button may persist; wizard navigation and implicit submits cannot.
+    const submitter = (e.nativeEvent as SubmitEvent).submitter;
+    if (isSaving || activeSection !== sections.length - 1 || submitter?.getAttribute('data-company-save') !== 'true') return;
     const oldRegistrationNumber = form.registration_number_old?.trim() || '';
     if (!form.name.trim() || !oldRegistrationNumber) {
       const message = 'Company Name and Old Registration Number are required.';
@@ -1015,7 +1018,9 @@ function CompanyEditModal({
             ))}
           </div>
 
-          <form onSubmit={handleSubmit} className="mt-5 flex min-h-0 min-w-0 w-full flex-1 flex-col space-y-4 text-xs">
+          <form onSubmit={handleSubmit} onKeyDown={event => {
+            if (event.key === 'Enter' && event.target instanceof HTMLInputElement) event.preventDefault();
+          }} className="mt-5 flex min-h-0 min-w-0 w-full flex-1 flex-col space-y-4 text-xs">
             <p className="min-w-0 break-words text-[10px] font-normal text-slate-500">{sections[activeSection].description}</p>
             {importError && <p className="rounded-lg border border-rose-100 bg-rose-50 px-3 py-2 text-[11px] text-rose-700" role="alert">{importError}</p>}
             <div className="min-h-0 flex-1 overflow-y-auto overflow-x-visible px-1">
@@ -1103,11 +1108,11 @@ function CompanyEditModal({
               </button>
             )}
             {activeSection < sections.length - 1 ? (
-              <button type="button" onClick={() => setActiveSection((section) => section + 1)} className="inline-flex items-center gap-1 px-4 py-2 text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg font-semibold">
+              <button key="next-section" type="button" onClick={() => setActiveSection((section) => section + 1)} className="inline-flex items-center gap-1 px-4 py-2 text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg font-semibold">
                 Next <ChevronRight className="w-3.5 h-3.5" />
               </button>
             ) : (
-              <button type="submit" disabled={isSaving} className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 text-white font-bold rounded-lg shadow-sm">
+              <button key="save-company" data-company-save="true" type="submit" disabled={isSaving} className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 text-white font-bold rounded-lg shadow-sm">
                 {isSaving ? 'Saving...' : isEditing ? 'Save Changes' : 'Create Master Company'}
               </button>
             )}
@@ -1141,10 +1146,13 @@ function normalizeCompanyCountry(value?: string): string {
 
 /** Reads the PHP print_r/var_dump style payload often copied from the source system. */
 function parseLegacyCompanyPayload(payload: string): Record<string, unknown> | null {
+  // Pasted exports may contain HTML spacing and Markdown-escaped line endings/keys.
+  payload = payload.replace(/&(?:#x20|#32|nbsp|#xa0|#160);/gi, ' ')
+    .replace(/\\(?=\r?$)/gm, '').replace(/\\([_\[\]])/g, '$1');
   if (!/(stdClass\s+Object|\[[^\]]+\]\s*=>)/i.test(payload)) return null;
 
   const valuesFor = (field: string): string[] => {
-    const expression = new RegExp(`^\\s*\\[${field.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}\\]\\s*=>\\s*(.+?)\\s*$`, 'gim');
+    const expression = new RegExp(`^\\s*\\[${field.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}\\][ \t]*=>[ \t]*([^\\r\\n]+?)[ \t]*$`, 'gim');
     return Array.from(payload.matchAll(expression))
       .map((match) => match[1].trim())
       .filter((value) => value && !/^(stdClass Object|Array|NULL)$/i.test(value));
@@ -1156,12 +1164,14 @@ function parseLegacyCompanyPayload(payload: string): Record<string, unknown> | n
   const name = first('name');
   const shortName = first('shortname', 'short_name');
   const type = first('type');
-  const registration = first('registration');
+  const registration = first('registration', 'registration_number_old');
+  const registrationNew = first('registration_new', 'registration_number_new');
   const haulier = first('haulier');
   if (name) record.name = name;
   if (shortName) record.shortname = shortName;
   if (type) record.type = type;
   if (registration) record.registration = registration;
+  if (registrationNew) record.registration_new = registrationNew;
   if (haulier) record.haulier = haulier;
 
   const addressFields = ['block', 'address1', 'address2', 'city', 'state', 'postcode', 'country'];

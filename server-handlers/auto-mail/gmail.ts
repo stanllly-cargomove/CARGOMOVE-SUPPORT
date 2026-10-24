@@ -85,27 +85,37 @@ export function presentThread(thread: any, email: string) {
     }); }) };
 }
 
-export function replyContext(thread: any, email: string, expectedMessage: string) {
+// Automated drafts require the latest incoming message. Manual actions may select any message in this thread.
+export function replyContext(thread: any, email: string, expectedMessage: string, selected = false) {
   const messages = [...(thread.messages || [])].sort((a: any, b: any) => Number(a.internalDate) - Number(b.internalDate));
-  const latest = messages.at(-1);
-  if (!latest || latest.id !== expectedMessage) throw new MailError(409, 'This conversation changed. Reload it before replying.');
-  if ((latest.labelIds || []).includes('SENT') || singleAddress(header(latest, 'From')) === email) throw new MailError(409, 'The latest message is already outgoing. Wait for a new incoming message or reply in Gmail.');
-  const recipient = singleAddress(header(latest, 'Reply-To') || header(latest, 'From'));
+  const source = selected ? messages.find((message: any) => message.id === expectedMessage) : messages.at(-1);
+  if (!source || source.id !== expectedMessage) throw new MailError(409, 'This conversation changed. Reload it before replying.');
+  const outbound = (source.labelIds || []).includes('SENT') || singleAddress(header(source, 'From')) === email;
+  if (!selected && outbound) throw new MailError(409, 'The latest message is already outgoing. Wait for a new incoming message or reply in Gmail.');
+  const originalTo = outbound ? addressList(header(source, 'To')).filter(address => address !== email) : [];
+  const recipient = outbound ? originalTo[0] : singleAddress(header(source, 'Reply-To') || header(source, 'From'));
+  if (!recipient) throw new MailError(400, 'This message has no reply recipient.');
   if (recipient === email) throw new MailError(400, 'Cannot reply to the connected mailbox itself.');
-  const messageId = header(latest, 'Message-ID').trim();
-  const subject = header(latest, 'Subject');
+  const messageId = header(source, 'Message-ID').trim();
+  const subject = header(source, 'Subject');
   if (!/^<[^<>\s]+>$/.test(messageId) || /[\r\n]/.test(subject)) throw new MailError(400, 'This message cannot be safely threaded. Reply in Gmail.');
-  const references = [...header(latest, 'References').matchAll(/<[^<>\s]+>/g)].map(m => m[0]).slice(-15);
-  return { recipient, messageId, subject, references: [...references, messageId].join(' ') };
+  const references = [...header(source, 'References').matchAll(/<[^<>\s]+>/g)].map(m => m[0]).slice(-15);
+  const others = (name: string) => addressList(header(source, name)).filter(address => address !== email && address !== recipient);
+  // Incoming reply-all addresses the sender directly; other participants are copied.
+  // Following up on our own sent mail preserves its original To/CC placement.
+  const to = outbound ? [...new Set([recipient, ...others('To')])] : [recipient];
+  const cc = [...new Set([...(outbound ? [] : others('To')), ...others('Cc')])].filter(address => !to.includes(address));
+  return { recipient, replyAll: {to, cc}, messageId, subject, references: [...references, messageId].join(' ') };
 }
 
-export function rawReply(email: string, context: ReturnType<typeof replyContext>, body: string, deliveryId: string) {
+export function rawReply(email: string, context: ReturnType<typeof replyContext>, body: string, deliveryId: string, automated = false) {
   const subject = /^re:/i.test(context.subject) ? context.subject : `Re: ${context.subject}`;
   return Buffer.from([
     `From: ${singleAddress(email)}`, `To: ${singleAddress(context.recipient)}`,
     `Subject: =?UTF-8?B?${Buffer.from(subject).toString('base64')}?=`,
     `In-Reply-To: ${context.messageId}`, `References: ${context.references}`,
     `Message-ID: <auto-mail-${deliveryId}@${email.split('@')[1]}>`,
+    ...(automated ? ['Auto-Submitted: auto-replied', 'X-Auto-Response-Suppress: All'] : []),
     'MIME-Version: 1.0', 'Content-Type: text/plain; charset=UTF-8', 'Content-Transfer-Encoding: base64', '',
     Buffer.from(body).toString('base64').match(/.{1,76}/g)?.join('\r\n') || '',
   ].join('\r\n')).toString('base64url');
@@ -224,22 +234,25 @@ export function createAutoMailHandler(action: 'connect' | 'callback' | 'threads'
       const thread = await gmailGet(token, `threads/${encodeURIComponent(threadId)}?format=full`);
       if (action === 'thread') {
         const view = await persistThread(client, connection, thread);
-        let recipient = '';
-        let replyBlocked = '';
-        const latestId = view.messages.at(-1)?.id || '';
-        try { recipient = replyContext(thread, connection.email, latestId).recipient; } catch (e) { replyBlocked = e instanceof MailError ? e.message : 'Reply in Gmail.'; }
-        const deliveries = await client.from('reply_deliveries').select('status').eq('mailbox_id', connection.mailbox_id).eq('source_message_id', latestId).maybeSingle();
+        const deliveries = await client.from('reply_deliveries').select('source_message_id,status').eq('mailbox_id', connection.mailbox_id).eq('gmail_thread_id', threadId);
         dbCheck(deliveries.error);
-        if (deliveries.data) replyBlocked = deliveries.data.status === 'SENT' ? 'A reply was already sent. Refresh this conversation.' : 'A send is pending or its outcome is uncertain. Check Sent in Gmail before taking further action.';
-        const latest=(thread.messages||[]).find((m:any)=>m.id===latestId);
-        const readAddresses=(name:string)=>{try{return addressList(header(latest||{},name)).filter(value=>value!==connection.email&&value!==recipient);}catch{return [];}};
-        return response.json({ ...view, recipient, replyBlocked, replyAll: {to:[recipient,...readAddresses('To')].filter(Boolean),cc:readAddresses('Cc')}, mailbox: connection.email, connectionVersion: connection.version });
+        const messages = view.messages.map(message => {
+          let recipient = '', replyBlocked = '';
+          let replyAll = {to: [] as string[], cc: [] as string[]};
+          try { const context = replyContext(thread, connection.email, message.id, true); recipient = context.recipient; replyAll = context.replyAll; }
+          catch (error) { replyBlocked = error instanceof MailError ? error.message : 'Reply in Gmail.'; }
+          const delivery = deliveries.data?.find((item: any) => item.source_message_id === message.id);
+          if (delivery) replyBlocked = delivery.status === 'SENT' ? 'A reply was already sent to this message. Reply to a newer message to follow up.' : 'A send is pending or its outcome is uncertain. Check Sent in Gmail before taking further action.';
+          return {...message, recipient, replyAll, replyBlocked};
+        });
+        const latest = messages.at(-1);
+        return response.json({ ...view, messages, recipient: latest?.recipient || '', replyBlocked: latest?.replyBlocked || '', replyAll: latest?.replyAll, mailbox: connection.email, connectionVersion: connection.version });
       }
       if (body.connectionVersion !== connection.version) throw new MailError(409, 'The connected mailbox changed. Reload Auto Mail.');
       const html=typeof body.bodyHtml==='string'?cleanMailHtml(body.bodyHtml):'';
       const message=html?mailHtmlText(html):typeof body.body==='string'?body.body.trim():'';
       if ((!message && !(Array.isArray(body.attachmentIds)&&body.attachmentIds.length)) || message.length>50000 || (typeof body.bodyHtml==='string'&&body.bodyHtml.length>200000)) throw new MailError(400,'Enter a reply of up to 50,000 characters or attach a file.');
-      const context = replyContext(thread, connection.email, String(body.sourceMessageId || ''));
+      const context = replyContext(thread, connection.email, String(body.sourceMessageId || ''), true);
       if (body.recipient !== context.recipient) throw new MailError(409, 'The reply recipient changed. Reload the conversation.');
       const id = String(body.requestId || '');
       if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) throw new MailError(400, 'Invalid send request.');
@@ -252,7 +265,7 @@ export function createAutoMailHandler(action: 'connect' | 'callback' | 'threads'
       const delivery = { id, mailbox_id: connection.mailbox_id, connection_version: connection.version,
         gmail_thread_id: threadId, source_message_id: body.sourceMessageId, recipient: context.recipient, body_text: message, requested_by: session.id,
         ai_draft_id: aiDraftId, conversation_hash: aiDraftId ? threadSignature(presentThread(thread, connection.email)) : null,
-        subject: context.subject, customer_question: presentThread(thread, connection.email).messages.at(-1)?.body || '' };
+        subject: context.subject, customer_question: presentThread(thread, connection.email).messages.find(message => message.id === body.sourceMessageId && !message.outbound)?.body || '' };
       if(body.sendAt!=null){const {queueScheduledReply}=await import('./scheduled-reply.js');return response.json(await queueScheduledReply(client,connection,body,delivery,{to:recipients.to,cc:recipients.cc,bcc:recipients.bcc,html,attachments:files.map(({data,...meta})=>meta)},raw));}
       const claim = await client.rpc(rich?'claim_rich_reply':'claim_manual_reply', rich?{p_delivery:delivery,p_detail:{to:recipients.to,cc:recipients.cc,bcc:recipients.bcc,html,attachments:files.map(({data,...meta})=>meta)}}:{p_delivery:delivery});
       if(claim.error && ['PGRST202','42P01','42883'].includes(claim.error.code))throw new MailError(503,'Apply the rich replies migration in the separate Auto Mail database to send formatted replies, CC/BCC or attachments.');

@@ -9,7 +9,12 @@ export async function knowledgeRequest<T>(path: string, body?: unknown, signal?:
   const response = await fetch(`/api/auto-mail/${path}`, { credentials: 'include', cache: 'no-store', signal,
     ...(body !== undefined ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {}) });
   const result = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(result.error || 'Unable to access the knowledge base.');
+  if (!response.ok) {
+    const fallback = path.split('?')[0] === 'incoming-settings'
+      ? response.status === 404 ? 'Incoming settings API is unavailable. Restart the local API server or deploy the updated API, then reload incoming settings.' : 'Unable to load incoming draft and automatic reply settings.'
+      : 'Unable to access the knowledge base.';
+    throw new Error(result.error || fallback);
+  }
   if(body!==undefined&&path==='agent-settings')expireMailStatus();
   return result;
 }

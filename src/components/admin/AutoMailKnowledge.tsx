@@ -1,5 +1,7 @@
-import React, { useEffect, useState } from 'react';
-import { BookOpen, Plus, Search } from 'lucide-react';
+import { AutoMailListTools } from './AutoMailListTools';
+import { AutoMailRelatedKnowledge } from './AutoMailRelatedKnowledge';
+import React, { useEffect, useRef, useState } from 'react';
+import { ArrowLeft, BookOpen, MoreVertical, Plus } from 'lucide-react';
 import { KnowledgeArticle, KnowledgeRevision, knowledgeRequest } from '../../services/autoMailKnowledge';
 
 type Form = { title: string; summary: string; content: string; category: string; port: string; keywords: string };
@@ -37,11 +39,10 @@ function readArticleJson(text: string): Form {
 const button = 'rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium hover:bg-slate-50 disabled:opacity-50';
 const input = 'mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm disabled:bg-slate-50';
 
-export function AutoMailKnowledge({ ready, refreshToken = 0,onDirtyChange }: { ready: boolean; refreshToken?: number;onDirtyChange?:(dirty:boolean)=>void }) {
+export function AutoMailKnowledge({ ready, refreshToken = 0,onDirtyChange,onViewChange,hideHeader=false }: { hideHeader?:boolean; ready: boolean; refreshToken?: number;onDirtyChange?:(dirty:boolean)=>void;onViewChange?:(view:'list'|'add'|'edit')=>void }) {
   const [articles, setArticles] = useState<KnowledgeArticle[]>([]);
   const [total, setTotal] = useState(0);
-  const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState({ q: '', status: '', offset: 0 });
+  const [filter, setFilter] = useState({ q: '', status: '', offset: 0, pageSize:20 });
   const [attempt, setAttempt] = useState(0);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -55,13 +56,29 @@ export function AutoMailKnowledge({ ready, refreshToken = 0,onDirtyChange }: { r
   const [jsonOpen, setJsonOpen] = useState(false);
   const [jsonText, setJsonText] = useState('');
   const [jsonError, setJsonError] = useState('');
+  const [optionsOpen,setOptionsOpen] = useState(false);
+  const optionsRef = useRef<HTMLDivElement>(null);
+  const optionsButton = useRef<HTMLButtonElement>(null);
+  useEffect(()=>{onViewChange?.(editorOpen ? selected ? 'edit' : 'add' : 'list');},[editorOpen,selected?.id,onViewChange]);
+  useEffect(()=>{
+    if(!optionsOpen)return;
+    optionsRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus();
+    const outside=(event:PointerEvent)=>{if(!optionsRef.current?.contains(event.target as Node))setOptionsOpen(false);};
+    const escape=(event:KeyboardEvent)=>{if(event.key==='Escape'){setOptionsOpen(false);optionsButton.current?.focus();}};
+    document.addEventListener('pointerdown',outside);document.addEventListener('keydown',escape);
+    return()=>{document.removeEventListener('pointerdown',outside);document.removeEventListener('keydown',escape);};
+  },[optionsOpen]);
+  const closeEditor=()=>{
+    if((dirty||jsonText.trim())&&!window.confirm('Discard unsaved article changes?'))return;
+    setEditorOpen(false);setSelected(null);setDirty(false);setRevisions([]);setNotice('');setJsonOpen(false);setJsonText('');setJsonError('');setOptionsOpen(false);
+  };
   useEffect(()=>{onDirtyChange?.(dirty || !!jsonText.trim());return()=>onDirtyChange?.(false);},[dirty,jsonText,onDirtyChange]);
 
   useEffect(() => {
     if (!ready) return;
     const controller = new AbortController();
     setLoading(true); setError('');
-    const query = new URLSearchParams({ q: filter.q, status: filter.status, offset: String(filter.offset) });
+    const query = new URLSearchParams({ q: filter.q, status: filter.status, offset: String(filter.offset),pageSize:String(filter.pageSize) });
     void knowledgeRequest<{ articles: KnowledgeArticle[]; total: number }>(`knowledge?${query}`, undefined, controller.signal)
       .then(result => { if (!controller.signal.aborted) { setArticles(result.articles); setTotal(result.total); } })
       .catch(reason => { if (!controller.signal.aborted) setError(reason.message); })
@@ -75,6 +92,7 @@ export function AutoMailKnowledge({ ready, refreshToken = 0,onDirtyChange }: { r
     setEditorOpen(true); setDirty(false);
   };
   const open = async (id: string) => {
+    if ((dirty || jsonText.trim()) && !window.confirm('Discard unsaved article changes and reload the saved article?')) return;
     setBusy(true); setError(''); setNotice('');
     try { const result = await knowledgeRequest<{ article: KnowledgeArticle; revisions: KnowledgeRevision[] }>(`knowledge-article?id=${encodeURIComponent(id)}`); applyArticle(result.article); setRevisions(result.revisions); }
     catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to open article.'); }
@@ -120,46 +138,57 @@ export function AutoMailKnowledge({ ready, refreshToken = 0,onDirtyChange }: { r
   };
 
   if (!ready) return <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">Knowledge base setup is pending. Apply the Milestone 3 KB migration to the Auto Mail database, then refresh Auto Mail. Gmail and manual replies are still available.</div>;
-  return <section className="space-y-4" aria-label="Knowledge base management">
-    <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-semibold text-slate-900">Knowledge base</h3><p className="mt-1 text-xs text-slate-500">Build and approve reusable answers. AI configuration can come later.</p></div><button className={button} disabled={busy || dirty} onClick={() => { setSelected(null); setForm(blank()); setRevisions([]); setEditorOpen(true); setNotice(''); setError(''); setJsonOpen(false); setJsonText(''); setJsonError(''); }}><Plus className="mr-1 inline h-4 w-4" />New article</button></div>
-    {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
-    {notice && <p role="status" className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
-    <div className="grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
-      <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-4">
-        <form onSubmit={event => { event.preventDefault(); setFilter(current => ({ ...current, q: search, offset: 0 })); }} className="space-y-3">
-          <label className="block text-xs font-medium text-slate-600">Search articles<input className={input} value={search} onChange={event => setSearch(event.target.value)} maxLength={200} placeholder="Title, answer, keyword..." /></label>
-          <div className="flex gap-2"><select aria-label="Article status" className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2 py-2 text-xs" value={filter.status} onChange={event => setFilter(current => ({ ...current, status: event.target.value, offset: 0 }))}><option value="">All statuses</option><option value="DRAFT">Draft</option><option value="APPROVED">Approved</option><option value="ARCHIVED">Archived</option></select><button className={button} disabled={loading}><Search className="mr-1 inline h-3 w-3" />Search</button></div>
-        </form>
-        <p role="status" className="my-3 text-xs text-slate-500">{loading ? 'Loading articles...' : `${total} article${total === 1 ? '' : 's'}`}</p>
-        <div className="max-h-[600px] space-y-2 overflow-y-auto">{articles.map(article => <button type="button" key={article.id} disabled={busy || dirty} onClick={() => void open(article.id)} aria-pressed={selected?.id === article.id} className={`w-full rounded-lg border p-3 text-left disabled:opacity-60 ${selected?.id === article.id ? 'border-sky-300 bg-sky-50' : 'border-slate-200 hover:bg-slate-50'}`}><p className="break-words text-sm font-semibold text-slate-800">{article.title}</p><p className="mt-1 text-xs text-slate-500">{article.status} · v{article.version} · {article.port}</p><p className="mt-1 line-clamp-2 text-xs text-slate-500">{article.summary || article.category}</p></button>)}</div>
-        {!loading && !articles.length && <p className="py-6 text-center text-sm text-slate-500">No articles found. Add your first reusable answer.</p>}
-        <div className="mt-3 flex justify-between gap-2"><button className={button} disabled={loading || filter.offset === 0} onClick={() => setFilter(current => ({ ...current, offset: Math.max(0, current.offset - 25) }))}>Previous</button><button className={button} disabled={loading || filter.offset + 25 >= total} onClick={() => setFilter(current => ({ ...current, offset: current.offset + 25 }))}>Next</button></div>
-      </div>
-      <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
-        {!editorOpen ? <div className="py-12 text-center text-slate-500"><BookOpen aria-hidden="true" className="mx-auto mb-3 h-7 w-7" /><p className="text-sm">Select an article or create a new answer.</p></div> : <>
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-2"><h4 className="font-semibold">{selected ? `Edit article · v${selected.version}` : 'New article'}</h4><span className="rounded-full bg-slate-100 px-2 py-1 text-xs">{selected?.status || 'DRAFT'}</span></div>
+  return <section className="flex min-h-[360px] min-w-0 flex-1 flex-col" aria-label="Knowledge base management">
+    {!hideHeader&&<div className="flex flex-wrap items-center justify-between gap-3 px-4 py-4"><div><h3 className="font-semibold text-slate-900">Knowledge base</h3><p className="mt-1 text-xs text-slate-500">Manage and approve reusable answers for your email replies.</p></div></div>}
+    {error && <p role="alert" className="mx-4 mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+    {notice && <p role="status" className="mx-4 mb-3 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      {!editorOpen && <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-white">
+        <AutoMailListTools label="articles" query={filter.q} onSearch={q=>setFilter(current=>({...current,q,offset:0}))} status={filter.status} onStatus={status=>setFilter(current=>({...current,status,offset:0}))} pageSize={filter.pageSize} onPageSize={pageSize=>setFilter(current=>({...current,pageSize,offset:0}))} disabled={busy} statuses={[{value:'',label:'All statuses'},{value:'DRAFT',label:'Draft'},{value:'APPROVED',label:'Approved'},{value:'ARCHIVED',label:'Archived'}]}><button className="rounded-lg bg-sky-600 h-9 px-3 text-xs font-semibold text-white hover:bg-sky-700 disabled:opacity-50" disabled={busy || dirty} onClick={() => { setSelected(null); setForm(blank()); setRevisions([]); setEditorOpen(true); setNotice(''); setError(''); setJsonOpen(false); setJsonText(''); setJsonError(''); }}><Plus className="mr-1 inline h-4 w-4" />New article</button></AutoMailListTools>
+        <p role="status" className="px-4 pb-2 text-xs text-slate-500">{loading?'Loading articles...':`${total} article${total===1?'':'s'}`}</p>
+        <div className="min-h-0 max-w-full flex-1 overflow-auto border-y border-slate-200">
+          <table aria-label="Knowledge base articles" aria-busy={loading} className="w-full min-w-[760px] border-collapse text-left text-xs">
+            <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-600"><tr>{['Article','Category','Scope','Status','Version','Updated','Action'].map(label=><th key={label} scope="col" className="px-4 py-2">{label}</th>)}</tr></thead>
+            <tbody className="divide-y divide-slate-100">{articles.map(article=><tr key={article.id} className="hover:bg-sky-50/50">
+              <td className="w-[30%] min-w-[220px] max-w-sm px-4 py-2"><button type="button" disabled={busy} onClick={()=>void open(article.id)} className="text-left font-semibold text-sky-800 hover:underline disabled:opacity-50">{article.title}</button>{article.summary&&<p className="mt-0.5 line-clamp-1 text-[11px] text-slate-500">{article.summary}</p>}</td>
+              <td className="px-4 py-2 text-slate-600">{article.category}</td><td className="px-4 py-2 text-slate-600">{article.port}</td>
+              <td className="px-4 py-2"><span className={`whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ${article.status==='APPROVED'?'bg-emerald-50 text-emerald-800':article.status==='ARCHIVED'?'bg-slate-100 text-slate-600':'bg-amber-50 text-amber-800'}`}>{article.status==='APPROVED'?'Approved':article.status==='ARCHIVED'?'Archived':'Draft'}</span></td>
+              <td className="px-4 py-2 text-slate-600">v{article.version}</td><td className="whitespace-nowrap px-4 py-2 text-xs text-slate-500">{article.updated_at&&Number.isFinite(Date.parse(article.updated_at))?new Date(article.updated_at).toLocaleDateString():'-'}</td>
+              <td className="px-4 py-2"><button type="button" aria-label={`Edit ${article.title}`} disabled={busy} onClick={()=>void open(article.id)} className="rounded-md border border-slate-200 px-2.5 py-1 text-xs hover:bg-slate-50 disabled:opacity-50">Edit</button></td>
+            </tr>)}</tbody>
+          </table>
+          {!loading&&!articles.length&&<p className="p-8 text-center text-sm text-slate-500">No articles found. Add your first reusable answer.</p>}
+        </div>
+        <div className="mt-auto flex justify-between gap-2 border-t border-slate-200 px-4 py-3"><button className={button} disabled={loading || filter.offset === 0} onClick={() => setFilter(current => ({ ...current, offset: Math.max(0, current.offset - current.pageSize) }))}>Previous</button><button className={button} disabled={loading || filter.offset + filter.pageSize >= total} onClick={() => setFilter(current => ({ ...current, offset: current.offset + current.pageSize }))}>Next</button></div>
+      </div>}
+      {editorOpen && <div className="min-w-0 border-t border-slate-200 bg-white p-4 sm:p-5">
+        <button type="button" disabled={busy} onClick={closeEditor} className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-sky-700 hover:underline disabled:opacity-50"><ArrowLeft className="h-4 w-4"/>Back to Knowledge Base</button>
+        <>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2"><h4 className="font-semibold">{selected ? `Edit article · v${selected.version}` : 'New article'}</h4><div className="flex items-center gap-2"><span className="rounded-full bg-slate-100 px-2 py-1 text-xs">{selected?.status || 'DRAFT'}</span><div ref={optionsRef} className="relative"><button ref={optionsButton} type="button" aria-label="Article options" aria-haspopup="menu" aria-expanded={optionsOpen} disabled={busy} onClick={()=>setOptionsOpen(value=>!value)} className="rounded-full p-2 text-slate-700 hover:bg-slate-100"><MoreVertical className="h-5 w-5"/></button>
+          {optionsOpen&&<div role="menu" aria-label="Article options" onKeyDown={event=>{const items=Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'));const index=items.indexOf(document.activeElement as HTMLButtonElement);const next=event.key==='ArrowDown'?(index+1)%items.length:event.key==='ArrowUp'?(index+items.length-1)%items.length:event.key==='Home'?0:event.key==='End'?items.length-1:null;if(next!==null){event.preventDefault();items[next]?.focus();}if(event.key==='Tab')setOptionsOpen(false);}} className="absolute right-0 top-full z-30 w-52 rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
+            <button type="button" role="menuitem" className="block w-full px-4 py-2 text-left text-sm hover:bg-slate-100 focus:bg-slate-100" onClick={()=>{setOptionsOpen(false);setJsonOpen(value=>!value);optionsButton.current?.focus();}}>Paste JSON</button>
+            <button type="button" role="menuitem" className="block w-full px-4 py-2 text-left text-sm hover:bg-slate-100 focus:bg-slate-100" onClick={()=>{setOptionsOpen(false);void copyJsonTemplate();optionsButton.current?.focus();}}>Copy JSON template</button>
+          </div>}</div></div></div>
           <form className="space-y-3" onSubmit={event => { event.preventDefault(); void save(); }}>
-            <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
-              <div className="flex flex-wrap gap-2"><button type="button" className={button} disabled={busy} aria-expanded={jsonOpen} onClick={() => setJsonOpen(value => !value)}>Paste JSON</button><button type="button" className={button} disabled={busy} onClick={() => void copyJsonTemplate()}>Copy JSON template</button></div>
-              {jsonOpen && <>
+            {jsonOpen && <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
                 <p className="text-xs text-slate-600">Paste one article to fill all fields below. Omitted optional fields use defaults. This replaces the current field values; review them before saving.</p>
                 <label className="block text-xs font-medium text-slate-700">Article JSON<textarea value={jsonText} disabled={busy} rows={9} spellCheck={false} className={`${input} font-mono`} placeholder={jsonTemplate} aria-invalid={!!jsonError} aria-describedby={jsonError ? 'knowledge-json-error' : undefined} onChange={event => { setJsonText(event.target.value); setJsonError(''); }} onPaste={event => { event.preventDefault(); fillFromJson(event.clipboardData.getData('text')); }} /></label>
                 {jsonError && <p id="knowledge-json-error" role="alert" className="text-xs text-red-700">{jsonError}</p>}
                 <button type="button" className={button} disabled={busy || !jsonText.trim()} onClick={() => fillFromJson(jsonText)}>Fill fields from JSON</button>
-              </>}
-            </div>
+            </div>}
             <label className="block text-xs font-medium text-slate-700">Article title<input required maxLength={160} value={form.title} onChange={event => field('title', event.target.value)} className={input} disabled={busy} /></label>
             <label className="block text-xs font-medium text-slate-700">Short summary<textarea maxLength={400} rows={2} value={form.summary} onChange={event => field('summary', event.target.value)} className={input} disabled={busy} /></label>
             <div className="grid gap-3 sm:grid-cols-2"><label className="block text-xs font-medium text-slate-700">Category<input required maxLength={80} value={form.category} onChange={event => field('category', event.target.value)} className={input} disabled={busy} /></label><label className="block text-xs font-medium text-slate-700">Port or scope<input required maxLength={80} value={form.port} onChange={event => field('port', event.target.value)} className={input} placeholder="ALL, NORTHPORT, WESTPORT..." disabled={busy} /></label></div>
             <label className="block text-xs font-medium text-slate-700">Keywords (comma separated)<input value={form.keywords} onChange={event => field('keywords', event.target.value)} className={input} disabled={busy} placeholder="registration, required documents" /></label>
             <label className="block text-xs font-medium text-slate-700">Answer / procedure<textarea required maxLength={30000} rows={12} value={form.content} onChange={event => field('content', event.target.value)} className={input} disabled={busy} /></label>
+            <AutoMailRelatedKnowledge key={selected?.id || 'new'} query={[form.title, form.summary, form.keywords].join('\n')} excludeId={selected?.id} disabled={busy} />
             {selected?.status === 'APPROVED' && <p className="text-xs text-amber-700">Saving changes returns this article to draft. Approve the revised version before using it again.</p>}
-            <div className="flex flex-wrap gap-2"><button type="submit" disabled={busy || !form.title.trim() || !form.content.trim() || (!!selected && !dirty)} className="rounded-lg bg-sky-600 px-3 py-2 text-xs font-medium text-white disabled:opacity-50">{busy ? 'Working...' : 'Save draft'}</button><button type="button" className={button} disabled={busy} onClick={() => { setEditorOpen(false); setSelected(null); setDirty(false); setRevisions([]); setNotice(''); setJsonOpen(false); setJsonText(''); setJsonError(''); }}>Cancel edits</button>{selected && <button type="button" className={button} disabled={busy || dirty} onClick={() => void open(selected.id)}>Reload & history</button>}</div>
+            <div className="flex flex-wrap gap-2"><button type="submit" disabled={busy || !form.title.trim() || !form.content.trim() || (!!selected && !dirty)} className="rounded-lg bg-sky-600 px-3 py-2 text-xs font-medium text-white disabled:opacity-50">{busy ? 'Working...' : 'Save draft'}</button><button type="button" className={button} disabled={busy} onClick={closeEditor}>Cancel edits</button>{selected && <button type="button" className={button} disabled={busy} onClick={() => void open(selected.id)}>Reload & history</button>}</div>
           </form>
           {selected && <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4">{selected.status === 'DRAFT' && <button className={button} disabled={busy || dirty} onClick={() => void review('APPROVE')}>Approve article</button>}{selected.status !== 'ARCHIVED' && <button className={button} disabled={busy || dirty} onClick={() => void review('ARCHIVE')}>Archive article</button>}{selected.status !== 'DRAFT' && <button className={button} disabled={busy || dirty} onClick={() => void review('DRAFT')}>Return to draft</button>}{dirty && <p className="w-full text-xs text-amber-700">Save or cancel edits before reviewing or switching articles.</p>}</div>}
           {revisions.length > 0 && <div className="mt-5 border-t border-slate-100 pt-4"><h4 className="mb-2 text-sm font-semibold">Revision history (latest 20)</h4>{revisions.map(revision => <details key={revision.id} className="border-b border-slate-100 py-2"><summary className="cursor-pointer text-xs text-slate-600">v{revision.version} · {revision.action.replaceAll('_', ' ')} · {new Date(revision.created_at).toLocaleString()}</summary><p className="mt-2 break-words text-sm font-medium">{revision.snapshot.title}</p><p className="my-1 text-xs text-slate-500">{revision.snapshot.status} · {revision.snapshot.port}</p><p className="max-h-64 overflow-auto whitespace-pre-wrap break-words text-sm text-slate-700">{revision.snapshot.content}</p></details>)}</div>}
-        </>}
-      </div>
+        </>
+      </div>}
     </div>
   </section>;
 }

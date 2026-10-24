@@ -74,6 +74,48 @@ test('thread parsing excludes attachments and replies honor Reply-To with correc
   assert.throws(() => oauthConfig({ AUTO_MAIL_APP_URL: 'https://portal.example.com/extra', GOOGLE_OAUTH_CLIENT_ID: 'x', GOOGLE_OAUTH_CLIENT_SECRET: 'y' }));
 });
 
+test('manual replies select the exact incoming or sent message and retain its threading headers', () => {
+  const thread:any = incomingThread();
+  thread.messages.push({id:'sent2',internalDate:'1720000001000',labelIds:['SENT'],payload:{headers:[
+    {name:'From',value:'operator@example.com'},{name:'To',value:'Customer <customer@example.com>, Other <other@example.com>'},
+    {name:'Cc',value:'cc@example.com, operator@example.com, other@example.com'},{name:'Bcc',value:'hidden@example.com'},
+    {name:'Subject',value:'Re: Registration help'},{name:'Message-ID',value:'<sent2@example.com>'}
+  ]}});
+  const incoming=replyContext(thread,'operator@example.com','incoming1',true);
+  assert.equal(incoming.recipient,'support@example.com');
+  assert.equal(incoming.messageId,'<customer-message@example.com>');
+  const sent=replyContext(thread,'operator@example.com','sent2',true);
+  assert.equal(sent.recipient,'customer@example.com');
+  assert.deepEqual(sent.replyAll,{to:['customer@example.com','other@example.com'],cc:['cc@example.com']});
+  const raw=Buffer.from(rawReply('operator@example.com',sent,'Follow up','10000000-0000-4000-8000-000000000001'),'base64url').toString();
+  assert.match(raw,/In-Reply-To: <sent2@example.com>/);
+  assert.match(raw,/To: customer@example.com/);
+  assert.throws(()=>replyContext(thread,'operator@example.com','missing',true),/changed/);
+  // Automated drafting keeps its latest-incoming-only rule.
+  assert.throws(()=>replyContext(thread,'operator@example.com','incoming1'),/changed/);
+  assert.throws(()=>replyContext(thread,'operator@example.com','sent2'),/outgoing/);
+});
+
+test('reply all puts the selected incoming sender in To and all other participants in CC', () => {
+  // Synthetic two-message trail matching a customer request followed by a colleague reply.
+  const message=(id:string,from:string,to:string,cc:string,date:number)=>({id,internalDate:String(date),labelIds:['INBOX'],payload:{headers:[
+    {name:'From',value:from},{name:'To',value:to},{name:'Cc',value:cc},
+    {name:'Subject',value:'Support request'},{name:'Message-ID',value:`<${id}@example.com>`},
+    {name:'Bcc',value:'private@example.com'}
+  ]}});
+  const thread={id:'trail',messages:[
+    message('original','customer@example.com','colleague@example.com, tech@example.com, support@example.com','Authority <authority@example.com>',1),
+    message('followup','Colleague <colleague@example.com>','customer@example.com','tech@example.com, support@example.com, Authority <authority@example.com>',2)
+  ]};
+  const latest=replyContext(thread,'support@example.com','followup',true);
+  assert.deepEqual(latest.replyAll,{to:['colleague@example.com'],cc:['customer@example.com','tech@example.com','authority@example.com']});
+  const earlier=replyContext(thread,'support@example.com','original',true);
+  assert.deepEqual(earlier.replyAll,{to:['customer@example.com'],cc:['colleague@example.com','tech@example.com','authority@example.com']});
+  // Repeated addresses cannot appear in both fields, and BCC is never copied.
+  thread.messages[1].payload.headers.find(header=>header.name==='Cc')!.value+=' , customer@example.com, colleague@example.com';
+  assert.deepEqual(replyContext(thread,'support@example.com','followup',true).replyAll,latest.replyAll);
+});
+
 test('Gmail handlers require an administrator', async () => {
   for (const handler of [gmailConnect, gmailCallback, gmailThread, gmailThreads, gmailReply]) {
     let status = 200;
@@ -96,6 +138,7 @@ test('manual sending enforces origin, freshness and durable duplicate protection
   let claimCount = 0;
   let deliveryClaimed = false;
   let failSend = false;
+  let sentSource = false;
   const calls: string[] = [];
   const connection = { id: 'system', version, mailbox_id: mailbox, email: 'operator@example.com', scopes: [READ_SCOPE, SEND_SCOPE], ...encryptRefreshToken('fake-refresh-token') };
   globalThis.fetch = (async (input: any, init: any = {}) => {
@@ -104,7 +147,11 @@ test('manual sending enforces origin, freshness and durable duplicate protection
     assert.ok(!url.includes('primary.supabase.co'), 'Never access the main database');
     if (url.includes('/gmail_connections')) return json(connection);
     if (url === 'https://oauth2.googleapis.com/token') return json({ access_token: 'fake-access' });
-    if (url.includes('/threads/thread1')) return json(incomingThread());
+    if (url.includes('/threads/thread1')) {
+      const thread=incomingThread();
+      if(sentSource){thread.messages[0].labelIds=['SENT'];thread.messages[0].payload.headers.find(h=>h.name==='From')!.value='operator@example.com';thread.messages[0].payload.headers.push({name:'To',value:'support@example.com'});}
+      return json(thread);
+    }
     if (url.includes('/rpc/claim_manual_reply')) {
       claimCount++;
       if (deliveryClaimed) return json({ code: '23505', message: 'duplicate' }, 409);
@@ -118,7 +165,9 @@ test('manual sending enforces origin, freshness and durable duplicate protection
       if (failSend) throw new Error('Simulated timeout after Gmail may have accepted');
       return json({ id: 'sent1', threadId: 'thread1' });
     }
-    if (url.includes('/reply_deliveries')) return new Response(null, { status: 204 });
+    if (url.includes('/conversations')) return json({id:mailbox});
+    if (url.includes('/rest/v1/messages')) return new Response(null,{status:204});
+    if (url.includes('/reply_deliveries')) return init.method==='GET' ? json([]) : new Response(null, { status: 204 });
     throw new Error('Unexpected test URL');
   }) as typeof fetch;
   const cookie = 'cargomove_session=' + signSession({ id: version, email: 'admin@example.com', type: 'ADMIN', exp: Date.now() + 60000 });
@@ -140,12 +189,20 @@ test('manual sending enforces origin, freshness and durable duplicate protection
     assert.equal(sendCount, 1);
     assert.equal((await invoke()).code, 409);
     assert.equal(sendCount, 1, 'A second request cannot send again');
+    deliveryClaimed = false; sentSource = true;
+    assert.equal((await invoke()).result.status,'SENT','Own sent messages can be replied to through the actual send handler');
+    assert.equal(sendCount,2);
+    let view:any;let readCode=200;
+    await gmailThread({method:'GET',headers:{cookie},query:{id:'thread1'}},{setHeader(){},status(value:number){readCode=value;return this;},json(value:any){view=value;}});
+    assert.equal(readCode,200);assert.equal(view.replyBlocked,'');
+    assert.equal(view.messages[0].recipient,'support@example.com');
+    assert.deepEqual(view.messages[0].replyAll,{to:['support@example.com'],cc:[]});
     deliveryClaimed = false; failSend = true;
     const uncertain = await invoke();
     assert.equal(uncertain.code, 409);
     assert.match(uncertain.result.error, /uncertain/);
     assert.equal((await invoke()).code, 409);
-    assert.equal(sendCount, 2, 'An uncertain send cannot be sent a second time');
+    assert.equal(sendCount, 3, 'An uncertain send cannot be sent a second time');
   } finally {
     globalThis.fetch = realFetch;
     for (const key of Object.keys(overrides)) { if (before[key] === undefined) delete process.env[key]; else process.env[key] = before[key]; }

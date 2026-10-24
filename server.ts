@@ -5,15 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 import gmailConnect from './server-handlers/gmail/connect.js';
 import gmailCallback from './server-handlers/gmail/callback.js';
 import gmailStatus from './server-handlers/gmail/status.js';
-import autoMailStatus from './server-handlers/auto-mail/status.js';
-import agentSettings from './server-handlers/auto-mail/agent-settings.js';
-import mailboxActions from './server-handlers/auto-mail/mailbox-actions.js';
-import { composeMessage, listOutbox, cancelOutbox, runOutbox } from './server-handlers/auto-mail/outbox.js';
-import { attachmentUpload, attachmentRead, attachmentRemove } from './server-handlers/auto-mail/attachments.js';
-import { learningList, learningDetail, learningPropose, learningReview } from './server-handlers/auto-mail/learning.js';
-import { aiGenerate, aiUse } from './server-handlers/auto-mail/ai.js';
-import { knowledgeList, knowledgeDetail, knowledgeSave, knowledgeReview, knowledgeMatches } from './server-handlers/auto-mail/knowledge.js';
-import { gmailConnect as autoMailConnect, gmailCallback as autoMailCallback, gmailThreads, gmailThread, gmailReply } from './server-handlers/auto-mail/gmail.js';
+import mailRouter from './api/mail.js';
 import emailTemplates from './server-handlers/email/templates.js';
 import emailPreview from './server-handlers/email/preview.js';
 import emailSend from './server-handlers/email/send.js';
@@ -121,32 +113,11 @@ async function fetchSupabaseTable(table: string, params: URLSearchParams) {
 }
 
 app.use(express.json({ limit: '1mb' }));
-app.all('/api/auto-mail/status', autoMailStatus);
-app.post('/api/auto-mail/mailbox-action', mailboxActions);
-app.post('/api/auto-mail/compose', composeMessage);
-app.get('/api/auto-mail/outbox', listOutbox);
-app.post('/api/auto-mail/outbox-cancel', cancelOutbox);
-app.all('/api/auto-mail/outbox-run', runOutbox);
-app.post('/api/auto-mail/attachment-upload', attachmentUpload);
-app.get('/api/auto-mail/attachment', attachmentRead);
-app.post('/api/auto-mail/attachment-remove', attachmentRemove);
-app.all('/api/auto-mail/agent-settings', agentSettings);
-app.get('/api/auto-mail/learning', learningList);
-app.get('/api/auto-mail/learning-suggestion', learningDetail);
-app.post('/api/auto-mail/learning-propose', learningPropose);
-app.post('/api/auto-mail/learning-review', learningReview);
-app.post('/api/auto-mail/ai-generate', aiGenerate);
-app.post('/api/auto-mail/ai-use', aiUse);
-app.get('/api/auto-mail/knowledge', knowledgeList);
-app.post('/api/auto-mail/knowledge', knowledgeSave);
-app.get('/api/auto-mail/knowledge-article', knowledgeDetail);
-app.post('/api/auto-mail/knowledge-review', knowledgeReview);
-app.post('/api/auto-mail/knowledge-matches', knowledgeMatches);
-app.all('/api/auto-mail/connect', autoMailConnect);
-app.all('/api/auto-mail/callback', autoMailCallback);
-app.all('/api/auto-mail/threads', gmailThreads);
-app.all('/api/auto-mail/thread', gmailThread);
-app.all('/api/auto-mail/reply', gmailReply);
+// Use the deployed router locally as well, including incoming settings/workers and saved AI drafts.
+app.use('/api/auto-mail', (request, response) => {
+  request.query.route = `auto-mail${request.path}`;
+  return mailRouter(request, response);
+});
 app.all('/api/auth/profile', profile);
 app.post('/api/dev-tools/run-scheduler', runScheduler);
 app.post('/api/dev-tools/system-versions', systemVersions);

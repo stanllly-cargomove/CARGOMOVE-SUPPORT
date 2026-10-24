@@ -27,7 +27,7 @@ export async function deliverOutbox(client:any,job:any) {
     const bytes=Buffer.from(await download.data.arrayBuffer());
     if(hash(bytes)!==job.raw_sha256)throw new Error('Prepared message failed its integrity check.');
     raw=bytes.toString('base64url'); token=await accessToken(connection);
-    if(job.reply_context){const context=job.reply_context;const current=await gmailGet(token,`threads/${encodeURIComponent(context.threadId)}?format=full`);if(replyContext(current,connection.email,context.sourceMessageId).recipient!==context.recipient)throw new Error('Reply recipient changed');if(context.aiDraftId){const checked=await client.rpc('validate_ai_draft',{p_id:context.aiDraftId,p_actor:context.actorId});if(checked.error)throw new Error('AI draft changed');}}
+    if(job.reply_context){const context=job.reply_context;const current=await gmailGet(token,`threads/${encodeURIComponent(context.threadId)}?format=full`);if(replyContext(current,connection.email,context.sourceMessageId,true).recipient!==context.recipient)throw new Error('Reply recipient changed');if(context.aiDraftId){const checked=await client.rpc('validate_ai_draft',{p_id:context.aiDraftId,p_actor:context.actorId});if(checked.error)throw new Error('AI draft changed');}}
 
   }catch {
     const saved=await client.rpc('finish_outbox_message',{p_id:job.id,p_status:'FAILED',p_error:'Delivery stopped before sending. Mailbox access changed or prepared content is unavailable. Compose again after checking the connection.'});

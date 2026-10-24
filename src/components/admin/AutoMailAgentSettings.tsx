@@ -1,56 +1,67 @@
-import {AutoMailIncomingSettings} from './AutoMailIncomingSettings';
 import React, { useEffect, useState } from 'react';
+import { Sparkles, Plus } from 'lucide-react';
 import { knowledgeRequest } from '../../services/autoMailKnowledge';
+import { type SettingsStatus, SettingsCard, SettingsToggle, SettingsActions, settingsInput, settingsSecondary } from './AutoMailSettingsUi';
+import { AutoMailSnackbar, AutoMailSnackbarArea } from './AutoMailSnackbar';
 
 type Settings = { enabled: boolean; model: string; enabled_models: string[]; version: number };
 type Result = { settings: Settings; models: string[]; storageReady: boolean; serverEnabled: boolean; keyConfigured: boolean };
 
-export function AutoMailAgentSettings() {
-  const [incomingOpen,setIncomingOpen]=useState(false);
+export function AutoMailAgentSettings({ onDirtyChange, refreshToken = 0, onStateChange }: { onDirtyChange?: (dirty: boolean) => void; refreshToken?: number; onStateChange?: (status: SettingsStatus) => void } = {}) {
   const [result, setResult] = useState<Result | null>(null);
   const [form, setForm] = useState<Settings | null>(null);
   const [custom, setCustom] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState(true);
   const [dirty, setDirty] = useState(false);
-  const [attempt, setAttempt] = useState(0);
   const [error, setError] = useState('');
+  const [failed, setFailed] = useState(false);
   const [notice, setNotice] = useState('');
+  useEffect(() => { onDirtyChange?.(dirty || !!custom.trim()); return () => onDirtyChange?.(false); }, [dirty, custom, onDirtyChange]);
   useEffect(() => {
-    const controller = new AbortController(); setBusy(true); setError('');
+    const controller = new AbortController(); setBusy(true); setFailed(false); setError('');
     void knowledgeRequest<Result>('agent-settings', undefined, controller.signal)
-      .then(value => { if (!controller.signal.aborted) { setResult(value); setForm(value.settings); setDirty(false); setNotice(''); } })
-      .catch(reason => { if (!controller.signal.aborted) setError(reason.message); })
+      .then(value => { if (!controller.signal.aborted) { setResult(value); setForm(value.settings); setDirty(false); setCustom(''); setNotice(''); } })
+      .catch(reason => { if (!controller.signal.aborted) { setFailed(true); setError(reason.message); } })
       .finally(() => { if (!controller.signal.aborted) setBusy(false); });
     return () => controller.abort();
-  }, [attempt]);
+  }, [refreshToken]);
+  const ready = !!result && result.storageReady && result.serverEnabled && result.keyConfigured && result.settings.enabled && result.settings.enabled_models.includes(result.settings.model);
+  useEffect(() => { onStateChange?.({ busy, ready, error: failed }); }, [busy, ready, failed, onStateChange]);
   const change = (update: Partial<Settings>) => { setForm(current => current ? { ...current, ...update } : current); setDirty(true); setNotice(''); };
   const save = async () => {
     if (!form || busy) return;
-    setBusy(true); setError(''); setNotice('');
+    setBusy(true); setFailed(false); setError(''); setNotice('');
     try {
       const value = await knowledgeRequest<{ settings: Settings }>('agent-settings', { enabled: form.enabled, model: form.model, enabledModels: form.enabled_models, version: form.version });
-      setForm(value.settings); setDirty(false); setNotice('Email agent settings saved. New drafts use these settings.');
-    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to save settings.'); }
+      setForm(value.settings); setResult(current => current ? { ...current, settings: value.settings } : current); setDirty(false); setNotice('Email agent settings saved. New drafts use these settings.');
+    } catch (reason) { setFailed(true); setError(reason instanceof Error ? reason.message : 'Unable to save settings.'); }
     finally { setBusy(false); }
   };
   const models = [...new Set([...(result?.models || []), ...(form?.enabled_models || []), ...(form?.model ? [form.model] : [])])];
-  return <section aria-label="Email agent settings" className="space-y-4">
-    <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-semibold text-slate-900">Email agent model</h3><p className="mt-1 text-xs text-slate-500">Control AI reply suggestions. Sending still requires staff review.</p></div><button type="button" disabled={busy} onClick={() => { if (!dirty || window.confirm('Discard unsaved model settings and reload?')) setAttempt(value => value + 1); }} className="rounded-lg border border-slate-200 px-3 py-2 text-xs disabled:opacity-50">Reload model settings</button></div>
-    {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
-    {notice && <p role="status" className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
-    {busy && !form && <p role="status" className="text-sm text-slate-500">Loading email agent settings...</p>}
-    {form && result && <form onSubmit={event => { event.preventDefault(); void save(); }} className="space-y-4">
-      {!result.storageReady && <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">Apply 20261022050000_agent_settings.sql in the separate Auto Mail database to save model settings. Current server settings remain in use until then.</p>}
-      {(!result.serverEnabled || !result.keyConfigured) && <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">AI also requires the server enable flag and OpenAI API key. Contact the developer to configure them.</p>}
-      <label className="flex items-center gap-3 text-sm font-medium"><input type="checkbox" checked={form.enabled} disabled={busy || !result.storageReady} onChange={event => change({ enabled: event.target.checked })} className="h-4 w-4" />Enable AI reply suggestions</label>
-      <label className="block text-sm font-medium">Active reply model<select value={form.model} disabled={busy || !result.storageReady} onChange={event => change({ model: event.target.value, enabled_models: [...new Set([...form.enabled_models, event.target.value])] })} className="mt-2 block w-full max-w-lg rounded-lg border border-slate-300 bg-white p-3 text-sm">{models.map(model => <option key={model} value={model}>{model}</option>)}</select></label>
-      <fieldset disabled={busy || !result.storageReady} className="rounded-lg border border-slate-200 p-4"><legend className="px-1 text-sm font-medium">Enabled models</legend><p className="mb-3 text-xs text-slate-500">Only the active enabled model generates replies. Disabling it requires choosing another model or turning suggestions off.</p><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{models.map(model => <label key={model} className="flex min-w-0 items-center gap-2 text-sm"><input type="checkbox" checked={form.enabled_models.includes(model)} onChange={event => change({ enabled_models: event.target.checked ? [...form.enabled_models, model] : form.enabled_models.filter(value => value !== model) })} /><span className="break-all">{model}</span></label>)}</div>
-        <div className="mt-4 flex flex-wrap items-end gap-2"><label className="min-w-0 flex-1 text-xs font-medium">Other model ID<input value={custom} maxLength={100} onChange={event => setCustom(event.target.value)} className="mt-1 block w-full rounded-lg border border-slate-300 p-2 text-sm" placeholder="Model available to your OpenAI project" /></label><button type="button" disabled={!/^[a-zA-Z0-9._:-]{1,100}$/.test(custom)} onClick={() => { change({ enabled_models: [...new Set([...form.enabled_models, custom])] }); setCustom(''); }} className="rounded-lg border border-slate-200 px-3 py-2 text-xs disabled:opacity-50">Add model</button></div>
-      </fieldset>
-      <p className="text-xs leading-5 text-slate-500">Model access is checked when generating a draft. OpenAI's complimentary token offer depends on your organization's eligibility, data-sharing settings, supported models and remaining daily allowance. Choosing a model here does not enable data sharing or enforce a free-token limit. Shared email content may be used to improve OpenAI models. <a href="https://help.openai.com/en/articles/10306912-sharing-feedback-evals-and-api-data-with-openai" target="_blank" rel="noopener noreferrer" className="text-sky-700 underline">Offer and data-sharing details</a></p>
-      {form.enabled && !form.enabled_models.includes(form.model) && <p role="alert" className="text-sm text-amber-800">Enable the active model or choose another enabled model before saving.</p>}
-      <button type="submit" disabled={busy || !dirty || !result.storageReady || (form.enabled && !form.enabled_models.includes(form.model))} className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{busy ? 'Saving...' : 'Save agent settings'}</button>
-    </form>}
-  <details onToggle={event=>{if(event.currentTarget.open)setIncomingOpen(true);}} className="border-t border-slate-200 pt-4"><summary className="cursor-pointer text-sm font-semibold text-slate-700">Automatic incoming drafts</summary>{incomingOpen&&<AutoMailIncomingSettings/>}</details>
-  </section>;
+  return <SettingsCard label="Email agent settings" title="AI model" description="Choose the model used to prepare support replies." icon={<Sparkles className="h-4 w-4" />} badge={result ? result.settings.enabled ? 'Enabled' : 'Off' : undefined}>
+    <AutoMailSnackbarArea>{error && <AutoMailSnackbar key={error} alert onDismiss={() => setError('')}>{error}</AutoMailSnackbar>}{notice && <AutoMailSnackbar key={notice} onDismiss={() => setNotice('')}>{notice}</AutoMailSnackbar>}</AutoMailSnackbarArea>
+    {busy && !form && <p role="status" className="px-5 py-8 text-xs text-slate-500">Loading email agent settings...</p>}
+    {form && result ? <form onSubmit={event => { event.preventDefault(); void save(); }}>
+      <div className="divide-y divide-slate-100">
+        {(!result.storageReady || !result.serverEnabled || !result.keyConfigured) && <p className="bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-800 sm:px-5">{!result.storageReady ? 'Model settings need database setup before they can be saved.' : 'AI needs server setup before it can prepare replies. Contact your developer to complete the configuration.'}</p>}
+        <div className="px-4 py-4 sm:px-5"><SettingsToggle label="Enable AI reply suggestions" displayLabel="AI reply suggestions" description="Allow AI to prepare replies using approved knowledge." checked={form.enabled} disabled={busy || !result.storageReady} onChange={enabled => change({ enabled })} /></div>
+        <div className="grid items-center gap-3 px-4 py-4 sm:grid-cols-[minmax(180px,1fr)_minmax(0,1.4fr)] sm:px-5">
+          <div><label htmlFor="auto-mail-active-model" className="text-xs font-semibold text-slate-800">Active reply model</label><p className="mt-1 text-xs leading-5 text-slate-500">Used for new drafts and answer checks.</p></div>
+          <select id="auto-mail-active-model" value={form.model} disabled={busy || !result.storageReady} onChange={event => change({ model: event.target.value, enabled_models: [...new Set([...form.enabled_models, event.target.value])] })} className={settingsInput}>{models.map(model => <option key={model} value={model}>{model}</option>)}</select>
+        </div>
+        <details className="px-4 py-4 sm:px-5">
+          <summary className="cursor-pointer text-xs font-semibold text-slate-700">Available models &amp; usage</summary>
+          <fieldset disabled={busy || !result.storageReady} className="mt-4 min-w-0 space-y-4">
+            <legend className="sr-only">Enabled models</legend>
+            <p className="text-xs leading-5 text-slate-500">Choose which models are available. Selecting a model above also enables it.</p>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{models.map(model => <label key={model} className="flex min-w-0 items-center gap-2 text-xs text-slate-600"><input type="checkbox" checked={form.enabled_models.includes(model)} onChange={event => change({ enabled_models: event.target.checked ? [...form.enabled_models, model] : form.enabled_models.filter(value => value !== model) })} className="h-3.5 w-3.5 shrink-0 accent-sky-600" /><span className="break-all">{model}</span></label>)}</div>
+            <div className="flex flex-nowrap items-end gap-2"><label className="min-w-0 flex-1 text-xs font-medium text-slate-700">Other model ID<input value={custom} maxLength={100} onChange={event => setCustom(event.target.value)} className={`${settingsInput} mt-2`} placeholder="Enter a model ID" /></label><button type="button" disabled={!/^[a-zA-Z0-9._:-]{1,100}$/.test(custom)} onClick={() => { change({ enabled_models: [...new Set([...form.enabled_models, custom])] }); setCustom(''); }} className={`${settingsSecondary} mb-0.5`}><Plus aria-hidden="true" className="h-3.5 w-3.5" />Add model</button></div>
+            <p className="text-xs leading-5 text-slate-500">Model access is checked when generating a reply. Usage follows your provider account's billing and data-sharing settings; choosing a model does not guarantee free usage or enable data sharing. <a href="https://help.openai.com/en/articles/10306912-sharing-feedback-evals-and-api-data-with-openai" target="_blank" rel="noopener noreferrer" className="text-sky-700 underline">Usage and data-sharing details</a></p>
+          </fieldset>
+        </details>
+      </div>
+      {form.enabled && !form.enabled_models.includes(form.model) && <p role="alert" className="px-5 pb-4 text-xs text-amber-800">Enable the active model or choose another enabled model before saving.</p>}
+      <SettingsActions dirty={dirty} busy={busy} saveDisabled={busy || !dirty || !result.storageReady || (form.enabled && !form.enabled_models.includes(form.model))} saveLabel="Save agent settings" />
+    </form> : null}
+  </SettingsCard>;
 }
