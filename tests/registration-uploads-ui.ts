@@ -58,7 +58,7 @@ try {
     await page.getByText('CMREG400001', { exact: true }).filter({ visible: true }).waitFor();
     if (width < 768) await page.getByRole('checkbox', { name: 'Select CMREG400001', exact: true }).check();
     else await page.locator('tbody tr').filter({ hasText: 'CMREG400001' }).getByRole('checkbox').check();
-    assert.equal(await page.getByRole('button', { name: 'Register and Email', exact: true }).isDisabled(), false);
+    assert.equal(await page.getByRole('button', { name: 'REGISTER & EMAIL', exact: true }).isDisabled(), false);
     assert.equal(starts, 0);
     await page.getByRole('button', { name: 'Single review fixture', exact: true }).click();
     assert.equal(await page.getByRole('button', { name: 'Generate Excel & Upload', exact: true }).isDisabled(), true);
@@ -71,7 +71,7 @@ try {
     if (width < 768) await page.getByRole('checkbox', { name: 'Select CMREG400001', exact: true }).check();
     else await page.locator('tbody tr').filter({ hasText: 'CMREG400001' }).getByRole('checkbox').check();
     const downloadPromise = page.waitForEvent('download');
-    await page.getByRole('button', { name: 'Register and Email', exact: true }).click();
+    await page.getByRole('button', { name: 'REGISTER & EMAIL', exact: true }).click();
     assert.equal((await downloadPromise).suggestedFilename(), summary.filename);
     const info = () => page.getByRole('button', { name: 'CargoMove upload information for CMREG400001', exact: true }).filter({ visible: true });
     await info().waitFor();

@@ -46,7 +46,7 @@ export function notifyWarning(message: string, options: ToastOptions = {}) {
 }
 
 export function notifyError(message: string, options: ToastOptions = {}) {
-  toast.error(message, {
+  toast.error(summarizeError(message), {
     ...options,
     style: errorStyle,
     iconTheme: { primary: '#ffffff', secondary: '#dc2626' },
@@ -62,8 +62,23 @@ export function notifySuccess(message: string, options: ToastOptions = {}) {
 }
 
 export function summarizeError(message: string) {
-  const missingIdMatch = message.match(/missing required ([A-Z0-9_]+)/i);
-  return missingIdMatch
-    ? `Missing required ${missingIdMatch[1]}. Please add.`
-    : message;
+  const missingIdCounts = new Map<'HAULIER_ID' | 'FORWARDING_ID', number>();
+  const otherErrors: string[] = [];
+
+  for (const part of message.split(/\r?\n|\s+\|\s+/)) {
+    const missingIdMatches = [...part.matchAll(/missing required\s+(HAULIER_?ID|FORWARDING(?:_AGENT)?_ID)\b/gi)];
+    if (!missingIdMatches.length) {
+      if (part.trim()) otherErrors.push(part);
+      continue;
+    }
+
+    for (const missingIdMatch of missingIdMatches) {
+      const idType = missingIdMatch[1].toUpperCase().startsWith('HAULIER') ? 'HAULIER_ID' : 'FORWARDING_ID';
+      missingIdCounts.set(idType, (missingIdCounts.get(idType) || 0) + 1);
+    }
+  }
+
+  const missingIdSummary = [...missingIdCounts]
+    .map(([idType, count]) => `${count} ${count === 1 ? 'record' : 'records'} missing ${idType}.`);
+  return [...missingIdSummary, ...otherErrors].join('\n') || message;
 }

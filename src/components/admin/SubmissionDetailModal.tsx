@@ -68,7 +68,11 @@ export function SubmissionDetailModal({
   if (!isOpen || !submission) return null;
 
   const company = submission.company_id ? getCompanyById(submission.company_id) : undefined;
-  const idInfo = getCompanyExternalId(company || { company_type: submission.company_type });
+  const idInfo = getCompanyExternalId({
+    company_type: company?.company_type || submission.company_type || submission.data.company?.company_type,
+    haulier_id: company?.haulier_id || submission.data.company?.haulier_id,
+    forwarding_agent_id: company?.forwarding_agent_id || submission.data.company?.forwarding_agent_id,
+  });
   const companyBlockReason = assetCompanyBlockReason(submission, company, getSubmissions());
   const reviewLabels = {
     COMPANY: { title: 'Company registration', details: 'Company details', description: 'Check the company information, contact details and registered address.' },
@@ -396,8 +400,8 @@ export function SubmissionDetailModal({
                     key={st}
                     type="button"
                     onClick={() => handleUpdateStatus(st)}
-                    disabled={st === 'DONE' && !!companyBlockReason}
-                    title={st === 'DONE' ? companyBlockReason || undefined : undefined}
+                    disabled={st === 'DONE' && (!!companyBlockReason || submission.registration_type === 'COMPANY' && !idInfo.has_required_id)}
+                    title={st === 'DONE' ? companyBlockReason || (submission.registration_type === 'COMPANY' && !idInfo.has_required_id ? `Assign ${idInfo.required_id_type} before registering` : undefined) : undefined}
                     aria-pressed={submission.status === st}
                     className={`rounded-lg border px-3 py-2 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
                       submission.status === st

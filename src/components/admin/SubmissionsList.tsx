@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { RegistrationSubmission, RegistrationType, SubmissionStatus, Company, RejectionReason } from '../../types';
 import {
   getSubmissions,
@@ -15,7 +16,7 @@ import { getExternalUserAccess } from '../../services/auth';
 import { EmailPreview, EmailTemplate, generateSubmissionEmailPreview, generateWelcomeEmailPreview, getEmailTemplateCatalog, sendSubmissionEmail, sendWelcomeEmail } from '../../services/email';
 import { getCompanyExternalId } from '../../services/companyHelper';
 import { generateRegistrationExcel } from '../../services/registrationUploads';
-import { downloadRegistrationExcel } from '../../services/excelExport';
+import { downloadRegistrationExcel, exportSubmissionsToExcel } from '../../services/excelExport';
 import { RegistrationReference } from './RegistrationReference';
 import { QueueCompanyName } from './QueueCompanyName';
 import { assetCompanyBlockReason } from '../../../shared/registration-eligibility';
@@ -57,6 +58,16 @@ interface ActionMenuPosition {
   anchorTop: number;
   anchorBottom: number;
   anchorRight: number;
+}
+
+interface BulkMenuPosition {
+  top: number;
+  left: number;
+}
+
+interface CompanyExportTooltipPosition {
+  top: number;
+  left: number;
 }
 
 interface CodeSelection {
@@ -138,6 +149,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
   const [currentPage, setCurrentPage] = useState(1);
   const [openActionMenu, setOpenActionMenu] = useState<ActionMenuPosition | null>(null);
   const actionMenuRef = React.useRef<HTMLDivElement | null>(null);
+  const bulkActionButtonRef = React.useRef<HTMLButtonElement | null>(null);
 
   // Modals
   const [activeSubmission, setActiveSubmission] = useState<RegistrationSubmission | null>(null);
@@ -152,6 +164,9 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
   const [emailSendMode, setEmailSendMode] = useState<'SUBMISSION' | 'USER'>('SUBMISSION');
   const [sendingSubmissionEmail, setSendingSubmissionEmail] = useState(false);
   const [bulkMenuOpen, setBulkMenuOpen] = useState(false);
+  const [bulkMenuPosition, setBulkMenuPosition] = useState<BulkMenuPosition | null>(null);
+  const [companyExportTooltip, setCompanyExportTooltip] = useState<CompanyExportTooltipPosition | null>(null);
+  const companyExportButtonRef = React.useRef<HTMLDivElement | null>(null);
   const [batchCodes, setBatchCodes] = useState<Array<CodeSelection & { templateId: string }>>([]);
   const [batchCodePage, setBatchCodePage] = useState(0);
 
@@ -164,6 +179,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
   React.useEffect(() => {
     setSelectedIds([]);
     setOpenActionMenu(null);
+    setBulkMenuOpen(false);
     setActiveSubmission(null);
     setAssignIdCompany(null);
     setIdFilter('ALL');
@@ -183,6 +199,10 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
     setCurrentPage(1);
     setOpenActionMenu(null);
   }, [searchTerm, typeFilter, portFilter, idFilter, sortBy, pageSize]);
+
+  React.useEffect(() => {
+    setSelectedIds([]);
+  }, [status, typeFilter]);
 
   // Keep the action list inside the viewport. In particular, rows near the
   // bottom edge need the list to open above the action button.
@@ -231,11 +251,9 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
   };
 
   const handleToggleSelect = (id: string) => {
-    if (selectedIds.includes(id)) {
-      setSelectedIds(selectedIds.filter((item) => item !== id));
-    } else {
-      setSelectedIds([...selectedIds, id]);
-    }
+    setSelectedIds((current) => current.includes(id)
+      ? current.filter((item) => item !== id)
+      : [...current, id]);
   };
 
   const handleCopyQueueValue = async (value: string, label: string) => {
@@ -302,12 +320,144 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
 
   const selectedCompanyBlocked = submissions.filter(submission => selectedIds.includes(submission.id)
     && assetCompanyBlockReason(submission, getCompanyById(submission.company_id), submissions));
+  const selectedSubmissions = submissions.filter((submission) => selectedIds.includes(submission.id));
+  const companyManualRegistration = status === 'PENDING' && (typeFilter === 'COMPANY'
+    || (selectedSubmissions.length > 0 && selectedSubmissions.every((submission) => submission.registration_type === 'COMPANY')));
+
+  const handleCompanyManualRegistration = async (selectedSubs: RegistrationSubmission[]) => {
+    const result = exportSubmissionsToExcel(selectedSubs, { downloadOnly: true });
+    if (!result.success) {
+      notifyError(result.error || 'Unable to export the company registration workbook.');
+      return;
+    }
+    const completedIds: string[] = [];
+    const failures: string[] = [];
+    for (const submission of selectedSubs) {
+      try {
+        await updateSubmissionStatusPersisted(submission.id, 'DONE');
+        completedIds.push(submission.id);
+      } catch (error) {
+        failures.push(`${submission.reference_no}: ${error instanceof Error ? error.message : 'Unable to mark as Closed/Done.'}`);
+      }
+    }
+    if (completedIds.length) {
+      setSelectedIds((current) => current.filter((id) => !completedIds.includes(id)));
+      refreshList();
+      notifySuccess(`${completedIds.length} company registration(s) exported for manual registration and moved to Closed/Done. No email was sent.`);
+    }
+    if (failures.length) notifyError(failures.join('\n'));
+  };
+
+  const handleBulkRevertToPending = async () => {
+    setBulkMenuOpen(false);
+    if (status === 'REJECTED' && selectedSubmissions.some((submission) => submission.registration_type === 'COMPANY')) {
+      notifyWarning('Revert rejected company registrations one at a time to choose whether the linked User Registration should also return to Pending.');
+      return;
+    }
+    setReverting(true);
+    const revertedIds: string[] = [];
+    const failures: string[] = [];
+    for (const submission of selectedSubmissions) {
+      try {
+        await revertSubmissionToPending(submission.id);
+        revertedIds.push(submission.id);
+      } catch (error) {
+        failures.push(`${submission.reference_no}: ${error instanceof Error ? error.message : 'Unable to revert.'}`);
+      }
+    }
+    setReverting(false);
+    if (revertedIds.length) {
+      setSelectedIds((current) => current.filter((id) => !revertedIds.includes(id)));
+      refreshList();
+      if (!failures.length) notifySuccess(`${revertedIds.length} registration(s) reverted to Pending.`);
+    }
+    if (failures.length) notifyError(failures.join('\n'));
+  };
+
+  const handleBulkMarkDone = async () => {
+    setBulkMenuOpen(false);
+    const pendingSubmissions = selectedSubmissions.filter((submission) => submission.status === 'PENDING');
+    if (!pendingSubmissions.length) {
+      notifyWarning('Select at least one Pending registration.');
+      return;
+    }
+    setReverting(true);
+    const completedIds: string[] = [];
+    const failures: string[] = [];
+    for (const submission of pendingSubmissions) {
+      try {
+        await updateSubmissionStatusPersisted(submission.id, 'DONE');
+        completedIds.push(submission.id);
+      } catch (error) {
+        failures.push(`${submission.reference_no}: ${error instanceof Error ? error.message : 'Unable to mark as Done.'}`);
+      }
+    }
+    setReverting(false);
+    if (completedIds.length) {
+      setSelectedIds((current) => current.filter((id) => !completedIds.includes(id)));
+      refreshList();
+      if (!failures.length) notifySuccess(`${completedIds.length} registration(s) marked Closed/Done. No email was sent.`);
+    }
+    if (failures.length) notifyError(failures.join('\n'));
+  };
+
+  const toggleBulkActionMenu = () => {
+    if (bulkMenuOpen) {
+      setBulkMenuOpen(false);
+      return;
+    }
+    const rect = bulkActionButtonRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const width = 256;
+    setBulkMenuPosition({
+      top: Math.min(rect.bottom + ACTION_MENU_GAP, window.innerHeight - VIEWPORT_EDGE_PADDING - 160),
+      left: Math.max(VIEWPORT_EDGE_PADDING, Math.min(rect.right - width, window.innerWidth - width - VIEWPORT_EDGE_PADDING)),
+    });
+    setBulkMenuOpen(true);
+  };
+
+  const showCompanyExportTooltip = () => {
+    const rect = companyExportButtonRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const width = 320;
+    setCompanyExportTooltip({
+      top: rect.top - ACTION_MENU_GAP,
+      left: Math.max(VIEWPORT_EDGE_PADDING, Math.min(rect.left, window.innerWidth - width - VIEWPORT_EDGE_PADDING)),
+    });
+  };
 
   const handleBulkExport = async () => {
     const selectedSubs = submissions.filter((s) => selectedIds.includes(s.id));
     if (selectedSubs.length === 0) {
       const message = 'Please select at least one submission to export.';
       notifyWarning(message);
+      return;
+    }
+
+    if (status === 'PENDING' && selectedSubs.every((submission) => submission.registration_type === 'COMPANY')) {
+      setExporting(true);
+      try {
+        await handleCompanyManualRegistration(selectedSubs);
+      } catch (error) {
+        notifyError(error instanceof Error ? error.message : 'Unable to export company registrations.');
+      } finally {
+        setExporting(false);
+      }
+      return;
+    }
+
+    if (status !== 'PENDING') {
+      try {
+        const results = downloadRegistrationExcel(selectedSubs);
+        const failures = results.filter((result) => !result.success);
+        if (failures.length) {
+          notifyError(failures.map((result) => result.error || 'Excel export failed.').join('\n'));
+        } else {
+          notifySuccess(`${selectedSubs.length} registration(s) exported to Excel. Registration statuses unchanged.`);
+        }
+      } catch (error) {
+        notifyError(error instanceof Error ? error.message : 'Unable to export registrations.');
+      }
       return;
     }
 
@@ -372,6 +522,18 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
     options: { alreadyUpdated?: boolean; adminNotes?: string } = {},
   ) => {
     setOpenActionMenu(null);
+    if (nextStatus === 'DONE' && submission.registration_type === 'COMPANY' && !options.alreadyUpdated) {
+      const company = submission.company_id ? getCompanyById(submission.company_id) : undefined;
+      const idInfo = getCompanyExternalId({
+        company_type: company?.company_type || submission.company_type || submission.data.company?.company_type,
+        haulier_id: company?.haulier_id || submission.data.company?.haulier_id,
+        forwarding_agent_id: company?.forwarding_agent_id || submission.data.company?.forwarding_agent_id,
+      });
+      if (!idInfo.has_required_id) {
+        notifyError(`Company registration is missing required ${idInfo.required_id_type}. Assign its CargoMove ID before registering.`);
+        return;
+      }
+    }
     if (nextStatus === 'DONE' && submission.registration_type !== 'COMPANY'
       && submission.status === 'PENDING' && submission.cargomove_upload?.state === 'SUCCESS') {
       options = { ...options, alreadyUpdated: true };
@@ -535,7 +697,18 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
   };
 
   const menuSubmission = submissions.find((submission) => submission.id === openActionMenu?.id);
-  const menuCompanyBlockReason = menuSubmission ? assetCompanyBlockReason(menuSubmission, getCompanyById(menuSubmission.company_id), submissions) : null;
+  const menuCompany = menuSubmission?.company_id ? getCompanyById(menuSubmission.company_id) : undefined;
+  const menuIdInfo = menuSubmission ? getCompanyExternalId({
+    company_type: menuCompany?.company_type || menuSubmission.company_type || menuSubmission.data.company?.company_type,
+    haulier_id: menuCompany?.haulier_id || menuSubmission.data.company?.haulier_id,
+    forwarding_agent_id: menuCompany?.forwarding_agent_id || menuSubmission.data.company?.forwarding_agent_id,
+  }) : null;
+  const menuCompanyBlockReason = menuSubmission
+    ? assetCompanyBlockReason(menuSubmission, menuCompany, submissions)
+      || (menuSubmission.registration_type === 'COMPANY' && !menuIdInfo?.has_required_id
+        ? `Assign ${menuIdInfo?.required_id_type} before registering this company.`
+        : null)
+    : null;
   const toggleActionMenu = (event: React.MouseEvent<HTMLButtonElement>, submissionId: string) => {
     if (openActionMenu?.id === submissionId) {
       setOpenActionMenu(null);
@@ -613,24 +786,31 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
               <option value="MISSING">MISSING ID</option>
               <option value="WITH_ID">WITH ID</option>
             </select>
-          <div className="relative flex min-w-0 flex-1">
+          <div
+            ref={companyManualRegistration ? companyExportButtonRef : undefined}
+            className="relative flex min-w-0 flex-1"
+            onMouseEnter={companyManualRegistration ? showCompanyExportTooltip : undefined}
+            onMouseLeave={companyManualRegistration ? () => setCompanyExportTooltip(null) : undefined}
+            onFocusCapture={companyManualRegistration ? showCompanyExportTooltip : undefined}
+            onBlurCapture={companyManualRegistration ? (event) => {
+              if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setCompanyExportTooltip(null);
+            } : undefined}
+          >
           <button
             type="button"
             onClick={handleBulkExport}
+            aria-describedby={companyManualRegistration ? 'company-export-manual-registration-tooltip' : undefined}
             disabled={selectedIds.length === 0 || exporting || savingCode}
-            className="inline-flex h-9 min-w-0 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-l-lg bg-emerald-600 px-2 text-[10px] font-bold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40 sm:px-3"
+            className="inline-flex h-9 min-w-0 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-l-lg bg-emerald-600 pl-2 pr-4 text-[10px] font-bold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40 sm:pl-3 sm:pr-5"
           >
             <FileSpreadsheet className="h-3.5 w-3.5" />
-            {exporting ? 'UPLOADING & VERIFYING...' : 'Register and Email'}
+            {status === 'PENDING'
+              ? exporting
+                ? (companyManualRegistration ? 'EXPORTING...' : 'UPLOADING & VERIFYING...')
+                : companyManualRegistration ? 'MANUAL REGISTER' : 'REGISTER & EMAIL'
+              : 'Export Excel'}
           </button>
-          <button type="button" aria-label="More registration actions" aria-expanded={bulkMenuOpen} onClick={() => setBulkMenuOpen(open => !open)} disabled={exporting || savingCode || !selectedIds.length} className="h-9 rounded-r-lg border-l border-emerald-500 bg-emerald-600 px-2 text-white hover:bg-emerald-700 disabled:opacity-40"><MoreVertical className="h-4 w-4" /></button>
-          {bulkMenuOpen && <>
-            <button type="button" aria-label="Close registration actions" className="fixed inset-0 z-30 cursor-default" onClick={() => setBulkMenuOpen(false)} />
-            <div role="menu" className="absolute right-0 top-10 z-40 w-64 rounded-lg border border-slate-200 bg-white p-1 shadow-xl">
-              <button role="menuitem" type="button" className="w-full rounded px-3 py-2 text-left text-xs text-slate-700 hover:bg-slate-100" onClick={() => { setBulkMenuOpen(false); downloadRegistrationExcel(submissions.filter(sub => selectedIds.includes(sub.id))); notifySuccess('Excel downloaded. Registration statuses unchanged.'); }}>Download Excel without register</button>
-              {status === 'PENDING' && <button role="menuitem" type="button" className="w-full rounded px-3 py-2 text-left text-xs text-red-600 hover:bg-red-50" onClick={() => void openSubmissionBatchEmailPreview(submissions.filter(sub => selectedIds.includes(sub.id)), 'REJECTED')}>Reject selected registrations</button>}
-            </div>
-          </>}
+          <button ref={bulkActionButtonRef} type="button" aria-label="More registration actions" aria-expanded={bulkMenuOpen} onClick={toggleBulkActionMenu} disabled={exporting || savingCode || !selectedIds.length} className="h-9 rounded-r-lg border-l border-emerald-500 bg-emerald-600 px-2 text-white hover:bg-emerald-700 disabled:opacity-40"><MoreVertical className="h-4 w-4" /></button>
           </div>
         </div>
         </div>
@@ -731,7 +911,11 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
                 <>
                 {paginatedSubmissions.map((sub, index) => {
                   const company = sub.company_id ? getCompanyById(sub.company_id) : undefined;
-                  const idInfo = getCompanyExternalId(company || { company_type: sub.company_type });
+                  const idInfo = getCompanyExternalId({
+                    company_type: company?.company_type || sub.company_type || sub.data.company?.company_type,
+                    haulier_id: company?.haulier_id || sub.data.company?.haulier_id,
+                    forwarding_agent_id: company?.forwarding_agent_id || sub.data.company?.forwarding_agent_id,
+                  });
                   const isSelected = selectedIds.includes(sub.id);
                   const companyName = sub.company_name.toUpperCase();
                   const companyType = (company?.company_type || sub.company_type || '—').toUpperCase();
@@ -962,7 +1146,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
         </div>
       </div>
 
-      {openActionMenu && menuSubmission && (
+      {openActionMenu && menuSubmission && createPortal(
         <div
           ref={actionMenuRef}
           role="menu"
@@ -994,7 +1178,33 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
               </button>
             </>
           )}
-        </div>
+        </div>,
+        document.body,
+      )}
+
+      {bulkMenuOpen && bulkMenuPosition && createPortal(
+        <>
+          <button type="button" aria-label="Close registration actions" className="fixed inset-0 cursor-default" style={{ zIndex: 60 }} onClick={() => setBulkMenuOpen(false)} />
+          <div role="menu" className="fixed w-64 rounded-lg border border-slate-200 bg-white p-1 shadow-xl" style={{ ...bulkMenuPosition, zIndex: 61 }}>
+            {status === 'PENDING' && <button role="menuitem" type="button" className="w-full rounded px-3 py-2 text-left text-xs text-slate-700 hover:bg-slate-100" onClick={() => { setBulkMenuOpen(false); downloadRegistrationExcel(selectedSubmissions); notifySuccess('Excel downloaded. Registration statuses remain Pending.'); }}><span className="block font-semibold">Export Excel without register</span><span className="mt-0.5 block text-[10px] text-slate-500">Downloads a workbook and keeps these submissions Pending.</span></button>}
+            {status === 'PENDING' && <button role="menuitem" type="button" className="w-full rounded px-3 py-2 text-left text-xs text-red-600 hover:bg-red-50" onClick={() => void openSubmissionBatchEmailPreview(selectedSubmissions, 'REJECTED')}><span className="block font-semibold">Reject selected registrations</span><span className="mt-0.5 block text-[10px] text-slate-500">Moves the selected submissions to Rejected.</span></button>}
+            {status === 'PENDING' && <button role="menuitem" type="button" disabled={reverting} className="w-full rounded px-3 py-2 text-left text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50" onClick={() => void handleBulkMarkDone()}><span className="block">Mark selected as Closed/Done</span><span className="mt-0.5 block text-[10px] font-normal text-slate-500">Moves them to Closed/Done without sending email.</span></button>}
+            {status !== 'PENDING' && <button role="menuitem" type="button" disabled={reverting} className="w-full rounded px-3 py-2 text-left text-xs text-amber-700 hover:bg-amber-50 disabled:opacity-50" onClick={() => void handleBulkRevertToPending()}>Revert selected to Pending</button>}
+          </div>
+        </>,
+        document.body,
+      )}
+
+      {companyExportTooltip && companyManualRegistration && createPortal(
+        <div
+          id="company-export-manual-registration-tooltip"
+          role="tooltip"
+          className="fixed z-[80] w-80 -translate-y-full rounded-lg bg-slate-900 px-3 py-2 text-xs leading-5 text-white shadow-xl"
+          style={{ top: companyExportTooltip.top, left: companyExportTooltip.left }}
+        >
+          Downloads the company registration Excel for manual processing. Selected submissions are moved to Closed/Done. No email is sent.
+        </div>,
+        document.body,
       )}
 
       {/* Submission Detail Modal */}

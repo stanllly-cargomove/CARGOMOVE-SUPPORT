@@ -10,7 +10,7 @@ import {
   HaulierGuideline,
   UserRegistration,
 } from '../types';
-import { normalizeCompanyType, normalizeRegNo } from './companyHelper';
+import { getCompanyExternalId, normalizeCompanyType, normalizeRegNo } from './companyHelper';
 import { assetCompanyBlockReason } from '../../shared/registration-eligibility';
 import { getCustomerConfiguration } from './customerConfiguration';
 import { deleteSupabaseRow, fetchSupabaseSnapshot, isSupabaseConfigured, upsertSupabaseRow } from './supabase';
@@ -1204,6 +1204,17 @@ export async function updateSubmissionStatusPersisted(
   const subs = getSubmissions();
   const sub = subs.find((item) => item.id === submissionId);
   if (!sub) throw new Error('Registration submission not found.');
+  if (status === 'DONE' && sub.registration_type === 'COMPANY') {
+    const company = sub.company_id ? getCompanyById(sub.company_id) : undefined;
+    const idInfo = getCompanyExternalId({
+      company_type: company?.company_type || sub.company_type || sub.data.company?.company_type,
+      haulier_id: company?.haulier_id || sub.data.company?.haulier_id,
+      forwarding_agent_id: company?.forwarding_agent_id || sub.data.company?.forwarding_agent_id,
+    });
+    if (!idInfo.has_required_id) {
+      throw new Error(`Company registration is missing required ${idInfo.required_id_type}. Assign its CargoMove ID before registering.`);
+    }
+  }
 
   applySubmissionStatus(sub, status, notes);
   await upsertSupabaseRow('registration_submissions', sub);
