@@ -19,7 +19,7 @@ import { generateRegistrationExcel } from '../../services/registrationUploads';
 import { downloadRegistrationExcel, exportSubmissionsToExcel } from '../../services/excelExport';
 import { RegistrationReference } from './RegistrationReference';
 import { QueueCompanyName } from './QueueCompanyName';
-import { assetCompanyBlockReason } from '../../../shared/registration-eligibility';
+import { assetCompanyBlockReason, COMPANY_REGISTRATION_REQUIRED } from '../../../shared/registration-eligibility';
 import { CargoMoveIdBadge, StatusBadge } from '../common/Badge';
 import { SubmissionDetailModal } from './SubmissionDetailModal';
 import { AssignIdModal } from './AssignIdModal';
@@ -352,8 +352,6 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
     if (currentPage > totalPages) setCurrentPage(totalPages);
   }, [currentPage, totalPages]);
 
-  const selectedCompanyBlocked = submissions.filter(submission => selectedIds.includes(submission.id)
-    && assetCompanyBlockReason(submission, getCompanyById(submission.company_id), submissions));
   const selectedSubmissions = submissions.filter((submission) => selectedIds.includes(submission.id));
   const companyManualRegistration = status === 'PENDING' && (typeFilter === 'COMPANY'
     || (selectedSubmissions.length > 0 && selectedSubmissions.every((submission) => submission.registration_type === 'COMPANY')));
@@ -490,8 +488,8 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
     setExporting(false);
     refreshList();
     if (res.downloaded.length) notifySuccess(`${res.downloaded.length} Company registration(s) downloaded. Complete their manual registration using the Register action.`);
-    const summary = `${res.verified.length} successful, ${res.incompleteCount} incomplete. Successful registrations stay Pending until their email is sent.`;
-    if (res.incompleteCount) notifyWarning(`${summary}\n${res.error}`);
+    const summary = `${res.verified.length} successful, ${res.incompleteCount} incomplete.`;
+    if (res.incompleteCount) notifyWarning(`${summary}\n${res.error.replaceAll(COMPANY_REGISTRATION_REQUIRED, 'Parent company must be registered.')}`);
     else if (res.verified.length) notifySuccess(summary);
     if (res.verified.length) {
       refreshList();
@@ -832,7 +830,6 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
       </div>
 
       {/* Copy hint, registration type tabs, and table */}
-      {selectedCompanyBlocked.length > 0 && <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">{selectedCompanyBlocked.length} selected registration(s) are blocked. Their parent company must have registration status Registered. Update the company in the Company list or complete its linked Company registration in the queue.</p>}
       <div className="rounded-xl">
         <div className="mb-2 hidden md:flex items-center gap-1.5 px-2 text-[11px] font-medium text-slate-500" title="Double-click a table value to copy it to your clipboard.">
           <Info className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
