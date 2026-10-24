@@ -32,6 +32,10 @@
   },
   "rewrites": [
     {
+      "source": "/api/dev-tools/registration-uploads",
+      "destination": "/api/dev-tools?route=registration-uploads"
+    },
+    {
       "source": "/api/auth/profile",
       "destination": "/api/dev-tools?route=profile"
     },

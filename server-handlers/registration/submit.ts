@@ -371,7 +371,6 @@ export default async function companyRegistration(request: any, response: any) {
           // have not applied the dedicated ledger_codes column migration yet.
           ...(companyType === 'FORWARDER' ? { ledger_codes: text(companyInput.ledger_codes) } : {}),
         },
-        status: 'ACTIVE',
         created_at: now.toISOString(),
         updated_at: now.toISOString(),
       };

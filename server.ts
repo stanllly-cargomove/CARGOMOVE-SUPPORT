@@ -17,6 +17,7 @@ import registrationStatus from './server-handlers/registration/status.js';
 import registrationConfig from './server-handlers/registration/config.js';
 import runScheduler from './server-handlers/scheduler/handler.js';
 import schedulerCatalog from './server-handlers/scheduler/catalog.js';
+import registrationUploads from './server-handlers/registration-uploads/handler.js';
 import northportRecovery from './server-handlers/northport/handler.js';
 import systemVersions from './server-handlers/system-versions.js';
 import profile from './server-handlers/profile.js';
@@ -120,6 +121,7 @@ app.use('/api/auto-mail', (request, response) => {
 });
 app.all('/api/auth/profile', profile);
 app.post('/api/dev-tools/run-scheduler', runScheduler);
+app.post('/api/dev-tools/registration-uploads', express.json({ limit: '16kb' }), registrationUploads);
 app.post('/api/dev-tools/system-versions', systemVersions);
 app.get('/api/dev-tools/schedulers', schedulerCatalog);
 app.post('/api/dev-tools/schedulers', schedulerCatalog);

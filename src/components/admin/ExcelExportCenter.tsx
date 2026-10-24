@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { RegistrationType, RegistrationSubmission, Company } from '../../types';
 import { getSubmissions, getCompanies, getCompanyById } from '../../services/storage';
-import { getCompanyExternalId, generateExcelFilename } from '../../services/companyHelper';
-import { exportSubmissionsToExcel, EXCEL_TEMPLATES } from '../../services/excelExport';
+import { getCompanyExternalId } from '../../services/companyHelper';
+import { EXCEL_TEMPLATES } from '../../services/excelExport';
+import { generateRegistrationExcel } from '../../services/registrationUploads';
+import { assetCompanyBlockReason } from '../../../shared/registration-eligibility';
 import { EmailPreview, generateSubmissionBatchEmailPreviews, sendSubmissionBatchEmail } from '../../services/email';
 import { TypeBadge } from '../common/Badge';
 import { PdfAttachmentIcon } from './PdfAttachmentIcon';
@@ -25,6 +27,8 @@ export function ExcelExportCenter() {
   const [emailPreviews, setEmailPreviews] = useState<EmailPreview[]>([]);
   const [sendingPreview, setSendingPreview] = useState<string | null>(null);
   const [previewPage, setPreviewPage] = useState(0);
+  const [exporting, setExporting] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState('');
 
   const submissions = getSubmissions();
   const companies = getCompanies();
@@ -33,7 +37,7 @@ export function ExcelExportCenter() {
   const filteredSubmissions = submissions.filter((s) => {
     const matchesType = s.registration_type === selectedType;
     const matchesComp = filterCompanyId === 'ALL' || s.company_id === filterCompanyId;
-    return matchesType && matchesComp;
+    return matchesType && matchesComp && (selectedType === 'COMPANY' || s.status === 'PENDING');
   });
 
   // Calculate validation stats
@@ -43,7 +47,8 @@ export function ExcelExportCenter() {
     return !idInfo.has_required_id;
   });
 
-  const canExport = filteredSubmissions.length > 0 && itemsMissingId.length === 0;
+  const itemsBlockedByCompany = filteredSubmissions.filter(submission => assetCompanyBlockReason(submission, getCompanyById(submission.company_id), submissions));
+  const canExport = filteredSubmissions.length > 0 && itemsMissingId.length === 0 && itemsBlockedByCompany.length === 0;
 
   const currentTemplate = EXCEL_TEMPLATES[selectedType];
 
@@ -54,15 +59,18 @@ export function ExcelExportCenter() {
       return;
     }
 
-    const res = exportSubmissionsToExcel(filteredSubmissions);
+    setExporting(true);
+    const res = await generateRegistrationExcel(filteredSubmissions, setUploadProgress);
+    setExporting(false);
     if (!res.success) {
       notifyError(summarizeError(res.error || 'Export failed.'));
-    } else {
-      notifySuccess(`Export complete: ${res.count} record(s) generated.`);
+    }
+    if (res.verified.length) {
+      notifySuccess(`${res.count} record(s) ${selectedType === 'COMPANY' ? 'exported' : 'verified in CargoMove'}.`);
       if (selectedType !== 'COMPANY') {
         try {
           setPreviewPage(0);
-          setEmailPreviews(await generateSubmissionBatchEmailPreviews(filteredSubmissions.map((submission) => submission.id)));
+          setEmailPreviews(await generateSubmissionBatchEmailPreviews(res.verified.map((submission) => submission.id)));
         } catch (error) {
           notifyError(error instanceof Error ? error.message : 'Excel exported, but the email previews could not be prepared.');
         }
@@ -88,8 +96,7 @@ export function ExcelExportCenter() {
   };
 
   // Sample projected filename
-  const sampleComp = filterCompanyId !== 'ALL' ? companies.find((c) => c.id === filterCompanyId) : undefined;
-  const projectedFilename = generateExcelFilename(sampleComp?.short_name || sampleComp?.name, selectedType);
+  const projectedFilename = filteredSubmissions.length === 1 ? `${filteredSubmissions[0].reference_no}_${selectedType}.xlsx` : `CMREG_reference_${selectedType}_attempt.xlsx`;
 
   return (
     <div className="space-y-6">
@@ -189,6 +196,7 @@ export function ExcelExportCenter() {
         </div>
 
         {/* Validation Status */}
+        {itemsBlockedByCompany.length > 0 && <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900">Processing blocked: {itemsBlockedByCompany.length} registration(s) belong to companies whose registration status is not Registered. Update the Company list or its linked registration queue entry.</p>}
         {itemsMissingId.length > 0 ? (
           <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
@@ -222,15 +230,17 @@ export function ExcelExportCenter() {
 
           <button
             type="button"
-            disabled={!canExport}
+            disabled={!canExport || exporting}
             onClick={handleExport}
             className="inline-flex items-center px-5 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold transition-colors shadow-sm"
           >
             <Download className="w-4 h-4 mr-2" />
-            Generate & Download {selectedType} Excel (.xlsx)
+            {exporting ? 'Uploading and verifying...' : selectedType === 'COMPANY' ? 'Generate & Download COMPANY Excel (.xlsx)' : `Generate Excel & Upload ${selectedType}`}
           </button>
         </div>
       </div>
+
+      {uploadProgress && <p role="status" className="text-xs text-blue-700">{uploadProgress}</p>}
 
       {/* Strict Header Structure Preview */}
       <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-3">

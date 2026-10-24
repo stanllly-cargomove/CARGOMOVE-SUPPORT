@@ -54,7 +54,8 @@ export interface Company {
   contact_mobile?: string;
   office_phone?: string;
   fax?: string;
-  status: 'ACTIVE' | 'INACTIVE';
+  /** Queue-managed when a COMPANY submission exists; otherwise administrator-confirmed. */
+  registration_status?: SubmissionStatus;
   created_at: string;
   updated_at: string;
 }
@@ -79,7 +80,7 @@ export interface VehicleData {
   head: string;
 }
 
-export type CompanyFormData = Omit<Company, 'id' | 'created_at' | 'updated_at' | 'status'>;
+export type CompanyFormData = Omit<Company, 'id' | 'created_at' | 'updated_at'>;
 
 export interface RegistrationSubmission {
   id: string;
@@ -103,6 +104,7 @@ export interface RegistrationSubmission {
   reviewed_at?: string;
   exported_at?: string;
   export_filename?: string;
+  cargomove_upload?: import('./registration-upload').RegistrationUploadSummary | null;
   admin_notes?: string;
   data: {
     company?: Partial<CompanyFormData>;

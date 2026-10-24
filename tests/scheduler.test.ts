@@ -296,9 +296,9 @@ test('gallery API enforces admin access, validates targets, persists and rejects
     from(table: string) {
       let payload: any;
       return {
-        select() { return this; }, eq() { return this; }, order() { return this; }, limit() { return this; }, timeout() { return this; },
+        select() { return this; }, eq() { return this; }, in() { return this; }, order() { return this; }, limit() { return this; }, timeout() { return this; },
         insert(value: any) { payload = value; return this; },
-        async maybeSingle() { return { data: revoked ? null : { id: 'profile' }, error: null }; },
+        async maybeSingle() { return payload ? this.single() : { data: revoked ? null : { id: 'profile' }, error: null }; },
         async single() {
           assert.equal(table, 'cargomove_schedulers');
           if (rows.some(row => row.task_id === payload.task_id)) return { data: null, error: { code: '23505' } };
@@ -306,13 +306,13 @@ test('gallery API enforces admin access, validates targets, persists and rejects
           rows.push(row);
           return { data: row, error: null };
         },
-        then(resolve: any) { return Promise.resolve({ data: rows, error: null }).then(resolve); },
+        then(resolve: any) { return Promise.resolve({ data: table === 'cargomove_scheduler_runs' ? [] : rows, error: null }).then(resolve); },
       };
     },
   };
   const handler = createSchedulerCatalog({ adminClient: () => client as any, readSession: () => session });
   const request = { method: 'POST', headers: { origin: 'https://portal.example.test', 'x-cargomove-confirm': 'manage-schedulers' },
-    body: { displayName: 'Northport Containers', description: 'Manual task', url: RUN_URL } };
+    body: { displayName: 'Northport Containers', description: 'Manual task', origin: 'CargoMove', url: RUN_URL } };
   const call = async (changes = {}) => { const response = responseMock(); await handler({ ...request, ...changes }, response); return response; };
   session = null;
   assert.equal((await call({ method: 'GET' })).code, 401);

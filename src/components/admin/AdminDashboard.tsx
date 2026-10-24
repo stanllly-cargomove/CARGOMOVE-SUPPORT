@@ -85,7 +85,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const registeredUserCount = externalUsers.filter((user) => user.status === 'DONE').length;
   const rejectedUserCount = externalUsers.filter((user) => user.status === 'REJECTED').length;
   const registeredSubmissionCount = submissions.filter((submission) => submission.status === 'DONE').length;
-  const activeCompanyCount = companies.filter((company) => company.status === 'ACTIVE').length;
+  const companyCount = companies.length;
   const registrationCategories = [
     { type: 'COMPANY' as RegistrationType, label: 'Company', pendingCount: pendingByType('COMPANY'), registeredCount: registeredByType('COMPANY'), rejectedCount: rejectedByType('COMPANY'), destination: 'submissions', icon: Building2, iconClass: 'bg-blue-100 text-blue-600', cardClass: 'border-blue-100 bg-gradient-to-br from-white via-white to-blue-50', accentClass: 'bg-blue-200/30' },
     { type: 'USER' as const, label: 'User', pendingCount: pendingUserCount, registeredCount: registeredUserCount, rejectedCount: rejectedUserCount, destination: 'user-registration', icon: UserRound, iconClass: 'bg-cyan-100 text-cyan-600', cardClass: 'border-cyan-100 bg-gradient-to-br from-white via-white to-cyan-50', accentClass: 'bg-cyan-200/30' },
@@ -180,8 +180,8 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             </div>
             <div className="rounded-xl border border-sky-100 bg-sky-50/80 px-3 py-2.5">
               <p className="text-[9px] font-bold uppercase tracking-wider text-sky-700">Total company</p>
-              <p className="mt-1 text-xl font-bold leading-none tabular-nums text-slate-900">{activeCompanyCount}</p>
-              <p className="mt-1 text-[10px] text-slate-500">active companies</p>
+              <p className="mt-1 text-xl font-bold leading-none tabular-nums text-slate-900">{companyCount}</p>
+              <p className="mt-1 text-[10px] text-slate-500">companies</p>
             </div>
           </div>
         </div>

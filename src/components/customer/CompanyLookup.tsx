@@ -35,10 +35,6 @@ export function CompanyLookup({
     try {
       const found = await lookupRegisteredCompany(term);
       if (found) {
-        if (found.status === 'INACTIVE') {
-          setErrorMsg(`Company "${found.name}" is currently inactive. Please contact port support.`);
-          return;
-        }
         onSelectCompany(found);
       } else {
         const compact = term.replace(/[\s-]+/g, '').toUpperCase();
@@ -59,7 +55,7 @@ export function CompanyLookup({
       <div className="text-center mb-4">
         <h2 className="text-base font-bold text-slate-900 tracking-tight">Company Identification</h2>
         <p className="text-slate-500 text-xs mt-0.5">
-          Driver, Trailer, and Vehicle assets must be linked to a verified registered company.
+          Link your driver, trailer, or vehicle registration to a company record. Submissions are accepted for every company registration status.
         </p>
       </div>
 
@@ -138,7 +134,7 @@ export function CompanyLookup({
                 </span>
               </div>
               <h3 className="mt-1 text-base font-bold leading-tight text-slate-900">{selectedCompany.name}</h3>
-              <p className="mt-1 text-[11px] text-slate-500">This company is registered with CargoMove.</p>
+              <p className="mt-1 text-[11px] text-slate-500">Company record found. You can submit your registration for review.</p>
             </div>
           </div>
 

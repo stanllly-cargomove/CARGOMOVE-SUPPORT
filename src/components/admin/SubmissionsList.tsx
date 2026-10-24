@@ -13,7 +13,10 @@ import {
 import { getExternalUserAccess } from '../../services/auth';
 import { EmailPreview, EmailTemplate, generateSubmissionEmailPreview, generateWelcomeEmailPreview, getEmailTemplateCatalog, sendSubmissionEmail, sendWelcomeEmail } from '../../services/email';
 import { getCompanyExternalId } from '../../services/companyHelper';
-import { exportSubmissionsToExcel } from '../../services/excelExport';
+import { generateRegistrationExcel } from '../../services/registrationUploads';
+import { RegistrationReference } from './RegistrationReference';
+import { QueueCompanyName } from './QueueCompanyName';
+import { assetCompanyBlockReason } from '../../../shared/registration-eligibility';
 import { CargoMoveIdBadge, StatusBadge } from '../common/Badge';
 import { SubmissionDetailModal } from './SubmissionDetailModal';
 import { AssignIdModal } from './AssignIdModal';
@@ -122,6 +125,8 @@ const registrationTypeTabs: Array<{ value: RegistrationType; label: string }> = 
 export function SubmissionsList({ status, initialType = 'COMPANY' }: SubmissionsListProps) {
   const [submissions, setSubmissions] = useState<RegistrationSubmission[]>(getSubmissions());
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [exporting, setExporting] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<RegistrationType | 'ALL'>(initialType);
   const [portFilter, setPortFilter] = useState<string>('ALL');
@@ -290,7 +295,10 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
     if (currentPage > totalPages) setCurrentPage(totalPages);
   }, [currentPage, totalPages]);
 
-  const handleBulkExport = () => {
+  const selectedCompanyBlocked = submissions.filter(submission => selectedIds.includes(submission.id)
+    && assetCompanyBlockReason(submission, getCompanyById(submission.company_id), submissions));
+
+  const handleBulkExport = async () => {
     const selectedSubs = submissions.filter((s) => selectedIds.includes(s.id));
     if (selectedSubs.length === 0) {
       const message = 'Please select at least one submission to export.';
@@ -298,16 +306,20 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
       return;
     }
 
-    const res = exportSubmissionsToExcel(selectedSubs);
+    setExporting(true);
+    const res = await generateRegistrationExcel(selectedSubs, setUploadProgress);
+    setExporting(false);
+    refreshList();
     if (!res.success) {
       notifyError(summarizeError(res.error || 'Export failed.'));
-    } else {
-      notifySuccess(`Export complete: ${res.count} record(s) generated.`);
+    }
+    if (res.verified.length) {
+      notifySuccess(`${res.count} record(s) exported or verified in CargoMove.`);
       refreshList();
       setSelectedIds([]);
-      const assets = selectedSubs.filter((submission) => submission.registration_type !== 'COMPANY');
+      const assets = res.verified.filter((submission) => submission.registration_type !== 'COMPANY');
       if (assets.length) void openSubmissionBatchEmailPreview(assets);
-      const companies = selectedSubs.filter((submission) => submission.registration_type === 'COMPANY');
+      const companies = res.verified.filter((submission) => submission.registration_type === 'COMPANY');
       if (companies.length === 1 && !assets.length) {
         void startCodeFlow(companies[0], 'DONE', { alreadyUpdated: true });
       } else if (companies.length) {
@@ -493,6 +505,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
   };
 
   const menuSubmission = submissions.find((submission) => submission.id === openActionMenu?.id);
+  const menuCompanyBlockReason = menuSubmission ? assetCompanyBlockReason(menuSubmission, getCompanyById(menuSubmission.company_id), submissions) : null;
   const toggleActionMenu = (event: React.MouseEvent<HTMLButtonElement>, submissionId: string) => {
     if (openActionMenu?.id === submissionId) {
       setOpenActionMenu(null);
@@ -573,17 +586,18 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
           <button
             type="button"
             onClick={handleBulkExport}
-            disabled={selectedIds.length === 0}
+            disabled={selectedIds.length === 0 || exporting || selectedCompanyBlocked.length === selectedIds.length}
             className="inline-flex h-9 min-w-0 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-emerald-600 px-2 text-[10px] font-bold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40 sm:px-3"
           >
             <FileSpreadsheet className="h-3.5 w-3.5" />
-            GENERATE EXCEL
+            {exporting ? 'UPLOADING & VERIFYING...' : 'GENERATE EXCEL'}
           </button>
         </div>
         </div>
       </div>
 
       {/* Copy hint, registration type tabs, and table */}
+      {selectedCompanyBlocked.length > 0 && <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">{selectedCompanyBlocked.length} selected registration(s) are blocked. Their parent company must have registration status Registered. Update the company in the Company list or complete its linked Company registration in the queue.</p>}
       <div className="rounded-xl">
         <div className="mb-2 hidden md:flex items-center gap-1.5 px-2 text-[11px] font-medium text-slate-500" title="Double-click a table value to copy it to your clipboard.">
           <Info className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
@@ -705,9 +719,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
                         onClick={() => setActiveSubmission(sub)}
                         title="Click to review"
                       >
-                        <span className="admin-registration-copy-text">
-                          {sub.reference_no}
-                        </span>
+                        <RegistrationReference submission={sub} />
                       </td>
 
                       <td
@@ -715,9 +727,9 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
                         onDoubleClick={() => void handleCopyQueueValue(companyName, 'Company name')}
                         title="Double-click to copy company name"
                       >
-                        <div className="admin-registration-copy-text truncate whitespace-nowrap font-bold text-slate-900" title={sub.company_name}>
-                          {companyName}
-                        </div>
+                        <QueueCompanyName submission={sub} company={company} submissions={submissions}
+                          highlight={status === 'PENDING' && ['DRIVER', 'TRAILER', 'VEHICLE'].includes(typeFilter)}
+                          className="block truncate whitespace-nowrap" />
                       </td>
 
                       <td
@@ -827,11 +839,13 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
                 <article role="listitem" key={sub.id} className={`min-w-0 rounded-lg border p-3 shadow-sm ${isSelected ? 'border-blue-300 bg-blue-50' : 'border-slate-200 bg-white'}`}>
                   <div className="flex items-start gap-2">
                     <button type="button" onClick={() => setActiveSubmission(sub)} className="min-w-0 flex-1 text-left">
-                      <span className="block break-words text-xs font-bold leading-5 text-slate-900">{sub.company_name.toUpperCase()}</span>
-                      <span className="mt-0.5 block break-all font-mono text-[10px] font-semibold text-blue-600">{sub.reference_no}</span>
+                      <QueueCompanyName submission={sub} company={company} submissions={submissions}
+                        highlight={status === 'PENDING' && ['DRIVER', 'TRAILER', 'VEHICLE'].includes(typeFilter)}
+                        className="block break-words text-xs leading-5" />
                     </button>
                     <button type="button" onClick={(event) => toggleActionMenu(event, sub.id)} aria-label={`Actions for ${sub.reference_no}`} aria-expanded={openActionMenu?.id === sub.id} className="-mr-1 -mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100"><MoreVertical className="h-4 w-4" /></button>
                   </div>
+                  <div className="mt-1 text-[10px] text-blue-600"><RegistrationReference submission={sub} /></div>
                   <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[9px] font-semibold uppercase text-slate-600">
                     <span className="rounded bg-slate-100 px-1.5 py-1">{company?.company_type || sub.company_type || sub.registration_type}</span>
                     {sub.company_reg_no && <span className="break-all font-normal">{sub.company_reg_no}</span>}
@@ -924,7 +938,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
           </button>
           {menuSubmission.status === 'PENDING' && (
             <>
-              <button type="button" onClick={() => void startCodeFlow(menuSubmission, 'DONE')} disabled={savingCode} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50">Register</button>
+              <button type="button" onClick={() => void startCodeFlow(menuSubmission, 'DONE')} disabled={savingCode || !!menuCompanyBlockReason} title={menuCompanyBlockReason || undefined} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50">Register</button>
               <button type="button" onClick={() => void startCodeFlow(menuSubmission, 'REJECTED')} disabled={savingCode} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50">Reject</button>
             </>
           )}
@@ -944,8 +958,9 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
       )}
 
       {/* Submission Detail Modal */}
+      {uploadProgress && <p role="status" className="text-xs text-blue-700">{uploadProgress}</p>}
       <SubmissionDetailModal
-        submission={activeSubmission}
+        submission={submissions.find(sub => sub.id === activeSubmission?.id) || activeSubmission}
         isOpen={!!activeSubmission}
         onClose={() => setActiveSubmission(null)}
         onOpenAssignId={(compGuid) => {

@@ -3,6 +3,7 @@ import runScheduler from '../server-handlers/scheduler/handler.js';
 import northportRecovery from '../server-handlers/northport/handler.js';
 import systemVersions from '../server-handlers/system-versions.js';
 import profile from '../server-handlers/profile.js';
+import registrationUploads from '../server-handlers/registration-uploads/handler.js';
 
 type Handler = (request:any,response:any)=>unknown;
 // Public URLs are preserved by explicit Vercel rewrites. Each handler retains
@@ -13,6 +14,7 @@ export function createDevToolsRouter(handlers:Record<string,Handler>={
   'northport-recovery':northportRecovery,
   'system-versions':systemVersions,
   profile,
+  'registration-uploads':registrationUploads,
 }) {
   return async function devTools(request:any,response:any) {
     response.setHeader('Cache-Control','no-store');

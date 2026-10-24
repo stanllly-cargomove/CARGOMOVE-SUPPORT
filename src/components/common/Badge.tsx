@@ -15,45 +15,14 @@ export function CargoMoveIdBadge({ id }: { id: string }) {
 }
 
 export function StatusBadge({ status }: { status: string }) {
-  switch (status) {
-    case 'ACTIVE':
-      return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-          Active
-        </span>
-      );
-    case 'INACTIVE':
-      return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200">
-          Inactive
-        </span>
-      );
-    case 'PENDING':
-      return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-          Pending
-        </span>
-      );
-    case 'DONE':
-    case 'SUCCESS':
-      return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-          {status === 'SUCCESS' ? 'Successful' : 'Done'}
-        </span>
-      );
-    case 'REJECTED':
-      return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
-          Rejected
-        </span>
-      );
-    default:
-      return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
-          {status}
-        </span>
-      );
-  }
+  const positive = ['DONE', 'SUCCESS', 'REGISTERED', 'ACTIVE'].includes(status);
+  const colors = status === 'PENDING' ? 'bg-amber-50 text-amber-700 border-amber-200'
+    : status === 'REJECTED' ? 'bg-rose-50 text-rose-700 border-rose-200'
+    : positive ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+    : 'bg-slate-100 text-slate-600 border-slate-200';
+  const label = { ACTIVE: 'Active', INACTIVE: 'Inactive', PENDING: 'Pending', DONE: 'Done',
+    SUCCESS: 'Successful', REGISTERED: 'Registered', REJECTED: 'Rejected' }[status] || status;
+  return <span className={`inline-flex h-6 w-[104px] shrink-0 items-center justify-center whitespace-nowrap rounded-full border px-2 text-[10px] font-semibold uppercase ${colors}`}>{label}</span>;
 }
 
 export function TypeBadge({ type }: { type: string }) {

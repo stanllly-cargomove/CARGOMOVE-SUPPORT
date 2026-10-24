@@ -12,7 +12,7 @@ const publicCompanyFields = [
   'forwarding_agent_id',
   'port_id',
   'depot_id',
-  'status',
+  'registration_status',
   'created_at',
   'updated_at',
 ].join(',');

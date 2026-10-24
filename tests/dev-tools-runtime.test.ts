@@ -24,16 +24,16 @@ test('deployed Dev Tools module loads in native Node with an external JSON manif
         writeFileSync(target, compiled.code);
       }
     };
-    for (const directory of ['api', 'server-handlers', 'src/types', 'src/services']) await compile(directory);
+    for (const directory of ['api', 'server-handlers', 'src/types', 'src/services', 'shared']) await compile(directory);
     mkdirSync(path.join(root, 'src/generated'), { recursive: true });
     copyFileSync('src/generated/system-versions.json', path.join(root, 'src/generated/system-versions.json'));
     const runner = path.join(root, 'check.mjs');
     writeFileSync(runner, `
       import assert from 'node:assert/strict';
       const { default: handler } = await import(${JSON.stringify(pathToFileURL(entry).href)});
-      for (const route of ['northport-recovery', 'schedulers', 'run-scheduler', 'system-versions', 'profile']) {
+      for (const route of ['northport-recovery', 'schedulers', 'run-scheduler', 'system-versions', 'profile', 'registration-uploads']) {
         const response = { code: 200, setHeader() {}, status(code) { this.code = code; return this; }, json(body) { this.body = body; return this; } };
-        await handler({ method: route === 'system-versions' || route === 'run-scheduler' ? 'POST' : 'GET', query: { route }, headers: {} }, response);
+        await handler({ method: ['system-versions', 'run-scheduler', 'registration-uploads'].includes(route) ? 'POST' : 'GET', query: { route }, headers: {} }, response);
         assert.equal(response.code, 401, route + ' should reach its authentication check');
       }
       console.log('Native Node Dev Tools startup passed');

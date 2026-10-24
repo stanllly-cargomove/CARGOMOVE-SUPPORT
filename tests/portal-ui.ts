@@ -28,7 +28,7 @@ page.on('pageerror', error => errors.push(error.message));
 let authenticated = false;
 let loginFails = true;
 let configFails = false;
-let lookupMode: 'found' | 'missing' | 'error' | 'inactive' = 'found';
+let lookupMode: 'found' | 'missing' | 'error' | 'pending' | 'rejected' = 'found';
 let trackingMode: 'PENDING' | 'SUCCESS' | 'REJECTED' | 'missing' | 'error' = 'PENDING';
 let submitFails = false;
 const submissions: any[] = [];
@@ -57,7 +57,7 @@ await context.route('**/*', async route => {
       authenticated = true; return reply({ user });
     case '/api/auth/logout': authenticated = false; return reply({ ok: true });
     case '/api/registration-config': return configFails ? reply({ error: 'Facilities unavailable' }, 502) : reply(config);
-    case '/api/company-lookup': return lookupMode === 'error' ? reply({ error: 'Lookup unavailable' }, 502) : reply({ company: lookupMode === 'missing' ? null : { ...company, status: lookupMode === 'inactive' ? 'INACTIVE' : 'ACTIVE' } });
+    case '/api/company-lookup': return lookupMode === 'error' ? reply({ error: 'Lookup unavailable' }, 502) : reply({ company: lookupMode === 'missing' ? null : { ...company, registration_status: lookupMode === 'rejected' ? 'REJECTED' : lookupMode === 'pending' ? 'PENDING' : 'DONE' } });
     case '/api/registration-status': return trackingMode === 'error' ? reply({ error: 'Tracking unavailable' }, 502) : reply({ tracking: trackingMode === 'missing' ? null : { reference_no: url.searchParams.get('reference_no'), registration_type: 'COMPANY', company_name: company.name, port_location: 'JOHOR', status: trackingMode, submission_status: trackingMode === 'PENDING' ? 'PENDING' : trackingMode === 'SUCCESS' ? 'DONE' : 'REJECTED', user_email_sent: trackingMode === 'SUCCESS', submitted_at: '2026-10-19T01:00:00Z' } });
     case '/api/company-registration': {
       const input = request.postDataJSON();
@@ -136,12 +136,12 @@ try {
     else { await heading('Registration status'); assert.ok(await page.locator('.cm-track-summary').innerText().then(text => text.includes(company.name))); }
   }
 
-  console.log('Checking company lookup missing, inactive and error states');
+  console.log('Checking company lookup accepts Pending and Rejected companies and handles missing/error states');
   await enterJohor('Driver');
-  for (const mode of ['missing', 'inactive', 'error', 'found'] as const) {
+  for (const mode of ['missing', 'pending', 'rejected', 'error', 'found'] as const) {
     lookupMode = mode; await verifyCompany();
     if (mode === 'missing') await page.getByText(/No company record found/).waitFor();
-    if (mode === 'inactive') await page.getByText(/currently inactive/).waitFor();
+    if (mode === 'pending' || mode === 'rejected') await button('Proceed to Asset Form').waitFor();
     if (mode === 'error') await page.getByText('Lookup unavailable', { exact: true }).waitFor();
     if (mode === 'found') await button('Proceed to Asset Form').waitFor();
   }

@@ -11,6 +11,7 @@ const bundle = await build({
     builder.onLoad({ filter: /[\\/]services[\\/]storage\.ts$/ }, () => ({ contents: `
       window.savedCompanies=[];
       export const getCompanies=()=>[];
+      export const getSubmissions=()=>[];
       export const getPorts=()=>[];
       export const getDepots=()=>[];
       export const subscribeToStorage=()=>()=>{};
@@ -44,7 +45,7 @@ const php = `stdClass Object
 const fixtures = [
   php,
   php.replace(/ /g, '&#x20;').split('\n').join('\\\n'),
-  JSON.stringify({ name: 'EXAMPLE TRANSPORT', ids: { registration: 'TEST-123-X', registration_new: '202601000123' } }),
+  JSON.stringify({ name: 'EXAMPLE TRANSPORT', registration_status: 'REGISTERED', ids: { registration: 'TEST-123-X', registration_new: '202601000123' } }),
   JSON.stringify({ name: 'EXAMPLE TRANSPORT', registration_number_old: 'TEST-123-X', registration_number_new: '202601000123' }),
 ];
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
@@ -69,6 +70,8 @@ try {
       await dialog.getByRole('button', { name: 'Paste JSON', exact: true }).click();
       await dialog.getByRole('textbox').fill(fixture);
       await dialog.getByRole('button', { name: 'Confirm data', exact: true }).click();
+      assert.equal(await dialog.getByLabel('Registration status', { exact: true }).inputValue(), index === 2 ? 'DONE' : 'PENDING', 'Only explicit registration_status can approve an imported company');
+      await dialog.getByLabel('Registration status', { exact: true }).selectOption('DONE');
       assert.equal(await dialog.getByLabel('Old Registration No *', { exact: true }).inputValue(), 'TEST-123-X');
       assert.equal(await dialog.getByLabel('SSM New 12-Digit Reg No', { exact: true }).inputValue(), '202601000123');
       await dialog.getByLabel('Company Legal Name *', { exact: true }).press('Enter');
@@ -86,6 +89,7 @@ try {
       assert.equal(companies.length, index + 1);
       assert.equal(companies[index].registration_number_new, '202601000123');
       assert.equal(companies[index].registration_number_old, 'TEST-123-X');
+      assert.equal(companies[index].registration_status, 'DONE');
       if (index < 2) assert.equal(companies[index].office_phone, '');
     }
     assert.deepEqual(errors, []); await page.close();

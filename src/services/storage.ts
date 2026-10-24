@@ -11,6 +11,7 @@ import {
   UserRegistration,
 } from '../types';
 import { normalizeCompanyType, normalizeRegNo } from './companyHelper';
+import { assetCompanyBlockReason } from '../../shared/registration-eligibility';
 import { getCustomerConfiguration } from './customerConfiguration';
 import { deleteSupabaseRow, fetchSupabaseSnapshot, isSupabaseConfigured, upsertSupabaseRow } from './supabase';
 import { clearExternalUserAccessCache, getExternalUserAccess, refreshExternalUserAccess, saveExternalUserAccess, updateExternalUserAccess } from './auth';
@@ -159,7 +160,6 @@ export const INITIAL_COMPANIES: Company[] = [
     contact_mobile: '+60123456789',
     office_phone: '+6072518899',
     fax: '+6072518898',
-    status: 'ACTIVE',
     created_at: '2026-08-10T08:30:00.000Z',
     updated_at: '2026-09-01T10:15:00.000Z',
   },
@@ -188,7 +188,6 @@ export const INITIAL_COMPANIES: Company[] = [
     contact_mobile: '+60198765432',
     office_phone: '+6072551122',
     fax: '+6072551120',
-    status: 'ACTIVE',
     created_at: '2026-08-14T09:00:00.000Z',
     updated_at: '2026-09-02T11:20:00.000Z',
   },
@@ -217,7 +216,6 @@ export const INITIAL_COMPANIES: Company[] = [
     contact_mobile: '+60167123984',
     office_phone: '+6072520033',
     fax: '+6072520034',
-    status: 'ACTIVE',
     created_at: '2026-09-05T04:00:00.000Z',
     updated_at: '2026-09-05T04:00:00.000Z',
   },
@@ -246,7 +244,6 @@ export const INITIAL_COMPANIES: Company[] = [
     contact_mobile: '+60124445555',
     office_phone: '+60331688800',
     fax: '+60331688801',
-    status: 'ACTIVE',
     created_at: '2026-09-08T03:30:00.000Z',
     updated_at: '2026-09-08T03:30:00.000Z',
   },
@@ -447,7 +444,7 @@ let remoteSyncInFlight: Promise<void> | null = null;
 let protectedWriteInFlight = false;
 
 function companyRow(company: Company) {
-  const { assigned_port_ids, assigned_depot_ids, ledger_codes, block, address1, address2, city, state, postcode, country, contact_name, contact_email, contact_designation, contact_mobile, office_phone, fax, ...master } = company;
+  const { status: legacyActivity, assigned_port_ids, assigned_depot_ids, ledger_codes, block, address1, address2, city, state, postcode, country, contact_name, contact_email, contact_designation, contact_mobile, office_phone, fax, ...master } = company as Company & { status?: unknown };
   const isHaulier = normalizeCompanyType(company.company_type) === 'HAULAGE';
   const companyPortIds = new Set([company.port_id, ...(assigned_port_ids || [])].filter(Boolean));
   const isJohor = getPorts().some((port) => port.location === 'JOHOR' && companyPortIds.has(port.id));
@@ -916,7 +913,6 @@ function prepareCompany(companyData: Partial<Company> & { registration_number: s
       target = {
         ...normalizedCompanyData,
         id: normalizedCompanyData.id || `comp-${Date.now()}`,
-        status: normalizedCompanyData.status || 'ACTIVE',
         created_at: normalizedCompanyData.created_at || now,
         updated_at: now,
       } as Company;
@@ -926,7 +922,6 @@ function prepareCompany(companyData: Partial<Company> & { registration_number: s
     target = {
       ...normalizedCompanyData,
       id: `comp-${Date.now()}`,
-      status: normalizedCompanyData.status || 'ACTIVE',
       created_at: now,
       updated_at: now,
     } as Company;
@@ -1120,7 +1115,6 @@ export function ensureSubmissionCompany(submissionId: string): Company | null {
     company_type: submission.company_type || companyDetails.company_type || 'FORWARDER',
     port_id: companyDetails.port_id || submission.port_id,
     depot_id: companyDetails.depot_id || submission.depot_id,
-    status: 'ACTIVE',
   });
 
   submission.company_id = company.id;
@@ -1164,6 +1158,11 @@ export function saveUserRegistration(
 }
 
 function applySubmissionStatus(sub: RegistrationSubmission, status: SubmissionStatus, notes?: string) {
+  const companyBlockReason = status === 'DONE' ? assetCompanyBlockReason(sub, getCompanyById(sub.company_id), getSubmissions()) : null;
+  if (companyBlockReason) throw new Error(companyBlockReason);
+  if (status === 'DONE' && sub.cargomove_upload && sub.cargomove_upload.state !== 'SUCCESS') {
+    throw new Error('Verify CargoMove processing before marking this registration Done.');
+  }
   sub.status = status;
   if (status !== 'REJECTED') {
     sub.rejection_reason = null;
@@ -1271,6 +1270,11 @@ export function markSubmissionsExported(
 ): void {
   const subs = getSubmissions();
   const now = new Date().toISOString();
+
+  for (const sub of subs.filter(item => submissionIds.includes(item.id))) {
+    const reason = assetCompanyBlockReason(sub, getCompanyById(sub.company_id), subs);
+    if (reason) throw new Error(reason);
+  }
 
   subs.forEach((s) => {
     if (submissionIds.includes(s.id)) {
