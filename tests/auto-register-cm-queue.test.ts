@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createAutoRegisterCmQueueHandler } from '../server-handlers/scheduler/auto-register-cm-queue.js';
+import { autoRegistrationRecordCount, createAutoRegisterCmQueueHandler } from '../server-handlers/scheduler/auto-register-cm-queue.js';
 import { scheduleEligibleAutoRegistrations, loadPendingAutoRegistrations } from '../server-handlers/scheduler/auto-register-cm-discovery.js';
 
 function responseMock() {
@@ -36,6 +36,13 @@ function dependencies() {
     setSession(value: any) { session = value; },
   };
 }
+
+test('Auto Register registration details count singular and batch asset records', () => {
+  const fixture = (registration_type: string, data: any) => ({ registration_type, data }) as any;
+  assert.equal(autoRegistrationRecordCount(fixture('DRIVER', { driver: { name: 'One' } })), 1);
+  assert.equal(autoRegistrationRecordCount(fixture('TRAILER', { trailers: Array.from({ length: 10 }, () => ({})) })), 10);
+  assert.equal(autoRegistrationRecordCount(fixture('VEHICLE', { vehicles: [] })), 0);
+});
 
 test('Auto Register queue requires an administrator, same-origin confirmation, and bounded selections', async () => {
   process.env.SCHEDULER_PORTAL_URL = 'https://portal.example.test';
@@ -121,8 +128,9 @@ test('discovery resumes a bounded scan beyond 300 blocked registrations without 
   assert.equal(allPending.length, 351, 'The overview also reads every pending page');
 });
 
-test('Auto Register queue exposes only active scheduled submission ids for queue indicators', async () => {
-  let selectedFields = '';
+test('Auto Register queue exposes scheduled, retrying and stopped submission indicators', async () => {
+  const selectedFields: string[] = [];
+  let status = '';
   const client = {
     from(table: string) {
       if (table === 'user_registrations') {
@@ -134,14 +142,22 @@ test('Auto Register queue exposes only active scheduled submission ids for queue
       }
       assert.equal(table, 'auto_register_cm_scheduled_items');
       const query: any = {
-        select(fields: string) { selectedFields = fields; return this; },
+        select(fields: string) { selectedFields.push(fields); return this; },
         eq(field: string, value: string) {
-          assert.deepEqual([field, value], ['status', 'SCHEDULED']);
+          assert.equal(field, 'status'); status = value;
           return this;
         },
+        in(field: string, values: string[]) { assert.equal(field, 'status'); assert.deepEqual(values, ['FAILED', 'SUCCESS']); status = 'TERMINAL'; return this; },
         limit() { return this; },
         order() { return this; }, range() { return this; },
-        timeout() { return Promise.resolve({ data: [{ submission_id: 'asset-1' }, { submission_id: 'asset-2' }], error: null }); },
+        timeout() { return Promise.resolve({ data: status === 'SCHEDULED'
+          ? [{ submission_id: 'asset-1' }, { submission_id: 'asset-2' }]
+          : [{ submission_id: 'asset-2', status: 'FAILED', message: 'First failure', completed_at: '2026-10-25T00:00:00Z', retry_allowed: true },
+            { submission_id: 'asset-3', status: 'FAILED', message: 'First failure', completed_at: '2026-10-25T00:00:00Z', retry_allowed: true },
+            { submission_id: 'asset-3', status: 'FAILED', message: 'Second failure', completed_at: '2026-10-25T02:00:00Z', retry_allowed: true },
+            { submission_id: 'asset-4', status: 'FAILED', message: 'First failure', completed_at: '2026-10-25T00:00:00Z', retry_allowed: true },
+            { submission_id: 'asset-4', status: 'SUCCESS', message: 'Completed', completed_at: '2026-10-25T02:00:00Z', retry_allowed: true },
+            { submission_id: 'asset-5', status: 'FAILED', message: 'Partial upload', completed_at: '2026-10-25T00:00:00Z', retry_allowed: false }], error: null }); },
       };
       return query;
     },
@@ -153,6 +169,6 @@ test('Auto Register queue exposes only active scheduled submission ids for queue
   const response = responseMock();
   await handler({ method: 'GET', query: { view: 'scheduled' }, headers: {} }, response);
   assert.equal(response.code, 200);
-  assert.equal(selectedFields, 'submission_id');
-  assert.deepEqual(response.body, { scheduledSubmissionIds: ['asset-1', 'asset-2'] });
+  assert.deepEqual(selectedFields, ['submission_id', 'submission_id,status,message,completed_at,retry_allowed']);
+  assert.deepEqual(response.body, { scheduledSubmissionIds: ['asset-1', 'asset-2'], failedSubmissionIds: ['asset-3', 'asset-5'] });
 });

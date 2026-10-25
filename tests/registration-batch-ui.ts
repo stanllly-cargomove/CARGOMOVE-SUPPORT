@@ -35,6 +35,9 @@ try {
     const request = route.request(), url = new URL(request.url());
     assert.equal(url.origin, 'http://batch.test');
     if (url.pathname === '/api/external-user-access') return route.fulfill({ json: { users: [] } });
+    if (url.pathname === '/api/scheduler/auto-register-cm-queue' && request.method() === 'POST') {
+      return route.fulfill({ json: { scheduled: 0 } });
+    }
     if (url.pathname === '/api/scheduler/auto-register-cm-queue' && url.searchParams.get('view') === 'scheduled') {
       return route.fulfill({ json: { scheduledSubmissionIds: [] } });
     }

@@ -28,7 +28,9 @@ the same scheduled queue as an automatic run and is disabled when that queue is
 empty. Each queue entry records `SCHEDULED` until verified, then `SUCCESS` or `FAILED`.
 Transient HTTP errors and upload-claim conflicts leave records scheduled;
 only identified validation failures or persisted terminal upload results mark
-registrations failed. An unsuccessful preparation before upload can be retried.
+  registrations failed. A confirmed first failure gets one more attempt at the
+  next UTC two-hour run window. The second failed attempt ends automatic retries.
+  Uncertain or partial upload results require manual review instead of replay.
 Selected registrations are revalidated by the existing upload workflow when run,
 so eligibility changes after scheduling cannot bypass its checks. The existing
 database leases serialize upload/verification transitions and the application
@@ -40,9 +42,13 @@ separate acceptance-email workflow.
 Manual **Run Now** uses the same path and safeguards but is permitted while the
 automatic enabled flag is off. It never changes that flag.
 
-The page separates eligible items under **Scheduled registrations** from
-ineligible items under **Non-eligible Registration**. The **Results & Execution
-logs** card retains all queue outcomes and scheduler execution history. Each
+The page has two registration tabs. **Scheduled registrations** shows queued
+items as `SCHEDULED` and safe first failures as `RE-SCHEDULED`; hovering the
+second tag explains the first failure. After a second failure, the registration
+leaves that tab and its icon in Pending Registration Submissions turns red.
+**Non-eligible Registration** shows submissions that currently fail eligibility
+checks. Successful registrations leave both tabs. The **Execution logs** card
+retains scheduler execution history. Each
 execution has a human-readable `AUTOREG` ID. Execution references are read from
 `automation_scheduler_run_items`, preserving the same registration in every run
 that handled it, even when the queue's latest `run_id` changes.
@@ -72,18 +78,19 @@ start production registrations unexpectedly.
 
 Before deploying this application update, also apply
 `20261025060000_auto_register_cm_hardening.sql`, followed by
-`20261025070000_auto_register_cm_reliability.sql` to the main application database.
-If both are pending against an older application, apply both in one database
-transaction, or keep scheduling off and avoid manual runs until both finish.
+`20261025070000_auto_register_cm_reliability.sql`, followed by
+`20261026000000_auto_register_cm_second_attempt.sql` to the main application database.
+If the migrations are pending against an older application, apply them in order
+before deployment, keeping scheduling off and avoiding manual runs until all finish.
 Migration 060 alone rejects older `FAIL` writes; migration 070 normalizes them to
 `FAILED` before constraints and history triggers run, allowing the older
-application to work during deployment. If 060 is already applied, apply only 070.
+application to work during deployment. Apply only migrations still pending.
 
 Migration 070 retains original audit fingerprints and establishes a separate
 versioned retry fingerprint for existing rows. Older failures do not contain a
 complete dependency snapshot, so their retry baseline is conservatively set to
-the current inputs during upgrade. They remain blocked until a later relevant
-correction. New fingerprints use canonical JSON and meaningful configuration,
+  the current inputs during upgrade. Migration 260 grants one safe retry in the
+  next run window. New fingerprints use canonical JSON and meaningful configuration,
 including both Port Klang ports, without timezone-sensitive timestamps.
 
 ## Safe testing
@@ -106,8 +113,10 @@ registrations.
   budget is nearly exhausted. The next invocation resumes that durable batch.
 - A registration remains Pending in this application after verified CM processing
   until its existing acceptance-email workflow completes.
-- Queue rows are durable audit history. Failed or stale entries remain visible as
-  `FAILED`; unchanged failures are not retried automatically, but a registration
-  becomes eligible for a new queue entry when its relevant details are updated.
+- Queue rows are durable audit history. A first safe `FAILED` entry remains
+  visible as `RE-SCHEDULED` on the page and can create one new queue entry in
+  the next two-hour UTC window. A second failure stops automatic retries even
+  if registration details later change. Failed upload attempts with uncertain
+  or partial processing do not receive an automatic retry.
 - An `UNKNOWN` upload or scheduler outcome is never automatically replayed; it is
   reconciled against the existing CargoMove audit first.

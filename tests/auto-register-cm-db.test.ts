@@ -17,6 +17,10 @@ test('Auto Register in CM persists configuration, skips while off, serializes ru
         reference_no text,company_name text,submitted_at timestamptz default now(),
         data jsonb default '{}'::jsonb,company_id text,port_id text,port_location text,depot_id text,company_reg_no text
       );
+      create table public.registration_uploads(
+        id uuid primary key default gen_random_uuid(), submission_id text, attempt integer,
+        state text, resolution_note text, success_count integer, expected_rows integer
+      );
       create table public.companies(
         id text primary key,registration_status text,haulier_id text,forwarding_agent_id text,updated_at timestamptz default now()
       );
@@ -34,6 +38,7 @@ test('Auto Register in CM persists configuration, skips while off, serializes ru
     await db.exec('alter table auto_register_cm_scheduled_items drop column registration_fingerprint');
     await db.exec(readFileSync(new URL('../supabase/migrations/20261025060000_auto_register_cm_hardening.sql', import.meta.url), 'utf8'));
     await db.exec(readFileSync(new URL('../supabase/migrations/20261025070000_auto_register_cm_reliability.sql', import.meta.url), 'utf8'));
+    await db.exec(readFileSync(new URL('../supabase/migrations/20261026000000_auto_register_cm_second_attempt.sql', import.meta.url), 'utf8'));
     const scalar = async (sql: string, params: unknown[] = []) => Object.values((await db.query<any>(sql, params)).rows[0])[0] as any;
     const acquire = (type: 'AUTOMATIC' | 'MANUAL', key: string | null, who = actor) => scalar(
       'select acquire_automation_scheduler($1,$2,$3,$4)', ['auto_register_cm', type, who, key]);
@@ -81,10 +86,35 @@ test('Auto Register in CM persists configuration, skips while off, serializes ru
       'Scheduling an already queued registration is idempotent');
     await db.exec("update auto_register_cm_scheduled_items set status='FAILED',completed_at=now() where submission_id='asset-1'");
     assert.equal((await db.query<any>('select * from schedule_auto_register_cm_submissions($1,$2)', [actor, ['asset-1']])).rows.length, 0,
-      'The same failed registration is not automatically retried without changes');
+      'A first failure waits for the next two-hour window');
     await db.exec("update companies set haulier_id='haulier-2',updated_at=now()+interval '1 second' where id='company-1'");
+    assert.equal((await db.query<any>('select * from schedule_auto_register_cm_submissions($1,$2)', [actor, ['asset-1']])).rows.length, 0,
+      'Changing registration details does not bypass the next-window delay');
+    await db.exec("update auto_register_cm_scheduled_items set completed_at=now()-interval '3 hours' where submission_id='asset-1'");
     assert.equal((await db.query<any>('select * from schedule_auto_register_cm_submissions($1,$2)', [actor, ['asset-1']])).rows.length, 1,
-      'A corrected registration dependency can be automatically scheduled again');
+      'The first failed registration is scheduled once in the next window');
+    await db.exec("update auto_register_cm_scheduled_items set status='FAILED',completed_at=now() where submission_id='asset-1' and status='SCHEDULED'");
+    assert.equal((await db.query<any>('select * from schedule_auto_register_cm_submissions($1,$2)', [actor, ['asset-1']])).rows.length, 0,
+      'A second failed registration is never scheduled a third time');
+    await db.exec("update companies set haulier_id='haulier-3' where id='company-1'");
+    assert.equal((await db.query<any>('select * from schedule_auto_register_cm_submissions($1,$2)', [actor, ['asset-1']])).rows.length, 0,
+      'Editing details after the second failure does not silently start a third attempt');
+    await db.query(`insert into registration_submissions(id,registration_type,status,reference_no,company_name,company_id,port_id)
+      values('asset-2','VEHICLE','PENDING','CMREG400002','Example Logistics','company-1','port-1')`);
+    await db.query('select * from schedule_auto_register_cm_submissions($1,$2)', [actor, ['asset-2']]);
+    await db.exec("insert into registration_uploads(submission_id,attempt,state,expected_rows) values('asset-2',1,'FAILED',1)");
+    await db.exec("update auto_register_cm_scheduled_items set status='FAILED',completed_at=now()-interval '3 hours' where submission_id='asset-2'");
+    assert.equal(await scalar("select retry_allowed from auto_register_cm_scheduled_items where submission_id='asset-2'"), false);
+    assert.equal((await db.query<any>('select * from schedule_auto_register_cm_submissions($1,$2)', [actor, ['asset-2']])).rows.length, 0,
+      'A failed upload with an uncertain processed count is never replayed');
+    await db.query(`insert into registration_submissions(id,registration_type,status,reference_no,company_name,company_id,port_id)
+      values('asset-3','VEHICLE','PENDING','CMREG400003','Example Logistics','company-1','port-1')`);
+    await db.query('select * from schedule_auto_register_cm_submissions($1,$2)', [actor, ['asset-3']]);
+    await db.exec("insert into registration_uploads(submission_id,attempt,state,expected_rows) values('asset-3',1,'FAILED',0)");
+    await db.exec("update auto_register_cm_scheduled_items set status='FAILED',completed_at=now()-interval '3 hours' where submission_id='asset-3'");
+    assert.equal(await scalar("select retry_allowed from auto_register_cm_scheduled_items where submission_id='asset-3'"), true,
+      'Preparation failures before any upload remain safe to retry');
+    assert.equal((await db.query<any>('select * from schedule_auto_register_cm_submissions($1,$2)', [actor, ['asset-3']])).rows.length, 1);
     assert.equal(await scalar('select count(*)::integer from automation_scheduler_run_items where run_id=$1', [first.id]), 1,
       'Execution-to-registration history is retained separately from the latest run pointer');
     await db.exec("update registration_submissions set status='DONE' where id='asset-1'");
@@ -114,6 +144,8 @@ test('populated upgrades preserve failed retry guards, legacy writes, stable dep
         create table registration_submissions(id text primary key,registration_type text,status text,cargomove_upload jsonb,
           reference_no text,company_name text,submitted_at timestamptz default now(),data jsonb default '{}',
           company_id text,port_id text,port_location text,depot_id text,company_reg_no text);
+        create table registration_uploads(id uuid primary key default gen_random_uuid(),submission_id text,attempt integer,
+          state text,resolution_note text,success_count integer,expected_rows integer);
         insert into auth.users(id,email) values('${actor}','admin@example.test');
         insert into user_registrations values('admin@example.test','ADMIN');
         insert into companies(id,registration_status,haulier_id) values('c','DONE','H1');
@@ -134,6 +166,7 @@ test('populated upgrades preserve failed retry guards, legacy writes, stable dep
       await db.exec("update auto_register_cm_scheduled_items set status='FAILED',completed_at=now() where submission_id='hardening'");
       const originalFingerprints = (await db.query('select id,registration_fingerprint from auto_register_cm_scheduled_items order by id')).rows;
       await migrate('20261025070000_auto_register_cm_reliability.sql');
+      await migrate('20261026000000_auto_register_cm_second_attempt.sql');
       assert.deepEqual((await db.query('select id,registration_fingerprint from auto_register_cm_scheduled_items order by id')).rows, originalFingerprints,
         'Upgrade preserves original audit fingerprints');
       assert.equal((await db.query('select * from schedule_auto_register_cm_submissions($1,$2)', [actor, ['legacy', 'hardening']])).rows.length, 0,
@@ -150,6 +183,7 @@ test('populated upgrades preserve failed retry guards, legacy writes, stable dep
       await db.exec("update port_configs set backend_port_id='cccccccccccccccccccccccc' where id='pk-northport'");
       assert.notEqual(await scalar("select auto_register_cm_registration_fingerprint('legacy')"), utc,
         'Correcting Northport changes the retry fingerprint even when port_id points at Westport');
+      await db.exec("update auto_register_cm_scheduled_items set completed_at=now()-interval '3 hours' where submission_id='legacy'");
       const queued = await db.query<any>('select * from schedule_auto_register_cm_submissions($1,$2)', [actor, ['legacy']]);
       assert.equal(queued.rows.length, 1);
 

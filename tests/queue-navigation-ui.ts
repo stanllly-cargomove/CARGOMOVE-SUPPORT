@@ -54,6 +54,7 @@ try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
   const errors: string[] = [];
   let snapshotReads = 0;
+  let eligibilityRuns = 0;
   page.on('pageerror', error => errors.push(error.message));
   await page.route('**/*', route => {
     const url = new URL(route.request().url());
@@ -64,8 +65,14 @@ try {
     }
     if (url.pathname === '/api/external-user-access') return route.fulfill({ json: { users: [] } });
     if (url.pathname === '/api/auth/profile') return route.fulfill({ json: { avatarUrl: null } });
+    if (url.pathname === '/api/scheduler/auto-register-cm-queue' && route.request().method() === 'POST') {
+      eligibilityRuns++;
+      assert.equal(route.request().headers()['x-cargomove-confirm'], 'auto-schedule-auto-register-cm');
+      assert.deepEqual(route.request().postDataJSON(), {});
+      return route.fulfill({ json: { scheduled: 1 } });
+    }
     if (url.pathname === '/api/scheduler/auto-register-cm-queue' && url.searchParams.get('view') === 'scheduled') {
-      return route.fulfill({ json: { scheduledSubmissionIds: ['sub-0-3-0'] } });
+      return route.fulfill({ json: { scheduledSubmissionIds: ['sub-0-3-0'], failedSubmissionIds: ['sub-0-3-1'] } });
     }
     if (url.pathname.startsWith('/api/')) throw new Error(`Unexpected API ${url.pathname}`);
     return route.fulfill({ contentType: 'text/html', body: `<style>${css}</style><div id="root"></div><script>${bundle.outputFiles[0].text}</script>` });
@@ -76,7 +83,17 @@ try {
   await nav.getByRole('button', { name: /^Pending/ }).click();
   await page.getByRole('heading', { name: 'Pending Registration Submissions', exact: true }).waitFor();
   await page.getByRole('tab', { name: /^Vehicle/ }).click();
-  await page.getByRole('img', { name: 'This registration is scheduled and will be processed automatically by the system.' }).waitFor();
+  const scheduledIndicator = page.getByRole('img', { name: 'This registration is scheduled and will be processed automatically by the system.' });
+  await scheduledIndicator.waitFor();
+  assert.ok(eligibilityRuns >= 1, 'Opening Pending runs eligibility before loading scheduled icons');
+  await scheduledIndicator.hover();
+  const scheduledTooltip = page.getByRole('tooltip');
+  await scheduledTooltip.waitFor();
+  assert.equal(await scheduledTooltip.textContent(), 'This registration is scheduled and will be processed automatically by the system.');
+  assert.match(await scheduledTooltip.getAttribute('class') || '', /bg-slate-900.*shadow-xl/, 'Bot icon uses the Register action tooltip style');
+  const failedIndicator = page.getByRole('img', { name: 'Automatic registration failed twice or could not be retried safely. Review the registration and CargoMove result.' });
+  await failedIndicator.waitFor();
+  assert.match(await failedIndicator.getAttribute('class') || '', /bg-red-100 text-red-700/, 'Stopped automatic registration uses a red icon');
   await page.getByRole('tab', { name: /^Company/ }).click();
   await page.evaluate(() => {
     (window as any).fixtureReads.companies = 0;

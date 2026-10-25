@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { ArrowLeft, Clock3, Loader2, Play, Search } from 'lucide-react';
 import { notifyError, notifySuccess } from '../common/notifications';
+import type { RegistrationSubmission } from '../../types';
+import { SubmissionDetailModal } from './SubmissionDetailModal';
 
 type SchedulerRun = {
   id: string;
@@ -36,9 +38,14 @@ type Registration = {
   submittedAt: string;
   submittedBy: string;
   details: Record<string, string>;
+  recordCount: number;
+  submission: RegistrationSubmission;
   eligible: boolean;
   reason: string | null;
   scheduled: boolean;
+  queueStatus: 'SCHEDULED' | 'RE-SCHEDULED' | 'FAILED';
+  firstFailureReason: string | null;
+  firstFailedAt: string | null;
 };
 
 type QueueHistory = {
@@ -78,14 +85,6 @@ const registrationBlockReason = (reason: string | null) => {
     || reason.toLowerCase().includes('register the parent company')) return 'Parent company is not registered.';
   return reason;
 };
-const registrationTag = (registration: Registration) => {
-  const details = registration.details;
-  const primary = details.registration || details.drivingLicense || details.name;
-  if (primary) return primary;
-  return registration.registrationType === 'DRIVER' ? 'Driver details'
-    : registration.registrationType === 'TRAILER' ? 'Trailer details' : 'Vehicle details';
-};
-
 function CompactPager({ page, pages, onPage, label }: { page: number; pages: number; onPage: (page: number) => void; label: string }) {
   return (
     <nav aria-label={label} className="flex items-center justify-center gap-2 border-t border-slate-200 bg-slate-50/70 px-3 py-2">
@@ -214,6 +213,7 @@ export function AutoRegisterCmPage({ onBack, cacheScope = 'default', refreshVers
   const [localRefresh, setLocalRefresh] = useState(0);
   const [running, setRunning] = useState(false);
   const [registrationPage, setRegistrationPage] = useState(1);
+  const [activeSubmission, setActiveSubmission] = useState<RegistrationSubmission | null>(null);
   const [logSearch, setLogSearch] = useState('');
   const [logPageSize, setLogPageSize] = useState(25);
   const [logPage, setLogPage] = useState(1);
@@ -282,9 +282,8 @@ export function AutoRegisterCmPage({ onBack, cacheScope = 'default', refreshVers
     return () => controller.abort();
   }, [cacheScope, localRefresh, refreshVersion]);
 
-  const eligible = registrations.filter(registration => registration.eligible && !registration.scheduled);
   const ineligible = registrations.filter(registration => !registration.eligible);
-  const scheduledRegistrations = registrations.filter(registration => registration.eligible);
+  const scheduledRegistrations = registrations.filter(registration => registration.eligible && registration.queueStatus !== 'FAILED');
   const queuedRegistrationCount = scheduledRegistrations.filter(registration => registration.scheduled).length;
   const activeRegistrations = registrationTab === 'scheduled' ? scheduledRegistrations : ineligible;
   const registrationPages = Math.max(1, Math.ceil(activeRegistrations.length / 10));
@@ -382,7 +381,7 @@ export function AutoRegisterCmPage({ onBack, cacheScope = 'default', refreshVers
           <div className="mt-4 grid gap-2 sm:grid-cols-4">
             <div className="rounded-lg bg-slate-50 px-3 py-2"><span className="block text-[10px] text-slate-500">Last execution</span><strong className="mt-0.5 block text-xs text-slate-800">{scheduler.lastRunAt ? malaysiaDate(scheduler.lastRunAt) : 'Never'}</strong></div>
             <div className="rounded-lg bg-slate-50 px-3 py-2"><span className="block text-[10px] text-slate-500">Next scheduled run</span><strong className="mt-0.5 block text-xs text-slate-800">{scheduler.isEnabled ? malaysiaDate(nextTwoHourRun()) : 'Not scheduled'}</strong></div>
-            <div className="rounded-lg bg-slate-50 px-3 py-2"><span className="block text-[10px] text-slate-500">Eligible now</span><strong className="mt-0.5 block text-xs text-slate-800">{eligible.length} registration{eligible.length === 1 ? '' : 's'}</strong></div>
+            <div className="rounded-lg bg-slate-50 px-3 py-2"><span className="block text-[10px] text-slate-500">Eligible now</span><strong className="mt-0.5 block text-xs text-slate-800">{scheduledRegistrations.length} registration{scheduledRegistrations.length === 1 ? '' : 's'}</strong></div>
             <div className="rounded-lg bg-slate-50 px-3 py-2"><span className="block text-[10px] text-slate-500">Last result</span><strong className={`mt-0.5 block text-xs ${statusTone(scheduler.lastStatus || '')}`}>{scheduler.lastStatus || 'No runs'}</strong></div>
           </div>
         </section>
@@ -404,35 +403,53 @@ export function AutoRegisterCmPage({ onBack, cacheScope = 'default', refreshVers
           </div>
           <div data-testid="auto-register-tab-divider" aria-hidden="true" style={{ height: 1, backgroundColor: '#cbd5e1' }} className="w-full" />
           <div id="auto-register-registrations-panel" role="tabpanel" className="overflow-hidden rounded-b-xl rounded-tr-xl border-x border-b border-slate-200 bg-white shadow-sm">
-            <div data-testid="registration-table-viewport" className="overflow-hidden" style={{ minHeight: 520 }}>
+            <div data-testid="registration-table-viewport" className="overflow-hidden" style={{ minHeight: 410 }}>
               <table aria-label={registrationTab === 'scheduled' ? 'Scheduled registrations' : 'Non-eligible registrations'} style={{ tableLayout: 'fixed', width: '100%', maxWidth: '100%' }} className="w-full table-fixed border-collapse text-left text-[11px]">
                 <thead>
                   <tr
                     style={{ backgroundColor: registrationTab === 'scheduled' ? '#009966' : '#EC003F', borderColor: registrationTab === 'scheduled' ? '#009966' : '#EC003F' }}
                     className={`admin-registration-table-header auto-register-registration-header-${registrationTab} border-x border-b border-slate-400 text-[10px] font-bold uppercase tracking-wide text-white`}
                   >
-                    <th scope="col" style={{ width: '17%' }} className="break-words px-2 py-2">Registration No.</th><th scope="col" style={{ width: '16%' }} className="break-words px-2 py-2">Registration Type</th><th scope="col" style={{ width: '23%' }} className="break-words px-2 py-2">Company</th><th scope="col" style={{ width: registrationTab === 'scheduled' ? '24%' : '44%' }} className="break-words px-2 py-2">{registrationTab === 'scheduled' ? 'Registration details' : 'Reasons'}</th>
-                    {registrationTab === 'scheduled' && <th scope="col" style={{ width: '20%' }} className="break-words px-2 py-2">Reg schedule</th>}</tr>
+                    <th scope="col" style={{ width: registrationTab === 'scheduled' ? '15%' : '17%' }} className="break-words px-2 py-2">Registration No.</th><th scope="col" style={{ width: registrationTab === 'scheduled' ? '14%' : '16%' }} className="break-words px-2 py-2">Registration Type</th><th scope="col" style={{ width: registrationTab === 'scheduled' ? '20%' : '23%' }} className="break-words px-2 py-2">Company</th><th scope="col" style={{ width: registrationTab === 'scheduled' ? '20%' : '44%' }} className="break-words px-2 py-2">{registrationTab === 'scheduled' ? 'Registration details' : 'Reasons'}</th>
+                    {registrationTab === 'scheduled' && <><th scope="col" style={{ width: '15%' }} className="break-words px-2 py-2">Status</th><th scope="col" style={{ width: '16%' }} className="break-words px-2 py-2">Reg schedule</th></>}</tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {pagedRegistrations.map(registration => {
                     const queued = history.find(item => item.submissionId === registration.id && item.status === 'SCHEDULED');
-                    return <tr key={registration.id} className="align-middle hover:bg-slate-50/70">
-                      <td style={{ overflowWrap: 'anywhere' }} className="px-2 py-3 font-semibold text-slate-800">{registration.referenceNo}</td>
-                      <td className="px-3 py-3 text-slate-600">{registration.registrationType}</td>
-                      <td className="max-w-56 px-3 py-3"><strong className="block truncate text-slate-700" title={registration.companyName}>{registration.companyName}</strong></td>
-                      <td className="px-3 py-3">{registrationTab === 'ineligible'
-                        ? <span className="text-[10px] leading-4 text-rose-700">{registrationBlockReason(registration.reason)}</span>
-                        : <span className="inline-flex max-w-48 truncate rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-medium text-slate-600" title={registrationTag(registration)}>{registrationTag(registration)}</span>}
+                    const schedule = registration.scheduled
+                      ? queued ? malaysiaDate(queued.scheduledAt) : 'Next automatic run'
+                      : registration.queueStatus === 'RE-SCHEDULED' && registration.firstFailedAt
+                        ? malaysiaDate(new Date((Math.floor(Date.parse(registration.firstFailedAt) / 7_200_000) + 1) * 7_200_000))
+                      : scheduler.isEnabled ? 'Waiting for schedule' : 'Waiting for scheduler to be enabled';
+                    return <tr key={registration.id} className="h-9 align-middle hover:bg-slate-50/70">
+                      <td className="px-2 py-1">
+                        <button type="button" onClick={() => setActiveSubmission(registration.submission)} title="Click to review"
+                          className="block max-w-full truncate rounded px-1 py-1 text-left font-mono font-bold text-slate-900 transition-colors hover:bg-slate-100 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                          aria-label={`Review ${registration.referenceNo}`}>
+                          {registration.referenceNo}
+                        </button>
                       </td>
-                      {registrationTab === 'scheduled' && <td className="px-3 py-3">{registration.scheduled
-                        ? <span style={{ maxWidth: '100%' }} className="inline-flex flex-col"><span className="w-fit max-w-full rounded-full bg-blue-50 px-2 py-1 text-[10px] font-bold text-blue-700">Scheduled</span><span style={{ overflowWrap: 'anywhere' }} className="mt-1 text-[10px] text-slate-500">{queued ? malaysiaDate(queued.scheduledAt) : 'Next automatic run'}</span></span>
-                        : <span className="text-[10px] text-slate-500">{scheduler.isEnabled ? 'Waiting for schedule' : 'Waiting for scheduler to be enabled'}</span>}
+                      <td className="px-3 py-1 text-slate-600"><span className="block truncate" title={registration.registrationType}>{registration.registrationType}</span></td>
+                      <td className="max-w-56 px-3 py-1"><strong className="block truncate text-slate-700" title={registration.companyName}>{registration.companyName}</strong></td>
+                      <td className="px-3 py-1">{registrationTab === 'ineligible'
+                        ? <span className="block truncate text-[10px] leading-4 text-rose-700" title={registrationBlockReason(registration.reason)}>{registrationBlockReason(registration.reason)}</span>
+                        : <span className="inline-flex h-6 w-24 items-center justify-center rounded-full border border-slate-200 bg-slate-50 px-2 text-[10px] font-bold text-slate-600">{registration.recordCount} RECORD</span>}
+                      </td>
+                      {registrationTab === 'scheduled' && <td className="px-2 py-1">
+                        <span tabIndex={registration.queueStatus === 'RE-SCHEDULED' ? 0 : undefined}
+                          title={registration.queueStatus === 'RE-SCHEDULED' ? registration.firstFailureReason || 'The first automatic registration failed.' : undefined}
+                          aria-label={registration.queueStatus === 'RE-SCHEDULED' ? `RE-SCHEDULED: ${registration.firstFailureReason || 'The first automatic registration failed.'}` : 'SCHEDULED'}
+                          className={`inline-flex h-6 w-28 max-w-full items-center justify-center rounded-full px-1 text-[9px] font-bold ${registration.queueStatus === 'RE-SCHEDULED' ? 'bg-amber-100 text-amber-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500' : 'bg-blue-50 text-blue-700'}`}>
+                          {registration.queueStatus}
+                        </span>
+                      </td>}
+                      {registrationTab === 'scheduled' && <td className="px-3 py-1">
+                        <span className="block truncate text-[10px] text-slate-500" title={schedule}>{schedule}</span>
                       </td>}
                     </tr>;
                   })}
-                  {registrationTab === 'scheduled' && !activeRegistrations.length && <tr><td colSpan={5} className="h-[480px] px-4 text-center align-middle text-xs text-slate-500">No eligible registrations to schedule.</td></tr>}
-                  {registrationTab === 'ineligible' && !activeRegistrations.length && <tr><td colSpan={4} className="h-[480px] px-4 text-center align-middle text-xs text-slate-500">There are no non-eligible registrations.</td></tr>}
+                  {registrationTab === 'scheduled' && !activeRegistrations.length && <tr><td colSpan={6} className="h-20 px-4 text-center align-middle text-xs text-slate-500">No eligible registrations to schedule.</td></tr>}
+                  {registrationTab === 'ineligible' && !activeRegistrations.length && <tr><td colSpan={4} className="h-20 px-4 text-center align-middle text-xs text-slate-500">There are no non-eligible registrations.</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -440,6 +457,11 @@ export function AutoRegisterCmPage({ onBack, cacheScope = 'default', refreshVers
               label={`${registrationTab === 'scheduled' ? 'Scheduled registrations' : 'Non-eligible registrations'} pagination`} />
           </div>
         </section>
+
+        <SubmissionDetailModal submission={activeSubmission} isOpen={Boolean(activeSubmission)}
+          onClose={() => setActiveSubmission(null)}
+          onOpenAssignId={() => notifyError('Assign the CargoMove ID from Registration Queue.')}
+          onStatusChange={() => { setActiveSubmission(null); setLocalRefresh(value => value + 1); }} />
 
         <section aria-label="Execution logs" className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50/70 px-3 py-3">

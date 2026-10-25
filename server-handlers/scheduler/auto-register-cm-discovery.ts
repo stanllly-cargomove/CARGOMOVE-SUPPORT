@@ -34,6 +34,46 @@ export async function loadAutoScheduledIds(client: any): Promise<Set<string>> {
   }
 }
 
+export async function loadAutoRegistrationIndicators(client: any): Promise<{
+  scheduled: Set<string>;
+  rescheduled: Map<string, { reason: string; retryAt: string | null }>;
+  failed: Set<string>;
+}> {
+  const scheduled = await loadAutoScheduledIds(client);
+  const failures = new Map<string, { count: number; safe: boolean; reason: string; completedAt: string | null; succeeded: boolean }>();
+  for (let offset = 0; ; offset += 500) {
+    const page = await client.from('auto_register_cm_scheduled_items')
+      .select('submission_id,status,message,completed_at,retry_allowed').in('status', ['FAILED', 'SUCCESS'])
+      .order('scheduled_at', { ascending: true }).order('id', { ascending: true })
+      .range(offset, offset + 499).timeout(8000);
+    if (page.error) throw new Error('Unable to inspect failed automatic registrations.');
+    for (const row of page.data || []) {
+      const previous = failures.get(row.submission_id);
+      if (row.status === 'SUCCESS') {
+        failures.set(row.submission_id, { count: previous?.count || 0, safe: previous?.safe ?? true,
+          reason: previous?.reason || '', completedAt: previous?.completedAt || null, succeeded: true });
+        continue;
+      }
+      failures.set(row.submission_id, {
+        count: (previous?.count || 0) + 1,
+        safe: (previous?.safe ?? true) && row.retry_allowed === true,
+        reason: previous?.reason || row.message || 'The first automatic registration failed.',
+        completedAt: previous?.completedAt || row.completed_at || null,
+        succeeded: false,
+      });
+    }
+    if ((page.data || []).length < 500) break;
+  }
+  const rescheduled = new Map<string, { reason: string; retryAt: string | null }>();
+  const failed = new Set<string>();
+  for (const [id, item] of failures) {
+    if (item.succeeded) continue;
+    if (item.count >= 2 || !item.safe) failed.add(id);
+    else rescheduled.set(id, { reason: item.reason, retryAt: item.completedAt });
+  }
+  return { scheduled, rescheduled, failed };
+}
+
 /** Bounded discovery with a durable cursor: later candidates cannot starve behind
  * an old non-eligible backlog when the request's work budget is exhausted. */
 export async function scheduleEligibleAutoRegistrations(

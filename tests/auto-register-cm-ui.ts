@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { build } from 'esbuild';
+import { readFile, readdir } from 'node:fs/promises';
 import { launchBrowser } from '../server-handlers/scheduler/automation.js';
 
 const bundle = await build({
@@ -11,6 +12,8 @@ const bundle = await build({
 });
 
 const browser = await launchBrowser();
+const css = (await Promise.all((await readdir('dist/assets')).filter(file => file.endsWith('.css'))
+  .map(file => readFile(`dist/assets/${file}`, 'utf8')))).join('\n');
 try {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   const errors: string[] = [];
@@ -22,6 +25,22 @@ try {
   let schedulerLoads = 0;
   let queueLoads = 0;
   let schedulingRequests = 0;
+  const vehicleSubmission = {
+    id: 'registration-1', reference_no: 'CMREG400001', registration_type: 'VEHICLE', company_id: 'company-1',
+    company_reg_no: '123456-A', company_name: 'Example Logistics', company_type: 'HAULAGE', port_location: 'JOHOR',
+    port_id: 'port-1', status: 'PENDING', submitted_at: '2026-10-25T01:00:00.000Z', submitted_by_name: 'Admin User',
+    submitted_by_email: 'admin@example.test', submitted_by_mobile: '0123456789',
+    data: { vehicles: [{ registration_number: 'ABC1234', weight: '12000', bgk_weight: '9000', head: 'HEAD-1' }] },
+  };
+  const trailerSubmission = {
+    ...vehicleSubmission, id: 'registration-3', reference_no: 'CMREG400003', registration_type: 'TRAILER',
+    data: { trailers: Array.from({ length: 10 }, (_, index) => ({ registration_number: `TRL${index + 1}`, weight: '6000', bdm_weight: '3500', trailer_type: 'FL' })) },
+  };
+  const stoppedSubmission = { ...trailerSubmission, id: 'registration-4', reference_no: 'CMREG400004' };
+  const blockedSubmission = {
+    ...vehicleSubmission, id: 'registration-2', reference_no: 'CMREG400002', registration_type: 'DRIVER',
+    submitted_at: '2026-10-25T00:00:00.000Z', data: { drivers: [{ name: 'Driver Example', driving_license: 'D1', mobile_no: '0123456789' }] },
+  };
 
   await page.route('**/*', async route => {
     const request = route.request();
@@ -58,19 +77,23 @@ try {
           { id: 'queue-2', submissionId: 'registration-2', referenceNo: 'CMREG400187', registrationType: 'DRIVER', companyName: 'Example Logistics', status: 'SUCCESS', scheduledAt: '2026-10-25T00:00:00.000Z', completedAt: '2026-10-25T02:00:00.000Z', message: 'Registration completed successfully.', runId: 'run-1' },
           { id: 'queue-4', submissionId: 'registration-4', referenceNo: 'CMREG400188', registrationType: 'DRIVER', companyName: 'Example Logistics', status: 'SUCCESS', scheduledAt: '2026-10-25T00:00:00.000Z', completedAt: '2026-10-25T02:00:00.000Z', message: 'Registration completed successfully.', runId: 'run-1' },
           { id: 'queue-3', submissionId: 'registration-3', referenceNo: 'CMREG400189', registrationType: 'TRAILER', companyName: 'Example Logistics', status: 'FAILED', scheduledAt: '2026-10-24T22:00:00.000Z', completedAt: '2026-10-25T00:00:00.000Z', message: 'CargoMove rejected the registration.', runId: 'run-0' },
+          { id: 'queue-5', submissionId: 'registration-4', referenceNo: 'CMREG400004', registrationType: 'TRAILER', companyName: 'Example Logistics', status: 'FAILED', scheduledAt: '2026-10-24T20:00:00.000Z', completedAt: '2026-10-24T22:00:00.000Z', message: 'First attempt failed.', runId: 'run-0' },
+          { id: 'queue-6', submissionId: 'registration-4', referenceNo: 'CMREG400004', registrationType: 'TRAILER', companyName: 'Example Logistics', status: 'FAILED', scheduledAt: '2026-10-24T22:00:00.000Z', completedAt: '2026-10-25T00:00:00.000Z', message: 'Second attempt failed.', runId: 'run-0' },
         ];
         return route.fulfill({ json: { scheduled: 1 } });
       }
       queueLoads++;
       return route.fulfill({ json: {
         registrations: [
-          { id: 'registration-1', referenceNo: 'CMREG400001', registrationType: 'VEHICLE', companyName: 'Example Logistics', companyRegNo: '123456-A', submittedAt: '2026-10-25T01:00:00.000Z', submittedBy: 'Admin User', details: { registration: 'ABC1234', weight: '12000', bgkWeight: '9000' }, eligible: true, reason: null, scheduled },
-          { id: 'registration-2', referenceNo: 'CMREG400002', registrationType: 'DRIVER', companyName: 'Example Logistics', companyRegNo: '123456-A', submittedAt: '2026-10-25T00:00:00.000Z', submittedBy: 'Admin User', details: { name: 'Driver Example' }, eligible: false, reason: 'Register the parent company before processing its drivers, trailers or vehicles. Company registration status must be Registered.', scheduled: false },
+          { id: 'registration-1', referenceNo: 'CMREG400001', registrationType: 'VEHICLE', companyName: 'Example Logistics', companyRegNo: '123456-A', submittedAt: '2026-10-25T01:00:00.000Z', submittedBy: 'Admin User', details: { registration: 'ABC1234', weight: '12000', bgkWeight: '9000' }, recordCount: 1, submission: vehicleSubmission, eligible: true, reason: null, scheduled, queueStatus: 'SCHEDULED', firstFailureReason: null, firstFailedAt: null },
+          { id: 'registration-3', referenceNo: 'CMREG400003', registrationType: 'TRAILER', companyName: 'Example Logistics', companyRegNo: '123456-A', submittedAt: '2026-10-25T01:30:00.000Z', submittedBy: 'Admin User', details: { registration: 'TRL1' }, recordCount: 10, submission: trailerSubmission, eligible: true, reason: null, scheduled: false, queueStatus: 'RE-SCHEDULED', firstFailureReason: 'CargoMove rejected the registration.', firstFailedAt: '2026-10-25T00:00:00.000Z' },
+          { id: 'registration-4', referenceNo: 'CMREG400004', registrationType: 'TRAILER', companyName: 'Example Logistics', companyRegNo: '123456-A', submittedAt: '2026-10-25T01:30:00.000Z', submittedBy: 'Admin User', details: { registration: 'TRL2' }, recordCount: 1, submission: stoppedSubmission, eligible: true, reason: null, scheduled: false, queueStatus: 'FAILED', firstFailureReason: null, firstFailedAt: null },
+          { id: 'registration-2', referenceNo: 'CMREG400002', registrationType: 'DRIVER', companyName: 'Example Logistics', companyRegNo: '123456-A', submittedAt: '2026-10-25T00:00:00.000Z', submittedBy: 'Admin User', details: { name: 'Driver Example' }, recordCount: 1, submission: blockedSubmission, eligible: false, reason: 'Register the parent company before processing its drivers, trailers or vehicles. Company registration status must be Registered.', scheduled: false, queueStatus: 'SCHEDULED', firstFailureReason: null, firstFailedAt: null },
         ],
         history,
       } });
     }
-    return route.fulfill({ contentType: 'text/html', body: `<div id="root"></div><script>${bundle.outputFiles[0].text}</script>` });
+    return route.fulfill({ contentType: 'text/html', body: `<style>${css}</style><div id="root"></div><script>${bundle.outputFiles[0].text}</script>` });
   });
 
   await page.goto('http://auto-register.test');
@@ -104,19 +127,34 @@ try {
   assert.equal(await scheduledPager.getByText('1', { exact: true }).count(), 1);
   assert.equal(await scheduledPager.getByRole('button', { name: 'Previous scheduled registrations pagination page' }).isDisabled(), true);
   assert.equal(await scheduledPager.getByRole('button', { name: 'Next scheduled registrations pagination page' }).isDisabled(), true);
-  assert.equal(await page.getByTestId('registration-table-viewport').evaluate(element => getComputedStyle(element).minHeight), '520px', 'Registration table reserves ten rows of height');
+  assert.equal(await page.getByTestId('registration-table-viewport').evaluate(element => getComputedStyle(element).minHeight), '410px', 'Table reserves space for ten compact rows plus the header');
   assert.equal(scheduled, true, 'Eligible registrations are scheduled automatically on page load');
   assert.equal(await page.getByRole('button', { name: /Schedule selected/ }).count(), 0);
   assert.ok(await page.getByText('Registration No.', { exact: true }).isVisible());
   assert.ok(await page.getByText('Registration Type', { exact: true }).isVisible());
   assert.ok(await page.getByText('Reg schedule', { exact: true }).isVisible());
-  assert.ok(await page.getByText('ABC1234', { exact: false }).isVisible());
+  assert.equal(await page.getByRole('table', { name: 'Scheduled registrations' }).getByRole('columnheader', { name: 'Status' }).count(), 1);
+  const statusTags = page.getByRole('table', { name: 'Scheduled registrations' }).locator('tbody span[aria-label]');
+  assert.deepEqual(await statusTags.allTextContents(), ['SCHEDULED', 'RE-SCHEDULED']);
+  assert.equal(await statusTags.evaluateAll(tags => tags.every(tag => tag.getBoundingClientRect().width === tags[0].getBoundingClientRect().width
+    && tag.getBoundingClientRect().height === tags[0].getBoundingClientRect().height)), true, 'Both statuses use the same tag size');
+  assert.equal(await statusTags.nth(1).getAttribute('title'), 'CargoMove rejected the registration.');
+  assert.equal(await page.getByRole('button', { name: 'Review CMREG400004' }).count(), 0, 'Second failures leave Scheduled registrations');
+  const recordTags = page.getByRole('table', { name: 'Scheduled registrations' }).locator('tbody span').filter({ hasText: /RECORD$/ });
+  assert.deepEqual(await recordTags.allTextContents(), ['1 RECORD', '10 RECORD']);
+  assert.equal(await recordTags.evaluateAll(tags => tags.every(tag => tag.getBoundingClientRect().width === tags[0].getBoundingClientRect().width
+    && tag.getBoundingClientRect().height === tags[0].getBoundingClientRect().height)), true, 'All record tags use the same size');
+  const registrationButton = page.getByRole('button', { name: 'Review CMREG400001' });
+  assert.match(await registrationButton.getAttribute('class') || '', /hover:bg-slate-100.*hover:text-blue-700/, 'Registration number has the queue-style hover treatment');
+  await registrationButton.click();
+  await page.getByRole('dialog').getByText('CMREG400001', { exact: true }).waitFor();
+  await page.getByText('Vehicles', { exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Close submission review' }).click();
   await page.getByRole('tab', { name: /Non-eligible Registration/ }).click();
   await page.getByRole('table', { name: 'Non-eligible registrations' }).waitFor();
   const ineligibleTab = page.getByRole('tab', { name: /Non-eligible Registration/ });
   const ineligibleHeader = page.getByRole('table', { name: 'Non-eligible registrations' }).locator('thead tr');
   assert.equal(await ineligibleTab.evaluate(element => getComputedStyle(element).backgroundColor), 'rgb(236, 0, 63)');
-  assert.equal(await ineligibleTab.evaluate(element => getComputedStyle(element).borderTopColor), 'rgb(236, 0, 63)');
   assert.equal(await ineligibleHeader.evaluate(element => getComputedStyle(element).backgroundColor), 'rgb(236, 0, 63)');
   assert.equal(await ineligibleHeader.evaluate(element => getComputedStyle(element).borderTopColor), 'rgb(236, 0, 63)');
   assert.equal(await page.getByRole('columnheader', { name: 'Reasons' }).count(), 1);
@@ -126,10 +164,11 @@ try {
   assert.equal(await page.getByText('These registrations cannot be processed until the parent company is registered', { exact: false }).count(), 0);
   assert.equal(await page.getByText('Reg schedule', { exact: true }).count(), 0);
   await scheduledTab.click();
-  await page.getByRole('table', { name: 'Scheduled registrations' }).getByText('Scheduled', { exact: true }).waitFor();
+  assert.equal(await page.getByRole('table', { name: 'Scheduled registrations' }).getByText('Scheduled', { exact: true }).count(), 0, 'Schedule cell shows only the date without a badge');
   await page.getByRole('table', { name: 'Scheduled registrations' }).waitFor();
   await page.getByRole('heading', { name: 'Execution logs' }).waitFor();
   const overview = page.getByRole('region', { name: 'Auto Register schedule overview' });
+  assert.equal(await overview.getByText('2 registrations', { exact: true }).count(), 1, 'Scheduled registrations remain included in Eligible now');
   assert.equal(await overview.getByRole('button', { name: 'Run Now' }).count(), 1, 'Run Now is grouped in the first card');
   const pageToggle = overview.getByRole('switch', { name: 'Enable Auto Register in CM' });
   assert.equal(await pageToggle.getAttribute('aria-checked'), 'true');
@@ -175,17 +214,22 @@ try {
     .map(element => `${element.tagName}.${(element as HTMLElement).className} (${Math.round(element.getBoundingClientRect().right)}px)`));
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `The page must fit a mobile viewport: ${overflow.slice(0, 8).join(', ')}`);
   const tablist = page.getByRole('tablist', { name: 'Registration status' });
-  assert.equal(await tablist.evaluate(element => element.scrollWidth <= element.clientWidth), true, 'Registration tabs should not require horizontal scrolling');
-  const tabDivider = page.getByTestId('auto-register-tab-divider');
-  assert.equal(await tabDivider.count(), 1, 'A single underline separates the tabs from the table header');
-  assert.equal(await tabDivider.evaluate(element => element.getBoundingClientRect().height), 1);
+  assert.equal(await tablist.evaluate(element => element.scrollWidth <= element.clientWidth + 1), true, 'Registration tabs fit with the original one-pixel shared border overlap');
+  assert.equal(await scheduledTab.textContent(), 'Scheduled registrations (2)', 'Original tab labels and inline counts are preserved');
+  const divider = page.getByTestId('auto-register-tab-divider');
+  assert.equal(await divider.evaluate(element => element.getBoundingClientRect().height), 1);
+  assert.equal(await page.getByRole('tabpanel').evaluate(element => getComputedStyle(element).borderTopWidth), '0px', 'Original attached table has no duplicate top border');
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  const tabBottom = await scheduledTab.evaluate(element => element.getBoundingClientRect().bottom);
+  const headerTop = await page.getByRole('table', { name: 'Scheduled registrations' }).locator('thead').evaluate(element => element.getBoundingClientRect().top);
+  assert.ok(Math.abs(headerTop - tabBottom) <= 2, 'Original tabs remain attached directly to the table');
+  const rowHeight = await page.getByRole('table', { name: 'Scheduled registrations' }).locator('tbody tr').first().evaluate(element => element.getBoundingClientRect().height);
+  assert.ok(rowHeight <= 37, `Registrations use compact single-line rows: ${rowHeight}px`);
+  await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(await scheduledTab.evaluate(element => getComputedStyle(element).whiteSpace), 'nowrap', 'Registration tab labels stay on one line');
-  assert.equal(await page.getByRole('tabpanel').evaluate(element => getComputedStyle(element).borderTopStyle), 'none', 'Panel border does not duplicate the table top border');
   const registrationHeader = page.getByRole('table', { name: 'Scheduled registrations' }).locator('thead tr');
   assert.match(await registrationHeader.getAttribute('class') || '', /admin-registration-table-header/);
-  assert.notEqual(await registrationHeader.evaluate(element => getComputedStyle(element).borderTopStyle), 'solid', 'The header edge does not duplicate the tab underline');
   assert.equal(await scheduledTab.evaluate(element => getComputedStyle(element).backgroundColor), 'rgb(0, 153, 102)');
-  assert.equal(await scheduledTab.evaluate(element => getComputedStyle(element).borderTopColor), 'rgb(0, 153, 102)');
   assert.equal(await registrationHeader.evaluate(element => getComputedStyle(element).backgroundColor), 'rgb(0, 153, 102)');
   assert.equal(await registrationHeader.evaluate(element => getComputedStyle(element).borderTopColor), 'rgb(0, 153, 102)');
   assert.equal(

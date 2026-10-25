@@ -533,6 +533,7 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
             <SubmissionsList
               status={activeQueueItem.status}
               initialType={queueRegistrationType}
+              refreshVersion={dataRefreshVersion}
             />
           )}
           {activeTab === 'user-registration' && <UserRegistration />}

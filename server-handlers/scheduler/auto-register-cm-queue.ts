@@ -2,7 +2,7 @@ import { adminClient, readSession, requestBody } from '../../api/_runtime.js';
 import type { RegistrationSubmission } from '../../src/types/index.js';
 import { registrationUploadBlockReason } from '../registration-uploads/eligibility.js';
 import { allowedOrigin, schedulerAdmin } from './access.js';
-import { loadAutoScheduledIds, loadPendingAutoRegistrations, scheduleEligibleAutoRegistrations } from './auto-register-cm-discovery.js';
+import { loadAutoRegistrationIndicators, loadPendingAutoRegistrations, scheduleEligibleAutoRegistrations } from './auto-register-cm-discovery.js';
 
 const DETAIL_FIELDS = {
   DRIVER: (submission: RegistrationSubmission) => ({
@@ -24,8 +24,18 @@ const DETAIL_FIELDS = {
   }),
 } as const;
 
-function serializeRegistration(submission: RegistrationSubmission, reason: string | null, scheduled: boolean) {
+export function autoRegistrationRecordCount(submission: RegistrationSubmission) {
+  return submission.registration_type === 'DRIVER'
+    ? submission.data.drivers?.length || (submission.data.driver ? 1 : 0)
+    : submission.registration_type === 'TRAILER'
+      ? submission.data.trailers?.length || (submission.data.trailer ? 1 : 0)
+      : submission.data.vehicles?.length || (submission.data.vehicle ? 1 : 0);
+}
+
+function serializeRegistration(submission: RegistrationSubmission, reason: string | null,
+  indicators: Awaited<ReturnType<typeof loadAutoRegistrationIndicators>>) {
   const detail = DETAIL_FIELDS[submission.registration_type as keyof typeof DETAIL_FIELDS];
+  const retry = indicators.rescheduled.get(submission.id);
   return {
     id: submission.id,
     referenceNo: submission.reference_no,
@@ -40,9 +50,14 @@ function serializeRegistration(submission: RegistrationSubmission, reason: strin
       portId: submission.port_id || '',
       depotId: submission.depot_id || '',
     },
+    recordCount: autoRegistrationRecordCount(submission),
+    submission,
     eligible: !reason,
     reason,
-    scheduled,
+    scheduled: indicators.scheduled.has(submission.id),
+    queueStatus: indicators.failed.has(submission.id) ? 'FAILED' : retry ? 'RE-SCHEDULED' : 'SCHEDULED',
+    firstFailureReason: retry?.reason || null,
+    firstFailedAt: retry?.retryAt || null,
   };
 }
 
@@ -62,7 +77,13 @@ export function createAutoRegisterCmQueueHandler(deps = { adminClient, readSessi
     const { client, session } = access;
 
     if (request.method === 'GET' && request.query?.view === 'scheduled') {
-      try { return response.status(200).json({ scheduledSubmissionIds: [...await loadAutoScheduledIds(client)] }); }
+      try {
+        const indicators = await loadAutoRegistrationIndicators(client);
+        return response.status(200).json({
+          scheduledSubmissionIds: [...new Set([...indicators.scheduled, ...indicators.rescheduled.keys()])],
+          failedSubmissionIds: [...indicators.failed],
+        });
+      }
       catch (error) { return fail(503, error instanceof Error ? error.message : 'Unable to inspect the scheduled registration queue.'); }
     }
 
@@ -70,19 +91,19 @@ export function createAutoRegisterCmQueueHandler(deps = { adminClient, readSessi
       const [pending, ports, queued, history] = await Promise.all([
         loadPendingAutoRegistrations(client),
         client.from('port_configs').select('*').limit(1000).timeout(8000),
-        loadAutoScheduledIds(client),
+        loadAutoRegistrationIndicators(client),
         client.from('auto_register_cm_scheduled_items').select('*').order('scheduled_at', { ascending: false }).limit(5000).timeout(8000),
       ]);
       if (ports.error) throw new Error('Unable to load registration eligibility. Check the registration data and port configuration.');
       if (history.error) throw new Error('Unable to load Auto Register queue history. Apply the Auto Register queue migration.');
 
-      const scheduledIds = queued;
+      const indicators = queued;
       const candidates = pending.sort((a, b) => a.submitted_at.localeCompare(b.submitted_at) || a.id.localeCompare(b.id));
       const registrations: ReturnType<typeof serializeRegistration>[] = [];
       for (let offset = 0; offset < candidates.length; offset += 8) {
         const checked = await Promise.all(candidates.slice(offset, offset + 8).map(async (submission: RegistrationSubmission) => {
           const reason = await registrationUploadBlockReason(client, submission, ports.data || []);
-          return serializeRegistration(submission, reason, scheduledIds.has(submission.id));
+          return serializeRegistration(submission, reason, indicators);
         }));
         registrations.push(...checked);
       }

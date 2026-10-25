@@ -49,6 +49,7 @@ import { isEmailTemplateForRegistration } from '../../utils/registrationEmailTem
 interface SubmissionsListProps {
   status: SubmissionStatus;
   initialType?: RegistrationType;
+  refreshVersion?: number;
 }
 
 type IdFilter = 'ALL' | 'MISSING' | 'WITH_ID';
@@ -136,59 +137,62 @@ const registrationTypeTabs: Array<{ value: RegistrationType; label: string }> = 
 const MANUAL_REGISTER_TOOLTIP = 'Downloads the company registration Excel for manual processing. Selected submissions are moved to Closed/Done. No email is sent.';
 const REGISTER_AND_EMAIL_TOOLTIP = 'Uploads the selected registrations to CargoMove for processing. After verification, you can preview and send the completion email.';
 const AUTO_REGISTER_TOOLTIP = 'This registration is scheduled and will be processed automatically by the system.';
+const AUTO_REGISTER_FAILED_TOOLTIP = 'Automatic registration failed twice or could not be retried safely. Review the registration and CargoMove result.';
 
-function AutoRegisterScheduledIndicator() {
-  return (
-    <span
-      role="img"
-      aria-label={AUTO_REGISTER_TOOLTIP}
-      title={AUTO_REGISTER_TOOLTIP}
-      className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-700"
-    >
-      <Bot aria-hidden="true" className="h-3.5 w-3.5" />
-    </span>
-  );
-}
-
-function QueuePrimaryAction({ tooltip, children }: { tooltip?: string; children: React.ReactNode }) {
-  const [tooltipPosition, setTooltipPosition] = useState<{ top: number; left: number } | null>(null);
+function QueueTooltip({ tooltip, children, className = 'relative inline-flex' }: {
+  tooltip: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  const [tooltipPosition, setTooltipPosition] = useState<{ top: number; left: number; width: number } | null>(null);
   const containerRef = React.useRef<HTMLDivElement | null>(null);
+  const tooltipId = React.useId();
 
   const showTooltip = () => {
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
-    const width = 320;
+    const width = Math.min(320, window.innerWidth - VIEWPORT_EDGE_PADDING * 2);
     setTooltipPosition({
       top: rect.top - ACTION_MENU_GAP,
       left: Math.max(VIEWPORT_EDGE_PADDING, Math.min(rect.right - width, window.innerWidth - width - VIEWPORT_EDGE_PADDING)),
+      width,
     });
   };
 
   return (
-    <div
-      ref={containerRef}
-      className="relative flex min-w-0 flex-1"
-      onMouseEnter={tooltip ? showTooltip : undefined}
-      onMouseLeave={tooltip ? () => setTooltipPosition(null) : undefined}
-      onFocusCapture={tooltip ? showTooltip : undefined}
-      onBlurCapture={tooltip ? (event) => {
+    <div ref={containerRef} className={className} aria-describedby={tooltipPosition ? tooltipId : undefined}
+      onMouseEnter={showTooltip} onMouseLeave={() => setTooltipPosition(null)}
+      onFocusCapture={showTooltip} onBlurCapture={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setTooltipPosition(null);
-      } : undefined}
-    >
+      }}>
       {children}
-      {tooltip && tooltipPosition && createPortal(
-        <div
-          id="queue-primary-action-tooltip"
-          role="tooltip"
-          className="pointer-events-none fixed z-[80] w-80 -translate-y-full rounded-lg bg-slate-900 px-3 py-2 text-xs leading-5 text-white shadow-xl"
-          style={{ top: tooltipPosition.top, left: tooltipPosition.left }}
-        >
+      {tooltipPosition && createPortal(
+        <div id={tooltipId} role="tooltip"
+          className="pointer-events-none fixed z-[80] -translate-y-full rounded-lg bg-slate-900 px-3 py-2 text-xs leading-5 text-white shadow-xl"
+          style={{ top: tooltipPosition.top, left: tooltipPosition.left, width: tooltipPosition.width }}>
           {tooltip}
         </div>,
         document.body,
       )}
     </div>
   );
+}
+
+function AutoRegisterScheduledIndicator({ failed = false }: { failed?: boolean }) {
+  const tooltip = failed ? AUTO_REGISTER_FAILED_TOOLTIP : AUTO_REGISTER_TOOLTIP;
+  return (
+    <QueueTooltip tooltip={tooltip}>
+      <span role="img" aria-label={tooltip} tabIndex={0}
+        className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full outline-none transition-colors focus-visible:ring-2 focus-visible:ring-offset-1 ${failed ? 'bg-red-100 text-red-700 hover:bg-red-200 focus-visible:ring-red-500' : 'bg-blue-100 text-blue-700 hover:bg-blue-200 focus-visible:ring-blue-500'}`}>
+        <Bot aria-hidden="true" className="h-3.5 w-3.5" />
+      </span>
+    </QueueTooltip>
+  );
+}
+
+function QueuePrimaryAction({ tooltip, children }: { tooltip?: string; children: React.ReactNode }) {
+  if (!tooltip) return <div className="relative flex min-w-0 flex-1">{children}</div>;
+  return <QueueTooltip tooltip={tooltip} className="relative flex min-w-0 flex-1">{children}</QueueTooltip>;
 }
 
 function QueueMoreActions({ disabled, children }: {
@@ -282,7 +286,7 @@ function QueueMoreActions({ disabled, children }: {
   </>;
 }
 
-export function SubmissionsList({ status, initialType = 'COMPANY' }: SubmissionsListProps) {
+export function SubmissionsList({ status, initialType = 'COMPANY', refreshVersion = 0 }: SubmissionsListProps) {
   // Read browser storage once on entry, then only when the data actually changes.
   const [{ submissions, companies }, setSnapshot] = useState(() => ({
     submissions: getSubmissions(),
@@ -315,6 +319,8 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
   const [pageSize, setPageSize] = useState(20);
   const [currentPage, setCurrentPage] = useState(1);
   const [autoScheduledIds, setAutoScheduledIds] = useState<Set<string>>(() => new Set());
+  const [autoFailedIds, setAutoFailedIds] = useState<Set<string>>(() => new Set());
+  const [eligibilityRefreshVersion, setEligibilityRefreshVersion] = useState(0);
   const [openActionMenu, setOpenActionMenu] = useState<ActionMenuPosition | null>(null);
   const actionMenuRef = React.useRef<HTMLDivElement | null>(null);
 
@@ -335,6 +341,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
 
   const refreshList = () => {
     setSnapshot({ submissions: getSubmissions(), companies: getCompanies() });
+    setEligibilityRefreshVersion(version => version + 1);
   };
 
   React.useEffect(() => subscribeToStorage(refreshList), []);
@@ -342,26 +349,43 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
   React.useEffect(() => {
     if (status !== 'PENDING') {
       setAutoScheduledIds(new Set());
+      setAutoFailedIds(new Set());
       return;
     }
     const controller = new AbortController();
-    void fetch('/api/scheduler/auto-register-cm-queue?view=scheduled', {
-      credentials: 'same-origin',
-      signal: controller.signal,
-    }).then(async response => {
-      if (!response.ok) throw new Error('Unable to load the automatic registration schedule.');
-      return response.json() as Promise<{ scheduledSubmissionIds?: unknown }>;
-    }).then(payload => {
-      const ids = Array.isArray(payload.scheduledSubmissionIds)
-        ? payload.scheduledSubmissionIds.filter((id): id is string => typeof id === 'string')
-        : [];
-      setAutoScheduledIds(new Set(ids));
-    }).catch(error => {
-      if (error instanceof DOMException && error.name === 'AbortError') return;
-      setAutoScheduledIds(new Set());
-    });
+    void (async () => {
+      try {
+        try {
+          await fetch('/api/scheduler/auto-register-cm-queue', {
+            method: 'POST',
+            credentials: 'same-origin',
+            signal: controller.signal,
+            headers: { 'Content-Type': 'application/json', 'X-CargoMove-Confirm': 'auto-schedule-auto-register-cm' },
+            body: '{}',
+          });
+        } catch (error) {
+          if (error instanceof DOMException && error.name === 'AbortError') return;
+          // Still show queue items scheduled by an earlier pass when a refresh fails.
+        }
+
+        const response = await fetch('/api/scheduler/auto-register-cm-queue?view=scheduled', {
+          credentials: 'same-origin',
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error('Unable to load the automatic registration schedule.');
+        const payload = await response.json() as { scheduledSubmissionIds?: unknown; failedSubmissionIds?: unknown };
+        const ids = Array.isArray(payload.scheduledSubmissionIds)
+          ? payload.scheduledSubmissionIds.filter((id): id is string => typeof id === 'string')
+          : [];
+        setAutoScheduledIds(new Set(ids));
+        setAutoFailedIds(new Set(Array.isArray(payload.failedSubmissionIds)
+          ? payload.failedSubmissionIds.filter((id): id is string => typeof id === 'string') : []));
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+      }
+    })();
     return () => controller.abort();
-  }, [status]);
+  }, [eligibilityRefreshVersion, refreshVersion, status]);
 
   React.useEffect(() => {
     setSelectedIds([]);
@@ -1126,7 +1150,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
                       >
                         <span className="inline-flex items-center gap-1.5">
                           <RegistrationReference submission={sub} />
-                          {autoScheduledIds.has(sub.id) && <AutoRegisterScheduledIndicator />}
+                          {(autoScheduledIds.has(sub.id) || autoFailedIds.has(sub.id)) && <AutoRegisterScheduledIndicator failed={autoFailedIds.has(sub.id)} />}
                         </span>
                       </td>
 
@@ -1264,7 +1288,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
                   </div>
                   <div className="mt-1 inline-flex items-center gap-1.5 text-[10px] text-blue-600">
                     <RegistrationReference submission={sub} />
-                    {autoScheduledIds.has(sub.id) && <AutoRegisterScheduledIndicator />}
+                    {(autoScheduledIds.has(sub.id) || autoFailedIds.has(sub.id)) && <AutoRegisterScheduledIndicator failed={autoFailedIds.has(sub.id)} />}
                   </div>
                   <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[9px] font-semibold uppercase text-slate-600">
                     <span className="rounded bg-slate-100 px-1.5 py-1">{company?.company_type || sub.company_type || sub.registration_type}</span>
