@@ -410,8 +410,8 @@ export function AutoRegisterCmPage({ onBack, cacheScope = 'default', refreshVers
                     style={{ backgroundColor: registrationTab === 'scheduled' ? '#009966' : '#EC003F', borderColor: registrationTab === 'scheduled' ? '#009966' : '#EC003F' }}
                     className={`admin-registration-table-header auto-register-registration-header-${registrationTab} border-x border-b border-slate-400 text-[10px] font-bold uppercase tracking-wide text-white`}
                   >
-                    <th scope="col" style={{ width: registrationTab === 'scheduled' ? '15%' : '17%' }} className="break-words px-2 py-2">Registration No.</th><th scope="col" style={{ width: registrationTab === 'scheduled' ? '14%' : '16%' }} className="break-words px-2 py-2">Registration Type</th><th scope="col" style={{ width: registrationTab === 'scheduled' ? '20%' : '23%' }} className="break-words px-2 py-2">Company</th><th scope="col" style={{ width: registrationTab === 'scheduled' ? '20%' : '44%' }} className="break-words px-2 py-2">{registrationTab === 'scheduled' ? 'Registration details' : 'Reasons'}</th>
-                    {registrationTab === 'scheduled' && <><th scope="col" style={{ width: '15%' }} className="break-words px-2 py-2">Status</th><th scope="col" style={{ width: '16%' }} className="break-words px-2 py-2">Reg schedule</th></>}</tr>
+                    <th scope="col" style={{ width: registrationTab === 'scheduled' ? '15%' : '17%' }} className="break-words px-2 py-2">Registration No.</th><th scope="col" style={{ width: registrationTab === 'scheduled' ? '14%' : '16%' }} className="break-words px-2 py-2 text-center">Registration Type</th><th scope="col" style={{ width: registrationTab === 'scheduled' ? '20%' : '23%' }} className="break-words px-2 py-2">Company</th><th scope="col" style={{ width: registrationTab === 'scheduled' ? '20%' : '44%' }} className="break-words px-2 py-2 text-center">{registrationTab === 'scheduled' ? 'Registration details' : 'Reasons'}</th>
+                    {registrationTab === 'scheduled' && <><th scope="col" style={{ width: '15%' }} className="break-words px-2 py-2 text-center">Status</th><th scope="col" style={{ width: '16%' }} className="break-words px-2 py-2 text-center">Reg schedule</th></>}</tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {pagedRegistrations.map(registration => {
@@ -423,19 +423,19 @@ export function AutoRegisterCmPage({ onBack, cacheScope = 'default', refreshVers
                       : scheduler.isEnabled ? 'Waiting for schedule' : 'Waiting for scheduler to be enabled';
                     return <tr key={registration.id} className="h-9 align-middle hover:bg-slate-50/70">
                       <td className="px-2 py-1">
-                        <button type="button" onClick={() => setActiveSubmission(registration.submission)} title="Click to review"
+                        <button type="button" onClick={() => setActiveSubmission(registration.submission)}
                           className="block max-w-full truncate rounded px-1 py-1 text-left font-mono font-bold text-slate-900 transition-colors hover:bg-slate-100 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                           aria-label={`Review ${registration.referenceNo}`}>
                           {registration.referenceNo}
                         </button>
                       </td>
-                      <td className="px-3 py-1 text-slate-600"><span className="block truncate" title={registration.registrationType}>{registration.registrationType}</span></td>
+                      <td className="px-3 py-1 text-center text-slate-600"><span className="block truncate" title={registration.registrationType}>{registration.registrationType}</span></td>
                       <td className="max-w-56 px-3 py-1"><strong className="block truncate text-slate-700" title={registration.companyName}>{registration.companyName}</strong></td>
-                      <td className="px-3 py-1">{registrationTab === 'ineligible'
+                      <td className="px-3 py-1 text-center">{registrationTab === 'ineligible'
                         ? <span className="block truncate text-[10px] leading-4 text-rose-700" title={registrationBlockReason(registration.reason)}>{registrationBlockReason(registration.reason)}</span>
                         : <span className="inline-flex h-6 w-24 items-center justify-center rounded-full border border-slate-200 bg-slate-50 px-2 text-[10px] font-bold text-slate-600">{registration.recordCount} RECORD</span>}
                       </td>
-                      {registrationTab === 'scheduled' && <td className="px-2 py-1">
+                      {registrationTab === 'scheduled' && <td className="px-2 py-1 text-center">
                         <span tabIndex={registration.queueStatus === 'RE-SCHEDULED' ? 0 : undefined}
                           title={registration.queueStatus === 'RE-SCHEDULED' ? registration.firstFailureReason || 'The first automatic registration failed.' : undefined}
                           aria-label={registration.queueStatus === 'RE-SCHEDULED' ? `RE-SCHEDULED: ${registration.firstFailureReason || 'The first automatic registration failed.'}` : 'SCHEDULED'}
@@ -443,7 +443,7 @@ export function AutoRegisterCmPage({ onBack, cacheScope = 'default', refreshVers
                           {registration.queueStatus}
                         </span>
                       </td>}
-                      {registrationTab === 'scheduled' && <td className="px-3 py-1">
+                      {registrationTab === 'scheduled' && <td className="px-3 py-1 text-center">
                         <span className="block truncate text-[10px] text-slate-500" title={schedule}>{schedule}</span>
                       </td>}
                     </tr>;

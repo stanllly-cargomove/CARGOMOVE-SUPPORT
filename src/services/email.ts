@@ -9,6 +9,7 @@ export interface EmailTemplate {
   id: string;
   name: string;
   trigger_status: 'DONE' | 'REJECTED';
+  registration_type?: 'COMPANY' | 'DRIVER' | 'TRAILER' | 'VEHICLE' | null;
   rejection_reason?: 'ALREADY_REGISTERED_BOTH' | 'NORTHPORT_ADDED' | 'NO_LEDGER_CODE' | 'OTHER' | null;
   port_id?: string | null;
   port_ids?: string[];
@@ -77,7 +78,7 @@ export async function getEmailTemplateCatalog(): Promise<{ templates: EmailTempl
   };
 }
 
-export async function saveEmailTemplate(template: Pick<EmailTemplate, 'id' | 'name' | 'trigger_status' | 'rejection_reason' | 'port_id' | 'port_ids' | 'template_code' | 'recipient_template' | 'subject_template' | 'body_template' | 'attachments' | 'active'>, create = false) {
+export async function saveEmailTemplate(template: Pick<EmailTemplate, 'id' | 'name' | 'trigger_status' | 'registration_type' | 'rejection_reason' | 'port_id' | 'port_ids' | 'template_code' | 'recipient_template' | 'subject_template' | 'body_template' | 'attachments' | 'active'>, create = false) {
   const response = await fetch('/api/email/templates', {
     method: create ? 'POST' : 'PUT',
     credentials: 'include',

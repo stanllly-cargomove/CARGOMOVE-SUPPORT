@@ -40,7 +40,7 @@ export default async function sendEmail(request: any, response: any) {
 
   const [userResult, templateResult, connectionResult] = await Promise.all([
     client.from('external_user_access').select('id,email,company_id,status,rejection_reason,email_status').eq('id', token.userId).maybeSingle(),
-    client.from('email_templates').select('id,name,version,active,trigger_status,rejection_reason,port_id,template_code,legacy_fallback,attachments').eq('id', token.templateId).maybeSingle(),
+    client.from('email_templates').select('id,name,version,active,trigger_status,registration_type,rejection_reason,port_id,template_code,legacy_fallback,attachments').eq('id', token.templateId).maybeSingle(),
     client.from('gmail_connections').select('*').eq('id', 'system').eq('status', 'ACTIVE').maybeSingle(),
   ]);
   const readError = userResult.error || templateResult.error || connectionResult.error;

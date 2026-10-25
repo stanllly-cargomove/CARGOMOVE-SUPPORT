@@ -139,10 +139,11 @@ const REGISTER_AND_EMAIL_TOOLTIP = 'Uploads the selected registrations to CargoM
 const AUTO_REGISTER_TOOLTIP = 'This registration is scheduled and will be processed automatically by the system.';
 const AUTO_REGISTER_FAILED_TOOLTIP = 'Automatic registration failed twice or could not be retried safely. Review the registration and CargoMove result.';
 
-function QueueTooltip({ tooltip, children, className = 'relative inline-flex' }: {
+function QueueTooltip({ tooltip, children, className = 'relative inline-flex', placement = 'top' }: {
   tooltip: string;
   children: React.ReactNode;
   className?: string;
+  placement?: 'top' | 'right-lower';
 }) {
   const [tooltipPosition, setTooltipPosition] = useState<{ top: number; left: number; width: number } | null>(null);
   const containerRef = React.useRef<HTMLDivElement | null>(null);
@@ -153,8 +154,10 @@ function QueueTooltip({ tooltip, children, className = 'relative inline-flex' }:
     if (!rect) return;
     const width = Math.min(320, window.innerWidth - VIEWPORT_EDGE_PADDING * 2);
     setTooltipPosition({
-      top: rect.top - ACTION_MENU_GAP,
-      left: Math.max(VIEWPORT_EDGE_PADDING, Math.min(rect.right - width, window.innerWidth - width - VIEWPORT_EDGE_PADDING)),
+      top: placement === 'right-lower' ? rect.bottom + ACTION_MENU_GAP : rect.top - ACTION_MENU_GAP,
+      left: placement === 'right-lower'
+        ? Math.min(rect.right + ACTION_MENU_GAP, window.innerWidth - width - VIEWPORT_EDGE_PADDING)
+        : Math.max(VIEWPORT_EDGE_PADDING, Math.min(rect.right - width, window.innerWidth - width - VIEWPORT_EDGE_PADDING)),
       width,
     });
   };
@@ -168,7 +171,7 @@ function QueueTooltip({ tooltip, children, className = 'relative inline-flex' }:
       {children}
       {tooltipPosition && createPortal(
         <div id={tooltipId} role="tooltip"
-          className="pointer-events-none fixed z-[80] -translate-y-full rounded-lg bg-slate-900 px-3 py-2 text-xs leading-5 text-white shadow-xl"
+          className={`pointer-events-none fixed z-[80] rounded-lg bg-slate-900 px-3 py-2 text-xs leading-5 text-white shadow-xl ${placement === 'top' ? '-translate-y-full' : ''}`}
           style={{ top: tooltipPosition.top, left: tooltipPosition.left, width: tooltipPosition.width }}>
           {tooltip}
         </div>,
@@ -181,7 +184,7 @@ function QueueTooltip({ tooltip, children, className = 'relative inline-flex' }:
 function AutoRegisterScheduledIndicator({ failed = false }: { failed?: boolean }) {
   const tooltip = failed ? AUTO_REGISTER_FAILED_TOOLTIP : AUTO_REGISTER_TOOLTIP;
   return (
-    <QueueTooltip tooltip={tooltip}>
+    <QueueTooltip tooltip={tooltip} placement="right-lower">
       <span role="img" aria-label={tooltip} tabIndex={0}
         className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full outline-none transition-colors focus-visible:ring-2 focus-visible:ring-offset-1 ${failed ? 'bg-red-100 text-red-700 hover:bg-red-200 focus-visible:ring-red-500' : 'bg-blue-100 text-blue-700 hover:bg-blue-200 focus-visible:ring-blue-500'}`}>
         <Bot aria-hidden="true" className="h-3.5 w-3.5" />
@@ -1146,7 +1149,6 @@ export function SubmissionsList({ status, initialType = 'COMPANY', refreshVersio
                       <td
                         className="cursor-pointer select-none py-3 px-4 font-mono font-bold text-slate-900"
                         onClick={() => setActiveSubmission(sub)}
-                        title="Click to review"
                       >
                         <span className="inline-flex items-center gap-1.5">
                           <RegistrationReference submission={sub} />

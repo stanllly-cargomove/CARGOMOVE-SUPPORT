@@ -2,7 +2,7 @@
 import { bodyOf, configuredClient, emailHtmlToText, EmailTemplate, noStore, requireAdmin, sanitizeEmailHtml, validateTemplateAttachments } from '../_email.js';
 import { serviceRoleKey, supabaseUrl } from '../../api/_runtime.js';
 
-const fields = 'id,name,trigger_status,rejection_reason,port_id,template_code,legacy_fallback,recipient_template,subject_template,body_template,attachments,active,version,updated_at';
+const fields = 'id,name,trigger_status,registration_type,rejection_reason,port_id,template_code,legacy_fallback,recipient_template,subject_template,body_template,attachments,active,version,updated_at';
 const TEMPLATE_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,99}$/;
 const REQUIRED_TEMPLATE_IDS = new Set([
   'cargomove-welcome',
@@ -65,6 +65,8 @@ export default async function templates(request: any, response: any) {
     const bodyTemplate = sanitizeEmailHtml(String(body.body_template || ''));
     const recipientTemplate = String(body.recipient_template || '').trim();
     const triggerStatus = body.trigger_status === 'REJECTED' ? 'REJECTED' : 'DONE';
+    const registrationType = body.registration_type == null || body.registration_type === '' ? null : String(body.registration_type);
+    if (registrationType !== null && !['COMPANY', 'DRIVER', 'TRAILER', 'VEHICLE'].includes(registrationType)) return response.status(400).json({ error: 'Choose a valid registration type.' });
     const portIds = Array.isArray(body.port_ids) ? [...new Set(body.port_ids.map((value) => String(value).trim()).filter(Boolean))] : [];
     const portId = portIds[0] || null;
     const templateCode = String(body.template_code || '').trim().toUpperCase() || null;
@@ -111,7 +113,7 @@ export default async function templates(request: any, response: any) {
       if (!otherActive?.length) return response.status(409).json({ error: 'Activate another template before making this template inactive.' });
     }
     const template: EmailTemplate = {
-      id, name, trigger_status: triggerStatus, rejection_reason: rejectionReason, port_id: null, template_code: templateCode, legacy_fallback: current?.legacy_fallback === true, recipient_template: recipientTemplate, subject_template: subjectTemplate,
+      id, name, trigger_status: triggerStatus, registration_type: body.registration_type === undefined ? current?.registration_type ?? null : registrationType as EmailTemplate['registration_type'], rejection_reason: rejectionReason, port_id: null, template_code: templateCode, legacy_fallback: current?.legacy_fallback === true, recipient_template: recipientTemplate, subject_template: subjectTemplate,
       body_template: bodyTemplate, attachments, active: templateCode ? active : current?.active === true, version: Number(current?.version || 0) + 1,
     };
     const { error } = await client.from('email_templates').upsert({

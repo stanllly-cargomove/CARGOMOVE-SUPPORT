@@ -28,6 +28,7 @@ export type EmailTemplate = {
   id: string;
   name: string;
   trigger_status: 'DONE' | 'REJECTED';
+  registration_type?: 'COMPANY' | 'DRIVER' | 'TRAILER' | 'VEHICLE' | null;
   rejection_reason?: 'ALREADY_REGISTERED_BOTH' | 'NORTHPORT_ADDED' | 'NO_LEDGER_CODE' | 'OTHER' | null;
   port_id?: string | null;
   port_ids?: string[];

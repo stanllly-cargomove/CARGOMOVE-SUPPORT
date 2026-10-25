@@ -30,7 +30,7 @@ export function createSubmissionSendHandler(deps = { configuredClient, requireAd
 
     const [submissionResult, templateResult, connectionResult] = await Promise.all([
       client.from('registration_submissions').select('status,cargomove_upload,registration_type,reference_no,company_id,company_name,port_id,data').eq('id', token.submissionId).maybeSingle(),
-      client.from('email_templates').select('id,name,version,active,trigger_status,template_code,attachments').eq('id', token.templateId).maybeSingle(),
+      client.from('email_templates').select('id,name,version,active,trigger_status,registration_type,template_code,attachments').eq('id', token.templateId).maybeSingle(),
       client.from('gmail_connections').select('*').eq('id', 'system').eq('status', 'ACTIVE').maybeSingle(),
     ]);
     const readError = submissionResult.error || templateResult.error || connectionResult.error;

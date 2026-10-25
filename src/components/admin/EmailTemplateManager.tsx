@@ -1,6 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { GoogleConnectionButton } from '../common/GoogleConnectionButton';
-import { ArrowLeft, Paperclip, Pencil, Plus, Save, Trash2, Mail } from 'lucide-react';
+import { ArrowLeft, Paperclip, Pencil, Plus, Save, Trash2, Mail, MoreVertical } from 'lucide-react';
 import {
   connectGmail,
   deleteEmailTemplate,
@@ -18,6 +19,71 @@ import { formatAdminDate, formatAdminDateTime } from '../../utils/date';
 import { emailTemplateRegistrationType } from '../../utils/registrationEmailTemplates';
 
 type EmailTemplateManagerProps = { onViewChange?: (view: 'list' | 'design') => void };
+
+function EmailTemplateActions({ template, deleteDisabled, onEdit, onDelete }: {
+  template: EmailTemplate;
+  deleteDisabled: boolean;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const menuId = useId();
+  const [isOpen, setIsOpen] = useState(false);
+  const [position, setPosition] = useState({ top: -9999, left: -9999 });
+  const close = () => setIsOpen(false);
+  const supportsHover = () => window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+  const isInside = (target: EventTarget | null) => target instanceof Node
+    && (buttonRef.current?.contains(target) || menuRef.current?.contains(target));
+  const leave = (event: React.PointerEvent<HTMLElement>) => {
+    if (event.pointerType === 'mouse' && supportsHover() && !isInside(event.relatedTarget)) close();
+  };
+
+  useLayoutEffect(() => {
+    if (!isOpen || !buttonRef.current || !menuRef.current) return;
+    const button = buttonRef.current.getBoundingClientRect();
+    const menu = menuRef.current.getBoundingClientRect();
+    const padding = 8;
+    setPosition({
+      top: button.bottom + menu.height <= window.innerHeight - padding
+        ? button.bottom : Math.max(padding, button.top - menu.height),
+      left: Math.max(padding, Math.min(button.right - menu.width, window.innerWidth - menu.width - padding)),
+    });
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const outside = (event: PointerEvent) => { if (!isInside(event.target)) close(); };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { close(); buttonRef.current?.focus(); }
+    };
+    document.addEventListener('pointerdown', outside);
+    document.addEventListener('keydown', escape);
+    window.addEventListener('resize', close);
+    window.addEventListener('scroll', close, true);
+    return () => {
+      document.removeEventListener('pointerdown', outside);
+      document.removeEventListener('keydown', escape);
+      window.removeEventListener('resize', close);
+      window.removeEventListener('scroll', close, true);
+    };
+  }, [isOpen]);
+
+  return <>
+    <button ref={buttonRef} type="button" aria-label={`Actions for ${template.template_code}`} aria-haspopup="menu" aria-expanded={isOpen} aria-controls={isOpen ? menuId : undefined}
+      onPointerEnter={event => { if (event.pointerType === 'mouse' && supportsHover()) setIsOpen(true); }} onPointerLeave={leave}
+      onClick={event => { if (event.detail > 0 && supportsHover()) setIsOpen(true); else setIsOpen(value => !value); }}
+      onBlur={event => { if (!isInside(event.relatedTarget)) close(); }}
+      className="inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"><MoreVertical aria-hidden="true" className="h-4 w-4" /></button>
+    {isOpen && createPortal(<div ref={menuRef} style={position} className="fixed z-[80] w-32 py-1" onPointerLeave={leave}
+      onBlur={event => { if (!isInside(event.relatedTarget)) close(); }}>
+      <div id={menuId} role="menu" aria-label={`Actions for ${template.template_code}`} className="rounded-lg border border-slate-200 bg-white p-1 shadow-lg">
+        <button type="button" role="menuitem" onClick={() => { close(); onEdit(); }} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-50"><Pencil className="h-3.5 w-3.5" />Edit</button>
+        <button type="button" role="menuitem" disabled={deleteDisabled} title={isProtectedTemplate(template.id) ? 'Built-in templates can be edited but not removed' : undefined} onClick={() => { close(); onDelete(); }} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-rose-600 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-40"><Trash2 className="h-3.5 w-3.5" />Delete</button>
+      </div>
+    </div>, document.body)}
+  </>;
+}
 
 const isProtectedTemplate = (id: string) => [
   'cargomove-welcome',
@@ -76,6 +142,7 @@ const newTemplate = (active: boolean, triggerStatus: 'DONE' | 'REJECTED' = 'DONE
   attachments: [],
   active,
   version: 1,
+  registration_type: 'COMPANY',
 });
 
 export function EmailTemplateManager({ onViewChange }: EmailTemplateManagerProps) {
@@ -130,7 +197,7 @@ export function EmailTemplateManager({ onViewChange }: EmailTemplateManagerProps
   }, []);
 
   const openDesigner = (template: EmailTemplate, create = false) => {
-    setEditing({ ...template, port_ids: template.port_ids || (template.port_id ? [template.port_id] : []), attachments: [...template.attachments] });
+    setEditing({ ...template, registration_type: (emailTemplateRegistrationType(template) || null) as EmailTemplate['registration_type'], port_ids: template.port_ids || (template.port_id ? [template.port_id] : []), attachments: [...template.attachments] });
     setIsCreating(create);
     setPendingFiles([]);
     onViewChange?.('design');
@@ -245,7 +312,7 @@ export function EmailTemplateManager({ onViewChange }: EmailTemplateManagerProps
         <p className="text-xs font-semibold uppercase tracking-wider text-blue-600">{isCreating ? 'New template' : 'Edit template'}</p>
         <h2 className="mt-1 text-xl font-bold tracking-tight text-slate-900">{editing.template_code !== null && editing.template_code !== undefined ? `${editing.template_code} — ${editing.trigger_status === 'DONE' ? 'ACCEPT' : 'REJECT'}` : 'Design Template'}</h2>
         <p className="mt-1 text-xs text-slate-500">Design the message recipients will receive for this registration outcome.</p>
-        {emailTemplateRegistrationType(editing.id) && <p className="mt-2 text-xs text-slate-600">Applies to: {emailTemplateRegistrationType(editing.id)} registrations.{emailTemplateRegistrationType(editing.id) !== 'COMPANY' && ' The registration details PDF is attached automatically when previewing and sending.'}</p>}
+        {emailTemplateRegistrationType(editing) && <p className="mt-2 text-xs text-slate-600">Applies to: {emailTemplateRegistrationType(editing)} registrations.{emailTemplateRegistrationType(editing) !== 'COMPANY' && ' The registration details PDF is attached automatically when previewing and sending.'}</p>}
       </div>
       <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="grid gap-4 md:grid-cols-12">
@@ -265,7 +332,12 @@ export function EmailTemplateManager({ onViewChange }: EmailTemplateManagerProps
           <label className="text-xs font-semibold text-slate-700 md:col-span-6">Subject
             <input value={editing.subject_template} onChange={(event) => setEditing({ ...editing, subject_template: event.target.value })} placeholder="Email subject" className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
           </label>
-          <label className="text-xs font-semibold text-slate-700 md:col-span-6">Recipient
+          <label className="text-xs font-semibold text-slate-700 md:col-span-3">Assigned type
+            <select value={editing.registration_type || ''} onChange={(event) => setEditing({ ...editing, registration_type: (event.target.value || null) as EmailTemplate['registration_type'] })} className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal">
+              <option value="">All registration types</option><option value="COMPANY">Company</option><option value="DRIVER">Driver</option><option value="TRAILER">Trailer</option><option value="VEHICLE">Vehicle</option>
+            </select>
+          </label>
+          <label className="text-xs font-semibold text-slate-700 md:col-span-3">Recipient
             <input value={editing.recipient_template} disabled className="mt-1.5 w-full rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 font-mono font-normal text-slate-600" />
           </label>
         </div>
@@ -315,20 +387,21 @@ export function EmailTemplateManager({ onViewChange }: EmailTemplateManagerProps
         <div role="tabpanel" className="overflow-hidden rounded-b-xl rounded-tr-xl border-x border-b border-slate-200 bg-white shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[900px] table-fixed border-collapse text-left text-xs">
-              <colgroup><col className="w-[7%]" /><col className="w-[22%]" /><col className="w-[30%]" /><col className="w-[15%]" /><col className="w-[8%]" /><col className="w-[9%]" /><col className="w-[9%]" /></colgroup>
+              <colgroup><col className="w-[7%]" /><col className="w-[18%]" /><col className="w-[25%]" /><col className="w-[11%]" /><col className="w-[17%]" /><col className="w-[7%]" /><col className="w-[9%]" /><col className="w-[6%]" /></colgroup>
               <thead>
-                <tr className="admin-registration-table-header whitespace-nowrap border border-slate-400 bg-[#CBD5E1] text-[10px] font-bold uppercase tracking-wide text-slate-700"><th scope="col" className="px-4 py-3">Code</th><th scope="col" className="px-4 py-3">Template name</th><th scope="col" className="px-4 py-3">Subject</th><th scope="col" className="px-4 py-3 text-center">Assigned ports</th><th scope="col" className="px-3 py-3">Status</th><th scope="col" className="px-3 py-3">Updated</th><th scope="col" className="px-3 py-3 text-center">Actions</th></tr>
+                <tr className="admin-registration-table-header whitespace-nowrap border border-slate-400 bg-[#CBD5E1] text-[10px] font-bold uppercase tracking-wide text-slate-700"><th scope="col" className="px-4 py-3">Code</th><th scope="col" className="px-4 py-3">Template name</th><th scope="col" className="px-4 py-3">Subject</th><th scope="col" className="px-3 py-3 text-center">Assigned type</th><th scope="col" className="px-4 py-3 text-center">Assigned ports</th><th scope="col" className="px-3 py-3">Status</th><th scope="col" className="px-3 py-3">Updated</th><th scope="col" className="px-3 py-3 text-center">Actions</th></tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {visibleTemplates.length === 0 ? <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-500">No {activeCodeTab === 'DONE' ? 'acceptance' : 'rejection'} codes yet.</td></tr> : visibleTemplates.map((template) => (
+                {visibleTemplates.length === 0 ? <tr><td colSpan={8} className="px-4 py-8 text-center text-slate-500">No {activeCodeTab === 'DONE' ? 'acceptance' : 'rejection'} codes yet.</td></tr> : visibleTemplates.map((template) => (
                   <tr key={template.id} className="hover:bg-slate-50">
                     <td className="px-4 py-3 font-mono font-bold text-blue-700">{template.template_code}</td>
                     <td className="px-4 py-3"><button type="button" onClick={() => openDesigner(template)} className="text-left font-semibold text-slate-900 hover:text-blue-700 hover:underline">{template.name}</button></td>
                     <td className="truncate px-4 py-3 text-slate-600" title={template.subject_template}>{template.subject_template}</td>
+                    <td className="px-3 py-3 text-center text-slate-600">{emailTemplateRegistrationType(template) || 'All'}</td>
                     <td className="px-4 py-3 text-center text-slate-600" title={assignedPortNames(template, ports)}>{assignedPortNames(template, ports, true)}</td>
                     <td className="px-3 py-3"><span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${template.active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>{template.active ? 'Active' : 'Inactive'}</span></td>
                     <td className="whitespace-nowrap px-3 py-3 text-[11px] text-slate-500">{template.updated_at ? formatAdminDate(template.updated_at) : `Version ${template.version}`}</td>
-                    <td className="px-3 py-3"><div className="flex items-center justify-center gap-1"><button type="button" onClick={() => openDesigner(template)} title={`Edit ${template.template_code}`} aria-label={`Edit ${template.template_code}`} className="rounded-md p-1.5 text-blue-700 hover:bg-blue-50"><Pencil className="h-4 w-4" /></button><button type="button" onClick={() => void remove(template)} disabled={deletingId === template.id || templates.length === 1 || isProtectedTemplate(template.id)} title={isProtectedTemplate(template.id) ? 'Built-in templates can be edited but not removed' : `Remove ${template.template_code}`} aria-label={`Remove ${template.template_code}`} className="rounded-md p-1.5 text-rose-600 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-40"><Trash2 className="h-4 w-4" /></button></div></td>
+                    <td className="px-2 py-3 text-center"><EmailTemplateActions template={template} deleteDisabled={deletingId === template.id || templates.length === 1 || isProtectedTemplate(template.id)} onEdit={() => openDesigner(template)} onDelete={() => void remove(template)} /></td>
                   </tr>
                 ))}
               </tbody>
