@@ -33,10 +33,11 @@ test('API entry points stay within the Hobby deployment limit',()=>{
   function entryPoints(directory:URL):string[] {
     return readdirSync(directory,{withFileTypes:true}).flatMap(item=>{
       const path=new URL(item.name+(item.isDirectory()?'/':''),directory);
+      if(item.name.startsWith('_')||item.name.startsWith('.'))return [];
       if(item.isDirectory())return entryPoints(path);
       if(!/\.[cm]?[jt]sx?$/.test(item.name))return [];
-      const source=readFileSync(path,'utf8');
-      return /export\s+default\b|export\s*\{\s*default\s*\}/.test(source)?[path.pathname]:[];
+      // Vercel discovers source files by path, even if a handler export is missing.
+      return [path.pathname];
     });
   }
   const entries=entryPoints(new URL('../api/',import.meta.url));

@@ -9,6 +9,16 @@ verification, processing scheduler, leases, or duplicate-submission safeguards.
 
 ## Runtime design
 
+Vercel serves `/api/scheduler/auto-register-cm` and
+`/api/scheduler/auto-register-cm-queue` through one scheduler function. An explicit
+rewrite sends the queue URL to `auto-register-cm?route=queue`, preserving query
+parameters such as `view=scheduled`. Both existing handlers keep their own
+authorization and validation. The shared function retains Singapore (`sin1`),
+the 120-second timeout and Chromium packaging. This keeps the project at the
+Hobby plan's twelve-function limit; `_runtime.ts` is an excluded utility file.
+Run `npx tsx --test tests/dev-tools-router.test.ts tests/auto-register-cm-router.test.ts`
+after adding API routes to check the function count and scheduler routing.
+
 GitHub Actions calls `POST /api/scheduler/auto-register-cm` at minutes 7, 27 and
 47 of every hour. The existing persisted UTC two-hour request key admits one
 execution per window; subsequent calls return the recorded result without

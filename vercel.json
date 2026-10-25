@@ -35,15 +35,13 @@
         "sin1"
       ],
       "includeFiles": "node_modules/@sparticuz/chromium/bin/**"
-    },
-    "api/scheduler/auto-register-cm-queue.ts": {
-      "maxDuration": 120,
-      "regions": [
-        "sin1"
-      ]
     }
   },
   "rewrites": [
+    {
+      "source": "/api/scheduler/auto-register-cm-queue",
+      "destination": "/api/scheduler/auto-register-cm?route=queue"
+    },
     {
       "source": "/api/dev-tools/registration-uploads",
       "destination": "/api/dev-tools?route=registration-uploads"
