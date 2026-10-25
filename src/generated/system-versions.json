@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "version": "1.12.1",
-  "updatedAt": "2026-10-25T09:02:57.263Z",
+  "version": "1.12.2",
+  "updatedAt": "2026-10-25T09:22:09.160Z",
   "entries": [
     {
       "id": "account-settings",
@@ -791,8 +791,7 @@
     ".github/workflows/system-version.yml": "1b2563ccd650b535fbe3de516602738f90b36a058ebb4d7b69237373fe101142",
     "api/_runtime.ts": "6ac2bbc18e8753c1a7edc884697758836f0d4d7de1dc72ec3d9866e8479b8084",
     "api/auth/login.ts": "e141c40e42720ad690f3c89c8a8fafabb7298bddd2a79209513c8be944274026",
-    "api/auth/logout.ts": "b9b0a8d91f7a8e2df747e72105e1c75d0b7a8f276cd16a81ca2087769cadbe55",
-    "api/auth/session.ts": "71fe8151cfeb4061198588b18799558a87454aa793a6c724f46a7b30f96b20e7",
+    "api/auth/session.ts": "12757643dba623a69e20d026770cc5dbab545af3f9c25a7860e74accfdacb8e0",
     "api/auth/users.ts": "44e43475613e8db86a2e3db538969d2ae14e268aa1bb1e2a928a0b77923f763a",
     "api/data/[table].ts": "f78331d45ccb6b2fd47c08b7bcb8a3206828fe5e2e3424060640c5a497b81ac5",
     "api/data/[table]/[id].ts": "0d7de1f24e8a4b0e3e329254e829273771898ce34627327816edd902cd07a297",
@@ -1087,6 +1086,29 @@
     "vite.config.ts": "167e03f4e2c3298d4e3cbe61c5c1f8712073bf15d56c63d992827e99d3b7601b"
   },
   "history": [
+    {
+      "sourceCommit": "93571f545699dc692a8754138045592edab4d11c",
+      "pushedBy": "lumoratechent-beep",
+      "commits": [
+        {
+          "sha": "93571f545699dc692a8754138045592edab4d11c",
+          "author": "cargomovemy",
+          "subject": "fix serverless issues"
+        }
+      ],
+      "authors": [
+        "cargomovemy"
+      ],
+      "version": "1.12.2",
+      "previousVersion": "1.12.1",
+      "date": "2026-10-25T09:22:09.160Z",
+      "summary": "Updated existing pages, tools or shared system files",
+      "files": [
+        "api/auth/logout.ts",
+        "api/auth/session.ts"
+      ],
+      "changes": []
+    },
     {
       "sourceCommit": "2a291fc38f202aa3adf336819d67c5680171e32d",
       "pushedBy": "lumoratechent-beep",
