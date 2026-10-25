@@ -1,15 +1,17 @@
 import React, { useState } from 'react';
 import { BookOpen, ChevronRight, Clock3, FlaskConical, Settings, TableProperties } from 'lucide-react';
 import { areRegistrationTestToolsEnabled, setRegistrationTestToolsEnabled } from '../../services/developerSettings';
+import { AutoRegisterCmToggle } from './AutoRegisterCm';
 
 interface DeveloperSettingsProps {
   onOpenScheduler: () => void;
   onOpenExcelMapping: () => void;
   onOpenPortDepotConfig: () => void;
   onOpenAutoEmailConfig: () => void;
+  onOpenAutoRegisterCm?: () => void;
 }
 
-export function DeveloperSettings({ onOpenScheduler, onOpenExcelMapping, onOpenPortDepotConfig, onOpenAutoEmailConfig }: DeveloperSettingsProps) {
+export function DeveloperSettings({ onOpenScheduler, onOpenExcelMapping, onOpenPortDepotConfig, onOpenAutoEmailConfig, onOpenAutoRegisterCm }: DeveloperSettingsProps) {
   const [testToolsEnabled, setTestToolsEnabled] = useState(areRegistrationTestToolsEnabled);
 
   const updateTestTools = (enabled: boolean) => {
@@ -21,7 +23,7 @@ export function DeveloperSettings({ onOpenScheduler, onOpenExcelMapping, onOpenP
     <div className="w-full space-y-6">
       <div>
         <h2 className="text-xl font-bold tracking-tight text-slate-900">Developer Settings</h2>
-        <p className="mt-1 text-xs text-slate-500">Manage registration testing, ports and depots, schedulers, Excel mappings and email automation.</p>
+        <p className="mt-1 text-xs text-slate-500">Manage registration automation, ports and depots, schedulers, Excel mappings and email automation.</p>
       </div>
       <section aria-label="Developer settings" className="w-full divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="flex w-full items-center gap-4 p-4 sm:p-5">
@@ -33,6 +35,14 @@ export function DeveloperSettings({ onOpenScheduler, onOpenExcelMapping, onOpenP
           <button type="button" role="switch" aria-labelledby="registration-tools-label" aria-describedby="registration-tools-description" aria-checked={testToolsEnabled} onClick={() => updateTestTools(!testToolsEnabled)} className={`relative ml-auto inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 ${testToolsEnabled ? 'bg-emerald-600' : 'bg-slate-300'}`}>
             <span className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${testToolsEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
           </button>
+        </div>
+        <div className="flex w-full items-center gap-3 p-4 sm:p-5">
+          <button type="button" onClick={onOpenAutoRegisterCm} className="flex min-w-0 flex-1 items-center gap-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky-500">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-sky-700"><Clock3 className="h-5 w-5" aria-hidden="true" /></span>
+            <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-slate-900">Auto Register in CM</span><span className="mt-1 block text-xs leading-5 text-slate-500">Review eligible registrations, schedule them, and view run history.</span></span>
+            <ChevronRight className="h-5 w-5 shrink-0 text-slate-400" aria-hidden="true" />
+          </button>
+          <AutoRegisterCmToggle />
         </div>
         {[
           { title: 'Auto Email Config', description: 'Configure AI models, incoming drafts and automatic replies.', icon: BookOpen, onClick: onOpenAutoEmailConfig },

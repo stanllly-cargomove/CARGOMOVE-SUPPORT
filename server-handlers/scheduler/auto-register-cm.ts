@@ -27,7 +27,7 @@ function internalOrigin(): string {
 
 function serializeRun(row: any) {
   return {
-    id: row.id, executionType: row.execution_type, status: row.status,
+    id: row.id, executionId: row.execution_reference, executionType: row.execution_type, status: row.status,
     startedAt: row.started_at, finishedAt: row.finished_at, durationMs: row.duration_ms,
     processedCount: row.processed_count, successCount: row.success_count, failedCount: row.failed_count,
     message: row.message, errorMessage: row.error_message,
@@ -133,35 +133,65 @@ export function createAutoRegisterCmHandler(deps = { adminClient, readSession, u
         return captured;
       };
 
-      const active = await client.from('registration_uploads').select('id,batch_id,state,created_at')
-        .not('state', 'in', '(SUCCESS,FAILED)').order('created_at', { ascending: true }).limit(20).timeout(8000);
-      if (active.error) throw new Error('Unable to inspect existing registration uploads.');
+      const scheduled = await client.from('auto_register_cm_scheduled_items')
+          .select('id,submission_id,registration_type,reference_no').eq('status', 'SCHEDULED')
+          .order('scheduled_at', { ascending: true }).limit(1000).timeout(8000);
+      if (scheduled.error) throw new Error('Unable to load the saved Auto Register queue.');
+      const scheduledItems = scheduled.data || [];
+      const firstType = scheduledItems[0]?.registration_type;
+      const scheduledIds = scheduledItems.filter((item: any) => item.registration_type === firstType)
+        .slice(0, 100).map((item: any) => item.submission_id);
+      if (!scheduledIds.length) {
+        return await finish('SKIPPED', { processed: 0, success: 0, failed: 0 }, 'No scheduled registrations are ready to process.');
+      }
+
+      // Restrict resumptions as well as new batches to registrations explicitly
+      // placed in this queue. Other uploads belong to their own workflow.
+      const active = await client.from('registration_uploads').select('id,batch_id,state,created_at,submission_id')
+        .in('submission_id', scheduledIds).not('state', 'in', '(SUCCESS,FAILED)')
+        .order('created_at', { ascending: true }).limit(20).timeout(8000);
+      if (active.error) throw new Error('Unable to inspect scheduled registration uploads.');
       const existing = active.data?.[0];
+      const claimed = await client.from('auto_register_cm_scheduled_items').update({ run_id: executionId })
+        .in('submission_id', scheduledIds).eq('status', 'SCHEDULED').timeout(8000);
+      if (claimed.error) throw new Error('Unable to link scheduled registrations to this run.');
+
       let result: ReturnType<typeof captureResponse>;
       if (existing) {
         result = await callUploads({ action: 'check', jobId: existing.batch_id || existing.id });
       } else {
-        const pending = await client.from('registration_submissions').select('id,registration_type,cargomove_upload')
-          .eq('status', 'PENDING').in('registration_type', ['DRIVER', 'TRAILER', 'VEHICLE'])
-          .order('submitted_at', { ascending: true }).limit(300).timeout(8000);
-        if (pending.error) throw new Error('Unable to load pending registrations.');
-        // Verified uploads remain Pending until the separate acceptance-email workflow completes.
-        // Exclude them here so they cannot starve newer work (the database also prevents replay).
-        const candidates = (pending.data || []).filter((row: any) => row.cargomove_upload?.state !== 'SUCCESS');
-        const firstType = candidates[0]?.registration_type;
-        const ids = candidates.filter((row: any) => row.registration_type === firstType).slice(0, 100).map((row: any) => row.id);
-        if (!ids.length) return await finish('SKIPPED', { processed: 0, success: 0, failed: 0 }, 'No pending asset registrations are ready to process.');
-        result = await callUploads({ action: 'start', submissionIds: ids });
+        result = await callUploads({ action: 'start', submissionIds: scheduledIds });
       }
 
+      const markQueueFailures = async (messages: string[]) => {
+        for (const item of scheduledItems) {
+          if (!scheduledIds.includes(item.submission_id)) continue;
+          const issue = messages.find(message => message.startsWith(`${item.reference_no}:`));
+          if (!issue) continue;
+          const saved = await client.from('auto_register_cm_scheduled_items').update({
+            status: 'FAIL', completed_at: new Date().toISOString(), message: issue.slice(0, 500),
+          }).eq('submission_id', item.submission_id).eq('status', 'SCHEDULED').select('id').timeout(8000);
+          if (saved.error) throw new Error(`Unable to save scheduled status for ${item.reference_no}.`);
+        }
+      };
       if (result.code >= 400) {
         const message = result.body?.error || 'The registration batch could not be started.';
-        return await finish(result.code === 409 ? 'SKIPPED' : 'FAILED', { processed: 0, success: 0, failed: 0 }, message,
+        if (scheduledIds.length) {
+          const failed = await client.from('auto_register_cm_scheduled_items').update({
+            status: 'FAIL', completed_at: new Date().toISOString(), message: message.slice(0, 500),
+          }).in('submission_id', scheduledIds).eq('status', 'SCHEDULED').select('id').timeout(8000);
+          if (failed.error) throw new Error('The registration batch failed and its scheduled status could not be saved.');
+        }
+        const failedCount = scheduledIds.length;
+        return await finish(result.code === 409 ? 'SKIPPED' : 'FAILED',
+          { processed: failedCount, success: 0, failed: failedCount }, message,
           result.code === 409 ? undefined : message);
       }
       let submissions = result.body?.submissions || (result.body?.submission ? [result.body.submission] : []);
       let states = submissions.map((item: any) => item.cargomove_upload?.state).filter(Boolean);
       const jobId = submissions[0]?.cargomove_upload?.id;
+      const incomplete: string[] = Array.isArray(result.body?.incomplete) ? result.body.incomplete : [];
+      await markQueueFailures(incomplete);
       while (jobId && states.length && states.some((state: string) => !TERMINAL_UPLOAD.has(state))
         && Date.now() + 68_000 < workDeadline) {
         await wait(Math.min(10_000, Math.max(1_000, Number(result.body?.nextCheckMs) || 3_000)));
@@ -169,15 +199,36 @@ export function createAutoRegisterCmHandler(deps = { adminClient, readSession, u
         if (result.code >= 400) break;
         submissions = result.body?.submissions || (result.body?.submission ? [result.body.submission] : submissions);
         states = submissions.map((item: any) => item.cargomove_upload?.state).filter(Boolean);
+        if (Array.isArray(result.body?.incomplete)) {
+          incomplete.push(...result.body.incomplete);
+          await markQueueFailures(result.body.incomplete);
+        }
       }
-      const processed = submissions.length;
+      const queuedFailures = scheduledItems.filter((item: any) => scheduledIds.includes(item.submission_id)
+        && incomplete.some(message => message.startsWith(`${item.reference_no}:`)));
+      const processed = submissions.length + queuedFailures.length;
       const success = states.filter((state: string) => state === 'SUCCESS').length;
-      const failed = states.filter((state: string) => state === 'FAILED').length;
+      const failed = states.filter((state: string) => state === 'FAILED').length + queuedFailures.length;
+      for (const submission of submissions) {
+        const state = submission.cargomove_upload?.state;
+        if (state !== 'SUCCESS' && state !== 'FAILED') continue;
+        const saved = await client.from('auto_register_cm_scheduled_items').update({
+          status: state === 'SUCCESS' ? 'SUCCESS' : 'FAIL',
+          completed_at: new Date().toISOString(),
+          message: String(submission.cargomove_upload?.message || (state === 'SUCCESS' ? 'Registration completed successfully.' : 'Registration failed.')).slice(0, 500),
+        }).eq('submission_id', submission.id).eq('status', 'SCHEDULED').select('id').timeout(8000);
+        if (saved.error) throw new Error(`Unable to save scheduled status for ${submission.reference_no}.`);
+      }
       if (result.code >= 400) {
         const message = result.body?.error || 'Registration processing failed.';
         return await finish('FAILED', { processed, success, failed: Math.max(failed, processed - success) }, message, message);
       }
-      if (failed) return await finish('FAILED', { processed, success, failed }, result.body?.submission?.cargomove_upload?.message || 'CargoMove rejected the registration batch.', 'One or more registrations failed.');
+      if (failed) {
+        const message = queuedFailures.length
+          ? `${queuedFailures.length} scheduled registration(s) failed eligibility checks.`
+          : result.body?.submission?.cargomove_upload?.message || 'CargoMove rejected the registration batch.';
+        return await finish('FAILED', { processed, success, failed }, message, 'One or more registrations failed.');
+      }
       const pendingCount = states.filter((state: string) => !TERMINAL_UPLOAD.has(state)).length;
       return await finish('SUCCESS', { processed, success, failed: 0 }, pendingCount
         ? `${processed} registration(s) were advanced safely; ${pendingCount} remain in verified processing and will resume on the next run.`

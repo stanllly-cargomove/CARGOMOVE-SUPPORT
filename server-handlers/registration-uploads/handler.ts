@@ -7,6 +7,7 @@ import { buildExcelRowData, validateSubmissionsForExport, type ExcelContext } fr
 import type { RegistrationSubmission } from '../../src/types/index.js';
 import { uploadWorkbook, verifyWorkbook, type Verification } from './automation.js';
 import { COMPANY_REGISTRATION_REQUIRED } from '../../shared/registration-eligibility.js';
+import { registrationUploadBlockReason } from './eligibility.js';
 
 type Job = { id: string; submission_id: string; entity: string; scheduler_id: string; state: string; filename: string;
   expected_rows: number; upload_id?: string; updated_at: string; created_at: string; success_count?: number; error_count?: number };
@@ -61,18 +62,7 @@ export function createRegistrationUploadsHandler(deps = dependencies) {
             const source = await client.from('registration_submissions').select('*').eq('id', id).timeout(8000).maybeSingle();
             const sub = source.data as RegistrationSubmission | null;
             if (source.error || !sub) { incomplete.push(`${id}: registration unavailable.`); return null; }
-            const approval = await client.rpc<string>('registration_upload_company_block_reason', { p_company_id: sub.company_id });
-            const company = await client.from('companies').select('*').eq('id', sub.company_id).timeout(8000).maybeSingle();
-            let reason = approval.error || company.error ? 'Company registration could not be verified.' : approval.data;
-            if (!reason) {
-              const context: ExcelContext = { companies: company.data ? [company.data] : [], ports: preflightPorts.data || [], depots: [] };
-              const validation = validateSubmissionsForExport([sub], context);
-              const { rows } = buildExcelRowData([sub], context);
-              const required = sub.registration_type === 'DRIVER' ? ['DRIVINGLICENSE', 'MOBILENO', 'NAME'] : ['REGISTRATION', 'WEIGHT'];
-              if (!validation.valid || !rows.length || rows.some(row => required.some(key => !String(row[key] ?? '').trim())
-                || sub.registration_type !== 'DRIVER' && (!Number.isFinite(Number(row.WEIGHT)) || Number(row.WEIGHT) < 0)
-                || row.PORTS.split(',').filter(Boolean).some(portId => !/^[a-f0-9]{24}$/i.test(portId)))) reason = 'Check CargoMove IDs, required fields, weights and port configuration.';
-            }
+            const reason = await registrationUploadBlockReason(client, sub, preflightPorts.data || []);
             if (reason) { incomplete.push(`${sub.reference_no}: ${reason}`); return null; }
             return id;
           }));

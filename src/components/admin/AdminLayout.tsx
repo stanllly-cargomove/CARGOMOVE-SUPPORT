@@ -39,6 +39,7 @@ import { EmailTemplateManager } from './EmailTemplateManager';
 import { DeveloperSettings } from './DeveloperSettings';
 import { SystemVersion } from './SystemVersion';
 import { CargoMoveScheduler } from './CargoMoveScheduler';
+import { AutoRegisterCmPage } from './AutoRegisterCm';
 import { NorthportRecovery } from './NorthportRecovery';
 import { AutoMail } from './AutoMail';
 import { AutoEmailConfig } from './AutoEmailConfig';
@@ -199,8 +200,8 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
     setIsAccountMenuOpen(false);
   };
 
-  const isDevSettingsPage = activeTab === 'schema' || activeTab === 'scheduler' || activeTab === 'ports' || activeTab === 'auto-email-config';
-  const activePageLabel = activeTab === 'auto-email-config' ? 'Auto Email Config' : activeTab === 'auto-mail' ? 'Tools / Auto Mail' : activeTab === 'system-version' ? 'System Version' : activeTab === 'ports' ? 'Ports & Depots' : activeTab === 'schema' ? 'Excel Mapping' : activeTab === 'scheduler' ? 'Scheduler' : activeTab === 'northport-recovery' ? 'Tools / NP Container' : [...navItems, ...registrationQueueItems, ...devToolItems]
+  const isDevSettingsPage = activeTab === 'schema' || activeTab === 'scheduler' || activeTab === 'ports' || activeTab === 'auto-email-config' || activeTab === 'auto-register-cm';
+  const activePageLabel = activeTab === 'auto-email-config' ? 'Auto Email Config' : activeTab === 'auto-register-cm' ? 'Auto Register in CM' : activeTab === 'auto-mail' ? 'Tools / Auto Mail' : activeTab === 'system-version' ? 'System Version' : activeTab === 'ports' ? 'Ports & Depots' : activeTab === 'schema' ? 'Excel Mapping' : activeTab === 'scheduler' ? 'Scheduler' : activeTab === 'northport-recovery' ? 'Tools / NP Container' : [...navItems, ...registrationQueueItems, ...devToolItems]
     .find((item) => item.id === activeTab)?.label ?? (activeTab === 'account-settings' ? 'Account & Setting' : 'Dashboard');
 
   return (
@@ -540,10 +541,11 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
           )}
           {activeTab === 'ports' && <PortDepotConfig />}
           {activeTab === 'schema' && <SchemaMappingInspector />}
-          {activeTab === 'developer-settings' && <DeveloperSettings onOpenScheduler={() => setActiveTab('scheduler')} onOpenExcelMapping={() => setActiveTab('schema')} onOpenPortDepotConfig={() => setActiveTab('ports')} onOpenAutoEmailConfig={() => openAutoEmailConfig()} />}
+          {activeTab === 'developer-settings' && <DeveloperSettings onOpenAutoRegisterCm={() => setActiveTab('auto-register-cm')} onOpenScheduler={() => setActiveTab('scheduler')} onOpenExcelMapping={() => setActiveTab('schema')} onOpenPortDepotConfig={() => setActiveTab('ports')} onOpenAutoEmailConfig={() => openAutoEmailConfig()} />}
           {activeTab === 'auto-email-config' && user?.type === 'ADMIN' && <AutoEmailConfig onBack={() => setActiveTab('developer-settings')} onOpenMail={() => { setPortalMode('admin'); setActiveTab('auto-mail'); }} />}
           {activeTab === 'system-version' && <SystemVersion />}
           {activeTab === 'scheduler' && <div className="w-full space-y-4"><div><h2 className="text-xl font-bold tracking-tight text-slate-900">Scheduler</h2><p className="mt-1 text-xs text-slate-500">Manage saved schedulers and request a run when needed.</p></div><CargoMoveScheduler /></div>}
+          {activeTab === 'auto-register-cm' && user?.type === 'ADMIN' && <AutoRegisterCmPage onBack={() => setActiveTab('developer-settings')} />}
           {(hasOpenedNorthport || activeTab === 'northport-recovery') && user?.type === 'ADMIN' && <NorthportRecovery key={user.email} active={active && activeTab === 'northport-recovery' && portalMode === 'admin'} onBack={goToPortalHome} />}
           {activeTab === 'account-settings' && <AccountSettings user={user} avatarUrl={avatarUrl} onAvatarChange={setAvatarUrl} onUserChange={onUserChange} onReset={() => void handlePasswordReset()} sendingReset={isSendingReset} />}
           </div>

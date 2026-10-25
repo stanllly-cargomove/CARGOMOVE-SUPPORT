@@ -1,17 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Clock3, History, Loader2, Play, Plus, Search, X } from 'lucide-react';
+import { Loader2, Play, Plus, Search, X } from 'lucide-react';
 import { notifyError, notifySuccess } from '../common/notifications';
 import type { SavedScheduler } from '../../types/scheduler';
 
 type Result = { status: string; message: string; timestamp: string; lastRunVerification?: { status: 'ADVANCED' | 'UNCHANGED' | 'UNAVAILABLE'; before: string | null; after: string | null; observedAt: string } };
-type AutoRun = { id: string; executionType: 'AUTOMATIC' | 'MANUAL'; status: 'RUNNING' | 'SUCCESS' | 'FAILED' | 'SKIPPED'; startedAt: string; finishedAt: string | null; durationMs: number | null; processedCount: number; successCount: number; failedCount: number; message: string; errorMessage: string | null };
-type AutoScheduler = { key: string; name: string; description: string; schedule: string; isEnabled: boolean; lastRunAt: string | null; lastStatus: 'SUCCESS' | 'FAILED' | 'SKIPPED' | null; updatedAt: string };
-
-const malaysiaDate = (value: string | Date) => new Intl.DateTimeFormat('en-MY', {
-  timeZone: 'Asia/Kuala_Lumpur', dateStyle: 'medium', timeStyle: 'short',
-}).format(typeof value === 'string' ? new Date(value) : value);
-
-const nextTwoHourRun = () => new Date((Math.floor(Date.now() / 7_200_000) + 1) * 7_200_000);
 
 export function CargoMoveScheduler() {
   const [schedulers, setSchedulers] = useState<SavedScheduler[]>([]);
@@ -26,13 +18,6 @@ export function CargoMoveScheduler() {
   const [runningId, setRunningId] = useState<string | null>(null);
   const [results, setResults] = useState<Record<string, Result>>({});
   const [search, setSearch] = useState('');
-  const [autoScheduler, setAutoScheduler] = useState<AutoScheduler | null>(null);
-  const [autoRuns, setAutoRuns] = useState<AutoRun[]>([]);
-  const [autoError, setAutoError] = useState('');
-  const [autoLoading, setAutoLoading] = useState(true);
-  const [autoSaving, setAutoSaving] = useState(false);
-  const [autoRunning, setAutoRunning] = useState(false);
-  const [showAutoLogs, setShowAutoLogs] = useState(false);
   const pending = useRef(false);
   const savePending = useRef(false);
 
@@ -52,54 +37,6 @@ export function CargoMoveScheduler() {
     })();
     return () => controller.abort();
   }, [refresh]);
-
-  const loadAutoScheduler = async (signal?: AbortSignal) => {
-    setAutoLoading(true); setAutoError('');
-    try {
-      const response = await fetch('/api/scheduler/auto-register-cm', { credentials: 'same-origin', signal });
-      const data = await response.json().catch(() => null);
-      if (!response.ok || !data?.scheduler) throw new Error(data?.error || 'Unable to load Auto Register in CM.');
-      setAutoScheduler(data.scheduler); setAutoRuns(Array.isArray(data.runs) ? data.runs : []);
-    } catch (error) {
-      if (!signal?.aborted) setAutoError(error instanceof Error ? error.message : 'Unable to load Auto Register in CM.');
-    } finally { if (!signal?.aborted) setAutoLoading(false); }
-  };
-
-  useEffect(() => {
-    const controller = new AbortController();
-    void loadAutoScheduler(controller.signal);
-    return () => controller.abort();
-  }, []);
-
-  const toggleAutoScheduler = async () => {
-    if (!autoScheduler || autoSaving) return;
-    const enabled = !autoScheduler.isEnabled;
-    setAutoSaving(true);
-    try {
-      const response = await fetch('/api/scheduler/auto-register-cm', { method: 'PATCH', credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json', 'X-CargoMove-Confirm': 'manage-auto-register-cm' },
-        body: JSON.stringify({ isEnabled: enabled }) });
-      const data = await response.json().catch(() => null);
-      if (!response.ok || typeof data?.isEnabled !== 'boolean') throw new Error(data?.error || 'Unable to update the scheduler.');
-      setAutoScheduler(previous => previous ? { ...previous, isEnabled: data.isEnabled, updatedAt: new Date().toISOString() } : previous);
-      notifySuccess(`Auto Register in CM ${data.isEnabled ? 'enabled' : 'disabled'}.`);
-    } catch (error) { notifyError(error instanceof Error ? error.message : 'Unable to update the scheduler.'); }
-    finally { setAutoSaving(false); }
-  };
-
-  const runAutoScheduler = async () => {
-    if (autoRunning || !window.confirm(`Run Auto Register in CM now${autoScheduler?.isEnabled ? '' : ' while automatic scheduling is OFF'}? This can submit eligible pending registrations to CargoMove.`)) return;
-    setAutoRunning(true);
-    try {
-      const response = await fetch('/api/scheduler/auto-register-cm', { method: 'POST', credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json', 'X-CargoMove-Confirm': 'run-auto-register-cm' }, body: '{}' });
-      const data = await response.json().catch(() => null);
-      if (!response.ok) throw new Error(data?.error || data?.message || 'Auto Register in CM failed.');
-      if (data.status === 'failed') notifyError(data.message); else notifySuccess(data.message || 'Auto Register in CM completed.');
-      await loadAutoScheduler();
-    } catch (error) { notifyError(error instanceof Error ? error.message : 'Auto Register in CM failed.'); }
-    finally { setAutoRunning(false); }
-  };
 
   const save = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -183,41 +120,6 @@ export function CargoMoveScheduler() {
 
   return (
     <section className="w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="border-b border-slate-200 bg-slate-50/70 p-3 sm:p-5">
-        {autoLoading && <div role="status" className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white p-4 text-xs text-slate-500"><Loader2 className="h-4 w-4 animate-spin" />Loading Auto Register in CM...</div>}
-        {autoError && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-xs text-rose-700"><p>{autoError}</p><button type="button" onClick={() => void loadAutoScheduler()} className="mt-2 font-bold underline">Try again</button></div>}
-        {!autoLoading && autoScheduler && <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <h3 className="text-sm font-bold text-slate-900 sm:text-base">{autoScheduler.name}</h3>
-                <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${autoScheduler.isEnabled ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>{autoScheduler.isEnabled ? 'Enabled' : 'Disabled'}</span>
-              </div>
-              <p className="mt-1 text-xs text-slate-600">{autoScheduler.description}</p>
-              <p className="mt-2 flex items-center gap-1.5 text-[11px] font-semibold text-slate-600"><Clock3 className="h-3.5 w-3.5" />Schedule: {autoScheduler.schedule}</p>
-            </div>
-            <button type="button" role="switch" aria-checked={autoScheduler.isEnabled} aria-label="Enable Auto Register in CM" disabled={autoSaving || autoRunning} onClick={() => void toggleAutoScheduler()} className={`relative inline-flex h-7 w-14 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-60 ${autoScheduler.isEnabled ? 'bg-emerald-600' : 'bg-slate-300'}`}>
-              <span className={`inline-flex h-5 w-5 items-center justify-center rounded-full bg-white shadow transition-transform ${autoScheduler.isEnabled ? 'translate-x-8' : 'translate-x-1'}`}>{autoSaving && <Loader2 className="h-3 w-3 animate-spin text-slate-500" />}</span>
-            </button>
-          </div>
-          <div className="mt-4 grid gap-2 text-[11px] sm:grid-cols-3">
-            <div className="rounded-lg bg-slate-50 px-3 py-2"><span className="block text-slate-500">Last execution</span><strong className="mt-0.5 block text-slate-800">{autoScheduler.lastRunAt ? malaysiaDate(autoScheduler.lastRunAt) : 'Never'}</strong></div>
-            <div className="rounded-lg bg-slate-50 px-3 py-2"><span className="block text-slate-500">Next execution</span><strong className="mt-0.5 block text-slate-800">{autoScheduler.isEnabled ? malaysiaDate(nextTwoHourRun()) : 'Not scheduled'}</strong></div>
-            <div className="rounded-lg bg-slate-50 px-3 py-2"><span className="block text-slate-500">Last result</span><strong className={`mt-0.5 block ${autoScheduler.lastStatus === 'SUCCESS' ? 'text-emerald-700' : autoScheduler.lastStatus === 'FAILED' ? 'text-rose-700' : autoScheduler.lastStatus === 'SKIPPED' ? 'text-amber-700' : 'text-slate-500'}`}>{autoScheduler.lastStatus || 'No runs'}</strong></div>
-          </div>
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
-            <button type="button" onClick={() => setShowAutoLogs(value => !value)} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100"><History className="h-4 w-4" />{showAutoLogs ? 'Hide logs' : 'View logs'}</button>
-            <button type="button" disabled={autoRunning || autoSaving} onClick={() => void runAutoScheduler()} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60">{autoRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}{autoRunning ? 'Running...' : 'Run Now'}</button>
-          </div>
-          {showAutoLogs && <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200">
-            <table aria-label="Auto Register in CM execution logs" className="w-full min-w-[760px] text-left text-[10px]">
-              <thead className="bg-slate-100 uppercase tracking-wide text-slate-600"><tr><th className="px-3 py-2">Execution</th><th className="px-3 py-2">Time (MYT)</th><th className="px-3 py-2">Status</th><th className="px-3 py-2 text-right">Duration</th><th className="px-3 py-2 text-right">Processed</th><th className="px-3 py-2 text-right">Success</th><th className="px-3 py-2 text-right">Failed</th><th className="px-3 py-2">Message</th></tr></thead>
-              <tbody className="divide-y divide-slate-100">{autoRuns.map(run => <tr key={run.id}><td className="px-3 py-2 font-semibold text-slate-700">{run.executionType === 'AUTOMATIC' ? 'Automatic' : 'Manual'}</td><td className="whitespace-nowrap px-3 py-2 text-slate-600">{malaysiaDate(run.startedAt)}</td><td className={`px-3 py-2 font-bold ${run.status === 'SUCCESS' ? 'text-emerald-700' : run.status === 'FAILED' ? 'text-rose-700' : run.status === 'SKIPPED' ? 'text-amber-700' : 'text-amber-700'}`}>{run.status}</td><td className="px-3 py-2 text-right text-slate-600">{run.durationMs == null ? '—' : `${(run.durationMs / 1000).toFixed(1)}s`}</td><td className="px-3 py-2 text-right">{run.processedCount}</td><td className="px-3 py-2 text-right text-emerald-700">{run.successCount}</td><td className="px-3 py-2 text-right text-rose-700">{run.failedCount}</td><td className="max-w-xs truncate px-3 py-2 text-slate-600" title={run.errorMessage || run.message}>{run.errorMessage || run.message || '—'}</td></tr>)}</tbody>
-            </table>
-            {!autoRuns.length && <p className="p-4 text-center text-xs text-slate-500">No execution history yet.</p>}
-          </div>}
-        </div>}
-      </div>
       <div className="flex min-w-0 items-center gap-2 border-b border-slate-100 px-3 py-3 sm:gap-3 sm:px-5 sm:py-4">
         <label className="relative min-w-[10rem] flex-1"><Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400"/><span className="sr-only">Search schedulers</span><input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Search scheduler or system..." className="h-8 w-full rounded-lg border border-slate-300 bg-white pl-9 pr-3 text-[11px] text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"/></label>
         <button type="button" disabled={loading || Boolean(loadError)} onClick={() => { setShowForm(true); setFormError(''); }} className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg bg-blue-600 px-3 text-[11px] font-bold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"><Plus className="h-3.5 w-3.5" />Add Scheduler</button>

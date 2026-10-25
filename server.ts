@@ -24,6 +24,7 @@ import runScheduler from './server-handlers/scheduler/handler.js';
 import schedulerCatalog from './server-handlers/scheduler/catalog.js';
 import registrationUploads from './server-handlers/registration-uploads/handler.js';
 import autoRegisterCm from './server-handlers/scheduler/auto-register-cm.js';
+import autoRegisterCmQueue from './server-handlers/scheduler/auto-register-cm-queue.js';
 import northportRecovery from './server-handlers/northport/handler.js';
 import systemVersions from './server-handlers/system-versions.js';
 import profile from './server-handlers/profile.js';
@@ -131,6 +132,8 @@ app.post('/api/dev-tools/registration-uploads', express.json({ limit: '16kb' }),
 app.get('/api/scheduler/auto-register-cm', autoRegisterCm);
 app.patch('/api/scheduler/auto-register-cm', express.json({ limit: '4kb' }), autoRegisterCm);
 app.post('/api/scheduler/auto-register-cm', express.json({ limit: '4kb' }), autoRegisterCm);
+app.get('/api/scheduler/auto-register-cm-queue', autoRegisterCmQueue);
+app.post('/api/scheduler/auto-register-cm-queue', express.json({ limit: '16kb' }), autoRegisterCmQueue);
 app.post('/api/dev-tools/system-versions', systemVersions);
 app.get('/api/dev-tools/schedulers', schedulerCatalog);
 app.post('/api/dev-tools/schedulers', schedulerCatalog);

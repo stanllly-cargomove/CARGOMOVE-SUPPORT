@@ -598,6 +598,38 @@ code, kbd, samp, pre {
   color: #cbd5e1 !important;
 }
 
+.admin-theme-dark .auto-register-status-tab[aria-selected='true'] {
+  color: #fff !important;
+}
+
+.admin-theme-dark .auto-register-scheduled-tab[aria-selected='true'] {
+  background-color: #009966 !important;
+  border-color: #009966 !important;
+  border-bottom-color: #009966 !important;
+}
+
+.admin-theme-dark .auto-register-ineligible-tab[aria-selected='true'] {
+  background-color: #ec003f !important;
+  border-color: #ec003f !important;
+  border-bottom-color: #ec003f !important;
+}
+
+.admin-theme-dark .auto-register-registration-header-scheduled {
+  background-color: #009966 !important;
+  border-color: #009966 !important;
+  color: #fff !important;
+}
+
+.admin-theme-dark .auto-register-registration-header-ineligible {
+  background-color: #ec003f !important;
+  border-color: #ec003f !important;
+  color: #fff !important;
+}
+
+.admin-theme-dark [aria-label="Registrations"] > [aria-hidden="true"] {
+  background-color: #475569 !important;
+}
+
 .admin-registration-copy-text {
   transition: color 150ms ease;
 }
