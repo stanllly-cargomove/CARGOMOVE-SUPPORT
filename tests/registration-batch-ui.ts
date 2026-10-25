@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { build } from 'esbuild';
 import { readFile, readdir } from 'node:fs/promises';
-import { chromium } from 'playwright-core';
+import { chromium, type Route } from 'playwright-core';
 import * as XLSX from 'xlsx';
 
 const bundle = await build({ stdin: { contents: `
@@ -19,11 +19,11 @@ try {
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   page.setDefaultTimeout(10000);
   let starts = 0, sends = 0, failSend = true;
-  const companies = [{ id: 'registered', name: 'Registered Carrier', company_type: 'HAULAGE', registration_status: 'DONE', haulier_id: '5adc9dd77753d26fb07d6f26' },
-    { id: 'pending', name: 'Pending Carrier', company_type: 'HAULAGE', registration_status: 'PENDING', haulier_id: '5adc9dd77753d26fb07d6f26' },
-    { id: 'manual', name: 'Manual Carrier', company_type: 'HAULAGE', registration_status: 'DONE', haulier_id: '5adc9dd77753d26fb07d6f26' },
-    { id: 'forwarder-1', name: 'Forwarder One', company_type: 'FORWARDER', registration_status: 'PENDING' },
-    { id: 'forwarder-2', name: 'Forwarder Two', company_type: 'FORWARDER', registration_status: 'PENDING' }];
+  const companies = [{ id: 'registered', name: 'Registered Carrier', registration_number: 'REG-001', company_type: 'HAULAGE', registration_status: 'DONE', haulier_id: '5adc9dd77753d26fb07d6f26' },
+    { id: 'pending', name: 'Pending Carrier', registration_number: 'REG-003', company_type: 'HAULAGE', registration_status: 'PENDING', haulier_id: '5adc9dd77753d26fb07d6f26' },
+    { id: 'manual', name: 'Manual Carrier', registration_number: 'REG-004', company_type: 'HAULAGE', registration_status: 'DONE', haulier_id: '5adc9dd77753d26fb07d6f26' },
+    { id: 'forwarder-1', name: 'Forwarder One', registration_number: 'REG-005', company_type: 'FORWARDER', registration_status: 'PENDING' },
+    { id: 'forwarder-2', name: 'Forwarder Two', registration_number: 'REG-006', company_type: 'FORWARDER', registration_status: 'PENDING' }];
   let submissions: any[] = [1, 2, 3].map(n => ({ id: `driver-${n}`, reference_no: `CMREG40000${n}`, registration_type: 'DRIVER', company_id: n === 3 ? 'pending' : 'registered', company_name: n === 3 ? 'Pending Carrier' : 'Registered Carrier', company_type: 'HAULAGE',
     port_id: 'port', port_location: 'JOHOR', status: 'PENDING', submitted_at: `2026-10-24T01:00:0${n}Z`, data: { drivers: [{ driving_license: `00${n}`, name: `Driver ${n}`, mobile_no: '0123456789' }] } }));
   submissions.push({ id: 'company-1', reference_no: 'CMREG400004', registration_type: 'COMPANY', company_id: 'manual', company_reg_no: 'REG-004', company_name: 'Manual Carrier', company_type: 'HAULAGE',
@@ -31,7 +31,7 @@ try {
   submissions.push(...[1, 2].map(n => ({ id: `company-missing-${n}`, reference_no: `CMREG40000${n + 4}`, registration_type: 'COMPANY', company_id: `forwarder-${n}`, company_reg_no: `REG-00${n + 4}`, company_name: `Forwarder ${n}`, company_type: 'FORWARDER',
     port_id: 'port', port_location: 'JOHOR', status: 'PENDING', submitted_at: `2026-10-24T01:00:0${n + 4}Z`, data: { company: { name: `Forwarder ${n}`, company_type: 'FORWARDER', registration_number_old: `REG-00${n + 4}` } } })));
   const templates = ['DONE', 'REJECTED'].flatMap(status => [1, 2].map(n => ({ id: `${status}-${n}`, name: `${status} reason ${n}`, template_code: `${status}-${n}`, active: true, trigger_status: status, port_ids: ['port'], attachments: [] })));
-  await page.route('**/*', async route => {
+  const handleRoute = async (route: Route) => {
     const request = route.request(), url = new URL(request.url());
     assert.equal(url.origin, 'http://batch.test');
     if (url.pathname === '/api/external-user-access') return route.fulfill({ json: { users: [] } });
@@ -59,19 +59,46 @@ try {
       const saved = request.postDataJSON(); submissions = submissions.map(sub => sub.id === saved.id ? saved : sub);
       return route.fulfill({ json: saved });
     }
+    if (url.pathname === '/api/data/companies') {
+      const saved = request.postDataJSON();
+      const company = companies.find(item => item.id === saved.id);
+      if (company) Object.assign(company, saved);
+      return route.fulfill({ json: saved });
+    }
     if (url.pathname.startsWith('/api/')) { errors.push(url.pathname); return route.fulfill({ status: 500, json: {} }); }
     return route.fulfill({ contentType: 'text/html', body: `<style>${css}</style><div id="root"></div><script>${bundle.outputFiles[0].text}</script>` });
-  });
+  };
+  await page.route('**/*', handleRoute);
   await page.goto('http://batch.test');
   const selectAll = async () => { for (const checkbox of await page.locator('tbody input[type="checkbox"]').all()) await checkbox.check(); };
+  const openBulkMenu = async () => {
+    await page.getByRole('button', { name: 'More registration actions', exact: true }).hover();
+    assert.equal(await page.getByRole('menu').isVisible(), true, 'Hover opens the menu immediately');
+  };
   await page.getByText('CMREG400001', { exact: true }).filter({ visible: true }).waitFor();
+  assert.equal(await page.getByRole('button', { name: 'REGISTER & EMAIL', exact: true }).locator('svg').count(), 0,
+    'Queue registration action buttons must not show an Excel icon');
+  await page.getByRole('button', { name: 'REGISTER & EMAIL', exact: true }).hover();
+  await page.getByRole('tooltip', {
+    name: 'Uploads the selected registrations to CargoMove for processing. After verification, you can preview and send the completion email.',
+    exact: true,
+  }).waitFor();
   const badgeFits = await page.locator('tbody tr').first().locator('td').nth(6).evaluate(td => {
     const badge = td.querySelector('span')!; const box = badge.getBoundingClientRect(), cell = td.getBoundingClientRect();
     return box.width >= 104 && box.left >= cell.left && box.right <= cell.right;
   });
   assert.ok(badgeFits, 'Status badge must fit inside its column');
   await selectAll();
-  await page.getByRole('button', { name: 'More registration actions', exact: true }).click();
+  await openBulkMenu();
+  const triggerBox = await page.getByRole('button', { name: 'More registration actions', exact: true }).boundingBox();
+  assert.ok(triggerBox);
+  await page.mouse.move(triggerBox.x + triggerBox.width / 2, triggerBox.y + triggerBox.height + 2);
+  assert.equal(await page.getByRole('menu').isVisible(), true, 'The gap between button and menu remains hoverable');
+  await page.getByRole('menu').hover();
+  assert.equal(await page.getByRole('menu').isVisible(), true, 'Moving into the options keeps the menu open');
+  await page.mouse.move(0, 0);
+  assert.equal(await page.getByRole('menu').count(), 0, 'Leaving the menu closes it immediately');
+  await openBulkMenu();
   await page.getByRole('menu').getByRole('menuitem', { name: /Export Excel without register/ }).waitFor();
   const draftDownload = page.waitForEvent('download');
   await page.getByRole('menuitem', { name: /Export Excel without register/ }).click();
@@ -85,6 +112,7 @@ try {
   const codes = page.getByRole('dialog', { name: 'Batch email codes' }); await codes.waitFor();
   assert.equal(starts, 1); assert.ok(submissions.every(sub => sub.status === 'PENDING'));
   await page.getByText(/2 successful, 1 incomplete/).waitFor();
+  await page.getByText('CMREG400003: Company must be registered.', { exact: false }).waitFor();
   await codes.getByRole('combobox', { name: 'Batch email code' }).selectOption('DONE-1');
   await codes.getByRole('button', { name: 'Batch code page 2', exact: true }).click();
   await codes.getByRole('combobox', { name: 'Batch email code' }).selectOption('DONE-2');
@@ -99,12 +127,12 @@ try {
   assert.equal(submissions[0].status, 'DONE'); assert.equal(submissions[1].status, 'PENDING');
   await preview.getByRole('button', { name: 'Close email preview', exact: true }).click();
   await page.getByRole('button', { name: 'Actions for CMREG400002', exact: true }).filter({ visible: true }).click();
-  await page.getByRole('button', { name: 'Preview Email', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Preview Email', exact: true }).click();
   const singleCode = page.getByRole('dialog', { name: 'Select acceptance code', exact: true });
   await singleCode.waitFor();
   assert.equal(submissions[1].status, 'PENDING', 'Reopening a verified email must not mark it Done');
   await singleCode.getByRole('button', { name: 'Close code selection', exact: true }).click();
-  await selectAll(); await page.getByRole('button', { name: 'More registration actions', exact: true }).click();
+  await selectAll(); await openBulkMenu();
   await page.getByRole('menuitem', { name: 'Reject selected registrations' }).click(); await codes.waitFor();
   await codes.getByRole('combobox', { name: 'Batch email code' }).selectOption('REJECTED-1');
   await codes.getByRole('button', { name: 'Batch code page 2', exact: true }).click();
@@ -125,7 +153,7 @@ try {
   await doneExport;
   assert.equal(submissions[0].status, 'DONE');
   assert.equal(starts, 1); assert.equal(sends, 3, 'Exporting Closed/Done records must not upload or email');
-  await page.getByRole('button', { name: 'More registration actions', exact: true }).click();
+  await openBulkMenu();
   const doneMenu = page.getByRole('menu');
   assert.equal(await doneMenu.getByRole('menuitem', { name: 'Download Excel without register', exact: true }).count(), 0);
   await doneMenu.getByRole('menuitem', { name: 'Revert selected to Pending', exact: true }).waitFor();
@@ -141,7 +169,7 @@ try {
   await rejectedExport;
   assert.equal(submissions[1].status, 'REJECTED');
   assert.equal(starts, 1); assert.equal(sends, 3, 'Exporting Rejected records must not upload or email');
-  await page.getByRole('button', { name: 'More registration actions', exact: true }).click();
+  await openBulkMenu();
   const rejectedMenu = page.getByRole('menu');
   assert.equal(await rejectedMenu.getByRole('menuitem', { name: 'Download Excel without register', exact: true }).count(), 0);
   await rejectedMenu.getByRole('menuitem', { name: 'Revert selected to Pending', exact: true }).waitFor();
@@ -152,7 +180,7 @@ try {
   const pendingRow = page.locator('tbody tr').filter({ hasText: 'CMREG400002' });
   await pendingRow.waitFor();
   await pendingRow.locator('input[type="checkbox"]').check();
-  await page.getByRole('button', { name: 'More registration actions', exact: true }).click();
+  await openBulkMenu();
   const pendingMenu = page.getByRole('menu');
   await pendingMenu.getByRole('menuitem', { name: /Downloads a workbook and keeps these submissions Pending/ }).waitFor();
   await pendingMenu.getByRole('menuitem', { name: /Moves the selected submissions to Rejected/ }).waitFor();
@@ -164,11 +192,15 @@ try {
   await page.getByRole('tab', { name: /Company/ }).click();
   const missingIdRow = page.locator('tbody tr').filter({ hasText: 'CMREG400005' });
   await missingIdRow.waitFor();
-  await page.getByRole('button', { name: 'Actions for CMREG400005', exact: true }).click();
-  const missingIdRegister = page.getByRole('menu').getByRole('button', { name: 'Register', exact: true });
+  const missingIdActions = page.getByRole('button', { name: 'Actions for CMREG400005', exact: true });
+  await missingIdActions.hover();
+  const missingIdRegister = page.getByRole('menu').getByRole('menuitem', { name: 'Register', exact: true });
   assert.equal(await missingIdRegister.isDisabled(), true, 'Company registration without a CargoMove ID must be blocked');
   assert.match(await missingIdRegister.getAttribute('title') || '', /Assign FORWARDING_AGENT_ID/);
-  await page.getByRole('button', { name: 'Actions for CMREG400005', exact: true }).click();
+  assert.equal(await missingIdRegister.locator('svg').count(), 1, 'Register action has an icon');
+  assert.equal(await page.getByRole('menu').getByRole('menuitem', { name: 'Reject', exact: true }).locator('svg').count(), 1, 'Reject action has an icon');
+  await page.mouse.move(0, 0);
+  assert.equal(await page.getByRole('menu').count(), 0, 'Leaving a row action menu closes it');
   await page.locator('thead input[type="checkbox"]').check();
   const manualRegister = page.getByRole('button', { name: 'MANUAL REGISTER', exact: true });
   await manualRegister.focus();
@@ -195,12 +227,20 @@ try {
     exact: true,
   });
   await companyExportTooltip.waitFor();
+  const [companyExportBox, companyTooltipBox] = await Promise.all([
+    companyExportButton.boundingBox(),
+    companyExportTooltip.boundingBox(),
+  ]);
+  assert.ok(companyExportBox && companyTooltipBox);
+  assert.ok(Math.abs((companyTooltipBox.x + companyTooltipBox.width) - (companyExportBox.x + companyExportBox.width)) <= 1,
+    'Manual Register tooltip should align with the end of the action button');
   const moreActionsButton = page.getByRole('button', { name: 'More registration actions', exact: true });
-  await moreActionsButton.hover();
-  await companyExportTooltip.waitFor();
-  assert.equal(await page.getByRole('button', { name: 'Close registration actions', exact: true }).count(), 0);
   await page.mouse.move(0, 0);
   await companyExportTooltip.waitFor({ state: 'hidden' });
+  await moreActionsButton.hover();
+  await page.getByRole('menu').waitFor();
+  await companyExportButton.hover();
+  assert.equal(await page.getByRole('menu').count(), 0, 'Moving back to Manual Register closes the menu immediately');
   const companyDownload = page.waitForEvent('download');
   await companyExportButton.focus();
   await companyExportButton.press('Enter');
@@ -208,6 +248,45 @@ try {
   await page.waitForFunction(() => !document.querySelector('tbody')?.textContent?.includes('CMREG400004'));
   assert.equal(submissions.find(sub => sub.id === 'company-1').status, 'DONE');
   assert.equal(starts, 1); assert.equal(sends, 3, 'Company manual registration export must not upload or send email');
+  await missingIdActions.hover();
+  await page.getByRole('menuitem', { name: 'Review', exact: true }).click();
+  const reviewDialog = page.getByRole('dialog');
+  await reviewDialog.getByRole('heading', { name: 'CMREG400005 - COMPANY REGISTRATION - Forwarding Agent ID required', exact: true }).waitFor();
+  assert.equal(await reviewDialog.getByText('Assign the required company ID before exporting this submission to Excel.', { exact: true }).count(), 0,
+    'The separate missing-ID warning panel is removed');
+  await reviewDialog.getByRole('button', { name: 'ID Required', exact: true }).click();
+  const assignIdDialog = page.getByRole('dialog', { name: 'Assign Master Backend ID', exact: true });
+  await assignIdDialog.waitFor();
+  assert.equal(await assignIdDialog.getByText(/Automatic Propagation:/).count(), 0, 'Automatic Propagation notice is removed');
+  assert.equal(await assignIdDialog.locator('xpath=..').evaluate(element => element.classList.contains('backdrop-blur-md')), true,
+    'The ID dialog blurs the review modal underneath');
+  const cancelId = assignIdDialog.getByRole('button', { name: 'CANCEL', exact: true });
+  const saveId = assignIdDialog.getByRole('button', { name: 'SAVE CHANGES', exact: true });
+  const [cancelBox, saveBox] = await Promise.all([cancelId.boundingBox(), saveId.boundingBox()]);
+  assert.ok(cancelBox && saveBox && cancelBox.x < saveBox.x, 'CANCEL stays left while SAVE CHANGES stays right');
+  await assignIdDialog.getByRole('textbox').fill('5adc9dd77753d26fb07d6f27');
+  page.once('dialog', dialog => void dialog.accept());
+  await saveId.click();
+  await assignIdDialog.waitFor({ state: 'hidden' });
+  await reviewDialog.getByLabel('CargoMove ID: 5adc9dd77753d26fb07d6f27', { exact: true }).waitFor();
+  assert.equal((companies.find(company => company.id === 'forwarder-1') as any)?.forwarding_agent_id, '5adc9dd77753d26fb07d6f27');
+  await reviewDialog.getByRole('button', { name: 'Close submission review', exact: true }).click();
+  const mobile = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  mobile.on('pageerror', error => errors.push(error.message));
+  await mobile.route('**/*', handleRoute);
+  await mobile.goto('http://batch.test');
+  await mobile.getByRole('tab', { name: /Company/ }).tap();
+  await mobile.locator('thead input[type="checkbox"]').check();
+  const mobileActions = mobile.getByRole('button', { name: 'More registration actions', exact: true });
+  await mobileActions.tap();
+  assert.equal(await mobile.getByRole('menu').isVisible(), true, 'A mobile tap opens the menu');
+  await mobile.getByRole('heading', { name: 'Pending Registration Submissions', exact: true }).tap();
+  assert.equal(await mobile.getByRole('menu').count(), 0, 'Tapping elsewhere on mobile closes the menu');
+  await mobileActions.tap();
+  assert.equal(await mobile.getByRole('menu').isVisible(), true);
+  await mobileActions.tap();
+  assert.equal(await mobile.getByRole('menu').count(), 0, 'A second mobile tap toggles the menu closed');
+  await mobile.close();
   assert.deepEqual(errors, []);
   console.log('Queue exports, register-and-email upload, code pagination, status reverts, action menus, and status badges passed.');
 } finally { await browser.close(); }

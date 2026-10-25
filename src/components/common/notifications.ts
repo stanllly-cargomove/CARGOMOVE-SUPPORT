@@ -9,7 +9,9 @@ const warningStyle = {
   fontSize: '13px',
   fontWeight: 700,
   minHeight: '46px',
+  maxWidth: 'min(520px, calc(100vw - 32px))',
   padding: '12px 18px',
+  whiteSpace: 'pre-line' as const,
 };
 
 const errorStyle = {

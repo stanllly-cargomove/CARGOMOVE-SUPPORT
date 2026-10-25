@@ -65,8 +65,8 @@ export function AssignIdModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
-      <div role="dialog" aria-modal="true" aria-label="Assign Master Backend ID" className="company-id-dialog bg-white rounded-2xl max-w-md w-full max-h-[calc(100dvh-2rem)] overflow-y-auto p-4 sm:p-6 shadow-2xl border border-slate-100">
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-md">
+      <div role="dialog" aria-modal="true" aria-label="Assign Master Backend ID" className="company-id-dialog max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-2xl border border-slate-100 bg-white p-5 shadow-2xl sm:p-7">
         <div className="flex items-center justify-between pb-4 border-b border-slate-100">
           <div className="flex items-center gap-2 text-slate-900 font-bold text-base">
             <Key className="w-5 h-5 text-blue-600" />
@@ -125,25 +125,21 @@ export function AssignIdModal({
             />
           </div>
 
-          <div className="p-3 rounded-lg bg-blue-50 border border-blue-100 text-[11px] text-blue-800 leading-relaxed">
-            <strong>Automatic Propagation:</strong> Assigning this ID once saves it permanently to the Company Master and immediately updates all existing and future Driver, Trailer, Vehicle, and Company Excel exports!
-          </div>
-
-          <div className="flex items-center justify-end gap-2 pt-3">
+          <div className="flex items-center justify-between gap-3 border-t border-slate-100 pt-5">
             <button
               type="button"
               onClick={onClose}
               disabled={saving}
-              className="px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+              className="rounded-lg px-4 py-2.5 text-xs font-bold text-slate-700 transition-colors hover:bg-slate-100"
             >
-              Cancel
+              CANCEL
             </button>
             <button
               type="submit"
               disabled={savedSuccess || saving}
-              className="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition-colors"
+              className="rounded-lg bg-blue-600 px-5 py-2.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {saving ? 'Saving...' : 'Save to Master'}
+              {saving ? 'SAVING...' : 'SAVE CHANGES'}
             </button>
           </div>
         </form>

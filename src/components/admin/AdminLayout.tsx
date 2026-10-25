@@ -508,7 +508,7 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
             activeTab === 'auto-mail' ? 'max-w-none !p-0' : (activeQueueItem || activeTab === 'user-registration') && isSidebarCollapsed ? 'max-w-none' : 'mx-auto max-w-[1600px]'
           }`}
         >
-          <div key={`${portalMode}:${activeTab}`} className="w-full min-w-0">
+          <div key={`${portalMode}:${activeQueueItem ? 'registration-queue' : activeTab}`} className="w-full min-w-0">
           {activeTab === 'dashboard' && (
             <AdminDashboard onNavigate={(tab, registrationType) => {
               const destination = tab === 'submissions' ? 'submissions-pending' : tab;

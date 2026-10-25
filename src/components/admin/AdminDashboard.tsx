@@ -45,8 +45,9 @@ interface RecentQueueItem {
 }
 
 export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
-  const [companies, setCompanies] = useState(getCompanies());
-  const [submissions, setSubmissions] = useState(getSubmissions());
+  const [companies, setCompanies] = useState(getCompanies);
+  const [submissions, setSubmissions] = useState(getSubmissions);
+  const companiesById = React.useMemo(() => new Map(companies.map(company => [company.id, company])), [companies]);
   const [externalUsers, setExternalUsers] = useState<ExternalUserAccess[]>([]);
   const [queuePageSize, setQueuePageSize] = useState<20 | 30 | 50>(20);
   const [queuePage, setQueuePage] = useState(1);
@@ -349,7 +350,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                 </tr>
               ) : visibleQueue.map((item) => {
                 const sub = item.submission;
-                const comp = item.companyId ? getCompanyById(item.companyId) : undefined;
+                const comp = companiesById.get(item.companyId);
                 const idInfo = getCompanyExternalId(comp || { company_type: item.companyType });
 
                 return (
@@ -412,7 +413,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           {visibleQueue.length === 0 && <div className="rounded-lg border border-dashed border-slate-300 px-4 py-10 text-center text-xs text-slate-500">No pending registrations match the current filters.</div>}
           {visibleQueue.map((item) => {
             const sub = item.submission;
-            const comp = item.companyId ? getCompanyById(item.companyId) : undefined;
+            const comp = companiesById.get(item.companyId);
             const idInfo = getCompanyExternalId(comp || { company_type: item.companyType });
             const facility = item.portLocation === 'PORT_KLANG' ? 'PORT KLANG' : item.portLocation === 'JOHOR' ? 'JOHOR' : 'OTHER PORT';
             return (
@@ -496,8 +497,8 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         isOpen={!!activeSubmission}
         onClose={() => setActiveSubmission(null)}
         onOpenAssignId={(compId) => {
-          const c = getCompanyById(compId);
-          if (c) setSelectedCompanyForId(c);
+          const company = getCompanyById(compId);
+          if (company) setSelectedCompanyForId(company);
         }}
         onStatusChange={() => {
           refresh();

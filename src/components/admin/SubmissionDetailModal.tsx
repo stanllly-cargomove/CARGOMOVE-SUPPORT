@@ -9,11 +9,11 @@ import { CargoMoveIdBadge, StatusBadge } from '../common/Badge';
 import {
   X,
   CheckCircle,
-  AlertTriangle,
   Download,
   Calendar,
   MoreVertical,
   FileText,
+  AlertTriangle,
 } from 'lucide-react';
 import { notifyError, notifySuccess, summarizeError } from '../common/notifications';
 import { formatAdminDateTime } from '../../utils/date';
@@ -81,6 +81,8 @@ export function SubmissionDetailModal({
     VEHICLE: { title: 'Vehicle registration', details: 'Vehicles', description: 'Check the vehicle registration numbers, head numbers and weights.' },
   };
   const review = reviewLabels[submission.registration_type];
+  const requiredIdLabel = idInfo.required_id_type === 'HAULIERID' ? 'Haulier ID' : 'Forwarding Agent ID';
+  const hasRequiredCargoMoveId = idInfo.has_required_id;
 
   const handleUpdateStatus = (newStatus: 'PENDING' | 'DONE' | 'REJECTED') => {
     if (newStatus === 'DONE' || newStatus === 'REJECTED') {
@@ -134,7 +136,8 @@ export function SubmissionDetailModal({
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <h2 id="submission-review-title" className="break-words text-sm font-semibold leading-6 text-slate-900 sm:text-base">
-                  <RegistrationReference submission={submission} /> - {submission.registration_type === 'COMPANY' ? review.title : review.title.toUpperCase()}
+                  <RegistrationReference submission={submission} /> - {review.title.toUpperCase()}
+                  {!hasRequiredCargoMoveId && <span className="font-semibold text-amber-700"> - {requiredIdLabel} required</span>}
                 </h2>
               </div>
               <div className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-500">
@@ -160,33 +163,6 @@ export function SubmissionDetailModal({
         {/* Content Body */}
         <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overflow-x-hidden bg-slate-50 p-4 sm:p-6">
           {companyBlockReason && <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900">{companyBlockReason}</p>}
-          {/* Missing ID warning if applicable */}
-          {!idInfo.has_required_id && (
-            <div className="flex flex-col items-start justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900 sm:flex-row">
-              <div className="flex items-start gap-2.5">
-                <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                <div className="text-xs">
-                  <div className="font-bold">
-                    {idInfo.required_id_type === 'HAULIERID' ? 'HAULIERID' : 'Forwarding Agent ID'} required
-                  </div>
-                  <p className="mt-0.5 text-amber-800">
-                    Assign the required company ID before exporting this submission to Excel.
-                  </p>
-                </div>
-              </div>
-
-              {submission.company_id && (
-                <button
-                  type="button"
-                  onClick={() => onOpenAssignId(submission.company_id)}
-                  className="shrink-0 rounded-lg bg-amber-600 px-3 py-2 text-xs font-bold text-white shadow-xs transition-colors hover:bg-amber-700"
-                >
-                  Assign ID Now
-                </button>
-              )}
-            </div>
-          )}
-
           {/* Company Context */}
           <section className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs sm:px-5">
             <div className="grid grid-cols-2 items-start gap-x-5 gap-y-2 lg:grid-cols-[minmax(0,2.2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.7fr)]">
@@ -201,9 +177,17 @@ export function SubmissionDetailModal({
               </div>
               <div className="min-w-0">
                 <span className="block text-slate-500">CargoMove ID</span>
-                <span className="mt-1 block">
-                  {idInfo.active_id_value ? <CargoMoveIdBadge id={idInfo.active_id_value} /> : <span className="text-amber-600 italic">Not Assigned</span>}
-                </span>
+                {idInfo.active_id_value ? <span className="mt-1 block"><CargoMoveIdBadge id={idInfo.active_id_value} /></span> : (
+                  <button
+                    type="button"
+                    onClick={() => submission.company_id && onOpenAssignId(submission.company_id)}
+                    disabled={!submission.company_id}
+                    className="mt-1 inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-700 transition-colors hover:border-amber-400 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <AlertTriangle className="h-3.5 w-3.5" />
+                    ID Required
+                  </button>
+                )}
               </div>
               <div><span className="block text-slate-500">Facility</span><span className="mt-1 block font-semibold leading-5 text-slate-900">{submission.port_location === 'PORT_KLANG' ? 'Port Klang' : submission.port_location === 'JOHOR' ? 'Johor' : 'Other'}</span></div>
             </div>
@@ -400,8 +384,8 @@ export function SubmissionDetailModal({
                     key={st}
                     type="button"
                     onClick={() => handleUpdateStatus(st)}
-                    disabled={st === 'DONE' && (!!companyBlockReason || submission.registration_type === 'COMPANY' && !idInfo.has_required_id)}
-                    title={st === 'DONE' ? companyBlockReason || (submission.registration_type === 'COMPANY' && !idInfo.has_required_id ? `Assign ${idInfo.required_id_type} before registering` : undefined) : undefined}
+                    disabled={st === 'DONE' && (!!companyBlockReason || submission.registration_type === 'COMPANY' && !hasRequiredCargoMoveId)}
+                    title={st === 'DONE' ? companyBlockReason || (submission.registration_type === 'COMPANY' && !hasRequiredCargoMoveId ? `Assign ${idInfo.required_id_type} before registering` : undefined) : undefined}
                     aria-pressed={submission.status === st}
                     className={`rounded-lg border px-3 py-2 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
                       submission.status === st
@@ -443,8 +427,8 @@ export function SubmissionDetailModal({
           <button
             type="button"
             onClick={handleExportSingle}
-            disabled={!!companyBlockReason || !idInfo.has_required_id || exporting || submission.registration_type !== 'COMPANY' && submission.status === 'REJECTED'}
-            title={companyBlockReason || (!idInfo.has_required_id ? `Assign ${idInfo.required_id_type} before exporting` : 'Export this submission to Excel')}
+            disabled={!!companyBlockReason || !hasRequiredCargoMoveId || exporting || submission.registration_type !== 'COMPANY' && submission.status === 'REJECTED'}
+            title={companyBlockReason || (!hasRequiredCargoMoveId ? `Assign ${idInfo.required_id_type} before exporting` : 'Export this submission to Excel')}
             className="inline-flex min-h-10 items-center justify-center whitespace-nowrap rounded-lg bg-emerald-600 px-2 py-2 text-[11px] font-bold text-white shadow-sm transition-colors hover:bg-emerald-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:px-4 sm:text-xs"
           >
             <Download className="w-3.5 h-3.5 mr-1.5" />

@@ -1,15 +1,16 @@
 import React, { useId, useState } from 'react';
 import { createPortal } from 'react-dom';
-import type { Company, RegistrationSubmission } from '../../types';
+import type { Company, RegistrationSubmission, SubmissionStatus } from '../../types';
 import { companyRegistrationStatus } from '../../../shared/registration-eligibility';
 
-export function QueueCompanyName({ submission, company, submissions, highlight, className = '' }: {
+export function QueueCompanyName({ submission, company, submissions, registrationStatus, highlight, className = '' }: {
   submission: RegistrationSubmission; company?: Company; submissions: RegistrationSubmission[];
+  registrationStatus?: SubmissionStatus;
   highlight: boolean; className?: string;
 }) {
   const tooltipId = useId();
   const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
-  const status = company ? companyRegistrationStatus(company, submissions) : 'PENDING';
+  const status = registrationStatus || (company ? companyRegistrationStatus(company, submissions) : 'PENDING');
   const warning = highlight && submission.registration_type !== 'COMPANY' && status !== 'DONE';
   const message = status === 'REJECTED' ? 'company registration rejected' : 'company is not registered yet';
   const show = (event: React.MouseEvent<HTMLElement> | React.FocusEvent<HTMLElement>) => {

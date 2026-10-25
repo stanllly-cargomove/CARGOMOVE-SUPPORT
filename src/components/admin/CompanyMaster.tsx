@@ -1,7 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
-import { Company } from '../../types';
+import { Company, RegistrationSubmission } from '../../types';
 import {
   getCompanies,
   getSubmissions,
@@ -52,7 +52,8 @@ function abbreviatedPortName(name: string) {
 }
 
 export function CompanyMaster() {
-  const [companies, setCompanies] = useState<Company[]>(getCompanies());
+  const [companies, setCompanies] = useState<Company[]>(getCompanies);
+  const [submissions, setSubmissions] = useState(getSubmissions);
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState('ALL');
   const [portFilter, setPortFilter] = useState('ALL');
@@ -87,6 +88,7 @@ export function CompanyMaster() {
 
   const refreshList = () => {
     setCompanies(getCompanies());
+    setSubmissions(getSubmissions());
   };
 
   useEffect(() => subscribeToStorage(refreshList), []);
@@ -367,7 +369,7 @@ export function CompanyMaster() {
                       </div>
                       <div className="company-card-registrations flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 pr-8 text-[11px] leading-4 text-slate-600">
                         <span className="company-card-type inline-flex h-6 w-[76px] shrink-0 items-center justify-center rounded bg-slate-100 px-1 text-[10px] font-semibold text-slate-700">{company.company_type}</span>
-                        <CompanyRegistrationBadge company={company} />
+                        <CompanyRegistrationBadge company={company} submissions={submissions} />
                         <span aria-label="New registration" className="break-all font-mono">{company.registration_number_new || '—'}</span>
                         <span aria-label="Old registration" className="break-all font-mono">{company.registration_number_old || company.registration_number || '—'}</span>
                       </div>
@@ -430,7 +432,7 @@ export function CompanyMaster() {
                       <td className="py-3 px-3 text-center text-slate-700">
                         {comp.company_type}
                       </td>
-                      <td className="py-3 px-3 text-center"><CompanyRegistrationBadge company={comp} /></td>
+                      <td className="py-3 px-3 text-center"><CompanyRegistrationBadge company={comp} submissions={submissions} /></td>
 
                       <td className="py-3 px-4 font-mono text-slate-700">
                         <div className="flex flex-wrap items-center gap-1.5">
@@ -1137,8 +1139,8 @@ function CompanyEditModal({
   ), document.querySelector('.admin-theme:not([hidden])') || document.body);
 }
 
-function CompanyRegistrationBadge({ company }: { company: Company }) {
-  const status = companyRegistrationStatus(company, getSubmissions());
+function CompanyRegistrationBadge({ company, submissions }: { company: Company; submissions: RegistrationSubmission[] }) {
+  const status = companyRegistrationStatus(company, submissions);
   return <span aria-label={`Registration status: ${status === 'DONE' ? 'Registered' : status === 'REJECTED' ? 'Rejected' : 'Pending'}`}><StatusBadge status={status === 'DONE' ? 'REGISTERED' : status} /></span>;
 }
 
