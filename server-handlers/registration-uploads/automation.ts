@@ -2,7 +2,7 @@ import type { Browser, Page } from 'playwright-core';
 import { launchBrowser, ORIGIN } from '../scheduler/automation.js';
 
 export type UploadIdentity = { entity: string; filename: string; upload_id?: string | null; expected_rows: number; existing_upload_ids?: string[]; upload_started_at?: string | null };
-export type UploadResult = { state: 'UPLOADED' | 'FAILED' | 'UNKNOWN'; message: string };
+export type UploadResult = { state: 'UPLOADED' | 'FAILED' | 'UNKNOWN'; message: string; retryable?: boolean };
 export type Verification = { state: 'SUCCESS' | 'FAILED' | 'PROCESSING' | 'UNKNOWN' | 'MISSING'; message: string;
   uploadId?: string; successCount?: number; errorCount?: number; readyForScheduler?: boolean };
 type Credentials = { username: string; password: string };
@@ -127,7 +127,7 @@ export async function uploadWorkbook(credentials: Credentials, job: UploadIdenti
   } catch {
     return dispatched
       ? { state: 'UNKNOWN', message: 'The CargoMove upload response was interrupted. Check the existing file before retrying.' }
-      : { state: 'FAILED', message: 'Failed to upload this file in CargoMove. The browser or login could not complete; no upload was sent.' };
+      : { state: 'FAILED', message: 'Failed to upload this file in CargoMove. The browser or login could not complete; no upload was sent.', retryable: true };
   }
 }
 

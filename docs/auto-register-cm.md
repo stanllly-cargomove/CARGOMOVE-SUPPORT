@@ -15,12 +15,20 @@ build the application, or deploy Vercel. The Vercel handler authenticates the
 Bearer token, atomically checks the persisted enabled flag, and exits successfully
 with `SKIPPED` before reading registrations when the scheduler is off.
 
-When enabled, the handler processes only saved `SCHEDULED` queue items, in batches
+When enabled, the handler first discovers eligible Pending assets and saves them
+to the queue. Discovery uses keyset pages and a persisted cursor, with a bounded
+time budget, so later registrations are inspected even when earlier ones remain
+non-eligible. Verified uploads awaiting email are excluded. The page can also
+request discovery; opening it is not required for automatic runs.
+
+The handler processes only saved `SCHEDULED` queue items, in batches
 of up to 100 of one asset type. It may resume an unfinished registration-upload
-batch only when that batch belongs to a scheduled queue item. It never discovers
-or submits other Pending or non-eligible registrations. Manual **Run Now** consumes
+batch only when that batch belongs to a scheduled queue item. Manual **Run Now** consumes
 the same scheduled queue as an automatic run and is disabled when that queue is
-empty. Each queue entry records `SCHEDULED` until verified, then `SUCCESS` or `FAIL`.
+empty. Each queue entry records `SCHEDULED` until verified, then `SUCCESS` or `FAILED`.
+Transient HTTP errors and upload-claim conflicts leave records scheduled;
+only identified validation failures or persisted terminal upload results mark
+registrations failed. An unsuccessful preparation before upload can be retried.
 Selected registrations are revalidated by the existing upload workflow when run,
 so eligibility changes after scheduling cannot bypass its checks. The existing
 database leases serialize upload/verification transitions and the application
@@ -35,8 +43,9 @@ automatic enabled flag is off. It never changes that flag.
 The page separates eligible items under **Scheduled registrations** from
 ineligible items under **Non-eligible Registration**. The **Results & Execution
 logs** card retains all queue outcomes and scheduler execution history. Each
-execution has a human-readable `AUTOREG` ID, with linked registration references
-listed as `AUTOREG1000001 - CMREG400187` for batch traceability.
+execution has a human-readable `AUTOREG` ID. Execution references are read from
+`automation_scheduler_run_items`, preserving the same registration in every run
+that handled it, even when the queue's latest `run_id` changes.
 
 ## Deployment configuration
 
@@ -61,6 +70,22 @@ listed as `AUTOREG1000001 - CMREG400187` for batch traceability.
 The migration defaults the scheduler to **OFF** so applying/deploying it cannot
 start production registrations unexpectedly.
 
+Before deploying this application update, also apply
+`20261025060000_auto_register_cm_hardening.sql`, followed by
+`20261025070000_auto_register_cm_reliability.sql` to the main application database.
+If both are pending against an older application, apply both in one database
+transaction, or keep scheduling off and avoid manual runs until both finish.
+Migration 060 alone rejects older `FAIL` writes; migration 070 normalizes them to
+`FAILED` before constraints and history triggers run, allowing the older
+application to work during deployment. If 060 is already applied, apply only 070.
+
+Migration 070 retains original audit fingerprints and establishes a separate
+versioned retry fingerprint for existing rows. Older failures do not contain a
+complete dependency snapshot, so their retry baseline is conservatively set to
+the current inputs during upgrade. They remain blocked until a later relevant
+correction. New fingerprints use canonical JSON and meaningful configuration,
+including both Port Klang ports, without timezone-sensitive timestamps.
+
 ## Safe testing
 
 Run `npm run test:scheduler`, `npm run test:scheduler:ui`,
@@ -82,7 +107,7 @@ registrations.
 - A registration remains Pending in this application after verified CM processing
   until its existing acceptance-email workflow completes.
 - Queue rows are durable audit history. Failed or stale entries remain visible as
-  `FAIL`; unchanged failures are not retried automatically, but a registration
+  `FAILED`; unchanged failures are not retried automatically, but a registration
   becomes eligible for a new queue entry when its relevant details are updated.
 - An `UNKNOWN` upload or scheduler outcome is never automatically replayed; it is
   reconciled against the existing CargoMove audit first.

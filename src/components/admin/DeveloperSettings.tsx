@@ -9,9 +9,10 @@ interface DeveloperSettingsProps {
   onOpenPortDepotConfig: () => void;
   onOpenAutoEmailConfig: () => void;
   onOpenAutoRegisterCm?: () => void;
+  autoRegisterCacheScope?: string;
 }
 
-export function DeveloperSettings({ onOpenScheduler, onOpenExcelMapping, onOpenPortDepotConfig, onOpenAutoEmailConfig, onOpenAutoRegisterCm }: DeveloperSettingsProps) {
+export function DeveloperSettings({ onOpenScheduler, onOpenExcelMapping, onOpenPortDepotConfig, onOpenAutoEmailConfig, onOpenAutoRegisterCm, autoRegisterCacheScope }: DeveloperSettingsProps) {
   const [testToolsEnabled, setTestToolsEnabled] = useState(areRegistrationTestToolsEnabled);
 
   const updateTestTools = (enabled: boolean) => {
@@ -42,7 +43,7 @@ export function DeveloperSettings({ onOpenScheduler, onOpenExcelMapping, onOpenP
             <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-slate-900">Auto Register in CM</span><span className="mt-1 block text-xs leading-5 text-slate-500">Review eligible registrations, schedule them, and view run history.</span></span>
             <ChevronRight className="h-5 w-5 shrink-0 text-slate-400" aria-hidden="true" />
           </button>
-          <AutoRegisterCmToggle />
+          <AutoRegisterCmToggle cacheScope={autoRegisterCacheScope} />
         </div>
         {[
           { title: 'Auto Email Config', description: 'Configure AI models, incoming drafts and automatic replies.', icon: BookOpen, onClick: onOpenAutoEmailConfig },

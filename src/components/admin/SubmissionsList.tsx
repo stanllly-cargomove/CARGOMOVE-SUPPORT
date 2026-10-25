@@ -40,6 +40,7 @@ import {
   Info,
   CircleCheck,
   CircleX,
+  Bot,
 } from 'lucide-react';
 import { notifyError, notifySuccess, notifyWarning, summarizeError } from '../common/notifications';
 import { formatAdminDate } from '../../utils/date';
@@ -134,6 +135,20 @@ const registrationTypeTabs: Array<{ value: RegistrationType; label: string }> = 
 
 const MANUAL_REGISTER_TOOLTIP = 'Downloads the company registration Excel for manual processing. Selected submissions are moved to Closed/Done. No email is sent.';
 const REGISTER_AND_EMAIL_TOOLTIP = 'Uploads the selected registrations to CargoMove for processing. After verification, you can preview and send the completion email.';
+const AUTO_REGISTER_TOOLTIP = 'This registration is scheduled and will be processed automatically by the system.';
+
+function AutoRegisterScheduledIndicator() {
+  return (
+    <span
+      role="img"
+      aria-label={AUTO_REGISTER_TOOLTIP}
+      title={AUTO_REGISTER_TOOLTIP}
+      className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-700"
+    >
+      <Bot aria-hidden="true" className="h-3.5 w-3.5" />
+    </span>
+  );
+}
 
 function QueuePrimaryAction({ tooltip, children }: { tooltip?: string; children: React.ReactNode }) {
   const [tooltipPosition, setTooltipPosition] = useState<{ top: number; left: number } | null>(null);
@@ -299,6 +314,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
   const [sortBy, setSortBy] = useState<SubmissionSort>(() => defaultSortForStatus(status));
   const [pageSize, setPageSize] = useState(20);
   const [currentPage, setCurrentPage] = useState(1);
+  const [autoScheduledIds, setAutoScheduledIds] = useState<Set<string>>(() => new Set());
   const [openActionMenu, setOpenActionMenu] = useState<ActionMenuPosition | null>(null);
   const actionMenuRef = React.useRef<HTMLDivElement | null>(null);
 
@@ -322,6 +338,30 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
   };
 
   React.useEffect(() => subscribeToStorage(refreshList), []);
+
+  React.useEffect(() => {
+    if (status !== 'PENDING') {
+      setAutoScheduledIds(new Set());
+      return;
+    }
+    const controller = new AbortController();
+    void fetch('/api/scheduler/auto-register-cm-queue?view=scheduled', {
+      credentials: 'same-origin',
+      signal: controller.signal,
+    }).then(async response => {
+      if (!response.ok) throw new Error('Unable to load the automatic registration schedule.');
+      return response.json() as Promise<{ scheduledSubmissionIds?: unknown }>;
+    }).then(payload => {
+      const ids = Array.isArray(payload.scheduledSubmissionIds)
+        ? payload.scheduledSubmissionIds.filter((id): id is string => typeof id === 'string')
+        : [];
+      setAutoScheduledIds(new Set(ids));
+    }).catch(error => {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+      setAutoScheduledIds(new Set());
+    });
+    return () => controller.abort();
+  }, [status]);
 
   React.useEffect(() => {
     setSelectedIds([]);
@@ -1084,7 +1124,10 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
                         onClick={() => setActiveSubmission(sub)}
                         title="Click to review"
                       >
-                        <RegistrationReference submission={sub} />
+                        <span className="inline-flex items-center gap-1.5">
+                          <RegistrationReference submission={sub} />
+                          {autoScheduledIds.has(sub.id) && <AutoRegisterScheduledIndicator />}
+                        </span>
                       </td>
 
                       <td
@@ -1219,7 +1262,10 @@ export function SubmissionsList({ status, initialType = 'COMPANY' }: Submissions
                       onClick={(event) => { if (!supportsActionMenuHover() || event.detail === 0) toggleActionMenu(event, sub.id); }}
                       aria-label={`Actions for ${sub.reference_no}`} aria-expanded={openActionMenu?.id === sub.id} className="-mr-1 -mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100"><MoreVertical className="h-4 w-4" /></button>
                   </div>
-                  <div className="mt-1 text-[10px] text-blue-600"><RegistrationReference submission={sub} /></div>
+                  <div className="mt-1 inline-flex items-center gap-1.5 text-[10px] text-blue-600">
+                    <RegistrationReference submission={sub} />
+                    {autoScheduledIds.has(sub.id) && <AutoRegisterScheduledIndicator />}
+                  </div>
                   <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[9px] font-semibold uppercase text-slate-600">
                     <span className="rounded bg-slate-100 px-1.5 py-1">{company?.company_type || sub.company_type || sub.registration_type}</span>
                     {sub.company_reg_no && <span className="break-all font-normal">{sub.company_reg_no}</span>}

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, Clock3, Loader2, Play, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Clock3, Loader2, Play, Search } from 'lucide-react';
 import { notifyError, notifySuccess } from '../common/notifications';
 
 type SchedulerRun = {
@@ -15,6 +15,7 @@ type SchedulerRun = {
   failedCount: number;
   message: string;
   errorMessage: string | null;
+  registrationReferences: string[];
 };
 
 type AutoScheduler = {
@@ -46,12 +47,21 @@ type QueueHistory = {
   referenceNo: string;
   registrationType: string;
   companyName: string;
-  status: 'SCHEDULED' | 'SUCCESS' | 'FAIL';
+  status: 'SCHEDULED' | 'SUCCESS' | 'FAILED';
   scheduledAt: string;
   completedAt: string | null;
   message: string;
   runId: string | null;
 };
+
+type AutoRegisterSnapshot = {
+  scheduler: AutoScheduler;
+  runs: SchedulerRun[];
+  registrations: Registration[];
+  history: QueueHistory[];
+};
+
+const autoRegisterCache = new Map<string, { refreshVersion: number; snapshot: AutoRegisterSnapshot }>();
 
 const malaysiaDate = (value: string | Date) => new Intl.DateTimeFormat('en-MY', {
   timeZone: 'Asia/Kuala_Lumpur', dateStyle: 'medium', timeStyle: 'short',
@@ -59,7 +69,7 @@ const malaysiaDate = (value: string | Date) => new Intl.DateTimeFormat('en-MY', 
 
 const nextTwoHourRun = () => new Date((Math.floor(Date.now() / 7_200_000) + 1) * 7_200_000);
 const statusTone = (status: string) => status === 'SUCCESS' ? 'bg-emerald-50 text-emerald-700'
-  : status === 'FAIL' || status === 'FAILED' ? 'bg-rose-50 text-rose-700'
+  : status === 'FAILED' ? 'bg-rose-50 text-rose-700'
     : status === 'SCHEDULED' || status === 'RUNNING' ? 'bg-blue-50 text-blue-700'
       : 'bg-amber-50 text-amber-700';
 const registrationBlockReason = (reason: string | null) => {
@@ -76,15 +86,46 @@ const registrationTag = (registration: Registration) => {
     : registration.registrationType === 'TRAILER' ? 'Trailer details' : 'Vehicle details';
 };
 
+function CompactPager({ page, pages, onPage, label }: { page: number; pages: number; onPage: (page: number) => void; label: string }) {
+  return (
+    <nav aria-label={label} className="flex items-center justify-center gap-2 border-t border-slate-200 bg-slate-50/70 px-3 py-2">
+      <button type="button" aria-label={`Previous ${label.toLowerCase()} page`} disabled={page === 1} onClick={() => onPage(page - 1)}
+        className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40">&lt;</button>
+      <span aria-current="page" className="min-w-7 text-center text-xs font-semibold text-slate-700">{page}</span>
+      <button type="button" aria-label={`Next ${label.toLowerCase()} page`} disabled={page === pages} onClick={() => onPage(page + 1)}
+        className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40">&gt;</button>
+    </nav>
+  );
+}
+
+function AutoRegisterCmSkeleton() {
+  return <div role="status" aria-label="Preparing Auto Register in CM" className="space-y-5 motion-safe:animate-pulse">
+    <span className="sr-only">Preparing your Auto Register workspace.</span>
+    <div aria-hidden="true" className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex items-center justify-between gap-4"><div className="space-y-2"><div className="h-4 w-40 rounded bg-slate-200" /><div className="h-3 w-64 max-w-full rounded bg-slate-100" /></div><div className="h-10 w-32 rounded-lg bg-slate-100" /></div>
+      <div className="mt-5 grid gap-2 sm:grid-cols-4">{Array.from({ length: 4 }, (_, index) => <div key={index} className="h-14 rounded-lg bg-slate-100" />)}</div>
+    </div>
+    <div aria-hidden="true" className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="h-10 w-72 max-w-[80%] rounded-t-lg bg-slate-200" />
+      <div className="h-9 bg-slate-100" />
+      {Array.from({ length: 6 }, (_, index) => <div key={index} className="grid grid-cols-4 gap-5 border-t border-slate-100 px-4 py-4"><span className="h-3 rounded bg-slate-200" /><span className="h-3 rounded bg-slate-100" /><span className="h-3 rounded bg-slate-100" /><span className="h-3 rounded bg-slate-100" /></div>)}
+    </div>
+  </div>;
+}
+
 async function readJson(response: Response, fallback: string) {
   const data = await response.json().catch(() => null);
   if (!response.ok) throw new Error(data?.error || data?.message || fallback);
   return data;
 }
 
-export function AutoRegisterCmToggle({ onChanged }: { onChanged?: (enabled: boolean) => void }) {
-  const [enabled, setEnabled] = useState<boolean | null>(null);
-  const [loading, setLoading] = useState(true);
+export function AutoRegisterCmToggle({ onChanged, value, cacheScope }: {
+  onChanged?: (enabled: boolean) => void;
+  value?: boolean;
+  cacheScope?: string;
+}) {
+  const [enabled, setEnabled] = useState<boolean | null>(value ?? null);
+  const [loading, setLoading] = useState(value === undefined);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -103,7 +144,14 @@ export function AutoRegisterCmToggle({ onChanged }: { onChanged?: (enabled: bool
     }
   };
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => {
+    if (value !== undefined) {
+      setEnabled(value);
+      setLoading(false);
+      return;
+    }
+    void load();
+  }, [value]);
 
   const toggle = async () => {
     if (enabled === null || saving) return;
@@ -120,6 +168,10 @@ export function AutoRegisterCmToggle({ onChanged }: { onChanged?: (enabled: bool
       const data = await readJson(response, 'Unable to update the scheduler.');
       if (typeof data?.isEnabled !== 'boolean') throw new Error('The scheduler did not confirm its updated status.');
       setEnabled(data.isEnabled);
+      const cachedEntry = cacheScope ? autoRegisterCache.get(cacheScope) : undefined;
+      if (cacheScope && cachedEntry) autoRegisterCache.set(cacheScope, { ...cachedEntry, snapshot: {
+        ...cachedEntry.snapshot, scheduler: { ...cachedEntry.snapshot.scheduler, isEnabled: data.isEnabled },
+      } });
       onChanged?.(data.isEnabled);
       notifySuccess(`Auto Register in CM ${data.isEnabled ? 'enabled' : 'disabled'}.`);
     } catch (reason) {
@@ -146,20 +198,40 @@ export function AutoRegisterCmToggle({ onChanged }: { onChanged?: (enabled: bool
   );
 }
 
-export function AutoRegisterCmPage({ onBack }: { onBack: () => void }) {
-  const [scheduler, setScheduler] = useState<AutoScheduler | null>(null);
-  const [runs, setRuns] = useState<SchedulerRun[]>([]);
-  const [registrations, setRegistrations] = useState<Registration[]>([]);
-  const [history, setHistory] = useState<QueueHistory[]>([]);
+export function AutoRegisterCmPage({ onBack, cacheScope = 'default', refreshVersion = 0 }: {
+  onBack: () => void;
+  cacheScope?: string;
+  refreshVersion?: number;
+}) {
+  const cached = autoRegisterCache.get(cacheScope)?.snapshot;
+  const [scheduler, setScheduler] = useState<AutoScheduler | null>(cached?.scheduler ?? null);
+  const [runs, setRuns] = useState<SchedulerRun[]>(cached?.runs ?? []);
+  const [registrations, setRegistrations] = useState<Registration[]>(cached?.registrations ?? []);
+  const [history, setHistory] = useState<QueueHistory[]>(cached?.history ?? []);
   const [registrationTab, setRegistrationTab] = useState<'scheduled' | 'ineligible'>('scheduled');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!cached);
   const [error, setError] = useState('');
-  const [refresh, setRefresh] = useState(0);
+  const [localRefresh, setLocalRefresh] = useState(0);
   const [running, setRunning] = useState(false);
+  const [registrationPage, setRegistrationPage] = useState(1);
+  const [logSearch, setLogSearch] = useState('');
+  const [logPageSize, setLogPageSize] = useState(25);
+  const [logPage, setLogPage] = useState(1);
 
   useEffect(() => {
+    const cachedEntry = autoRegisterCache.get(cacheScope);
+    const hadCachedData = Boolean(cachedEntry?.snapshot);
+    if (!localRefresh && cachedEntry?.refreshVersion === refreshVersion) {
+      setScheduler(cachedEntry.snapshot.scheduler);
+      setRuns(cachedEntry.snapshot.runs);
+      setRegistrations(cachedEntry.snapshot.registrations);
+      setHistory(cachedEntry.snapshot.history);
+      setLoading(false);
+      setError('');
+      return;
+    }
     const controller = new AbortController();
-    setLoading(true);
+    if (!cachedEntry) setLoading(true);
     setError('');
     void (async () => {
       try {
@@ -185,24 +257,50 @@ export function AutoRegisterCmPage({ onBack }: { onBack: () => void }) {
           throw new Error('Auto Register returned incomplete scheduler or registration data.');
         }
         if (!controller.signal.aborted) {
-          setScheduler(schedulerData.scheduler);
-          setRuns(schedulerData.runs);
-          setRegistrations(queueData.registrations);
-          setHistory(queueData.history);
+          const snapshot = {
+            scheduler: schedulerData.scheduler,
+            runs: schedulerData.runs,
+            registrations: queueData.registrations,
+            history: queueData.history,
+          };
+          autoRegisterCache.set(cacheScope, { refreshVersion, snapshot });
+          setScheduler(snapshot.scheduler);
+          setRuns(snapshot.runs);
+          setRegistrations(snapshot.registrations);
+          setHistory(snapshot.history);
         }
       } catch (reason) {
-        if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : 'Unable to load Auto Register in CM.');
+        if (!controller.signal.aborted) {
+          const message = reason instanceof Error ? reason.message : 'Unable to load Auto Register in CM.';
+          if (hadCachedData) notifyError(message);
+          else setError(message);
+        }
       } finally {
         if (!controller.signal.aborted) setLoading(false);
       }
     })();
     return () => controller.abort();
-  }, [refresh]);
+  }, [cacheScope, localRefresh, refreshVersion]);
 
   const eligible = registrations.filter(registration => registration.eligible && !registration.scheduled);
   const ineligible = registrations.filter(registration => !registration.eligible);
   const scheduledRegistrations = registrations.filter(registration => registration.eligible);
   const queuedRegistrationCount = scheduledRegistrations.filter(registration => registration.scheduled).length;
+  const activeRegistrations = registrationTab === 'scheduled' ? scheduledRegistrations : ineligible;
+  const registrationPages = Math.max(1, Math.ceil(activeRegistrations.length / 10));
+  const currentRegistrationPage = Math.min(registrationPage, registrationPages);
+  const pagedRegistrations = activeRegistrations.slice((currentRegistrationPage - 1) * 10, currentRegistrationPage * 10);
+  const normalizedLogSearch = logSearch.trim().toLowerCase();
+  const filteredRuns = runs.filter(run => {
+    if (!normalizedLogSearch) return true;
+    const registrationReferences = (run.registrationReferences || []).join(' ');
+    return [run.executionType, run.executionId, run.status, malaysiaDate(run.startedAt), run.message, run.errorMessage || '',
+      run.processedCount, run.successCount, run.failedCount, registrationReferences]
+      .some(value => String(value).toLowerCase().includes(normalizedLogSearch));
+  });
+  const logPages = Math.max(1, Math.ceil(filteredRuns.length / logPageSize));
+  const currentLogPage = Math.min(logPage, logPages);
+  const pagedRuns = filteredRuns.slice((currentLogPage - 1) * logPageSize, currentLogPage * logPageSize);
 
   const runNow = async () => {
     if (running || !queuedRegistrationCount || !window.confirm(`Run ${queuedRegistrationCount} scheduled registration${queuedRegistrationCount === 1 ? '' : 's'} in CargoMove now${scheduler?.isEnabled ? '' : ' while automatic scheduling is OFF'}?`)) return;
@@ -217,7 +315,7 @@ export function AutoRegisterCmPage({ onBack }: { onBack: () => void }) {
       const data = await readJson(response, 'Auto Register in CM failed.');
       if (data.status === 'failed') notifyError(data.message);
       else notifySuccess(data.message || 'Auto Register in CM completed.');
-      setRefresh(value => value + 1);
+      setLocalRefresh(value => value + 1);
     } catch (reason) {
       notifyError(reason instanceof Error ? reason.message : 'Auto Register in CM failed.');
     } finally {
@@ -238,18 +336,12 @@ export function AutoRegisterCmPage({ onBack }: { onBack: () => void }) {
             <p className="mt-1 max-w-2xl text-xs leading-5 text-slate-500">Review registrations, manage automatic scheduling, and track every result.</p>
           </div>
         </div>
-        <div className="flex gap-2 pl-11 sm:pl-0">
-          <button type="button" onClick={() => setRefresh(value => value + 1)} disabled={loading}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />Refresh
-          </button>
-        </div>
       </div>
 
       {error && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
-        <p>{error}</p><button type="button" onClick={() => setRefresh(value => value + 1)} className="mt-2 font-semibold underline">Try again</button>
+        <p>{error}</p><button type="button" onClick={() => setLocalRefresh(value => value + 1)} className="mt-2 font-semibold underline">Try again</button>
       </div>}
-      {loading && <p role="status" className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white p-4 text-xs text-slate-500"><Loader2 className="h-4 w-4 animate-spin" />Loading scheduler, registration eligibility and logs…</p>}
+      {loading && <AutoRegisterCmSkeleton />}
 
       {!loading && !error && scheduler && <>
         <section aria-label="Auto Register schedule overview" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
@@ -270,7 +362,15 @@ export function AutoRegisterCmPage({ onBack }: { onBack: () => void }) {
                 </p>
               </div>
               <div className="flex shrink-0 items-center justify-between gap-3">
-                <AutoRegisterCmToggle onChanged={isEnabled => setScheduler(current => current ? { ...current, isEnabled } : current)} />
+                <AutoRegisterCmToggle value={scheduler.isEnabled} cacheScope={cacheScope} onChanged={isEnabled => {
+                  setScheduler(current => {
+                    if (!current) return current;
+                    const next = { ...current, isEnabled };
+                    const entry = autoRegisterCache.get(cacheScope);
+                    if (entry) autoRegisterCache.set(cacheScope, { ...entry, snapshot: { ...entry.snapshot, scheduler: next } });
+                    return next;
+                  });
+                }} />
                 <button type="button" onClick={() => void runNow()} disabled={running || loading || !queuedRegistrationCount}
                   title={queuedRegistrationCount ? 'Run scheduled registrations now' : 'There are no scheduled registrations to run'}
                   className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
@@ -290,13 +390,13 @@ export function AutoRegisterCmPage({ onBack }: { onBack: () => void }) {
         <section aria-label="Registrations">
           <div role="tablist" aria-label="Registration status" className="ml-[0.5px] flex w-fit items-end">
             <button type="button" role="tab" aria-selected={registrationTab === 'scheduled'} aria-controls="auto-register-registrations-panel"
-              onClick={() => setRegistrationTab('scheduled')}
+              onClick={() => { setRegistrationTab('scheduled'); setRegistrationPage(1); }}
               style={{ whiteSpace: 'nowrap', ...(registrationTab === 'scheduled' ? { backgroundColor: '#009966', color: '#fff', borderColor: '#009966', borderBottomColor: 'transparent' } : {}) }}
               className={`admin-registration-tab auto-register-status-tab auto-register-scheduled-tab relative -mr-px flex h-10 min-w-[152px] items-center justify-center whitespace-nowrap rounded-t-lg border px-2 text-[9px] font-bold uppercase tracking-wide transition-none sm:px-3 sm:text-xs sm:tracking-wider ${registrationTab === 'scheduled' ? 'z-10' : 'border-slate-300 bg-[#F1F5F9] text-slate-500 hover:bg-slate-200 hover:text-slate-900'}`}>
               Scheduled registrations ({scheduledRegistrations.length})
             </button>
             <button type="button" role="tab" aria-selected={registrationTab === 'ineligible'} aria-controls="auto-register-registrations-panel"
-              onClick={() => setRegistrationTab('ineligible')}
+              onClick={() => { setRegistrationTab('ineligible'); setRegistrationPage(1); }}
               style={{ whiteSpace: 'nowrap', ...(registrationTab === 'ineligible' ? { backgroundColor: '#EC003F', color: '#fff', borderColor: '#EC003F', borderBottomColor: 'transparent' } : {}) }}
               className={`admin-registration-tab auto-register-status-tab auto-register-ineligible-tab relative -mr-px flex h-10 min-w-[152px] items-center justify-center whitespace-nowrap rounded-t-lg border px-2 text-[9px] font-bold uppercase tracking-wide transition-none sm:px-3 sm:text-xs sm:tracking-wider ${registrationTab === 'ineligible' ? 'z-10' : 'border-slate-300 bg-[#F1F5F9] text-slate-500 hover:bg-slate-200 hover:text-slate-900'}`}>
               Non-eligible Registration ({ineligible.length})
@@ -304,21 +404,21 @@ export function AutoRegisterCmPage({ onBack }: { onBack: () => void }) {
           </div>
           <div data-testid="auto-register-tab-divider" aria-hidden="true" style={{ height: 1, backgroundColor: '#cbd5e1' }} className="w-full" />
           <div id="auto-register-registrations-panel" role="tabpanel" className="overflow-hidden rounded-b-xl rounded-tr-xl border-x border-b border-slate-200 bg-white shadow-sm">
-            <div className="overflow-x-auto" style={{ overflowX: 'auto' }}>
-              <table aria-label={registrationTab === 'scheduled' ? 'Scheduled registrations' : 'Non-eligible registrations'} className="w-full min-w-[760px] table-fixed border-collapse text-left text-[11px]">
+            <div data-testid="registration-table-viewport" className="overflow-hidden" style={{ minHeight: 520 }}>
+              <table aria-label={registrationTab === 'scheduled' ? 'Scheduled registrations' : 'Non-eligible registrations'} style={{ tableLayout: 'fixed', width: '100%', maxWidth: '100%' }} className="w-full table-fixed border-collapse text-left text-[11px]">
                 <thead>
                   <tr
                     style={{ backgroundColor: registrationTab === 'scheduled' ? '#009966' : '#EC003F', borderColor: registrationTab === 'scheduled' ? '#009966' : '#EC003F' }}
-                    className={`admin-registration-table-header auto-register-registration-header-${registrationTab} whitespace-nowrap border-x border-b border-slate-400 text-[10px] font-bold uppercase tracking-wide text-white`}
+                    className={`admin-registration-table-header auto-register-registration-header-${registrationTab} border-x border-b border-slate-400 text-[10px] font-bold uppercase tracking-wide text-white`}
                   >
-                    <th scope="col" style={{ whiteSpace: 'nowrap' }} className="px-3 py-2">Registration No.</th><th scope="col" style={{ whiteSpace: 'nowrap' }} className="px-3 py-2">Registration Type</th><th scope="col" style={{ whiteSpace: 'nowrap' }} className="px-3 py-2">Company</th><th scope="col" style={{ whiteSpace: 'nowrap' }} className="px-3 py-2">{registrationTab === 'scheduled' ? 'Registration details' : 'Reasons'}</th>
-                    {registrationTab === 'scheduled' && <th scope="col" style={{ whiteSpace: 'nowrap' }} className="px-3 py-2">Reg schedule</th>}</tr>
+                    <th scope="col" style={{ width: '17%' }} className="break-words px-2 py-2">Registration No.</th><th scope="col" style={{ width: '16%' }} className="break-words px-2 py-2">Registration Type</th><th scope="col" style={{ width: '23%' }} className="break-words px-2 py-2">Company</th><th scope="col" style={{ width: registrationTab === 'scheduled' ? '24%' : '44%' }} className="break-words px-2 py-2">{registrationTab === 'scheduled' ? 'Registration details' : 'Reasons'}</th>
+                    {registrationTab === 'scheduled' && <th scope="col" style={{ width: '20%' }} className="break-words px-2 py-2">Reg schedule</th>}</tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {(registrationTab === 'scheduled' ? scheduledRegistrations : ineligible).map(registration => {
+                  {pagedRegistrations.map(registration => {
                     const queued = history.find(item => item.submissionId === registration.id && item.status === 'SCHEDULED');
                     return <tr key={registration.id} className="align-middle hover:bg-slate-50/70">
-                      <td className="whitespace-nowrap px-3 py-3 font-semibold text-slate-800">{registration.referenceNo}</td>
+                      <td style={{ overflowWrap: 'anywhere' }} className="px-2 py-3 font-semibold text-slate-800">{registration.referenceNo}</td>
                       <td className="px-3 py-3 text-slate-600">{registration.registrationType}</td>
                       <td className="max-w-56 px-3 py-3"><strong className="block truncate text-slate-700" title={registration.companyName}>{registration.companyName}</strong></td>
                       <td className="px-3 py-3">{registrationTab === 'ineligible'
@@ -326,44 +426,63 @@ export function AutoRegisterCmPage({ onBack }: { onBack: () => void }) {
                         : <span className="inline-flex max-w-48 truncate rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-medium text-slate-600" title={registrationTag(registration)}>{registrationTag(registration)}</span>}
                       </td>
                       {registrationTab === 'scheduled' && <td className="px-3 py-3">{registration.scheduled
-                        ? <span className="inline-flex flex-col"><span className="w-fit rounded-full bg-blue-50 px-2 py-1 text-[10px] font-bold text-blue-700">Scheduled</span><span className="mt-1 whitespace-nowrap text-[10px] text-slate-500">{queued ? malaysiaDate(queued.scheduledAt) : 'Next automatic run'}</span></span>
+                        ? <span style={{ maxWidth: '100%' }} className="inline-flex flex-col"><span className="w-fit max-w-full rounded-full bg-blue-50 px-2 py-1 text-[10px] font-bold text-blue-700">Scheduled</span><span style={{ overflowWrap: 'anywhere' }} className="mt-1 text-[10px] text-slate-500">{queued ? malaysiaDate(queued.scheduledAt) : 'Next automatic run'}</span></span>
                         : <span className="text-[10px] text-slate-500">{scheduler.isEnabled ? 'Waiting for schedule' : 'Waiting for scheduler to be enabled'}</span>}
                       </td>}
                     </tr>;
                   })}
-                  {registrationTab === 'scheduled' && !scheduledRegistrations.length && <tr><td colSpan={5} className="px-4 py-10 text-center text-xs text-slate-500">No eligible registrations to schedule.</td></tr>}
-                  {registrationTab === 'ineligible' && !ineligible.length && <tr><td colSpan={4} className="px-4 py-10 text-center text-xs text-slate-500">There are no non-eligible registrations.</td></tr>}
+                  {registrationTab === 'scheduled' && !activeRegistrations.length && <tr><td colSpan={5} className="h-[480px] px-4 text-center align-middle text-xs text-slate-500">No eligible registrations to schedule.</td></tr>}
+                  {registrationTab === 'ineligible' && !activeRegistrations.length && <tr><td colSpan={4} className="h-[480px] px-4 text-center align-middle text-xs text-slate-500">There are no non-eligible registrations.</td></tr>}
                 </tbody>
               </table>
             </div>
+            <CompactPager page={currentRegistrationPage} pages={registrationPages} onPage={setRegistrationPage}
+              label={`${registrationTab === 'scheduled' ? 'Scheduled registrations' : 'Non-eligible registrations'} pagination`} />
           </div>
         </section>
 
         <section aria-label="Execution logs" className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-200 bg-slate-50/70 px-3 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50/70 px-3 py-3">
             <h3 className="text-sm font-bold text-slate-900">Execution logs</h3>
+            <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
+              <div className="relative min-w-[180px] max-w-xs flex-1 sm:flex-none">
+                <Search aria-hidden="true" className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                <input type="search" aria-label="Search execution logs" placeholder="Search execution logs" value={logSearch}
+                  onChange={event => { setLogSearch(event.target.value); setLogPage(1); }}
+                  className="h-8 w-full rounded-lg border border-slate-200 bg-white pl-8 pr-3 text-xs text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 sm:w-56" />
+              </div>
+              <select aria-label="Execution logs per page" value={logPageSize}
+                onChange={event => { setLogPageSize(Number(event.target.value)); setLogPage(1); }}
+                className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100">
+                <option value={25}>Show 25</option><option value={50}>Show 50</option><option value={100}>Show 100</option>
+              </select>
+            </div>
           </div>
-          <div className="overflow-x-auto" style={{ overflowX: 'auto' }}>
-            <table aria-label="Auto Register in CM execution logs" className="w-full min-w-[1180px] text-left text-[11px]">
-              <thead className="bg-slate-100 text-[10px] font-bold uppercase tracking-wide text-slate-600"><tr><th className="px-3 py-2">Execution</th><th className="px-3 py-2">Execution ID</th><th className="px-3 py-2">Registration ID</th><th className="px-3 py-2">Started (MYT)</th><th className="px-3 py-2">Status</th><th className="px-3 py-2 text-right">Duration</th><th className="px-3 py-2 text-right">Processed</th><th className="px-3 py-2 text-right">Success</th><th className="px-3 py-2 text-right">Failed</th><th className="px-3 py-2">Message</th></tr></thead>
-              <tbody className="divide-y divide-slate-100">{runs.map(run => <tr key={run.id}>
-                <td className="px-3 py-2 font-semibold text-slate-700">{run.executionType === 'AUTOMATIC' ? 'Automatic' : 'Manual'}</td>
-                <td className="whitespace-nowrap px-3 py-2 font-mono text-[10px] text-slate-700">{run.executionId}</td>
-                <td className="px-3 py-2 font-mono text-[10px] text-slate-700">
-                  {history.filter(item => item.runId === run.id).length
-                    ? history.filter(item => item.runId === run.id).map(item => <span key={item.id} className="block whitespace-nowrap">{item.referenceNo}</span>)
+          <div data-testid="execution-logs-viewport" className="overflow-hidden">
+            <table aria-label="Auto Register in CM execution logs" style={{ tableLayout: 'fixed', width: '100%', maxWidth: '100%' }} className="w-full text-[10px] sm:text-[11px]">
+              <colgroup><col style={{ width: '7%' }} /><col style={{ width: '11%' }} /><col style={{ width: '11%' }} /><col style={{ width: '13%' }} /><col style={{ width: '8%' }} /><col style={{ width: '7%' }} /><col style={{ width: '7%' }} /><col style={{ width: '6%' }} /><col style={{ width: '6%' }} /><col style={{ width: '24%' }} /></colgroup>
+              <thead className="bg-slate-100 text-[9px] font-bold uppercase tracking-wide text-slate-600 sm:text-[10px]"><tr><th style={{ textAlign: 'center' }} className="break-words px-1 py-2">Execution</th><th style={{ textAlign: 'center' }} className="break-words px-1 py-2">Execution ID</th><th style={{ textAlign: 'center' }} className="break-words px-1 py-2">Registration ID</th><th style={{ textAlign: 'center' }} className="break-words px-1 py-2">Started (MYT)</th><th style={{ textAlign: 'center' }} className="break-words px-1 py-2">Status</th><th style={{ textAlign: 'center' }} className="break-words px-1 py-2">Duration</th><th style={{ textAlign: 'center' }} className="break-words px-1 py-2">Processed</th><th style={{ textAlign: 'center' }} className="break-words px-1 py-2">Success</th><th style={{ textAlign: 'center' }} className="break-words px-1 py-2">Failed</th><th style={{ textAlign: 'left' }} className="break-words px-2 py-2">Message</th></tr></thead>
+              <tbody className="divide-y divide-slate-100">{pagedRuns.map(run => <tr key={run.id}>
+                <td style={{ textAlign: 'center' }} className="break-words px-1 py-2 font-semibold text-slate-700">{run.executionType === 'AUTOMATIC' ? 'Automatic' : 'Manual'}</td>
+                <td style={{ textAlign: 'center', overflowWrap: 'anywhere' }} className="px-1 py-2 font-mono text-[9px] text-slate-700 sm:text-[10px]">{run.executionId}</td>
+                <td style={{ textAlign: 'center', overflowWrap: 'anywhere' }} className="px-1 py-2 font-mono text-[9px] text-slate-700 sm:text-[10px]">
+                  {run.registrationReferences?.length
+                    ? run.registrationReferences.map(reference => <span key={reference} className="block">{reference}</span>)
                     : <span>—</span>}
                 </td>
-                <td className="whitespace-nowrap px-3 py-2 text-slate-600">{malaysiaDate(run.startedAt)}</td>
-                <td className="px-3 py-2"><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${statusTone(run.status)}`}>{run.status}</span></td>
-                <td className="px-3 py-2 text-right text-slate-600">{run.durationMs == null ? '—' : `${(run.durationMs / 1000).toFixed(1)}s`}</td>
-                <td className="px-3 py-2 text-right">{run.processedCount}</td><td className="px-3 py-2 text-right text-emerald-700">{run.successCount}</td>
-                <td className="px-3 py-2 text-right text-rose-700">{run.failedCount}</td>
-                <td className="max-w-80 truncate px-3 py-2 text-slate-600" title={run.errorMessage || run.message}>{run.errorMessage || run.message || '—'}</td>
+                <td style={{ textAlign: 'center' }} className="break-words px-1 py-2 text-slate-600">{malaysiaDate(run.startedAt)}</td>
+                <td style={{ textAlign: 'center' }} className="break-words px-1 py-2"><span className={`inline-block max-w-full break-words rounded-full px-1.5 py-1 text-[9px] font-bold sm:text-[10px] ${statusTone(run.status)}`}>{run.status}</span></td>
+                <td style={{ textAlign: 'center' }} className="break-words px-1 py-2 text-slate-600">{run.durationMs == null ? '—' : `${(run.durationMs / 1000).toFixed(1)}s`}</td>
+                <td style={{ textAlign: 'center' }} className="px-1 py-2">{run.processedCount}</td><td style={{ textAlign: 'center' }} className="px-1 py-2 text-emerald-700">{run.successCount}</td>
+                <td style={{ textAlign: 'center' }} className="px-1 py-2 text-rose-700">{run.failedCount}</td>
+                <td style={{ textAlign: 'left', whiteSpace: 'normal', overflowWrap: 'anywhere' }} className="px-2 py-2 text-slate-600" title={run.errorMessage || run.message}>
+                  <span data-testid="execution-log-message" style={{ display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 3, overflow: 'hidden' }}>{run.errorMessage || run.message || '—'}</span>
+                </td>
               </tr>)}
-              {!runs.length && <tr><td colSpan={10} className="px-4 py-8 text-center text-xs text-slate-500">No execution history yet.</td></tr>}</tbody>
+              {!filteredRuns.length && <tr><td colSpan={10} className="px-4 py-8 text-center text-xs text-slate-500">{runs.length ? 'No execution logs match your search.' : 'No execution history yet.'}</td></tr>}</tbody>
             </table>
           </div>
+          <CompactPager page={currentLogPage} pages={logPages} onPage={setLogPage} label="Execution logs pagination" />
         </section>
       </>}
     </div>

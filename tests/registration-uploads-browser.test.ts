@@ -5,6 +5,16 @@ import { chromium } from 'playwright-core';
 import * as XLSX from 'xlsx';
 import { uploadWorkbook } from '../server-handlers/registration-uploads/automation.js';
 
+test('browser startup failures are retryable only before any upload dispatch marker', async () => {
+  let marked = false;
+  const result = await uploadWorkbook({ username: 'fixture', password: 'fixture' },
+    { entity: 'driver', filename: 'CMREG1_DRIVER.xlsx', expected_rows: 1 }, Buffer.from('offline'),
+    async () => { marked = true; }, async () => { throw new Error('Temporary browser startup failure'); });
+  assert.equal(result.state, 'FAILED');
+  assert.equal(result.retryable, true);
+  assert.equal(marked, false);
+});
+
 test('Playwright selects each pane, attaches the workbook, reads a locked picker, and sends a single upload after its durable marker', async () => {
   for (const entity of ['vehicle', 'trailer', 'driver']) {
     const workbook = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([['REGISTRATION'], ['T/123']]), 'Sheet1');

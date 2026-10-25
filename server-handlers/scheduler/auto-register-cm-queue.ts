@@ -2,6 +2,7 @@ import { adminClient, readSession, requestBody } from '../../api/_runtime.js';
 import type { RegistrationSubmission } from '../../src/types/index.js';
 import { registrationUploadBlockReason } from '../registration-uploads/eligibility.js';
 import { allowedOrigin, schedulerAdmin } from './access.js';
+import { loadAutoScheduledIds, loadPendingAutoRegistrations, scheduleEligibleAutoRegistrations } from './auto-register-cm-discovery.js';
 
 const DETAIL_FIELDS = {
   DRIVER: (submission: RegistrationSubmission) => ({
@@ -60,20 +61,23 @@ export function createAutoRegisterCmQueueHandler(deps = { adminClient, readSessi
       || request.headers['sec-fetch-site'] === 'cross-site')) return fail(403, 'Request origin or confirmation is invalid.');
     const { client, session } = access;
 
+    if (request.method === 'GET' && request.query?.view === 'scheduled') {
+      try { return response.status(200).json({ scheduledSubmissionIds: [...await loadAutoScheduledIds(client)] }); }
+      catch (error) { return fail(503, error instanceof Error ? error.message : 'Unable to inspect the scheduled registration queue.'); }
+    }
+
     const loadQueue = async () => {
       const [pending, ports, queued, history] = await Promise.all([
-        client.from('registration_submissions').select('*').eq('status', 'PENDING')
-          .in('registration_type', ['DRIVER', 'TRAILER', 'VEHICLE'])
-          .order('submitted_at', { ascending: true }).limit(300).timeout(8000),
+        loadPendingAutoRegistrations(client),
         client.from('port_configs').select('*').limit(1000).timeout(8000),
-        client.from('auto_register_cm_scheduled_items').select('submission_id,status').eq('status', 'SCHEDULED').limit(1000).timeout(8000),
+        loadAutoScheduledIds(client),
         client.from('auto_register_cm_scheduled_items').select('*').order('scheduled_at', { ascending: false }).limit(5000).timeout(8000),
       ]);
-      if (pending.error || ports.error) throw new Error('Unable to load registration eligibility. Check the registration data and port configuration.');
-      if (queued.error || history.error) throw new Error('Unable to load Auto Register queue history. Apply the Auto Register queue migration.');
+      if (ports.error) throw new Error('Unable to load registration eligibility. Check the registration data and port configuration.');
+      if (history.error) throw new Error('Unable to load Auto Register queue history. Apply the Auto Register queue migration.');
 
-      const scheduledIds = new Set((queued.data || []).map((item: any) => item.submission_id));
-      const candidates = (pending.data || []).filter((submission: RegistrationSubmission) => submission.cargomove_upload?.state !== 'SUCCESS');
+      const scheduledIds = queued;
+      const candidates = pending.sort((a, b) => a.submitted_at.localeCompare(b.submitted_at) || a.id.localeCompare(b.id));
       const registrations: ReturnType<typeof serializeRegistration>[] = [];
       for (let offset = 0; offset < candidates.length; offset += 8) {
         const checked = await Promise.all(candidates.slice(offset, offset + 8).map(async (submission: RegistrationSubmission) => {
@@ -100,44 +104,7 @@ export function createAutoRegisterCmQueueHandler(deps = { adminClient, readSessi
     try {
       const body = await requestBody(request).catch(() => null) as Record<string, unknown> | null;
       if (!body || Array.isArray(body) || Object.keys(body).length) return fail(400, 'Automatic scheduling does not accept a request payload.');
-      const pending = await client.from('registration_submissions').select('*').eq('status', 'PENDING')
-        .in('registration_type', ['DRIVER', 'TRAILER', 'VEHICLE'])
-        .order('submitted_at', { ascending: true }).limit(300).timeout(8000);
-      if (pending.error) return fail(503, 'Unable to inspect pending registrations.');
-      const portConfigs = await client.from('port_configs').select('*').limit(1000).timeout(8000);
-      if (portConfigs.error) return fail(503, 'Port configuration could not be loaded.');
-      const active = await client.from('auto_register_cm_scheduled_items').select('submission_id')
-        .eq('status', 'SCHEDULED').limit(1000).timeout(8000);
-      if (active.error) return fail(503, 'Unable to inspect the scheduled registration queue.');
-      const activeIds = new Set((active.data || []).map((item: any) => item.submission_id));
-      const candidates = (pending.data || []).filter((submission: RegistrationSubmission) =>
-        submission.cargomove_upload?.state !== 'SUCCESS' && !activeIds.has(submission.id));
-      const validations: { submission: RegistrationSubmission; reason: string | null }[] = [];
-      for (let offset = 0; offset < candidates.length; offset += 8) {
-        validations.push(...await Promise.all(candidates.slice(offset, offset + 8).map(async (submission: RegistrationSubmission) => ({
-          submission,
-          reason: await registrationUploadBlockReason(client, submission, portConfigs.data || []),
-        }))));
-      }
-      const byType = new Map<string, string[]>();
-      for (const { submission, reason } of validations) {
-        if (reason) continue;
-        const ids = byType.get(submission.registration_type) || [];
-        ids.push(submission.id);
-        byType.set(submission.registration_type, ids);
-      }
-
-      let scheduledCount = 0;
-      for (const ids of byType.values()) {
-        for (let offset = 0; offset < ids.length; offset += 100) {
-          const saved = await client.rpc('schedule_auto_register_cm_submissions', {
-            p_actor: session.id, p_submission_ids: ids.slice(offset, offset + 100),
-          });
-          if (saved.error || !Array.isArray(saved.data)) return fail(503, 'Unable to automatically schedule eligible registrations. Apply the Auto Register queue migration.');
-          scheduledCount += saved.data.length;
-        }
-      }
-      return response.status(200).json({ scheduled: scheduledCount });
+      return response.status(200).json(await scheduleEligibleAutoRegistrations(client, session.id));
     } catch {
       return fail(503, 'Unable to verify or schedule the selected registrations. Please retry.');
     }

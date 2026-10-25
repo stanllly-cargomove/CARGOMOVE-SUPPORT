@@ -36,6 +36,9 @@ try {
       if (url.pathname === '/api/snapshot') return route.fulfill({ json: { companies: [{ id: 'company', name: 'Fixture Haulier', company_type: 'HAULAGE', haulier_id: 'fixture-id', status: 'ACTIVE', registration_status: companyStatus }],
         ports: [{ id: 'port', location: 'JOHOR', code: 'FIXTURE', display_name: 'Fixture', backend_port_id: '5ad78eeb458efa4c5a1fc007' }], depots: [], submissions: [sub, ...(includeCompanyQueue ? [{ ...sub, id: 'company-registration', reference_no: 'CMREG400000', registration_type: 'COMPANY', status: companyStatus, data: {} }] : [])], userRegistrations: [], guideline: null } });
       if (url.pathname === '/api/external-user-access') return route.fulfill({ json: { users: [] } });
+      if (url.pathname === '/api/scheduler/auto-register-cm-queue' && url.searchParams.get('view') === 'scheduled') {
+        return route.fulfill({ json: { scheduledSubmissionIds: [] } });
+      }
       if (url.pathname === '/api/dev-tools/registration-uploads') {
         assert.equal(request.headers()['x-cargomove-confirm'], 'registration-upload');
         const body = request.postDataJSON();

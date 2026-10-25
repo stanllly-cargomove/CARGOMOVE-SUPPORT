@@ -35,6 +35,9 @@ try {
     const request = route.request(), url = new URL(request.url());
     assert.equal(url.origin, 'http://batch.test');
     if (url.pathname === '/api/external-user-access') return route.fulfill({ json: { users: [] } });
+    if (url.pathname === '/api/scheduler/auto-register-cm-queue' && url.searchParams.get('view') === 'scheduled') {
+      return route.fulfill({ json: { scheduledSubmissionIds: [] } });
+    }
     if (url.pathname === '/api/snapshot') return route.fulfill({ json: { companies, ports: [{ id: 'port', code: 'FIXTURE', display_name: 'Fixture Port', location: 'JOHOR', backend_port_id: '5ad78eeb458efa4c5a1fc007' }], depots: [], submissions, userRegistrations: [], guideline: null } });
     if (url.pathname === '/api/dev-tools/registration-uploads') {
       const body = request.postDataJSON(); starts++;

@@ -64,14 +64,20 @@ try {
     }
     if (url.pathname === '/api/external-user-access') return route.fulfill({ json: { users: [] } });
     if (url.pathname === '/api/auth/profile') return route.fulfill({ json: { avatarUrl: null } });
+    if (url.pathname === '/api/scheduler/auto-register-cm-queue' && url.searchParams.get('view') === 'scheduled') {
+      return route.fulfill({ json: { scheduledSubmissionIds: ['sub-0-3-0'] } });
+    }
     if (url.pathname.startsWith('/api/')) throw new Error(`Unexpected API ${url.pathname}`);
     return route.fulfill({ contentType: 'text/html', body: `<style>${css}</style><div id="root"></div><script>${bundle.outputFiles[0].text}</script>` });
   });
   await page.goto('http://queue-navigation.test');
   const nav = page.getByRole('navigation', { name: 'Admin navigation' });
   await nav.getByRole('button', { name: /Registration Queue/ }).click();
-  await nav.getByRole('button', { name: 'Pending', exact: true }).click();
+  await nav.getByRole('button', { name: /^Pending/ }).click();
   await page.getByRole('heading', { name: 'Pending Registration Submissions', exact: true }).waitFor();
+  await page.getByRole('tab', { name: /^Vehicle/ }).click();
+  await page.getByRole('img', { name: 'This registration is scheduled and will be processed automatically by the system.' }).waitFor();
+  await page.getByRole('tab', { name: /^Company/ }).click();
   await page.evaluate(() => {
     (window as any).fixtureReads.companies = 0;
     (window as any).fixtureReads.submissions = 0;
@@ -84,7 +90,9 @@ try {
     ['Rejected', 'Rejected Registration Submissions'],
     ['Pending', 'Pending Registration Submissions'],
   ]) {
-    await nav.getByRole('button', { name: label, exact: true }).click();
+    const queueMenu = nav.getByRole('button', { name: /Registration Queue/ });
+    if (await queueMenu.getAttribute('aria-expanded') !== 'true') await queueMenu.click();
+    await nav.getByRole('button', { name: label === 'Pending' ? /^Pending/ : label, exact: label !== 'Pending' }).click();
     await page.getByRole('heading', { name: heading, exact: true }).waitFor();
     for (const type of types) {
       const title = type.charAt(0) + type.slice(1).toLowerCase();

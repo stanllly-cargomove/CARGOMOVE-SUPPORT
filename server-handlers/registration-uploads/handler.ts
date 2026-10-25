@@ -16,7 +16,7 @@ const dependencies = { adminClient, readSession, uploadWorkbook, verifyWorkbook,
 export function createRegistrationUploadsHandler(deps = dependencies) {
   return async function registrationUploads(request: any, response: any) {
     response.setHeader('Cache-Control', 'no-store');
-    const fail = (code: number, error: string) => response.status(code).json({ error });
+    const fail = (code: number, error: string, extra: Record<string, unknown> = {}) => response.status(code).json({ error, ...extra });
     if (request.method !== 'POST') { response.setHeader('Allow', 'POST'); return fail(405, 'Method not allowed.'); }
     const access = await schedulerAdmin(request, deps);
     if ('code' in access) return fail(access.code, access.message);
@@ -32,6 +32,7 @@ export function createRegistrationUploadsHandler(deps = dependencies) {
     let job: Job | undefined;
     let token: string | undefined;
     const incomplete: string[] = [];
+    const registrationFailures: { submissionId: string; message: string }[] = [];
     const transition = async (state: string, message: string, extra: Record<string, unknown> = {}) => {
       const result = await client.rpc<Job>('transition_registration_upload_batch', {
         p_id: job!.id, p_token: token, p_state: state, p_message: message, ...extra,
@@ -39,13 +40,13 @@ export function createRegistrationUploadsHandler(deps = dependencies) {
       if (result.error || !result.data) throw new Error();
       job = result.data;
     };
-    const reply = async (nextCheckMs = 3000, download?: { filename: string; base64: string }, blocked = false) => {
+    const reply = async (nextCheckMs = 3000, download?: { filename: string; base64: string }, blocked = false, retryable = false) => {
       const members = await client.from('registration_uploads').select('submission_id').eq('batch_id', job!.id).timeout(8000);
       const ids = members.data?.length ? members.data.map((member: any) => member.submission_id) : [job!.submission_id];
       const rows = await Promise.all(ids.map((id: string) => client.from('registration_submissions').select('*').eq('id', id).timeout(8000).maybeSingle()));
       if (members.error || rows.some((row: any) => row.error || !row.data)) return fail(503, 'Upload progress was saved, but the registration could not be refreshed. Check its existing upload.');
       // Lease tokens and upstream account/session data never reach the browser.
-      return response.status(200).json({ submission: rows[0].data, submissions: rows.map((row: any) => row.data), incomplete, nextCheckMs, ...(download ? { download } : {}), ...(blocked ? { blocked: true } : {}) });
+      return response.status(200).json({ submission: rows[0].data, submissions: rows.map((row: any) => row.data), incomplete, registrationFailures, nextCheckMs, ...(download ? { download } : {}), ...(blocked ? { blocked: true } : {}), ...(retryable ? { retryable: true } : {}) });
     };
     try {
       if (body.action === 'start') {
@@ -61,20 +62,29 @@ export function createRegistrationUploadsHandler(deps = dependencies) {
           const checked = await Promise.all(uniqueIds.slice(offset, offset + 8).map(async id => {
             const source = await client.from('registration_submissions').select('*').eq('id', id).timeout(8000).maybeSingle();
             const sub = source.data as RegistrationSubmission | null;
-            if (source.error || !sub) { incomplete.push(`${id}: registration unavailable.`); return null; }
+            if (source.error) throw new Error('Registration could not be loaded. Please retry.');
+            if (!sub) {
+              const message = `${id}: registration unavailable.`;
+              incomplete.push(message); registrationFailures.push({ submissionId: id, message });
+              return null;
+            }
             const reason = await registrationUploadBlockReason(client, sub, preflightPorts.data || []);
-            if (reason) { incomplete.push(`${sub.reference_no}: ${reason}`); return null; }
+            if (reason) {
+              const message = `${sub.reference_no}: ${reason}`;
+              incomplete.push(message); registrationFailures.push({ submissionId: id, message });
+              return null;
+            }
             return id;
           }));
           eligible.push(...checked.filter((id): id is string => !!id));
         }
-        if (!eligible.length) return fail(409, incomplete.join('\n'));
+        if (!eligible.length) return fail(409, incomplete.join('\n'), { incomplete, registrationFailures });
         const acquired = await client.rpc<{ job: Job; token?: string; submissions: RegistrationSubmission[]; existing: boolean }>('begin_registration_upload_batch', {
           p_actor: session.id, p_submission_ids: eligible,
         });
         if (acquired.error || !acquired.data) {
           const reason = [COMPANY_REGISTRATION_REQUIRED].find(message => acquired.error?.message?.includes(message));
-          return fail(409, reason || 'Unable to start this upload. Select a Pending asset registration and apply/configure the registration-upload migrations and saved processing scheduler.');
+          return fail(409, reason || 'Unable to start this upload. Select a Pending asset registration and apply/configure the registration-upload migrations and saved processing scheduler.', { incomplete, registrationFailures });
         }
         job = acquired.data.job;
         token = acquired.data.token;
@@ -83,8 +93,9 @@ export function createRegistrationUploadsHandler(deps = dependencies) {
         const companies = [];
         for (const companyId of new Set(subs.map(sub => sub.company_id))) {
           const approval = await client.rpc<string>('registration_upload_company_block_reason', { p_company_id: companyId });
-          if (approval.error || approval.data) {
-            await transition('FAILED', approval.data || 'Company registration could not be verified. No file was uploaded.');
+          if (approval.error) throw new Error('Company registration could not be verified. Please retry.');
+          if (approval.data) {
+            await transition('FAILED', approval.data);
             return reply(3000, undefined, true);
           }
           const company = await client.from('companies').select('*').eq('id', companyId).timeout(8000).maybeSingle();
@@ -94,7 +105,7 @@ export function createRegistrationUploadsHandler(deps = dependencies) {
         const ports = await client.from('port_configs').select('*').limit(1000).timeout(8000);
         if (ports.error) {
           await transition('FAILED', 'Failed to prepare the CargoMove upload. The company or port configuration could not be loaded.');
-          return reply();
+          return reply(3000, undefined, false, true);
         }
         const context: ExcelContext = { companies, ports: ports.data || [], depots: [] };
         const validation = validateSubmissionsForExport(subs, context);
@@ -121,7 +132,7 @@ export function createRegistrationUploadsHandler(deps = dependencies) {
             ...(evidence ? { p_existing_upload_ids: evidence.existingUploadIds, p_upload_started_at: evidence.startedAt } : {}) });
         });
         await transition(outcome.state, outcome.message, outcome.state === 'FAILED' ? { p_success_count: 0, p_error_count: 0 } : {});
-        return reply(1000, { filename: job.filename, base64: buffer.toString('base64') });
+        return reply(1000, { filename: job.filename, base64: buffer.toString('base64') }, false, !!outcome.retryable);
       }
       if (typeof body.jobId !== 'string' || !SCHEDULER_ID.test(body.jobId) || body.submissionId !== undefined || body.submissionIds !== undefined)
         return fail(400, 'Choose an existing upload to verify.');
@@ -189,7 +200,7 @@ export function createRegistrationUploadsHandler(deps = dependencies) {
     } catch {
       // Persisted dispatch markers and leases prevent replay after an interrupted function.
       if (job && token && job.state === 'PREPARING') {
-        try { await transition('FAILED', 'Failed to prepare this CargoMove upload. No file was uploaded.'); return await reply(); } catch { /* Keep the durable lease. */ }
+        try { await transition('FAILED', 'Failed to prepare this CargoMove upload. No file was uploaded.'); return await reply(3000, undefined, false, true); } catch { /* Keep the durable lease. */ }
       }
       return fail(503, 'The upload result could not be confirmed. Refresh and check the existing upload before retrying.');
     }

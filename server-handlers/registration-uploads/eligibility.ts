@@ -8,7 +8,7 @@ export async function registrationUploadBlockReason(
 ): Promise<string | null> {
   const approval = await client.rpc('registration_upload_company_block_reason', { p_company_id: submission.company_id });
   const company = await client.from('companies').select('*').eq('id', submission.company_id).timeout(8000).maybeSingle();
-  if (approval.error || company.error) return 'Company registration could not be verified.';
+  if (approval.error || company.error) throw new Error('Company registration could not be verified. Please retry.');
   if (approval.data) return approval.data;
 
   const context: ExcelContext = { companies: company.data ? [company.data] : [], ports, depots: [] };

@@ -19,19 +19,25 @@ try {
   let scheduled = false;
   let manualRuns = 0;
   let history: any[] = [];
+  let schedulerLoads = 0;
+  let queueLoads = 0;
+  let schedulingRequests = 0;
 
   await page.route('**/*', async route => {
     const request = route.request();
     const url = new URL(request.url());
     assert.equal(url.origin, 'http://auto-register.test', 'External requests are forbidden in this test');
     if (url.pathname === '/api/scheduler/auto-register-cm') {
-      if (request.method() === 'GET') return route.fulfill({ json: { scheduler: {
+      if (request.method() === 'GET') {
+        schedulerLoads++;
+        return route.fulfill({ json: { scheduler: {
         key: 'auto_register_cm', name: 'Auto Register in CM', description: 'Automatically execute CM registration',
         schedule: 'Every 2 hours', isEnabled: enabled, lastRunAt: null, lastStatus: null, updatedAt: '2026-10-25T02:00:00.000Z',
       }, runs: [
-        { id: 'run-1', executionId: 'AUTOREG1000001', executionType: 'AUTOMATIC', status: 'SUCCESS', startedAt: '2026-10-25T02:00:00.000Z', finishedAt: '2026-10-25T02:01:00.000Z', durationMs: 60000, processedCount: 2, successCount: 2, failedCount: 0, message: 'Completed 2 registrations.', errorMessage: null },
-        { id: 'run-0', executionId: 'AUTOREG1000002', executionType: 'AUTOMATIC', status: 'FAILED', startedAt: '2026-10-25T00:00:00.000Z', finishedAt: '2026-10-25T00:01:00.000Z', durationMs: 60000, processedCount: 1, successCount: 0, failedCount: 1, message: 'CargoMove rejected the registration.', errorMessage: null },
-      ] } });
+        { id: 'run-1', executionId: 'AUTOREG1000001', executionType: 'AUTOMATIC', status: 'SUCCESS', startedAt: '2026-10-25T02:00:00.000Z', finishedAt: '2026-10-25T02:01:00.000Z', durationMs: 60000, processedCount: 2, successCount: 2, failedCount: 0, message: 'Completed 2 registrations.', errorMessage: null, registrationReferences: ['CMREG400187', 'CMREG400188'] },
+        { id: 'run-0', executionId: 'AUTOREG1000002', executionType: 'AUTOMATIC', status: 'FAILED', startedAt: '2026-10-25T00:00:00.000Z', finishedAt: '2026-10-25T00:01:00.000Z', durationMs: 60000, processedCount: 1, successCount: 0, failedCount: 1, message: 'CargoMove rejected the registration.', errorMessage: null, registrationReferences: ['CMREG400189', 'CMREG400187'] },
+        ] } });
+      }
       if (request.method() === 'PATCH') {
         assert.equal(request.headers()['x-cargomove-confirm'], 'manage-auto-register-cm');
         enabled = request.postDataJSON().isEnabled;
@@ -43,6 +49,7 @@ try {
     }
     if (url.pathname === '/api/scheduler/auto-register-cm-queue') {
       if (request.method() === 'POST') {
+        schedulingRequests++;
         assert.equal(request.headers()['x-cargomove-confirm'], 'auto-schedule-auto-register-cm');
         assert.deepEqual(request.postDataJSON(), {});
         scheduled = true;
@@ -50,10 +57,11 @@ try {
           { id: 'queue-1', submissionId: 'registration-1', referenceNo: 'CMREG400001', registrationType: 'VEHICLE', companyName: 'Example Logistics', status: 'SCHEDULED', scheduledAt: '2026-10-25T02:00:00.000Z', completedAt: null, message: 'Queued for the next automatic registration run.', runId: null },
           { id: 'queue-2', submissionId: 'registration-2', referenceNo: 'CMREG400187', registrationType: 'DRIVER', companyName: 'Example Logistics', status: 'SUCCESS', scheduledAt: '2026-10-25T00:00:00.000Z', completedAt: '2026-10-25T02:00:00.000Z', message: 'Registration completed successfully.', runId: 'run-1' },
           { id: 'queue-4', submissionId: 'registration-4', referenceNo: 'CMREG400188', registrationType: 'DRIVER', companyName: 'Example Logistics', status: 'SUCCESS', scheduledAt: '2026-10-25T00:00:00.000Z', completedAt: '2026-10-25T02:00:00.000Z', message: 'Registration completed successfully.', runId: 'run-1' },
-          { id: 'queue-3', submissionId: 'registration-3', referenceNo: 'CMREG400189', registrationType: 'TRAILER', companyName: 'Example Logistics', status: 'FAIL', scheduledAt: '2026-10-24T22:00:00.000Z', completedAt: '2026-10-25T00:00:00.000Z', message: 'CargoMove rejected the registration.', runId: 'run-0' },
+          { id: 'queue-3', submissionId: 'registration-3', referenceNo: 'CMREG400189', registrationType: 'TRAILER', companyName: 'Example Logistics', status: 'FAILED', scheduledAt: '2026-10-24T22:00:00.000Z', completedAt: '2026-10-25T00:00:00.000Z', message: 'CargoMove rejected the registration.', runId: 'run-0' },
         ];
         return route.fulfill({ json: { scheduled: 1 } });
       }
+      queueLoads++;
       return route.fulfill({ json: {
         registrations: [
           { id: 'registration-1', referenceNo: 'CMREG400001', registrationType: 'VEHICLE', companyName: 'Example Logistics', companyRegNo: '123456-A', submittedAt: '2026-10-25T01:00:00.000Z', submittedBy: 'Admin User', details: { registration: 'ABC1234', weight: '12000', bgkWeight: '9000' }, eligible: true, reason: null, scheduled },
@@ -88,9 +96,15 @@ try {
 
   await page.getByText('Auto Register in CM', { exact: true }).click();
   await page.locator('h2').getByText('Auto Register in CM', { exact: true }).waitFor();
+  assert.equal(await page.getByRole('button', { name: 'Refresh', exact: true }).count(), 0, 'Auto Register uses the shared Refresh data action');
   const scheduledTab = page.getByRole('tab', { name: /Scheduled registrations/ });
   await scheduledTab.waitFor();
   await page.getByRole('table', { name: 'Scheduled registrations' }).waitFor();
+  const scheduledPager = page.getByRole('navigation', { name: 'Scheduled registrations pagination' });
+  assert.equal(await scheduledPager.getByText('1', { exact: true }).count(), 1);
+  assert.equal(await scheduledPager.getByRole('button', { name: 'Previous scheduled registrations pagination page' }).isDisabled(), true);
+  assert.equal(await scheduledPager.getByRole('button', { name: 'Next scheduled registrations pagination page' }).isDisabled(), true);
+  assert.equal(await page.getByTestId('registration-table-viewport').evaluate(element => getComputedStyle(element).minHeight), '520px', 'Registration table reserves ten rows of height');
   assert.equal(scheduled, true, 'Eligible registrations are scheduled automatically on page load');
   assert.equal(await page.getByRole('button', { name: /Schedule selected/ }).count(), 0);
   assert.ok(await page.getByText('Registration No.', { exact: true }).isVisible());
@@ -127,6 +141,22 @@ try {
   assert.equal(await page.getByRole('heading', { name: 'Results & Execution logs' }).count(), 0);
   assert.equal(await page.getByRole('table', { name: 'Auto Register in CM execution logs' }).count(), 1);
   const executionLogs = page.getByRole('table', { name: 'Auto Register in CM execution logs' });
+  const logPageSize = page.getByRole('combobox', { name: 'Execution logs per page' });
+  assert.equal(await logPageSize.inputValue(), '25');
+  await logPageSize.selectOption('50');
+  assert.equal(await logPageSize.inputValue(), '50');
+  const logSearch = page.getByRole('searchbox', { name: 'Search execution logs' });
+  await logSearch.fill('AUTOREG1000001');
+  assert.equal(await executionLogs.getByText('AUTOREG1000001', { exact: true }).count(), 1);
+  assert.equal(await executionLogs.getByText('AUTOREG1000002', { exact: true }).count(), 0);
+  await logSearch.fill('');
+  const executionPager = page.getByRole('navigation', { name: 'Execution logs pagination' });
+  assert.equal(await executionPager.getByText('1', { exact: true }).count(), 1);
+  assert.equal(await page.getByTestId('execution-logs-viewport').evaluate(element => element.scrollWidth <= element.clientWidth), true, 'Execution logs fit without horizontal scrolling');
+  assert.equal(await executionLogs.evaluate(table => getComputedStyle(table).tableLayout), 'fixed');
+  assert.equal(await executionLogs.getByRole('columnheader').evaluateAll(headers => headers.slice(0, -1).every(header => getComputedStyle(header).textAlign === 'center')), true, 'Execution headers are centered except Message');
+  assert.equal(await executionLogs.getByRole('row').nth(1).locator('td').evaluateAll(cells => cells.slice(0, -1).every(cell => getComputedStyle(cell).textAlign === 'center')), true, 'Execution values are centered except Message');
+  assert.equal(await executionLogs.getByTestId('execution-log-message').first().evaluate(element => getComputedStyle(element).webkitLineClamp), '3');
   assert.equal(await executionLogs.getByRole('columnheader', { name: 'Execution ID' }).count(), 1);
   assert.equal(await executionLogs.getByRole('columnheader', { name: 'Registration ID' }).count(), 1);
   const firstRunRow = executionLogs.getByRole('row').filter({ hasText: 'AUTOREG1000001' });
@@ -135,6 +165,11 @@ try {
   assert.equal(await firstRunRow.getByText('AUTOREG1000001', { exact: true }).count(), 1, 'Batch registrations share one execution ID in its separate column');
   const secondRunRow = executionLogs.getByRole('row').filter({ hasText: 'AUTOREG1000002' });
   await secondRunRow.getByText('CMREG400189', { exact: true }).waitFor();
+  await secondRunRow.getByText('CMREG400187', { exact: true }).waitFor();
+  await logSearch.fill('CMREG400187');
+  assert.equal(await executionLogs.getByText('CMREG400187', { exact: true }).count(), 2,
+    'A resumed registration remains searchable and visible in each execution, even though the queue only has its latest run pointer');
+  await logSearch.fill('');
   const overflow = await page.evaluate(() => Array.from(document.querySelectorAll('body *'))
     .filter(element => element.getBoundingClientRect().right > innerWidth + 1)
     .map(element => `${element.tagName}.${(element as HTMLElement).className} (${Math.round(element.getBoundingClientRect().right)}px)`));
@@ -158,12 +193,18 @@ try {
     await scheduledTab.evaluate(element => getComputedStyle(element).backgroundColor),
     'Registration table header matches the active tab color',
   );
-  assert.equal(await page.getByRole('table', { name: 'Scheduled registrations' }).getByRole('columnheader').evaluateAll(headers => headers.every(header => getComputedStyle(header).whiteSpace === 'nowrap')), true, 'Registration table headers stay on one line');
+  const registrationWidth = await page.getByTestId('registration-table-viewport').evaluate(element => ({ client: element.clientWidth, scroll: element.scrollWidth, table: element.querySelector('table')?.getBoundingClientRect().width }));
+  assert.equal(registrationWidth.scroll <= registrationWidth.client + 1, true, `Registration table fits without horizontal scrolling: ${JSON.stringify(registrationWidth)}`);
   page.once('dialog', dialog => dialog.accept());
   await overview.getByRole('button', { name: 'Run Now' }).click();
   assert.equal(manualRuns, 1);
   await page.getByRole('button', { name: 'Back to Developer Settings' }).click();
   await page.getByRole('heading', { name: 'Developer Settings' }).waitFor();
+  const loadsBeforeReopen = { schedulerLoads, queueLoads, schedulingRequests };
+  await page.getByText('Auto Register in CM', { exact: true }).click();
+  await page.locator('h2').getByText('Auto Register in CM', { exact: true }).waitFor();
+  assert.equal(await page.getByRole('status', { name: 'Preparing Auto Register in CM' }).count(), 0, 'Cached Auto Register data opens immediately');
+  assert.deepEqual({ schedulerLoads, queueLoads, schedulingRequests }, loadsBeforeReopen, 'Reopening Auto Register does not fetch unchanged data again');
   assert.deepEqual(errors, []);
   console.log('Auto Register in CM UI: settings toggle/navigation, scheduled and non-eligible tabs, queue, result logs, execution history, manual run and mobile layout passed.');
 } finally {

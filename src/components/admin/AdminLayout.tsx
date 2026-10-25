@@ -71,6 +71,7 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [dataRefreshVersion, setDataRefreshVersion] = useState(0);
   const [mailBreadcrumbs,setMailBreadcrumbs]=useState<string[]>(['Inbox']);
   const breadcrumbRef=useRef<HTMLHeadingElement>(null);
   useEffect(()=>{if(activeTab==='auto-mail'&&breadcrumbRef.current)breadcrumbRef.current.scrollLeft=breadcrumbRef.current.scrollWidth;},[activeTab,mailBreadcrumbs]);
@@ -132,6 +133,7 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
     setIsRefreshing(true);
     try {
       await onRefreshData();
+      setDataRefreshVersion(version => version + 1);
       notifySuccess('Latest database data loaded.');
     } catch {
       notifyError('Unable to check for new data.');
@@ -541,11 +543,16 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
           )}
           {activeTab === 'ports' && <PortDepotConfig />}
           {activeTab === 'schema' && <SchemaMappingInspector />}
-          {activeTab === 'developer-settings' && <DeveloperSettings onOpenAutoRegisterCm={() => setActiveTab('auto-register-cm')} onOpenScheduler={() => setActiveTab('scheduler')} onOpenExcelMapping={() => setActiveTab('schema')} onOpenPortDepotConfig={() => setActiveTab('ports')} onOpenAutoEmailConfig={() => openAutoEmailConfig()} />}
+          {activeTab === 'developer-settings' && <DeveloperSettings autoRegisterCacheScope={user?.id || user?.email}
+            onOpenAutoRegisterCm={() => setActiveTab('auto-register-cm')} onOpenScheduler={() => setActiveTab('scheduler')} onOpenExcelMapping={() => setActiveTab('schema')} onOpenPortDepotConfig={() => setActiveTab('ports')} onOpenAutoEmailConfig={() => openAutoEmailConfig()} />}
           {activeTab === 'auto-email-config' && user?.type === 'ADMIN' && <AutoEmailConfig onBack={() => setActiveTab('developer-settings')} onOpenMail={() => { setPortalMode('admin'); setActiveTab('auto-mail'); }} />}
           {activeTab === 'system-version' && <SystemVersion />}
           {activeTab === 'scheduler' && <div className="w-full space-y-4"><div><h2 className="text-xl font-bold tracking-tight text-slate-900">Scheduler</h2><p className="mt-1 text-xs text-slate-500">Manage saved schedulers and request a run when needed.</p></div><CargoMoveScheduler /></div>}
-          {activeTab === 'auto-register-cm' && user?.type === 'ADMIN' && <AutoRegisterCmPage onBack={() => setActiveTab('developer-settings')} />}
+          {activeTab === 'auto-register-cm' && user?.type === 'ADMIN' && <AutoRegisterCmPage
+            onBack={() => setActiveTab('developer-settings')}
+            cacheScope={user.id || user.email}
+            refreshVersion={dataRefreshVersion}
+          />}
           {(hasOpenedNorthport || activeTab === 'northport-recovery') && user?.type === 'ADMIN' && <NorthportRecovery key={user.email} active={active && activeTab === 'northport-recovery' && portalMode === 'admin'} onBack={goToPortalHome} />}
           {activeTab === 'account-settings' && <AccountSettings user={user} avatarUrl={avatarUrl} onAvatarChange={setAvatarUrl} onUserChange={onUserChange} onReset={() => void handlePasswordReset()} sendingReset={isSendingReset} />}
           </div>
