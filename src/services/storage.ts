@@ -1,5 +1,6 @@
 import {
   Company,
+  CompanyFormData,
   PortConfig,
   DepotConfig,
   RegistrationSubmission,
@@ -941,6 +942,80 @@ function cacheCompany(company: Company): void {
 }
 
 /**
+ * Registration submissions keep a company snapshot for queue display and
+ * exports. Keep that snapshot aligned with Company Master after an admin edit,
+ * while preserving submission-specific fields such as facility and assets.
+ */
+function syncCachedCompanyReferences(company: Company): void {
+  const registrationNumber = (
+    company.registration_number_old || company.registration_number_new || company.registration_number
+  ).trim().toUpperCase();
+  const companyDetails: Partial<CompanyFormData> = {
+    registration_number: company.registration_number,
+    registration_number_old: company.registration_number_old,
+    registration_number_new: company.registration_number_new,
+    name: company.name,
+    short_name: company.short_name,
+    company_type: company.company_type,
+    haulier_id: company.haulier_id,
+    forwarding_agent_id: company.forwarding_agent_id,
+    port_id: company.port_id,
+    depot_id: company.depot_id,
+    assigned_port_ids: company.assigned_port_ids,
+    ledger_codes: company.ledger_codes,
+    assigned_depot_ids: company.assigned_depot_ids,
+    block: company.block,
+    address1: company.address1,
+    address2: company.address2,
+    city: company.city,
+    state: company.state,
+    postcode: company.postcode,
+    country: company.country,
+    contact_name: company.contact_name,
+    contact_email: company.contact_email,
+    contact_designation: company.contact_designation,
+    contact_mobile: company.contact_mobile,
+    office_phone: company.office_phone,
+    fax: company.fax,
+  };
+
+  try {
+    const submissions: RegistrationSubmission[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.SUBMISSIONS) || '[]');
+    let changed = false;
+    const updatedSubmissions = submissions.map((submission) => {
+      if (submission.company_id !== company.id) return submission;
+      changed = true;
+      return {
+        ...submission,
+        company_reg_no: registrationNumber,
+        company_name: company.name,
+        company_type: company.company_type,
+        data: {
+          ...submission.data,
+          company: { ...(submission.data?.company || {}), ...companyDetails },
+        },
+      };
+    });
+    if (changed) localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(updatedSubmissions));
+  } catch {
+    // A later protected snapshot refresh repairs an unreadable local cache.
+  }
+
+  try {
+    const users: UserRegistration[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.USER_REGISTRATIONS) || '[]');
+    let changed = false;
+    const updatedUsers = users.map((user) => {
+      if (user.company_id !== company.id) return user;
+      changed = true;
+      return { ...user, company_name: company.name };
+    });
+    if (changed) localStorage.setItem(STORAGE_KEYS.USER_REGISTRATIONS, JSON.stringify(updatedUsers));
+  } catch {
+    // A later protected snapshot refresh repairs an unreadable local cache.
+  }
+}
+
+/**
  * Persist an administrator's Company Master edit before updating the browser
  * cache. This prevents a failed or overlapping remote sync from producing a
  * false success followed by the old database value reappearing.
@@ -971,6 +1046,7 @@ export async function saveCompanyPersisted(
     if (!saved) throw new Error('The database did not return the saved company.');
     const { details, ...master } = saved;
     const confirmed = { ...(details || {}), ...master } as Company;
+    syncCachedCompanyReferences(confirmed);
     cacheCompany(confirmed);
     return confirmed;
   } finally {
