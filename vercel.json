@@ -28,6 +28,13 @@
         "sin1"
       ],
       "includeFiles": "node_modules/@sparticuz/chromium/bin/**"
+    },
+    "api/scheduler/auto-register-cm.ts": {
+      "maxDuration": 120,
+      "regions": [
+        "sin1"
+      ],
+      "includeFiles": "node_modules/@sparticuz/chromium/bin/**"
     }
   },
   "rewrites": [

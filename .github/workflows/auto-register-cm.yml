@@ -1,0 +1,29 @@
+name: Auto Register in CM
+
+on:
+  schedule:
+    - cron: '0 */2 * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Trigger Vercel scheduler API
+        env:
+          VERCEL_TASK_URL: ${{ secrets.VERCEL_TASK_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          test -n "$VERCEL_TASK_URL"
+          test -n "$CRON_SECRET"
+          curl --fail-with-body --silent --show-error \
+            --request POST \
+            --connect-timeout 10 \
+            --max-time 110 \
+            --header "Authorization: Bearer $CRON_SECRET" \
+            --header "Content-Type: application/json" \
+            --data '{}' \
+            "$VERCEL_TASK_URL"
