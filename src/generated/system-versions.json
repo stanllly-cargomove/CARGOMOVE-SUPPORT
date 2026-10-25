@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "version": "1.12.2",
-  "updatedAt": "2026-10-25T09:22:09.160Z",
+  "version": "1.13.0",
+  "updatedAt": "2026-10-25T18:27:09.253Z",
   "entries": [
     {
       "id": "account-settings",
@@ -11,9 +11,9 @@
         "src/components/admin/AdminLayout.tsx"
       ],
       "kind": "page",
-      "version": "1.4.0",
-      "updatedAt": "2026-10-25T09:02:57.263Z",
-      "fingerprint": "ef80c9a46b3ea5df30dc942b85c2d7dc9bb0576d5456a41b1071ca0d1965a03f"
+      "version": "1.4.1",
+      "updatedAt": "2026-10-25T18:27:09.253Z",
+      "fingerprint": "552e1d2f83a4af95c3dbcd1bdf5383ff0d8444d41b268231cfc1d8ef27a9bdf5"
     },
     {
       "id": "admin",
@@ -23,9 +23,9 @@
         "src/components/admin/AdminLayout.tsx"
       ],
       "kind": "page",
-      "version": "1.4.0",
-      "updatedAt": "2026-10-25T09:02:57.263Z",
-      "fingerprint": "a1b7591e50f551be24a300f2d1974187c954b63ebd2c816001130a779c04e806"
+      "version": "1.4.1",
+      "updatedAt": "2026-10-25T18:27:09.253Z",
+      "fingerprint": "391020ca305b3c49e6e8ae6bfadc5aa6cdb662db7cda2df7dcde9e165c9f59a1"
     },
     {
       "id": "auto-email",
@@ -42,9 +42,9 @@
         "server-handlers/_email.ts",
         "api/mail.ts"
       ],
-      "version": "1.1.3",
-      "updatedAt": "2026-10-25T09:02:57.263Z",
-      "fingerprint": "425adc6d90cdc578e1850f5e398564be58ede03c1a1073f732574b7058f2b573"
+      "version": "1.1.4",
+      "updatedAt": "2026-10-25T18:27:09.253Z",
+      "fingerprint": "2fdbc0e3a69939a9b7278e052a4d9df756f740170b1ed191820a5b0931cd1119"
     },
     {
       "id": "auto-mail",
@@ -70,9 +70,9 @@
         "supabase/auto-mail",
         "api/mail.ts"
       ],
-      "version": "1.1.3",
-      "updatedAt": "2026-10-25T09:02:57.263Z",
-      "fingerprint": "e6c298c4c470050317bf623341175275dc11367d025f4c7c9d773c9aa8ce52ac"
+      "version": "1.1.4",
+      "updatedAt": "2026-10-25T18:27:09.253Z",
+      "fingerprint": "9eb1d4b2c8eb18ba454ea50b6300bed104b86693cfb1faa7e1f28641d772b4c3"
     },
     {
       "id": "developer",
@@ -82,9 +82,9 @@
         "src/components/admin/AdminLayout.tsx"
       ],
       "kind": "page",
-      "version": "1.4.0",
-      "updatedAt": "2026-10-25T09:02:57.263Z",
-      "fingerprint": "f1c3c01fe7b6054e07fb4782fcce2d9adac25695420228ea8a196e417439a381"
+      "version": "1.4.1",
+      "updatedAt": "2026-10-25T18:27:09.253Z",
+      "fingerprint": "f9b9d0a5d53b399b17cfed5eefe1da422f2f5c3d04ce79e9eb23d0f136c64c85"
     },
     {
       "id": "northport",
@@ -107,9 +107,9 @@
         "src/components/admin/SubmissionsList.tsx"
       ],
       "kind": "page",
-      "version": "1.0.7",
-      "updatedAt": "2026-10-25T09:02:57.263Z",
-      "fingerprint": "1da13844c253819ade673318298acc3d627a24263941d06998027d4d6429c860"
+      "version": "1.0.8",
+      "updatedAt": "2026-10-25T18:27:09.253Z",
+      "fingerprint": "63582c8a8b4c7a8d3c157a9e0cb1ad858271d9d8313d781e76b64995bcd82cd7"
     },
     {
       "id": "queue-pending",
@@ -119,9 +119,9 @@
         "src/components/admin/SubmissionsList.tsx"
       ],
       "kind": "page",
-      "version": "1.0.7",
-      "updatedAt": "2026-10-25T09:02:57.263Z",
-      "fingerprint": "e36d1d0e94d475f7531ba272c1f69521c523aec97e6436cb6a3a091b4f7de83b"
+      "version": "1.0.8",
+      "updatedAt": "2026-10-25T18:27:09.253Z",
+      "fingerprint": "a4db377336245209612fd15c99d7546c6314133c656803920d492c6891f7976d"
     },
     {
       "id": "queue-rejected",
@@ -131,9 +131,9 @@
         "src/components/admin/SubmissionsList.tsx"
       ],
       "kind": "page",
-      "version": "1.0.7",
-      "updatedAt": "2026-10-25T09:02:57.263Z",
-      "fingerprint": "c25f7f86dec8962c0945316db833c15c9ab54de960e76a07a5dd463e06bad42d"
+      "version": "1.0.8",
+      "updatedAt": "2026-10-25T18:27:09.253Z",
+      "fingerprint": "e51f7b132462291c4301e8a9439e4c327dfa7105c14d1bacfc4314943cf0427c"
     },
     {
       "id": "registration",
@@ -146,9 +146,9 @@
         "server-handlers/registration",
         "api/registration.ts"
       ],
-      "version": "1.1.5",
-      "updatedAt": "2026-10-25T09:02:57.263Z",
-      "fingerprint": "82429b5d203a290f3c457aec8de45a1faef0e9b5aa3fc29131f5419b80c73335"
+      "version": "1.1.6",
+      "updatedAt": "2026-10-25T18:27:09.253Z",
+      "fingerprint": "0195bc242c0e58dca57f2f2a16ab90d484b5511f274b9f186baacb74c48d333a"
     },
     {
       "id": "registration-company",
@@ -158,9 +158,9 @@
         "src/components/customer/forms/CompanyForm.tsx"
       ],
       "kind": "page",
-      "version": "1.0.7",
-      "updatedAt": "2026-10-25T09:02:57.263Z",
-      "fingerprint": "e3556af53da6ca55f6ffb7cf27717d86fd87ad20529dd86cddd9ee20cf261e04"
+      "version": "1.0.8",
+      "updatedAt": "2026-10-25T18:27:09.253Z",
+      "fingerprint": "3ca18b78aa1269d134bda666ae123915cb444ba047db4ff42d79602abd7903bd"
     },
     {
       "id": "registration-confirmation",
@@ -170,9 +170,9 @@
         "src/components/customer/ConfirmationScreen.tsx"
       ],
       "kind": "page",
-      "version": "1.0.6",
-      "updatedAt": "2026-10-25T09:02:57.263Z",
-      "fingerprint": "48a4c1fd70e93c8e76c95215f620c41c3a59c7b290438377ddb884eb39749cfc"
+      "version": "1.0.7",
+      "updatedAt": "2026-10-25T18:27:09.253Z",
+      "fingerprint": "cebd56e7f2dbd2b402cadffb73d24b03dddbe423cb0afec57582cc9f5206095b"
     },
     {
       "id": "registration-driver",
@@ -182,9 +182,9 @@
         "src/components/customer/forms/DriverForm.tsx"
       ],
       "kind": "page",
-      "version": "1.0.6",
-      "updatedAt": "2026-10-25T09:02:57.263Z",
-      "fingerprint": "9b38f43bc82c6e271fd734a6059c57da1f3f5961e18f712217d069af15f6de70"
+      "version": "1.0.7",
+      "updatedAt": "2026-10-25T18:27:09.253Z",
+      "fingerprint": "371b10dc5e6d1ef59cd3188173994826a7db6cd93c78a8b33c0ba80af5171071"
     },
     {
       "id": "registration-trailer",
@@ -194,9 +194,9 @@
         "src/components/customer/forms/TrailerForm.tsx"
       ],
       "kind": "page",
-      "version": "1.0.6",
-      "updatedAt": "2026-10-25T09:02:57.263Z",
-      "fingerprint": "b4d5094287c83149f77f47507bffd3cad49556d3b52a8b799aa3dc24556de9e8"
+      "version": "1.0.7",
+      "updatedAt": "2026-10-25T18:27:09.253Z",
+      "fingerprint": "193940046be1b69aed7204ed1bec5735e02214f558906d3248656936d242076c"
     },
     {
       "id": "registration-useraccess",
@@ -218,9 +218,9 @@
         "src/components/customer/forms/VehicleForm.tsx"
       ],
       "kind": "page",
-      "version": "1.0.6",
-      "updatedAt": "2026-10-25T09:02:57.263Z",
-      "fingerprint": "b94b152f8eb1372693dbeff7b11a98506f317d919559052705c77acc0ea56ce9"
+      "version": "1.0.7",
+      "updatedAt": "2026-10-25T18:27:09.253Z",
+      "fingerprint": "1822ed7c4274f1de838bef95b1f564ac943d833909f9cf99504fe0504cfb28cb"
     },
     {
       "id": "src/components/admin/AccountSettings.tsx",
@@ -230,9 +230,9 @@
         "src/components/admin/AccountSettings.tsx"
       ],
       "kind": "page",
-      "version": "1.0.8",
-      "updatedAt": "2026-10-25T09:02:57.263Z",
-      "fingerprint": "85b0f0cb2ebdd869bd800c62753487189a4699c9ed2891c22a6ef0572da65b94"
+      "version": "1.0.9",
+      "updatedAt": "2026-10-25T18:27:09.253Z",
+      "fingerprint": "1f5f72d6212c5deeb12aff27a70a848a741d3dde9a91a557bf7bdc96f0b87749"
     },
     {
       "id": "src/components/admin/AdminDashboard.tsx",
@@ -242,9 +242,9 @@
         "src/components/admin/AdminDashboard.tsx"
       ],
       "kind": "page",
-      "version": "1.1.1",
-      "updatedAt": "2026-10-25T09:02:57.263Z",
-      "fingerprint": "53245d671f908130c8957091482bc1cfdcff5de0a27abb3a4cbe5c8b97386e90"
+      "version": "1.1.2",
+      "updatedAt": "2026-10-25T18:27:09.253Z",
+      "fingerprint": "65a0d1d1f802701971e8ebacdfae2b05bfff90620203a0f6d4cfc0114a68cbb8"
     },
     {
       "id": "src/components/admin/AdminUser.tsx",
@@ -254,9 +254,9 @@
         "src/components/admin/AdminUser.tsx"
       ],
       "kind": "page",
-      "version": "1.0.7",
-      "updatedAt": "2026-10-25T09:02:57.263Z",
-      "fingerprint": "605fc98ab6efbf08e953841729ea5f85f4db18db9a99bb60782ad564b61419ce"
+      "version": "1.0.8",
+      "updatedAt": "2026-10-25T18:27:09.253Z",
+      "fingerprint": "00353620a922cc3c3b20bf0e8bb717cc08782f41c50510497e6fdfc3b3cf29f5"
     },
     {
       "id": "src/components/admin/AdminUserCreate.tsx",
@@ -266,9 +266,9 @@
         "src/components/admin/AdminUserCreate.tsx"
       ],
       "kind": "page",
-      "version": "1.0.7",
-      "updatedAt": "2026-10-25T09:02:57.263Z",
-      "fingerprint": "fc69a4aef789766109df9773ec1517d4ada51a05bb8b8fbe503dfa2224b9f608"
+      "version": "1.0.8",
+      "updatedAt": "2026-10-25T18:27:09.253Z",
+      "fingerprint": "1a45639d31b7b68d5acd076b00df29cfcf2447e1eeb252edf84dfcf68f156ec2"
     },
     {
       "id": "src/components/admin/AutoEmailConfig.tsx",
@@ -278,9 +278,9 @@
         "src/components/admin/AutoEmailConfig.tsx"
       ],
       "kind": "page",
-      "version": "1.0.6",
-      "updatedAt": "2026-10-25T09:02:57.263Z",
-      "fingerprint": "2a9482362ebb8da3977c806c53cfddc450ddde157451d9d27e2c6d319501b288"
+      "version": "1.0.7",
+      "updatedAt": "2026-10-25T18:27:09.253Z",
+      "fingerprint": "d6b0daeed41bd17b51ac2c8242c023b681ccbc7db24330cdbda2dfe5ef70bacf"
     },
     {
       "id": "src/components/admin/AutoMail.tsx",
@@ -290,9 +290,9 @@
         "src/components/admin/AutoMail.tsx"
       ],
       "kind": "page",
-      "version": "1.1.2",
-      "updatedAt": "2026-10-25T09:02:57.263Z",
-      "fingerprint": "d4f6388f62cd923739378e1f20c2194c56a60ac51a4b8c50a633a3bec840278c"
+      "version": "1.1.3",
+      "updatedAt": "2026-10-25T18:27:09.253Z",
+      "fingerprint": "5e45193d83584f6cbe22473d656b1f9160816ccaae79938c513b2228ba91b914"
     },
     {
       "id": "src/components/admin/AutoMailAttachments.tsx",
@@ -350,9 +350,9 @@
         "src/components/admin/AutoMailIncomingSettings.tsx"
       ],
       "kind": "page",
-      "version": "1.0.4",
-      "updatedAt": "2026-10-25T09:02:57.263Z",
-      "fingerprint": "48f82516bfdc118b08fd1bbfc594aa43f9ddc6f14cf8ef9ff64fa60cc05afc64"
+      "version": "1.0.5",
+      "updatedAt": "2026-10-25T18:27:09.253Z",
+      "fingerprint": "e68adf8ef586621ba95175bb4e584a7cc59dd4fb0580ea7534f7165a79c1ccd8"
     },
     {
       "id": "src/components/admin/AutoMailInitialization.tsx",
@@ -446,9 +446,9 @@
         "src/components/admin/AutoMailScopePicker.tsx"
       ],
       "kind": "page",
-      "version": "1.0.2",
-      "updatedAt": "2026-10-25T09:02:57.263Z",
-      "fingerprint": "aeb05e55ab3fee17af31ec728c204b6e5082eb4dd9c18f2bccddded5f74d70f1"
+      "version": "1.0.3",
+      "updatedAt": "2026-10-25T18:27:09.253Z",
+      "fingerprint": "8730f90e371922543d957559f8ac3ed98bcdc99fbbeb57974058a8a0fd1b1ed2"
     },
     {
       "id": "src/components/admin/AutoMailSettingsUi.tsx",
@@ -499,6 +499,30 @@
       "fingerprint": "0026a7edb3bbf0ddef9db37b8277cbfdb6564e4398f42013595f64c11afd1d95"
     },
     {
+      "id": "src/components/admin/AutoRegisterCm.tsx",
+      "name": "Auto Register Cm",
+      "area": "Developer",
+      "files": [
+        "src/components/admin/AutoRegisterCm.tsx"
+      ],
+      "kind": "page",
+      "version": "1.0.0",
+      "updatedAt": "2026-10-25T18:27:09.253Z",
+      "fingerprint": "d4c5e67c6ad3bae60679f7cf2350858f6122b53df7d12a68f0bef9f96bb7947a"
+    },
+    {
+      "id": "src/components/admin/AutoRegisterScheduledIndicator.tsx",
+      "name": "Auto Register Scheduled Indicator",
+      "area": "Developer",
+      "files": [
+        "src/components/admin/AutoRegisterScheduledIndicator.tsx"
+      ],
+      "kind": "page",
+      "version": "1.0.0",
+      "updatedAt": "2026-10-25T18:27:09.253Z",
+      "fingerprint": "c3a1900db89fa39604d37d13fde1a1fa1b4a36111c0260b8f0454701668f1b30"
+    },
+    {
       "id": "src/components/admin/CargoMoveScheduler.tsx",
       "name": "Scheduler",
       "area": "Developer",
@@ -506,9 +530,9 @@
         "src/components/admin/CargoMoveScheduler.tsx"
       ],
       "kind": "page",
-      "version": "1.0.5",
-      "updatedAt": "2026-10-25T09:02:57.263Z",
-      "fingerprint": "48c47324d5f067c3c2201927fa9774065617519bdb4eab59b8233fbcbca045d7"
+      "version": "1.0.6",
+      "updatedAt": "2026-10-25T18:27:09.253Z",
+      "fingerprint": "ade5acf81386a3bb1c8133840e622a5e0b22b27b86e8aead44576b09ee8da73a"
     },
     {
       "id": "src/components/admin/CompanyMaster.tsx",
@@ -518,9 +542,9 @@
         "src/components/admin/CompanyMaster.tsx"
       ],
       "kind": "page",
-      "version": "1.0.9",
-      "updatedAt": "2026-10-25T09:02:57.263Z",
-      "fingerprint": "57d3d089bef816921c2e7bf3ce3541a755543a43f2158e75a105f65d31276924"
+      "version": "1.1.0",
+      "updatedAt": "2026-10-25T18:27:09.253Z",
+      "fingerprint": "b280100e10790c8ab34fe79c0088c6dc98b2dae007efc8895a43bb85a3a24d83"
     },
     {
       "id": "src/components/admin/DeveloperSettings.tsx",
@@ -530,9 +554,9 @@
         "src/components/admin/DeveloperSettings.tsx"
       ],
       "kind": "page",
-      "version": "1.0.4",
-      "updatedAt": "2026-10-24T05:32:01.399Z",
-      "fingerprint": "197a1d901107c69ce86b98907af17003d14188421d6c0b873a00c5db4669ebca"
+      "version": "1.0.5",
+      "updatedAt": "2026-10-25T18:27:09.253Z",
+      "fingerprint": "a9d157a8f09eaf76f172099ad0cae1e8883f7b3f1fb0f543614e9d9ebbe18fe8"
     },
     {
       "id": "src/components/admin/EmailTemplateManager.tsx",
@@ -542,9 +566,9 @@
         "src/components/admin/EmailTemplateManager.tsx"
       ],
       "kind": "page",
-      "version": "1.0.6",
-      "updatedAt": "2026-10-25T09:02:57.263Z",
-      "fingerprint": "2cbc636a36e7ab04c878b5cf9e3a86aebc6cbe5a4159dc3bbdf2eed5e1bc8682"
+      "version": "1.0.7",
+      "updatedAt": "2026-10-25T18:27:09.253Z",
+      "fingerprint": "07300a68d6c1bc7865cbb0e246723c02aa3fb7e8f74eb44bf217bca1ac168429"
     },
     {
       "id": "src/components/admin/ExcelExportCenter.tsx",
@@ -554,9 +578,9 @@
         "src/components/admin/ExcelExportCenter.tsx"
       ],
       "kind": "page",
-      "version": "1.0.6",
-      "updatedAt": "2026-10-25T09:02:57.263Z",
-      "fingerprint": "e1a5a73665d3e01aa0e83c0e6f7491909bc7c1796f661c1e2eb06334b129852f"
+      "version": "1.0.7",
+      "updatedAt": "2026-10-25T18:27:09.253Z",
+      "fingerprint": "df80763ef8800ee97dbf6f2d7fd042694b4c88c760ae3716d9bf36b278bbcd53"
     },
     {
       "id": "src/components/admin/GuidelineManager.tsx",
@@ -638,9 +662,9 @@
         "src/components/admin/PortDepotConfig.tsx"
       ],
       "kind": "page",
-      "version": "1.0.6",
-      "updatedAt": "2026-10-25T09:02:57.263Z",
-      "fingerprint": "d55184a6c96d2d4f9b72d5f398ca0a7fc3a71184037e8017af802d2f96595a71"
+      "version": "1.0.7",
+      "updatedAt": "2026-10-25T18:27:09.253Z",
+      "fingerprint": "afb06cc33572cedb84ec749591c1d3a7d16b1f3d3de179caf669a3e8b6eeb362"
     },
     {
       "id": "src/components/admin/QueueCompanyName.tsx",
@@ -662,9 +686,9 @@
         "src/components/admin/RegistrationReference.tsx"
       ],
       "kind": "page",
-      "version": "1.0.1",
-      "updatedAt": "2026-10-25T09:02:57.263Z",
-      "fingerprint": "113ee74af953c88e22c09613ca8c129b840cf1cd6641635e8069a33486089f72"
+      "version": "1.0.2",
+      "updatedAt": "2026-10-25T18:27:09.253Z",
+      "fingerprint": "9f21d32b63055a1fd189befdf282874d48ec8bf417e1f627fba998ad578adb9a"
     },
     {
       "id": "src/components/admin/SchemaMappingInspector.tsx",
@@ -674,9 +698,9 @@
         "src/components/admin/SchemaMappingInspector.tsx"
       ],
       "kind": "page",
-      "version": "1.0.6",
-      "updatedAt": "2026-10-25T09:02:57.263Z",
-      "fingerprint": "d3525a6f41e338b3ed0f0b442ac5d4daa7cbc48e017c961aa378da5bde10c7ad"
+      "version": "1.0.7",
+      "updatedAt": "2026-10-25T18:27:09.253Z",
+      "fingerprint": "77fad2d2a82b08f73402807f92ea45eaa6dc2ff3ded788aef8f66963014a67c6"
     },
     {
       "id": "src/components/admin/SystemVersion.tsx",
@@ -698,9 +722,9 @@
         "src/components/admin/UserRegistration.tsx"
       ],
       "kind": "page",
-      "version": "1.0.8",
-      "updatedAt": "2026-10-25T09:02:57.263Z",
-      "fingerprint": "1fd629438306c19c48a2d0d1cedb76296e66d07759c7f745e387c71178d5c823"
+      "version": "1.0.9",
+      "updatedAt": "2026-10-25T18:27:09.253Z",
+      "fingerprint": "51d60c051db0d28a8053936df8908fdb7aa28b53265866b83a3afdbe41359621"
     },
     {
       "id": "src/components/auth/LoginPage.tsx",
@@ -710,9 +734,9 @@
         "src/components/auth/LoginPage.tsx"
       ],
       "kind": "page",
-      "version": "1.0.5",
-      "updatedAt": "2026-10-24T19:40:01.321Z",
-      "fingerprint": "f95c88d1ca3a559c12060d83dfbb328441db6c91645b29c064745d85f92659c1"
+      "version": "1.0.6",
+      "updatedAt": "2026-10-25T18:27:09.253Z",
+      "fingerprint": "cc5f410f2237634ab19377c9fd14ef26a2bf76a993d9b77d59e792c2bd868ef5"
     },
     {
       "id": "src/components/auth/PasswordResetPage.tsx",
@@ -758,9 +782,9 @@
         "src/components/customer/PortalLoginPage.tsx"
       ],
       "kind": "page",
-      "version": "1.1.2",
-      "updatedAt": "2026-10-24T19:40:01.321Z",
-      "fingerprint": "0221e8b11d751b43ea782d247695e676219de41a9903c3139d244903ae102542"
+      "version": "1.1.3",
+      "updatedAt": "2026-10-25T18:27:09.253Z",
+      "fingerprint": "3f2c6b5e20934dc2120f83fabdc54a7457500e2fe22ded626fa9fcefcb5537d4"
     },
     {
       "id": "src/components/customer/RegistrationPage.tsx",
@@ -770,9 +794,9 @@
         "src/components/customer/RegistrationPage.tsx"
       ],
       "kind": "page",
-      "version": "1.1.4",
-      "updatedAt": "2026-10-25T09:02:57.263Z",
-      "fingerprint": "fdd890fdc52e79740d2ca686cf06a2332a0e4618f3951968767ad6a553d4132c"
+      "version": "1.1.5",
+      "updatedAt": "2026-10-25T18:27:09.253Z",
+      "fingerprint": "494096ff8f6015ce834af5f50a90501a8d655c47dab908f75b1eb737ef35fb64"
     },
     {
       "id": "src/components/customer/TrackStatusPage.tsx",
@@ -800,6 +824,7 @@
     "api/health.ts": "bd85c6a0ce4c58094322532e63cdfada9114c66bf81ce294b7ee7014399ff049",
     "api/mail.ts": "c65b7d9bbfe204ca9a11e4bf158e1bb8d29e33ec3c0b7beb0e7f2d08501127ad",
     "api/registration.ts": "6a44d6166ac7d9236268a22dcee40f2feb48238c6fde1d98da11f7d4223e1314",
+    "api/scheduler/auto-register-cm-queue.ts": "c18bfc7338a71b708a53249aa40405ef33fbaa3b3131f51917c75cefbdb1220e",
     "api/scheduler/auto-register-cm.ts": "4f33844d05cbd7ed8003f7eb7946092826036b0e44c657dc01c9bde2bba6114e",
     "api/snapshot.ts": "42e18f6192095a6134901928ff4e22fc3d1afe32dda1b17db2f5b34f64ead01a",
     "index.html": "a76d13c7cd586f58ca22fe4c6228c3f3150bc2eae91c0a8a4b7a3b3eecff200f",
@@ -817,10 +842,10 @@
     "media/registration-depot-card.png": "de3a1dfdc105987f1400cdf87b836faa9b474ac0cd7344db6f1f2c2f9a293468",
     "media/registration-port-hero-fast.webp": "36830a87ccaf357ccfc531603d2937abbfd8ea8a819eeeb6f18d6aca2438d01a",
     "media/registration-port-hero.png": "2b6df14a930709895dc1f2a5572e4897545952bfd726f8cffde61727f7a1ced5",
-    "package.json": "a33e91644cca444d797788272802649fb6dd656e11f82337ab7347504b839b31",
+    "package.json": "a3f55cc6ad2189b85f4b946e1c9ca8721d32498fb6b7abf9c6529ee356fad96c",
     "scripts/capture-push-version.ts": "1b4f1ef7ba558680dd94cede28b9f6046e49e8edffc0161d30bdee323f0dcb60",
     "scripts/system-version.ts": "32f56c2dee7dceb54a1eed7c11603c43750092d2d168c81e85c3d1f9380c3a56",
-    "server-handlers/_email.ts": "4c7767612ffb9f5444c851a8b1047bcb1b1434bf5ffdafc3a5cdf45c6f6fcca9",
+    "server-handlers/_email.ts": "182ab95549dfb69b6f3b4cc8f6ca26336e32c4c16879b4eb225b7d24d3e187ec",
     "server-handlers/auto-mail/agent-config.ts": "96464653ebbeb3d14cb89b2fed36b90fa28152c4665fdf34931d427f03bdfe3a",
     "server-handlers/auto-mail/agent-settings.ts": "6bf3bf56e936a377ff0cf2004b5ccb4678647f8c1d338e34d680b2199e2f19c4",
     "server-handlers/auto-mail/ai.ts": "18e6512c6eac0531daadee57aed01487ce93b2320a3088b51ca3fbbcc24e49fb",
@@ -849,14 +874,14 @@
     "server-handlers/email/logs.ts": "e4f0bc6ee994b1a295c63d87ad7fc95e4467a061942417855f149d9a36a2c424",
     "server-handlers/email/pdf-inter-font.ts": "4b7d76e9c6e695472be384cb1b5d2cee82fa37442ea1f8529352c7eeb480456d",
     "server-handlers/email/preview.ts": "8a0ebfebeb8a8e58382cb3a05c2a28741df502dd2f1260ab5136e83b1a908b0c",
-    "server-handlers/email/send.ts": "7b06bdc0c627bc23712ac94760e6fe353724e9d02eca6d2adeb3cc3b7f2d4f7c",
+    "server-handlers/email/send.ts": "4e2be6bebce20bb1792bfa95e1dfe49101e5bf0dd0b71539e1c64fd756e3a3ac",
     "server-handlers/email/submission-asset-pdf.ts": "a0d1d4bb01e9f2a0eea4edef79cc5e73601c32ceaf838cb08f561e10d264f5ac",
     "server-handlers/email/submission-attachment.ts": "4a01c87a799a69a5bc0e859e61f7cbea0fb2bd841ca8d05f10da375eacead90b",
     "server-handlers/email/submission-batch-preview.ts": "edf75719d77f2179e0e88368f9f9739f39cf0b9fc88f22ad68ac30632df30d1e",
     "server-handlers/email/submission-batch-send.ts": "22a121db635992c052938dfc2dc3fd0d0e2202197de78b19cd4f61e5608a0598",
     "server-handlers/email/submission-preview.ts": "a9cb5fefd2963eae4fcf16e463a8ae145a95549fa064628dcac0c96bf6e12557",
-    "server-handlers/email/submission-send.ts": "f61f098158ae4409816d001db0c7a8465f2a5f49697be0611d601f9f078ae05c",
-    "server-handlers/email/templates.ts": "4c6c5b0b94d75cbc64ba01ff2f615b646251eb3430beca06172f51de7147397a",
+    "server-handlers/email/submission-send.ts": "fd8dadf78510d72ea9b64143fefbcca7380324b704eff89e5ba694a936adb944",
+    "server-handlers/email/templates.ts": "18dfa1ec4f181c01f37e092a3c14831b6950f05a6706e65641dec0c94e8ebdc0",
     "server-handlers/gmail/callback.ts": "ce2ea8876fba8e6a8d5d70719cdefbf1d3173a78212cfb15743688b2f6ead751",
     "server-handlers/gmail/connect.ts": "54cfb62bf4a5781c70c05226470e08be4721a21db9836b30b5805f80ff0d05e7",
     "server-handlers/gmail/status.ts": "0dc246423c0a0252014cdc263ac380281fc8998bcf20e8c811571cb36b50e5a1",
@@ -870,24 +895,27 @@
     "server-handlers/northport/scan.ts": "d33d49f1ee7b6af5dfbce6b9dcec23b00d87a931c3031c70b767437514b919cd",
     "server-handlers/northport/scheduler-verification.ts": "a706cef9f5498bf6cee8a671d80f0e1e1c3d8017383e073482bd7e4616803259",
     "server-handlers/profile.ts": "8d962972b874694a0b49cd66f9e7382fd7ecc6fcf60950d5274d9ded06085f02",
-    "server-handlers/registration-uploads/automation.ts": "a1b0ac3744a9eb9f94ce83fdbb15b86922b4d9ce86d309a86b7f7c8e78348356",
-    "server-handlers/registration-uploads/handler.ts": "9c3542439b358cbd6fd9952f20ab7809aed5b0dcbe091c26616b2d51e0cad653",
+    "server-handlers/registration-uploads/automation.ts": "e4d57ba22d05e9963faa207177d05ce5f446b6b87cf2b7bd17e20038d62e5bcf",
+    "server-handlers/registration-uploads/eligibility.ts": "58d85d5fdd92bc65efbaf3b96174d4c662d23db6b30582173f46b2671861f993",
+    "server-handlers/registration-uploads/handler.ts": "06fce9962d7b04dc1461ed8f410abf3f8bb242054d8dac7d7394643429c5e844",
     "server-handlers/registration/config.ts": "6b7c4f2016d268e8235a7c2873d1875511c9c4a088abd9699feaabfd0e9e3539",
     "server-handlers/registration/lookup.ts": "62abd7ee52b4e3ef2397d0bfa2e526b368400ff4656f7c590a0ce2ab1a17b33d",
     "server-handlers/registration/status.ts": "753814e9b0d2570a96028c09cbe2ffb235155f717fcb30c6fbb1350488b210cd",
     "server-handlers/registration/submit.ts": "8acced5660ffc25adc88884fc54aa7339ff80cb702e0f633ab7e891f3fba0c04",
     "server-handlers/scheduler/access.ts": "76ef28658dda9612579330cb9d37e32f6a2f6d7896afb6c217395703b36a6d6f",
-    "server-handlers/scheduler/auto-register-cm.ts": "e1795566ab3cdaae34ae80443d7a947f97c69b2ed452b3636464e468713b76d3",
+    "server-handlers/scheduler/auto-register-cm-discovery.ts": "02cdbd3e681c80740c82294783f53a1996cb41b30c99e9e43990373f9281a0a0",
+    "server-handlers/scheduler/auto-register-cm-queue.ts": "c59d4140844e71b2b8d5aa015cf3f66ff63c7b079b9fbe5f6d3bf39e2a7bd2b4",
+    "server-handlers/scheduler/auto-register-cm.ts": "6f1cfd1129095a010e296d1c45d4e8262673de4af7d2bcbe3c81d29f52c5418b",
     "server-handlers/scheduler/automation.ts": "600829e517864ddb77fa16e03e04a39182dcd7eb8266dca41ff0386832a2e735",
     "server-handlers/scheduler/catalog.ts": "2d57b4deba6d3e50e12ff551702baab55b1bdfdeef6ac665233bbe7ce039a4fd",
     "server-handlers/scheduler/handler.ts": "9f5e46399aec64ace317e10320bf11b73c18604a637b442afc5edaf3bdc04307",
     "server-handlers/scheduler/targets.ts": "be6109d1121d6f850ac15675564c71cd463dbc93f3e848ff5f7cbe24d9ed9c55",
     "server-handlers/system-versions.ts": "67576ad773da93c269b9e66efd6d72a9de02c8c1df0a1d986a17d564989ced9a",
-    "server.ts": "465ac036399bd8234a4e94512ad80e4c761e82eb897b55413c13b6c0b23813cb",
+    "server.ts": "d877a79db048312006e1cb218ab88847ceeb12f550b168c1bb8c64be6fab7ced",
     "src/App.tsx": "5fe8e4849c0d2aaed22dbd6eecf3bb37c8bfde7fcb99fb172256bd7f50ad4593",
     "src/components/admin/AccountSettings.tsx": "307eff35f85f7d44dac7be9d25dbb8d10ff8cacaf625bc1920439ddc9a9b0862",
-    "src/components/admin/AdminDashboard.tsx": "31a86be692d0ce4f001a1fa8c4a56d287e3c76e48d700c8ef8ee1d6ab850c72b",
-    "src/components/admin/AdminLayout.tsx": "6799af736da29259e176900c68679e4249290591851a328034297049d23b31b7",
+    "src/components/admin/AdminDashboard.tsx": "8aa6400ff8b7147e099efdf2379743e7b974d668445c51a9ba744067644bcec4",
+    "src/components/admin/AdminLayout.tsx": "6e7cca73fb658ba3b7220a438d9a3dd9ff64041f33f4b2d3a25509f5c00a3c26",
     "src/components/admin/AdminUser.tsx": "00957e103bffd351a3ac6ed3e3d98f7615fe3476b88406fe751997c715f0769c",
     "src/components/admin/AdminUserCreate.tsx": "8d314b35a609239dca04e94f2ad8268b5ebdf38e73bd4cfe94559e43d467bc3b",
     "src/components/admin/AssignIdModal.tsx": "72ae3d157ab747b349a55a01bb4b0f13dd36f0958eb6fe7565c539155064de0a",
@@ -920,10 +948,12 @@
     "src/components/admin/AutoMailSignatures.tsx": "5c0e666c5e288e7fba45f0d430ea445e19530b6b3d49fc3f910e4e03509ef0d4",
     "src/components/admin/AutoMailSkeleton.tsx": "9c2d0450c1d9613227a23a317be3723051335b9faf821bff42b35f919034f78b",
     "src/components/admin/AutoMailSnackbar.tsx": "d4dce098b95f51a0ff3bdedf32506a1238deae037ca8da0d6a313e9de792365e",
-    "src/components/admin/CargoMoveScheduler.tsx": "914a93c8fec21ac63c496a2a36cb02bb1ad429d97d7928e81a30c40ef5543496",
+    "src/components/admin/AutoRegisterCm.tsx": "0d43b2e836f76896eeb0baf3f7417d682abfeb3efb3021280f2cc0010a657928",
+    "src/components/admin/AutoRegisterScheduledIndicator.tsx": "845b5b4fd119031608d6aa125217cbaeb90a1a79f0554604c1234e0367045416",
+    "src/components/admin/CargoMoveScheduler.tsx": "0c72d668118bd8cea08ff4107947a2b2e2cca74e7684d82c7f8f01fb9ada8105",
     "src/components/admin/CompanyMaster.tsx": "c576e31c1ff12954073b4e6967adef407f4e89580c713df2e05108a25e9d7eb8",
-    "src/components/admin/DeveloperSettings.tsx": "14eb87c533d534e99da401b70facec3cbcf7ea01ece3e26f67ba000cb05ce991",
-    "src/components/admin/EmailTemplateManager.tsx": "e98718237c49a1530403747356b1402700f38ec95a0117e39f9141279c427e97",
+    "src/components/admin/DeveloperSettings.tsx": "8975a26dff5f614ce12e8dc2cbfda23658d66c83043d6a4585d5becd9f45abb5",
+    "src/components/admin/EmailTemplateManager.tsx": "8b55249e68f2d911da2d95c0815ad8c4f31750b9f275a00417b7317df345b631",
     "src/components/admin/ExcelExportCenter.tsx": "cf8d918964e5443b35f955f7e7b3fd0d5b0427c94dacc366331487ede7385527",
     "src/components/admin/GuidelineManager.tsx": "612391e3048b8681230ec8b91c623aa9c0d79ac30872affcd92546c37d2abcc4",
     "src/components/admin/NorthportContainerPagination.tsx": "4e65be1bec3fe9b0b2619c489e15f0652930e8bd45e33dba620c9296c2c104a3",
@@ -938,7 +968,7 @@
     "src/components/admin/RichTextEmailEditor.tsx": "f3d60a9f29771e11b8918e6bcddf7dfb6456a123028cb2732c22b8858141ed2c",
     "src/components/admin/SchemaMappingInspector.tsx": "b15f2621134ebf78526030f0bd91e8c0aa4c17c2e49836564223155c5f09e91d",
     "src/components/admin/SubmissionDetailModal.tsx": "68a7b49f1878f067d4295fa2ec4c75879400838a13902bc13a06ecc30b41cb12",
-    "src/components/admin/SubmissionsList.tsx": "01c94ff3a8a6a04c033d956c758e9950c4ec8c477ec28750650a6bda6c449035",
+    "src/components/admin/SubmissionsList.tsx": "da65e401562dc7f3f244f4be484ddb961d1b2ace5ec23ec6fc0849e405cd92e6",
     "src/components/admin/SystemVersion.tsx": "d1cba88c32a1f3a796a1719e23abcc141953ec4ec20be9dc809bad81d30ba822",
     "src/components/admin/UserRegistration.tsx": "2d84718aa0f14caf79246b3cfce855159b9aa0bf5412f4ec67c578467cc80878",
     "src/components/auth/LoginPage.tsx": "b3a80fb8dbca5fe5e3ac078cc7ad97bef6f255d99cfa470bd89e85050c28e009",
@@ -975,7 +1005,7 @@
     "src/components/customer/portalNavigation.ts": "6d84ef00bab14c4afbb6b01d91e8d6ecbc792fdd20ef2760f52c81e7db9c6060",
     "src/constants/companyLocations.ts": "8d2b5675aec95c90d7bd1c3582150e459008afb52ab3f5e68feb9b478385ec99",
     "src/constants/versions.ts": "87dab1269d27cb08f25d8eb288b7f62f70a325b91c1de420d652fc8ed35bc0e9",
-    "src/index.css": "92871e81e48692da29a35e31b9e1dad81f1f462681504b9a2e66883ef87dbf98",
+    "src/index.css": "5527165303419d7af1553ea8873c6ca2aed55fa9ab37189dd1e558844e9455da",
     "src/main.tsx": "f3d828b9fc5f49d6f93c3c84afb280871bd33e4af89edc020c0d57eb561c9dcb",
     "src/mammoth-browser.d.ts": "2e00349bdbb1a6c760d2d7ea1a73d5c4af74ff5b71e56a80630c41000ddf9a54",
     "src/services/auth.ts": "bea2edaa4e2ba497755a4a0acd16accf85f23d8efe05beeba882d548436ed879",
@@ -993,7 +1023,7 @@
     "src/services/companyHelper.ts": "80622040cde5309408ad4c2208a6e15ac5f9fbdaf7d5a506f9e229ff6c914b26",
     "src/services/customerConfiguration.ts": "94acaceaaa5d0d48bdd6f417c1f7dbb9f8b13e3697027c453b2c044098af843e",
     "src/services/developerSettings.ts": "ebe01511f0555eff5e6618af73472a9e7ac5174ff88b1dfd39bfb4c6f2465994",
-    "src/services/email.ts": "7731eaee3810de86405eac3286c397f0c02a8a8c53192fe4489d6791b0a36dbc",
+    "src/services/email.ts": "7ea0a151ec28710dffc0a83b84b01bdde34b525d562f1eff4190be8433fe2605",
     "src/services/emailTemplateSettings.ts": "97b6c1021f39a47b11617a8bd46776ffe9fe9b7239afc008c5fa1af16ca7fe2b",
     "src/services/excelExport.ts": "c7eb4a55c8dbfeddf5a4924075614167c3414b0708b0895b8c1390ec12c7330b",
     "src/services/northportRecoveryStatus.ts": "3fadddd2777bc037c53e2afba1249599326a88cde3c1c6262bc28ad0b35be718",
@@ -1010,8 +1040,9 @@
     "src/types/northport.ts": "f754f9aff8b32bc1247a635d90ae60ac07a9ab34db62046fab4f4b0bd33da822",
     "src/types/registration-upload.ts": "d838085424edf20591a53b1c515bd13bdddf7757e4505586caf1868d08323331",
     "src/types/scheduler.ts": "8668a45208ae05c8817396530baa654f93930b476c37d379c8ada646464ed88a",
+    "src/utils/autoRegisterSchedule.ts": "1506f6f7d64526d3bf47c6c183d51c3907291cd6101ea610d18dc793cf4fe4b5",
     "src/utils/date.ts": "3a4177557054435ed93c5ee0a1264e4f217e1b2a0210bf47b1ecae6cca72434b",
-    "src/utils/registrationEmailTemplates.ts": "7835899d94bd7c78d2dde67a46ee8ef6934e3fd963f8efe5609577b437992813",
+    "src/utils/registrationEmailTemplates.ts": "e9515a14cb1c47255b1fe0db99867b32ade8b2152b601008506d845e0ca7daa6",
     "src/vite-env.d.ts": "bb9c40ba45ded77a67f36f34f7262f1e154c08fb01efc3243c02c817c0806fe5",
     "supabase/auto-mail/migrations/20261022000000_foundation.sql": "98eff88406055cc321711c4ecf7c5126aa8a3db03b3db40e3e00fa4b379c9d2b",
     "supabase/auto-mail/migrations/20261022010000_gmail_manual_replies.sql": "f21515be77c76a0def38dac7a60dceeb50f02e638acfb34f12a5e03c5af904a5",
@@ -1082,10 +1113,377 @@
     "supabase/migrations/20261025010000_registration_upload_batches.sql": "e0bd4477dc3afa6cda0aa2320e1d5b8911bde23373dbcf2a6ae8b3c65f8e068c",
     "supabase/migrations/20261025020000_sync_company_details_to_registrations.sql": "e245063c2f96cf43da9998f6949ac2700ba99bb786957107069bafd5314625e7",
     "supabase/migrations/20261025030000_auto_register_cm_scheduler.sql": "a22083a7f14a7121ede339a45231fc318d0e3e3af9961962f1345fd842408460",
+    "supabase/migrations/20261025040000_auto_register_cm_queue.sql": "6e59e41a1157c3b0454dfaa79f1c53bb95466dcbb61fd5d5a6d9cf629b111963",
+    "supabase/migrations/20261025050000_auto_register_cm_execution_reference.sql": "e16dddadc4d572f2dea593797371b8a3bee1594a8d89c931ffc1c8ec557e2413",
+    "supabase/migrations/20261025060000_auto_register_cm_hardening.sql": "2a07feea5aed4fe87e29b53f967836a9e5cc50a447d46028d178afc4eae7c5ea",
+    "supabase/migrations/20261025070000_auto_register_cm_reliability.sql": "87731b7e3e86975730efc59fe64badd37df9ac0717b6bcf86145bbda80076fee",
+    "supabase/migrations/20261026000000_auto_register_cm_second_attempt.sql": "d01b00a39f18307c86b679a359791f038cba6e656f4d34cb905a08df78e88973",
+    "supabase/migrations/20261026010000_email_template_registration_type.sql": "0b7c33e9de72a1f765c74f56bcf4380fe87ee306b3c8b2ce3e1c4eb4be4f974a",
     "supabase/patches/20261022_tclu2294366_success.sql": "6911436a7ea1747e566f735f85a863fcabaab7df69acee041ba1bedc2053fa85",
     "vite.config.ts": "167e03f4e2c3298d4e3cbe61c5c1f8712073bf15d56c63d992827e99d3b7601b"
   },
   "history": [
+    {
+      "sourceCommit": "cd43440455541c94ea38206dce3a4dcfc935cc74",
+      "pushedBy": "lumoratechent-beep",
+      "commits": [
+        {
+          "sha": "b64a300cbd4a66d3055b96e54ca4a263db4f6acc",
+          "author": "cargomovemy",
+          "subject": "autmation on registration"
+        },
+        {
+          "sha": "7220194c70b293f6bc08f616d4393bf6d41fa1f6",
+          "author": "cargomovemy",
+          "subject": "enhance"
+        },
+        {
+          "sha": "6b5b7f96b53f8186265716876592c03cc015b2ee",
+          "author": "cargomovemy",
+          "subject": "auto register v2"
+        },
+        {
+          "sha": "6dbff37966526665ac24e41ee435f3f1e51e1e2d",
+          "author": "cargomovemy",
+          "subject": "enhance auto register"
+        },
+        {
+          "sha": "9fe857551a1eba53aae157f42a6defa3031d6752",
+          "author": "cargomovemy",
+          "subject": "Fixed Auto Register in CM to process only persisted SCHEDULED registrations."
+        }
+      ],
+      "authors": [
+        "cargomovemy"
+      ],
+      "version": "1.13.0",
+      "previousVersion": "1.12.2",
+      "date": "2026-10-25T18:27:09.253Z",
+      "summary": "Added pages or tools",
+      "files": [
+        "api/scheduler/auto-register-cm-queue.ts",
+        "package.json",
+        "server-handlers/_email.ts",
+        "server-handlers/email/send.ts",
+        "server-handlers/email/submission-send.ts",
+        "server-handlers/email/templates.ts",
+        "server-handlers/registration-uploads/automation.ts",
+        "server-handlers/registration-uploads/eligibility.ts",
+        "server-handlers/registration-uploads/handler.ts",
+        "server-handlers/scheduler/auto-register-cm-discovery.ts",
+        "server-handlers/scheduler/auto-register-cm-queue.ts",
+        "server-handlers/scheduler/auto-register-cm.ts",
+        "server.ts",
+        "src/components/admin/AdminDashboard.tsx",
+        "src/components/admin/AdminLayout.tsx",
+        "src/components/admin/AutoRegisterCm.tsx",
+        "src/components/admin/AutoRegisterScheduledIndicator.tsx",
+        "src/components/admin/CargoMoveScheduler.tsx",
+        "src/components/admin/DeveloperSettings.tsx",
+        "src/components/admin/EmailTemplateManager.tsx",
+        "src/components/admin/SubmissionsList.tsx",
+        "src/index.css",
+        "src/services/email.ts",
+        "src/utils/autoRegisterSchedule.ts",
+        "src/utils/registrationEmailTemplates.ts",
+        "supabase/migrations/20261025040000_auto_register_cm_queue.sql",
+        "supabase/migrations/20261025050000_auto_register_cm_execution_reference.sql",
+        "supabase/migrations/20261025060000_auto_register_cm_hardening.sql",
+        "supabase/migrations/20261025070000_auto_register_cm_reliability.sql",
+        "supabase/migrations/20261026000000_auto_register_cm_second_attempt.sql",
+        "supabase/migrations/20261026010000_email_template_registration_type.sql"
+      ],
+      "changes": [
+        {
+          "id": "account-settings",
+          "name": "Account Settings",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.4.0",
+          "to": "1.4.1"
+        },
+        {
+          "id": "admin",
+          "name": "Admin Page",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.4.0",
+          "to": "1.4.1"
+        },
+        {
+          "id": "auto-email",
+          "name": "Auto Email",
+          "kind": "tool",
+          "action": "updated",
+          "from": "1.1.3",
+          "to": "1.1.4"
+        },
+        {
+          "id": "auto-mail",
+          "name": "Auto Mail",
+          "kind": "tool",
+          "action": "updated",
+          "from": "1.1.3",
+          "to": "1.1.4"
+        },
+        {
+          "id": "developer",
+          "name": "Dev Page",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.4.0",
+          "to": "1.4.1"
+        },
+        {
+          "id": "queue-done",
+          "name": "Registration Queue / Closed / Done",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.7",
+          "to": "1.0.8"
+        },
+        {
+          "id": "queue-pending",
+          "name": "Registration Queue / Pending",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.7",
+          "to": "1.0.8"
+        },
+        {
+          "id": "queue-rejected",
+          "name": "Registration Queue / Rejected",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.7",
+          "to": "1.0.8"
+        },
+        {
+          "id": "registration",
+          "name": "Cargomove Registration",
+          "kind": "tool",
+          "action": "updated",
+          "from": "1.1.5",
+          "to": "1.1.6"
+        },
+        {
+          "id": "registration-company",
+          "name": "Company Registration Form",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.7",
+          "to": "1.0.8"
+        },
+        {
+          "id": "registration-confirmation",
+          "name": "Registration Confirmation",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.6",
+          "to": "1.0.7"
+        },
+        {
+          "id": "registration-driver",
+          "name": "Driver Registration Form",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.6",
+          "to": "1.0.7"
+        },
+        {
+          "id": "registration-trailer",
+          "name": "Trailer Registration Form",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.6",
+          "to": "1.0.7"
+        },
+        {
+          "id": "registration-vehicle",
+          "name": "Vehicle Registration Form",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.6",
+          "to": "1.0.7"
+        },
+        {
+          "id": "src/components/admin/AccountSettings.tsx",
+          "name": "Account Settings",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.8",
+          "to": "1.0.9"
+        },
+        {
+          "id": "src/components/admin/AdminDashboard.tsx",
+          "name": "Registration Dashboard",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.1.1",
+          "to": "1.1.2"
+        },
+        {
+          "id": "src/components/admin/AdminUser.tsx",
+          "name": "Admin Users",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.7",
+          "to": "1.0.8"
+        },
+        {
+          "id": "src/components/admin/AdminUserCreate.tsx",
+          "name": "Create Admin User",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.7",
+          "to": "1.0.8"
+        },
+        {
+          "id": "src/components/admin/AutoEmailConfig.tsx",
+          "name": "Auto Email Config",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.6",
+          "to": "1.0.7"
+        },
+        {
+          "id": "src/components/admin/AutoMail.tsx",
+          "name": "Auto Mail",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.1.2",
+          "to": "1.1.3"
+        },
+        {
+          "id": "src/components/admin/AutoMailIncomingSettings.tsx",
+          "name": "Auto Mail Incoming Settings",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.4",
+          "to": "1.0.5"
+        },
+        {
+          "id": "src/components/admin/AutoMailScopePicker.tsx",
+          "name": "Auto Mail Scope Picker",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.2",
+          "to": "1.0.3"
+        },
+        {
+          "id": "src/components/admin/AutoRegisterCm.tsx",
+          "name": "Auto Register Cm",
+          "kind": "page",
+          "action": "added",
+          "from": null,
+          "to": "1.0.0"
+        },
+        {
+          "id": "src/components/admin/AutoRegisterScheduledIndicator.tsx",
+          "name": "Auto Register Scheduled Indicator",
+          "kind": "page",
+          "action": "added",
+          "from": null,
+          "to": "1.0.0"
+        },
+        {
+          "id": "src/components/admin/CargoMoveScheduler.tsx",
+          "name": "Scheduler",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.5",
+          "to": "1.0.6"
+        },
+        {
+          "id": "src/components/admin/CompanyMaster.tsx",
+          "name": "Company List",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.9",
+          "to": "1.1.0"
+        },
+        {
+          "id": "src/components/admin/DeveloperSettings.tsx",
+          "name": "Dev Setting",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.4",
+          "to": "1.0.5"
+        },
+        {
+          "id": "src/components/admin/EmailTemplateManager.tsx",
+          "name": "Registration Templates",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.6",
+          "to": "1.0.7"
+        },
+        {
+          "id": "src/components/admin/ExcelExportCenter.tsx",
+          "name": "Excel Export",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.6",
+          "to": "1.0.7"
+        },
+        {
+          "id": "src/components/admin/PortDepotConfig.tsx",
+          "name": "Ports & Depots",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.6",
+          "to": "1.0.7"
+        },
+        {
+          "id": "src/components/admin/RegistrationReference.tsx",
+          "name": "Registration Reference",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.1",
+          "to": "1.0.2"
+        },
+        {
+          "id": "src/components/admin/SchemaMappingInspector.tsx",
+          "name": "Excel Mapping",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.6",
+          "to": "1.0.7"
+        },
+        {
+          "id": "src/components/admin/UserRegistration.tsx",
+          "name": "User Access Registration",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.8",
+          "to": "1.0.9"
+        },
+        {
+          "id": "src/components/auth/LoginPage.tsx",
+          "name": "Login Page",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.5",
+          "to": "1.0.6"
+        },
+        {
+          "id": "src/components/customer/PortalLoginPage.tsx",
+          "name": "Login",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.1.2",
+          "to": "1.1.3"
+        },
+        {
+          "id": "src/components/customer/RegistrationPage.tsx",
+          "name": "Registration",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.1.4",
+          "to": "1.1.5"
+        }
+      ]
+    },
     {
       "sourceCommit": "93571f545699dc692a8754138045592edab4d11c",
       "pushedBy": "lumoratechent-beep",
