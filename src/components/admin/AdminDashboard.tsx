@@ -12,6 +12,7 @@ import { Company, RegistrationSubmission, RegistrationType } from '../../types';
 import { CargoMoveIdBadge, StatusBadge } from '../common/Badge';
 import { AssignIdModal } from './AssignIdModal';
 import { SubmissionDetailModal } from './SubmissionDetailModal';
+import { AutoRegisterScheduledIndicator } from './AutoRegisterScheduledIndicator';
 import { notifyWarning } from '../common/notifications';
 import { formatAdminDate } from '../../utils/date';
 import {
@@ -53,6 +54,8 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const [queuePage, setQueuePage] = useState(1);
   const [queueSearch, setQueueSearch] = useState('');
   const [queueType, setQueueType] = useState<RegistrationType | 'USER' | 'ALL'>('ALL');
+  const [autoScheduledIds, setAutoScheduledIds] = useState<Set<string>>(() => new Set());
+  const [autoFailedIds, setAutoFailedIds] = useState<Set<string>>(() => new Set());
 
   // Modals
   const [selectedCompanyForId, setSelectedCompanyForId] = useState<Company | null>(null);
@@ -72,6 +75,26 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   useEffect(() => {
     setQueuePage(1);
   }, [queuePageSize, queueSearch, queueType]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        const response = await fetch('/api/scheduler/auto-register-cm-queue?view=scheduled', {
+          credentials: 'same-origin', signal: controller.signal,
+        });
+        if (!response.ok) return;
+        const payload = await response.json() as { scheduledSubmissionIds?: unknown; failedSubmissionIds?: unknown };
+        setAutoScheduledIds(new Set(Array.isArray(payload.scheduledSubmissionIds)
+          ? payload.scheduledSubmissionIds.filter((id): id is string => typeof id === 'string') : []));
+        setAutoFailedIds(new Set(Array.isArray(payload.failedSubmissionIds)
+          ? payload.failedSubmissionIds.filter((id): id is string => typeof id === 'string') : []));
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+      }
+    })();
+    return () => controller.abort();
+  }, [submissions]);
 
   const pendingByType = (type: RegistrationType) =>
     submissions.filter((s) => s.registration_type === type && s.status === 'PENDING').length;
@@ -356,7 +379,11 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                 return (
                   <tr key={item.rowKey} className="hover:bg-slate-50/70">
                     <td className="py-2 px-3 font-mono text-slate-900">
-                      {item.referenceNo}
+                      <span className="inline-flex items-center gap-1.5">
+                        {item.referenceNo}
+                        {item.type !== 'USER' && (autoScheduledIds.has(sub.id) || autoFailedIds.has(sub.id))
+                          && <AutoRegisterScheduledIndicator failed={autoFailedIds.has(sub.id)} />}
+                      </span>
                     </td>
                     <td className="py-2 px-3 text-center text-slate-700">
                       {item.type}
@@ -421,7 +448,11 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <div className="break-words text-[11px] font-bold leading-4 text-slate-900">{item.companyName.toUpperCase()}</div>
-                    <div className="mt-1 inline-flex max-w-full rounded-md bg-blue-50 px-2 py-1 font-mono text-[9px] font-semibold text-blue-700">{item.referenceNo}</div>
+                    <div className="mt-1 flex items-center gap-1.5">
+                      <span className="inline-flex max-w-full rounded-md bg-blue-50 px-2 py-1 font-mono text-[9px] font-semibold text-blue-700">{item.referenceNo}</span>
+                      {item.type !== 'USER' && (autoScheduledIds.has(sub.id) || autoFailedIds.has(sub.id))
+                        && <AutoRegisterScheduledIndicator failed={autoFailedIds.has(sub.id)} />}
+                    </div>
                   </div>
                   <span className="shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-[9px] font-bold uppercase tracking-wide text-amber-800">Pending</span>
                 </div>

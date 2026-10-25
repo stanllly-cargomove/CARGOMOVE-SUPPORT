@@ -26,6 +26,7 @@ import { SubmissionDetailModal } from './SubmissionDetailModal';
 import { AssignIdModal } from './AssignIdModal';
 import { RichTextEmailEditor } from './RichTextEmailEditor';
 import { PdfAttachmentIcon } from './PdfAttachmentIcon';
+import { AutoRegisterScheduledIndicator } from './AutoRegisterScheduledIndicator';
 import {
   Search,
   Filter,
@@ -40,7 +41,6 @@ import {
   Info,
   CircleCheck,
   CircleX,
-  Bot,
 } from 'lucide-react';
 import { notifyError, notifySuccess, notifyWarning, summarizeError } from '../common/notifications';
 import { formatAdminDate } from '../../utils/date';
@@ -136,9 +136,6 @@ const registrationTypeTabs: Array<{ value: RegistrationType; label: string }> = 
 
 const MANUAL_REGISTER_TOOLTIP = 'Downloads the company registration Excel for manual processing. Selected submissions are moved to Closed/Done. No email is sent.';
 const REGISTER_AND_EMAIL_TOOLTIP = 'Uploads the selected registrations to CargoMove for processing. After verification, you can preview and send the completion email.';
-const AUTO_REGISTER_TOOLTIP = 'This registration is scheduled and will be processed automatically by the system.';
-const AUTO_REGISTER_FAILED_TOOLTIP = 'Automatic registration failed twice or could not be retried safely. Review the registration and CargoMove result.';
-
 function QueueTooltip({ tooltip, children, className = 'relative inline-flex', placement = 'top' }: {
   tooltip: string;
   children: React.ReactNode;
@@ -178,18 +175,6 @@ function QueueTooltip({ tooltip, children, className = 'relative inline-flex', p
         document.body,
       )}
     </div>
-  );
-}
-
-function AutoRegisterScheduledIndicator({ failed = false }: { failed?: boolean }) {
-  const tooltip = failed ? AUTO_REGISTER_FAILED_TOOLTIP : AUTO_REGISTER_TOOLTIP;
-  return (
-    <QueueTooltip tooltip={tooltip} placement="right-lower">
-      <span role="img" aria-label={tooltip} tabIndex={0}
-        className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full outline-none transition-colors focus-visible:ring-2 focus-visible:ring-offset-1 ${failed ? 'bg-red-100 text-red-700 hover:bg-red-200 focus-visible:ring-red-500' : 'bg-blue-100 text-blue-700 hover:bg-blue-200 focus-visible:ring-blue-500'}`}>
-        <Bot aria-hidden="true" className="h-3.5 w-3.5" />
-      </span>
-    </QueueTooltip>
   );
 }
 

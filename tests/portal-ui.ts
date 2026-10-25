@@ -67,6 +67,7 @@ await context.route('**/*', async route => {
     }
     case '/api/snapshot': return reply({ ...config, companies: [dashboardCompany], submissions: dashboardSubmissions, userRegistrations: [], guideline: null });
     case '/api/external-user-access': return reply({ users: dashboardUsers });
+    case '/api/scheduler/auto-register-cm-queue': return reply({ scheduledSubmissionIds: ['dashboard-driver-request'], failedSubmissionIds: [] });
     default: errors.push(`Unexpected API: ${request.method()} ${url.pathname}`); return reply({ error: 'Unexpected test request' }, 500);
   }
 });
@@ -278,6 +279,13 @@ try {
   assert.equal(new URL(page.url()).pathname, '/admin');
   await heading('Registration operations');
   await page.getByText('Needs review', { exact: true }).waitFor();
+  const dashboardAutoIndicator = page.getByRole('img', { name: 'AUTO REGISTER BY SYSTEM. The system will automatically process this scheduled registration in CargoMove.' });
+  await dashboardAutoIndicator.waitFor();
+  await dashboardAutoIndicator.hover();
+  const dashboardAutoTooltip = page.getByRole('tooltip');
+  await dashboardAutoTooltip.getByText('AUTO REGISTER BY SYSTEM', { exact: true }).waitFor();
+  await dashboardAutoTooltip.getByText('The system will automatically process this scheduled registration in CargoMove.', { exact: true }).waitFor();
+  await page.mouse.move(0, 0);
   assert.equal(await page.getByText('3 waiting', { exact: true }).count(), 1, 'Dashboard queue combines pending registrations and linked user access');
   await button('View Driver registrations: 1 pending and 0 registered').click();
   await heading('Pending Registration Submissions');
@@ -286,7 +294,7 @@ try {
   for (const width of [1100, 390]) {
     await page.setViewportSize({ width, height: 800 });
     await page.getByRole('button', { name: 'Actions for CMREG410002', exact: true }).filter({ visible: true }).click();
-    await button('Review').click();
+    await page.getByRole('menuitem', { name: 'Review', exact: true }).click();
     const review = page.getByRole('dialog');
     await review.waitFor();
     assert.equal(await review.evaluate(dialog => {

@@ -83,13 +83,14 @@ try {
   await nav.getByRole('button', { name: /^Pending/ }).click();
   await page.getByRole('heading', { name: 'Pending Registration Submissions', exact: true }).waitFor();
   await page.getByRole('tab', { name: /^Vehicle/ }).click();
-  const scheduledIndicator = page.getByRole('img', { name: 'This registration is scheduled and will be processed automatically by the system.' });
+  const scheduledIndicator = page.getByRole('img', { name: 'AUTO REGISTER BY SYSTEM. The system will automatically process this scheduled registration in CargoMove.' });
   await scheduledIndicator.waitFor();
   assert.ok(eligibilityRuns >= 1, 'Opening Pending runs eligibility before loading scheduled icons');
   await scheduledIndicator.hover();
   const scheduledTooltip = page.getByRole('tooltip');
   await scheduledTooltip.waitFor();
-  assert.equal(await scheduledTooltip.textContent(), 'This registration is scheduled and will be processed automatically by the system.');
+  assert.equal(await scheduledTooltip.locator('span').first().textContent(), 'AUTO REGISTER BY SYSTEM');
+  assert.equal(await scheduledTooltip.locator('span').nth(1).textContent(), 'The system will automatically process this scheduled registration in CargoMove.');
   assert.match(await scheduledTooltip.getAttribute('class') || '', /bg-slate-900.*shadow-xl/, 'Bot icon uses the Register action tooltip style');
   const failedIndicator = page.getByRole('img', { name: 'Automatic registration failed twice or could not be retried safely. Review the registration and CargoMove result.' });
   await failedIndicator.waitFor();

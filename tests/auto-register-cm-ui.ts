@@ -168,6 +168,7 @@ try {
   await page.getByRole('table', { name: 'Scheduled registrations' }).waitFor();
   await page.getByRole('heading', { name: 'Execution logs' }).waitFor();
   const overview = page.getByRole('region', { name: 'Auto Register schedule overview' });
+  assert.equal(await overview.getByText(/No automatic execution is recorded/).count(), 0);
   assert.equal(await overview.getByText('2 registrations', { exact: true }).count(), 1, 'Scheduled registrations remain included in Eligible now');
   assert.equal(await overview.getByRole('button', { name: 'Run Now' }).count(), 1, 'Run Now is grouped in the first card');
   const pageToggle = overview.getByRole('switch', { name: 'Enable Auto Register in CM' });

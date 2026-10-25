@@ -6,6 +6,34 @@ function responseMock() {
   return { code: 200, body: null as any, setHeader() {}, status(code: number) { this.code = code; return this; }, json(body: any) { this.body = body; return this; } };
 }
 
+test('fallback triggers share a two-hour admission key and duplicate delivery never inspects registrations', async context => {
+  process.env.CRON_SECRET = 'offline-auto-register-secret';
+  const keys: string[] = [];
+  const client = {
+    async rpc(name: string, args: any) {
+      if (name === 'auto_register_cm_actor') return { data: { id: 'admin', email: 'admin@example.test' }, error: null };
+      assert.equal(name, 'acquire_automation_scheduler');
+      keys.push(args.p_request_key);
+      return { data: { id: 'existing-run', reason: 'duplicate', status: 'SUCCESS' }, error: null };
+    },
+    from() { throw new Error('Duplicate triggers must not inspect registrations'); },
+  };
+  const handler = createAutoRegisterCmHandler({ adminClient: () => client as any, readSession: () => null,
+    uploadWorkbook: async () => { throw new Error('Must not upload'); },
+    verifyWorkbook: async () => { throw new Error('Must not verify'); },
+    runAutomation: async () => { throw new Error('Must not dispatch'); } });
+  const clock = context.mock.method(Date, 'now');
+  for (const time of ['00:07', '00:27', '00:47', '01:07', '01:27', '01:47', '02:07']) {
+    clock.mock.mockImplementation(() => Date.parse(`2026-10-26T${time}:00+08:00`));
+    const response = responseMock();
+    await handler({ method: 'POST', body: {}, headers: { authorization: 'Bearer offline-auto-register-secret' } }, response);
+    assert.equal(response.code, 200);
+    assert.match(response.body.message, /already handled/);
+  }
+  assert.equal(new Set(keys.slice(0, 6)).size, 1);
+  assert.notEqual(keys[6], keys[0], 'The next two-hour window admits a new execution');
+});
+
 test('cron authentication is required and a disabled scheduler exits before registration access', async () => {
   process.env.CRON_SECRET = 'offline-auto-register-secret';
   const calls: string[] = [];

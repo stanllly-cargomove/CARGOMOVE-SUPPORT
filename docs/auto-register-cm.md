@@ -9,8 +9,14 @@ verification, processing scheduler, leases, or duplicate-submission safeguards.
 
 ## Runtime design
 
-GitHub Actions calls `POST /api/scheduler/auto-register-cm` every two hours. The
-workflow only sends HTTPS: it does not check out the repository, install packages,
+GitHub Actions calls `POST /api/scheduler/auto-register-cm` at minutes 7, 27 and
+47 of every hour. The existing persisted UTC two-hour request key admits one
+execution per window; subsequent calls return the recorded result without
+discovering or processing registrations. These extra delivery opportunities
+let a later automatic trigger catch a missed event. The first planned trigger
+in each window is at minute 7 of the even UTC hour (also even hours in MYT).
+GitHub scheduling remains best-effort and does not guarantee punctual delivery.
+The workflow only sends HTTPS: it does not check out the repository, install packages,
 build the application, or deploy Vercel. The Vercel handler authenticates the
 Bearer token, atomically checks the persisted enabled flag, and exits successfully
 with `SKIPPED` before reading registrations when the scheduler is off.
@@ -108,6 +114,16 @@ registrations.
 
 ## Operational notes
 
+- The next scheduled run shown on the page estimates the next two-hour
+  execution's first planned trigger at minute 7. If that trigger is missed,
+  later calls at minutes 27 and 47 (and in the following hour) can still admit
+  that window. The estimate does not confirm GitHub delivery.
+- If execution history stops advancing, inspect the **Auto Register in CM**
+  workflow in GitHub Actions. A missing workflow run means no trigger was
+  recorded there; a failed workflow needs its HTTP result inspected. Eligibility
+  and queue timestamps do not themselves invoke the handler. Do not dispatch
+  the production workflow as a diagnostic while enabled: it processes real
+  registrations.
 - Timestamps are stored as UTC and displayed in `Asia/Kuala_Lumpur`.
 - A run may report success with records still processing when the Vercel time
   budget is nearly exhausted. The next invocation resumes that durable batch.
