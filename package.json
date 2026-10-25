@@ -9,7 +9,7 @@
   "scripts": {
     "postinstall": "node scripts/prepare-mail-preview.mjs",
     "predev": "node scripts/prepare-mail-preview.mjs",
-    "prebuild": "node scripts/prepare-mail-preview.mjs",
+    "prebuild": "node scripts/check-vercel-functions.mjs && node scripts/prepare-mail-preview.mjs",
     "generate:mail-sanitizer": "node scripts/build-mail-sanitizer.mjs",
     "dev": "vite --port=3000 --host=0.0.0.0",
     "dev:api": "tsx watch --include .env.local server.ts",

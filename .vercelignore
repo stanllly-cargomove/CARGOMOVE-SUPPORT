@@ -10,6 +10,7 @@ test-results/
 docs/
 # Keep install/build helpers available in the deployment upload.
 scripts/*
+!scripts/check-vercel-functions.mjs
 !scripts/prepare-mail-preview.mjs
 !scripts/system-version-plugin.ts
 !scripts/system-version.ts

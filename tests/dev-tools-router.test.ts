@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync,readdirSync} from 'node:fs';
 import {createDevToolsRouter} from '../api/dev-tools.js';
-import session from '../api/auth/session.js';
+import session from '../server-handlers/auth/session.js';
 function response(){return {code:200,body:null as any,setHeader(){},status(code:number){this.code=code;return this;},json(body:any){this.body=body;return this;}};}
 test('consolidated Dev Tools function forwards requests intact to existing handlers and rejects unknown routes',async()=>{
   const seen:string[]=[];
@@ -16,7 +16,7 @@ test('production rewrites preserve all existing public Dev Tools URLs with one c
   const config=JSON.parse(readFileSync(new URL('../vercel.json',import.meta.url),'utf8'));
   for(const route of ['schedulers','run-scheduler','northport-recovery','system-versions','registration-uploads'])assert.ok(config.rewrites.some((r:any)=>r.source===`/api/dev-tools/${route}`&&r.destination===`/api/dev-tools?route=${route}`));
   assert.ok(config.rewrites.some((r:any)=>r.source==='/api/auth/profile'&&r.destination==='/api/dev-tools?route=profile'));
-  assert.ok(config.rewrites.some((r:any)=>r.source==='/api/auth/logout'&&r.destination==='/api/auth/session?route=logout'));
+  assert.ok(config.rewrites.some((r:any)=>r.source==='/api/auth/logout'&&r.destination==='/api/auth?route=logout'));
   assert.equal(config.functions['api/dev-tools.ts'].maxDuration,120);
   assert.match(config.functions['api/dev-tools.ts'].includeFiles,/chromium/);
 });
@@ -41,6 +41,6 @@ test('API entry points stay within the Hobby deployment limit',()=>{
     });
   }
   const entries=entryPoints(new URL('../api/',import.meta.url));
-  assert.ok(entries.length<=12,`${entries.length} API functions exceed the Hobby limit:\n${entries.join('\n')}`);
+  assert.ok(entries.length<=10,`${entries.length} API functions exceed the ten-handler budget (reserve two slots below Hobby's limit):\n${entries.join('\n')}`);
   assert.ok(!entries.some(path=>path.endsWith('/auth/profile.ts')),'Profile uses the existing dispatcher instead of a separate function');
 });

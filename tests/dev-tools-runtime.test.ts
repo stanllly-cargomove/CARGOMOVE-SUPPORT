@@ -36,6 +36,10 @@ test('deployed Dev Tools module loads in native Node with an external JSON manif
         await handler({ method: ['system-versions', 'run-scheduler', 'registration-uploads'].includes(route) ? 'POST' : 'GET', query: { route }, headers: {} }, response);
         assert.equal(response.code, 401, route + ' should reach its authentication check');
       }
+      const { default: auth } = await import(${JSON.stringify(pathToFileURL(path.join(root, 'api/auth.js')).href)});
+      const sessionResponse = { setHeader() {}, status() { return this; }, json(body) { this.body = body; return this; } };
+      await auth({ method: 'GET', query: { route: 'session' }, headers: {} }, sessionResponse);
+      assert.deepEqual(sessionResponse.body, { authenticated: false, user: null });
       console.log('Native Node Dev Tools startup passed');
     `);
     const output = execFileSync(process.execPath, [runner], { encoding: 'utf8', env: { ...process.env, VERCEL: '1' }, timeout: 30000 });

@@ -52,7 +52,19 @@
     },
     {
       "source": "/api/auth/logout",
-      "destination": "/api/auth/session?route=logout"
+      "destination": "/api/auth?route=logout"
+    },
+    {
+      "source": "/api/auth/login",
+      "destination": "/api/auth?route=login"
+    },
+    {
+      "source": "/api/auth/session",
+      "destination": "/api/auth?route=session"
+    },
+    {
+      "source": "/api/auth/users",
+      "destination": "/api/auth?route=users"
     },
     {
       "source": "/api/dev-tools/system-versions",
