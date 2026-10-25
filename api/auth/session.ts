@@ -1,6 +1,12 @@
 import crypto from 'node:crypto';
 
 export default async function session(request: any, response: any) {
+  if (request.query?.route === 'logout') {
+    response.setHeader('Set-Cookie', 'cargomove_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0');
+    response.status(204).end();
+    return;
+  }
+
   const secret = process.env.SESSION_SECRET;
   const value = request.headers?.cookie?.match(/(?:^|; )cargomove_session=([^;]+)/)?.[1];
   let current: { id: string; email: string; type: string; username?: string; full_name?: string; exp: number } | null = null;
