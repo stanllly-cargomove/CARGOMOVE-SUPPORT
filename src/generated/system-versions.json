@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "version": "1.13.0",
-  "updatedAt": "2026-10-25T18:27:09.253Z",
+  "version": "1.13.1",
+  "updatedAt": "2026-10-25T18:36:14.266Z",
   "entries": [
     {
       "id": "account-settings",
@@ -814,9 +814,7 @@
   "sourceFiles": {
     ".github/workflows/system-version.yml": "1b2563ccd650b535fbe3de516602738f90b36a058ebb4d7b69237373fe101142",
     "api/_runtime.ts": "6ac2bbc18e8753c1a7edc884697758836f0d4d7de1dc72ec3d9866e8479b8084",
-    "api/auth/login.ts": "e141c40e42720ad690f3c89c8a8fafabb7298bddd2a79209513c8be944274026",
-    "api/auth/session.ts": "12757643dba623a69e20d026770cc5dbab545af3f9c25a7860e74accfdacb8e0",
-    "api/auth/users.ts": "44e43475613e8db86a2e3db538969d2ae14e268aa1bb1e2a928a0b77923f763a",
+    "api/auth.ts": "63a2251c2f4d37e7c314b320af5c6a6d3a404e78c548bc68bc76a17009fb59e9",
     "api/data/[table].ts": "f78331d45ccb6b2fd47c08b7bcb8a3206828fe5e2e3424060640c5a497b81ac5",
     "api/data/[table]/[id].ts": "0d7de1f24e8a4b0e3e329254e829273771898ce34627327816edd902cd07a297",
     "api/dev-tools.ts": "ea46b7cda8cefa76d074170d5e02e0e82e805739c25e7a2ed1f59213135802df",
@@ -824,8 +822,7 @@
     "api/health.ts": "bd85c6a0ce4c58094322532e63cdfada9114c66bf81ce294b7ee7014399ff049",
     "api/mail.ts": "c65b7d9bbfe204ca9a11e4bf158e1bb8d29e33ec3c0b7beb0e7f2d08501127ad",
     "api/registration.ts": "6a44d6166ac7d9236268a22dcee40f2feb48238c6fde1d98da11f7d4223e1314",
-    "api/scheduler/auto-register-cm-queue.ts": "c18bfc7338a71b708a53249aa40405ef33fbaa3b3131f51917c75cefbdb1220e",
-    "api/scheduler/auto-register-cm.ts": "4f33844d05cbd7ed8003f7eb7946092826036b0e44c657dc01c9bde2bba6114e",
+    "api/scheduler/auto-register-cm.ts": "3d50a014bda2889d454fd9d41d2b35439fd08a555371f7c4d86afdc5461306d4",
     "api/snapshot.ts": "42e18f6192095a6134901928ff4e22fc3d1afe32dda1b17db2f5b34f64ead01a",
     "index.html": "a76d13c7cd586f58ca22fe4c6228c3f3150bc2eae91c0a8a4b7a3b3eecff200f",
     "media/LOGO2.png": "326d1e1735396a7211279eaab72f16716881e9655d3a4d9613bc64a8e5c8d335",
@@ -842,10 +839,13 @@
     "media/registration-depot-card.png": "de3a1dfdc105987f1400cdf87b836faa9b474ac0cd7344db6f1f2c2f9a293468",
     "media/registration-port-hero-fast.webp": "36830a87ccaf357ccfc531603d2937abbfd8ea8a819eeeb6f18d6aca2438d01a",
     "media/registration-port-hero.png": "2b6df14a930709895dc1f2a5572e4897545952bfd726f8cffde61727f7a1ced5",
-    "package.json": "a3f55cc6ad2189b85f4b946e1c9ca8721d32498fb6b7abf9c6529ee356fad96c",
+    "package.json": "94a44493ad5a2feacc584cd22507473b6d01a802d43d6ceedeff468751075a86",
     "scripts/capture-push-version.ts": "1b4f1ef7ba558680dd94cede28b9f6046e49e8edffc0161d30bdee323f0dcb60",
     "scripts/system-version.ts": "32f56c2dee7dceb54a1eed7c11603c43750092d2d168c81e85c3d1f9380c3a56",
     "server-handlers/_email.ts": "182ab95549dfb69b6f3b4cc8f6ca26336e32c4c16879b4eb225b7d24d3e187ec",
+    "server-handlers/auth/login.ts": "e141c40e42720ad690f3c89c8a8fafabb7298bddd2a79209513c8be944274026",
+    "server-handlers/auth/session.ts": "12757643dba623a69e20d026770cc5dbab545af3f9c25a7860e74accfdacb8e0",
+    "server-handlers/auth/users.ts": "44e43475613e8db86a2e3db538969d2ae14e268aa1bb1e2a928a0b77923f763a",
     "server-handlers/auto-mail/agent-config.ts": "96464653ebbeb3d14cb89b2fed36b90fa28152c4665fdf34931d427f03bdfe3a",
     "server-handlers/auto-mail/agent-settings.ts": "6bf3bf56e936a377ff0cf2004b5ccb4678647f8c1d338e34d680b2199e2f19c4",
     "server-handlers/auto-mail/ai.ts": "18e6512c6eac0531daadee57aed01487ce93b2320a3088b51ca3fbbcc24e49fb",
@@ -1123,6 +1123,42 @@
     "vite.config.ts": "167e03f4e2c3298d4e3cbe61c5c1f8712073bf15d56c63d992827e99d3b7601b"
   },
   "history": [
+    {
+      "sourceCommit": "b3551a38de5dc65b281f2a52748f4e25749ba8bc",
+      "pushedBy": "lumoratechent-beep",
+      "commits": [
+        {
+          "sha": "4e032edc03d2a857b3ba59531ce6bb21327d85c3",
+          "author": "cargomovemy",
+          "subject": "fix: consolidate auth functions below Vercel Hobby limit"
+        },
+        {
+          "sha": "4f4146c92fd5b06b533ad8fc240de852250d54d8",
+          "author": "cargomovemy",
+          "subject": "fix serverless issues"
+        }
+      ],
+      "authors": [
+        "cargomovemy"
+      ],
+      "version": "1.13.1",
+      "previousVersion": "1.13.0",
+      "date": "2026-10-25T18:36:14.266Z",
+      "summary": "Updated existing pages, tools or shared system files",
+      "files": [
+        "api/auth.ts",
+        "api/auth/login.ts",
+        "api/auth/session.ts",
+        "api/auth/users.ts",
+        "api/scheduler/auto-register-cm-queue.ts",
+        "api/scheduler/auto-register-cm.ts",
+        "package.json",
+        "server-handlers/auth/login.ts",
+        "server-handlers/auth/session.ts",
+        "server-handlers/auth/users.ts"
+      ],
+      "changes": []
+    },
     {
       "sourceCommit": "cd43440455541c94ea38206dce3a4dcfc935cc74",
       "pushedBy": "lumoratechent-beep",
