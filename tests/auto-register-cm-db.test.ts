@@ -190,6 +190,18 @@ test('Auto Register in CM persists configuration, skips while off, serializes ru
     }
     const failed = await step('auto_register_cm:delivery:5');
     assert.equal((await finishStep(failed.id, true, 'FAILED')).continuationToken, null, 'Failure never authorizes another step');
+    await db.exec(`insert into registration_submissions(id,registration_type,status,reference_no,company_name,company_id,port_id)
+      values('manual-completion','VEHICLE','PENDING','CMREG-MANUAL','Example Logistics','company-1','port-1')`);
+    await db.query('select * from schedule_auto_register_cm_submissions($1,$2)', [actor, ['manual-completion']]);
+    await db.query("update auto_register_cm_scheduled_items set run_id=$1 where submission_id='manual-completion'", [root.id]);
+    await db.exec("update registration_submissions set status='DONE' where id='manual-completion'");
+    const countsBeforeReconcile = await scalar('select row_to_json(r) from automation_scheduler_runs r where id=$1', [root.id]);
+    await db.exec(readFileSync(new URL('../supabase/migrations/20261026060000_auto_register_cm_queue_completion.sql', import.meta.url), 'utf8'));
+    assert.equal(await scalar("select status from auto_register_cm_scheduled_items where submission_id='manual-completion'"), 'SUCCESS');
+    assert.deepEqual(await scalar('select row_to_json(r) from automation_scheduler_runs r where id=$1', [root.id]), countsBeforeReconcile,
+      'Repairing a manual completion never changes automatic run counters or historical execution results');
+    assert.equal(await scalar("select count(*)::int from automation_scheduler_run_items i join auto_register_cm_scheduled_items q on q.id=i.scheduled_item_id where q.submission_id='manual-completion'"), 1,
+      'Repair preserves execution associations');
     for (const role of ['anon', 'authenticated']) {
       assert.equal(await scalar("select has_function_privilege($1,'public.acquire_auto_register_cm_step(uuid,text,uuid)','EXECUTE')", [role]), false);
       assert.equal(await scalar("select has_function_privilege($1,'public.finish_auto_register_cm_step(uuid,text,integer,integer,integer,text,text,boolean)','EXECUTE')", [role]), false);

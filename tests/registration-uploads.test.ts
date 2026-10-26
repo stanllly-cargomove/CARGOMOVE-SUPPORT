@@ -472,6 +472,75 @@ test('merged uploads filter incomplete references, share a single file and stay 
   }
 });
 
+test('manual completion reconciles stale scheduling and unblocks the remaining Pending workbook', async () => {
+  const f = await fixture();
+  try {
+    await f.db.exec(readFileSync(new URL('../supabase/migrations/20261025010000_registration_upload_batches.sql', import.meta.url), 'utf8'));
+    await f.db.exec(`insert into registration_submissions(id,reference_no,registration_type,company_id,company_type,port_id,port_location,status,data)
+      select 'manual','CMREG-MANUAL',registration_type,company_id,company_type,port_id,port_location,'DONE',data
+      from registration_submissions where id='driver';
+      create table auto_register_cm_scheduled_items(id text primary key,submission_id text,status text,completed_at timestamptz,message text,run_id uuid);
+      insert into auto_register_cm_scheduled_items values
+        ('manual-queue','manual','SCHEDULED',null,'Queued','20000000-0000-4000-8000-000000000001'),
+        ('pending-queue','driver','SCHEDULED',null,'Queued',null);`);
+    const blocked = await f.rpc('begin_registration_upload_batch', { p_actor: actor, p_submission_ids: ['manual', 'driver'] });
+    assert.match(blocked.error?.message || '', /Select Pending asset registrations/, 'The old stale queue blocks the entire group');
+    await f.db.exec(readFileSync(new URL('../supabase/migrations/20261026060000_auto_register_cm_queue_completion.sql', import.meta.url), 'utf8'));
+    const scheduled = (await f.db.query<any>(`select submission_id from auto_register_cm_scheduled_items where status='SCHEDULED'`)).rows.map(row => row.submission_id);
+    assert.deepEqual(scheduled, ['driver']);
+    const admitted = await f.rpc('begin_registration_upload_batch', { p_actor: actor, p_submission_ids: scheduled });
+    assert.equal(admitted.error, null);
+    assert.deepEqual(admitted.data.submissions.map((sub: any) => sub.id), ['driver'], 'Only the remaining Pending record is exported');
+    const originalRun = (await f.db.query<any>(`select run_id from auto_register_cm_scheduled_items where id='manual-queue'`)).rows[0].run_id;
+    assert.equal(originalRun, '20000000-0000-4000-8000-000000000001', 'Reconciliation preserves the existing audit link');
+    await f.db.exec(`update auto_register_cm_scheduled_items set status='SCHEDULED',completed_at=null where id='manual-queue'`);
+    assert.equal((await f.db.query<any>(`select status from auto_register_cm_scheduled_items where id='manual-queue'`)).rows[0].status, 'SUCCESS', 'An old browser cannot reopen completed scheduling');
+    await f.rpc('transition_registration_upload_batch', { p_id: admitted.data.job.id, p_token: admitted.data.token, p_state: 'UPLOADING', p_message: 'Uploading', p_expected_rows: 1 });
+    await f.rpc('transition_registration_upload_batch', { p_id: admitted.data.job.id, p_token: admitted.data.token, p_state: 'UPLOADED', p_message: 'Uploaded' });
+    const claimed = await f.rpc('claim_registration_upload_batch', { p_actor: actor, p_id: admitted.data.job.id });
+    assert.equal(claimed.error, null);
+    const verified = await f.rpc('transition_registration_upload_batch', { p_id: admitted.data.job.id, p_token: claimed.data.token,
+      p_state: 'SUCCESS', p_message: 'Verified', p_success_count: 1, p_error_count: 0 });
+    assert.equal(verified.error, null);
+    assert.equal((await f.db.query<any>(`select status from auto_register_cm_scheduled_items where id='pending-queue'`)).rows[0].status, 'SUCCESS', 'Manual upload verification removes the schedule before email completion');
+    assert.equal((await f.db.query<any>(`select status from registration_submissions where id='driver'`)).rows[0].status, 'PENDING', 'Queue reconciliation never pretends to send an email');
+    await f.db.exec(`insert into registration_submissions(id,company_id,registration_type,status) values('rejected','company','VEHICLE','PENDING');
+      insert into auto_register_cm_scheduled_items values('rejected-queue','rejected','SCHEDULED',null,'Queued',null);
+      update registration_submissions set status='REJECTED' where id='rejected'`);
+    assert.equal((await f.db.query<any>(`select status from auto_register_cm_scheduled_items where id='rejected-queue'`)).rows[0].status, 'FAILED');
+  } finally { await f.db.close(); }
+});
+
+test('upload admission reports schema, configuration and unexpected database failures without exposing raw data', async () => {
+  const f = await fixture();
+  const previous = { ...process.env };
+  process.env.SCHEDULER_PORTAL_URL = 'https://portal.example.test'; process.env.CARGOMOVE_USERNAME = 'fixture'; process.env.CARGOMOVE_PASSWORD = 'fixture';
+  try {
+    for (const [code, message, expected] of [
+      ['PGRST202', 'Missing function', 'UPLOAD_SCHEMA_NOT_READY'],
+      ['P0001', 'Configure the saved file-upload processing scheduler', 'UPLOAD_SCHEDULER_NOT_CONFIGURED'],
+      ['23514', 'Private database detail', 'UPLOAD_START_FAILED'],
+    ]) {
+      const client = { ...f.client, rpc: (name: string, args: any) => name === 'begin_registration_upload_batch'
+        ? Promise.resolve({ data: null, error: { code, message } }) : f.rpc(name, args) };
+      const handler = createRegistrationUploadsHandler({ adminClient: () => client as any,
+        readSession: () => ({ id: actor, email: 'admin@example.test', type: 'ADMIN', exp: Date.now() + 60000 }),
+        uploadWorkbook: async () => { throw new Error('Must not upload'); }, verifyWorkbook: async () => { throw new Error('Must not verify'); },
+        runScheduler: async () => { throw new Error('Must not dispatch'); },
+      });
+      const res = response();
+      await handler({ method: 'POST', body: { action: 'start', submissionId: 'driver' },
+        headers: { origin: 'https://portal.example.test', 'x-cargomove-confirm': 'registration-upload' } }, res);
+      assert.equal(res.code, 503);
+      assert.equal(res.body.errorCode, expected);
+      assert.doesNotMatch(res.body.error, /Private database detail/);
+    }
+  } finally {
+    for (const key of ['SCHEDULER_PORTAL_URL', 'CARGOMOVE_USERNAME', 'CARGOMOVE_PASSWORD']) if (previous[key] === undefined) delete process.env[key]; else process.env[key] = previous[key];
+    await f.db.close();
+  }
+});
+
 test('stable human filenames cannot verify a historical upload with the same name', () => {
   const job = { entity: 'driver', filename: 'CMREG400001_DRIVER_ BY:cargomove-register.vercel.app.xlsx', expected_rows: 1,
     existing_upload_ids: ['old'], upload_started_at: '2026-10-25T01:00:00Z' };

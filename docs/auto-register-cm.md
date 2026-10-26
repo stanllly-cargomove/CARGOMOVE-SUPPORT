@@ -101,6 +101,25 @@ an operator changes its delivery state. Claims never expire into automatic repla
 Manual **Run Now** uses the same path and safeguards but is permitted while the
 automatic enabled flag is off. It never changes that flag.
 
+The page opens immediately from its per-user in-memory snapshot and silently
+revalidates on return. While visible and active, it checks for updates every
+15 seconds, and also checks on window focus, reconnection and local storage
+notifications. These reads pick up new submissions, execution results and manual
+registrations completed by another administrator without requiring Refresh data.
+Verified uploads are removed from the active list even if acceptance email is
+still pending. Background requests do not overlap; temporary failures preserve
+the snapshot and retry with backoff up to 60 seconds. Polling pauses while the
+tab is hidden or the admin portal is inactive.
+
+Migration `20261026060000_auto_register_cm_queue_completion.sql` closes stale
+scheduled items for Done, Rejected or verified registrations and installs triggers
+to keep manual Register & Email synchronized with the automatic queue. It does
+not upload files, send email or add successes to automatic execution counters.
+Each execution also rechecks registration status before grouping and claiming
+work, so a completed manual registration cannot block another Pending asset.
+Group messages name the registrations actually handled; database admission
+failures carry a safe diagnostic code rather than a generic success or skip.
+
 The page has two registration tabs. **Scheduled registrations** shows queued
 items as `SCHEDULED` and safe first failures as `RE-SCHEDULED`; hovering the
 second tag explains the first failure. After a second failure, the registration

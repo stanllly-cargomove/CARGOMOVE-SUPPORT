@@ -7,12 +7,12 @@ function responseMock() {
   return { code: 200, body: null as any, setHeader() {}, status(code: number) { this.code = code; return this; }, json(body: any) { this.body = body; return this; } };
 }
 
-function dependencies() {
+function dependencies(pending: any[] = []) {
   let session: any = { id: 'admin-id', email: 'admin@example.test', type: 'ADMIN' };
   const client = {
     async rpc(name: string) {
       assert.equal(name, 'auto_register_cm_pending_page');
-      return { data: [], error: null };
+      return { data: pending, error: null };
     },
     from() {
       const query: any = {
@@ -42,6 +42,18 @@ test('Auto Register registration details count singular and batch asset records'
   assert.equal(autoRegistrationRecordCount(fixture('DRIVER', { driver: { name: 'One' } })), 1);
   assert.equal(autoRegistrationRecordCount(fixture('TRAILER', { trailers: Array.from({ length: 10 }, () => ({})) })), 10);
   assert.equal(autoRegistrationRecordCount(fixture('VEHICLE', { vehicles: [] })), 0);
+});
+
+test('Auto Register queue removes completed manual registrations even with stale scheduled entries', async () => {
+  const { handler } = dependencies([
+    { id: 'completed', status: 'COMPLETED' },
+    { id: 'rejected', status: 'REJECTED' },
+    { id: 'awaiting-email', status: 'PENDING', cargomove_upload: { state: 'SUCCESS' } },
+  ]);
+  const response = responseMock();
+  await handler({ method: 'GET', headers: {} }, response);
+  assert.equal(response.code, 200);
+  assert.deepEqual(response.body.registrations, [], 'Already registered assets do not remain scheduled or become ineligible rows');
 });
 
 test('Auto Register queue requires an administrator, same-origin confirmation, and bounded selections', async () => {

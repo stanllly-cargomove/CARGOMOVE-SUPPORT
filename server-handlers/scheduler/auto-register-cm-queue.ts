@@ -98,7 +98,8 @@ export function createAutoRegisterCmQueueHandler(deps = { adminClient, readSessi
       if (history.error) throw new Error('Unable to load Auto Register queue history. Apply the Auto Register queue migration.');
 
       const indicators = queued;
-      const candidates = pending.sort((a, b) => a.submitted_at.localeCompare(b.submitted_at) || a.id.localeCompare(b.id));
+      const candidates = pending.filter(submission => submission.status === 'PENDING' && submission.cargomove_upload?.state !== 'SUCCESS')
+        .sort((a, b) => a.submitted_at.localeCompare(b.submitted_at) || a.id.localeCompare(b.id));
       const registrations: ReturnType<typeof serializeRegistration>[] = [];
       for (let offset = 0; offset < candidates.length; offset += 8) {
         const checked = await Promise.all(candidates.slice(offset, offset + 8).map(async (submission: RegistrationSubmission) => {

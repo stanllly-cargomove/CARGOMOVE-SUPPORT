@@ -553,6 +553,7 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
             onBack={() => setActiveTab('developer-settings')}
             cacheScope={user.id || user.email}
             refreshVersion={dataRefreshVersion}
+            pollEnabled={active}
           />}
           {(hasOpenedNorthport || activeTab === 'northport-recovery') && user?.type === 'ADMIN' && <NorthportRecovery key={user.email} active={active && activeTab === 'northport-recovery' && portalMode === 'admin'} onBack={goToPortalHome} />}
           {activeTab === 'account-settings' && <AccountSettings user={user} avatarUrl={avatarUrl} onAvatarChange={setAvatarUrl} onUserChange={onUserChange} onReset={() => void handlePasswordReset()} sendingReset={isSendingReset} />}

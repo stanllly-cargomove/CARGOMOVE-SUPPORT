@@ -233,7 +233,33 @@ export function createAutoRegisterCmHandler(deps = { adminClient, readSession, u
 
       const processGroup = async (scheduledIds: string[]) => {
         const finish = async (status: 'SUCCESS' | 'FAILED' | 'SKIPPED', counts: { processed: number; success: number; failed: number }, message: string, error?: string) =>
-          ({ status, counts, message, error });
+          ({ status, counts, message, error,
+            references: scheduledItems.filter((item: any) => scheduledIds.includes(item.submission_id)).map((item: any) => item.reference_no) });
+
+        // A queued record may have been completed manually since discovery.
+        // Reconcile before linking it to this execution or building a workbook.
+        const pendingIds: string[] = [];
+        for (let offset = 0; offset < scheduledIds.length; offset += 8) {
+          const checked = await Promise.all(scheduledIds.slice(offset, offset + 8).map(async id => {
+            const current = await client.from('registration_submissions').select('id,status,cargomove_upload')
+              .eq('id', id).timeout(8000).maybeSingle();
+            if (current.error) throw new Error('Unable to recheck scheduled registration status.');
+            const sub = current.data;
+            if (sub?.status === 'PENDING' && sub.cargomove_upload?.state !== 'SUCCESS') return id;
+            const successful = sub?.status !== 'REJECTED' && (sub?.status === 'DONE' || sub?.cargomove_upload?.state === 'SUCCESS');
+            const saved = await client.from('auto_register_cm_scheduled_items').update({
+              status: successful ? 'SUCCESS' : 'FAILED', completed_at: new Date().toISOString(),
+              message: successful ? 'Registration already completed or verified outside this execution; no new upload performed.'
+                : 'Registration is no longer Pending or available; automatic scheduling stopped.',
+            }).eq('submission_id', id).eq('status', 'SCHEDULED').timeout(8000);
+            if (saved.error) throw new Error('Unable to reconcile the completed registration queue.');
+            return null;
+          }));
+          pendingIds.push(...checked.filter((id): id is string => id !== null));
+        }
+        scheduledIds = pendingIds;
+        if (!scheduledIds.length) return finish('SKIPPED', { processed: 0, success: 0, failed: 0 },
+          'Previously completed or unavailable registrations were removed from scheduling; no automatic upload was performed.');
 
         // Restrict resumptions as well as new batches to registrations explicitly
         // placed in this queue. Other uploads belong to their own workflow.
@@ -363,7 +389,7 @@ export function createAutoRegisterCmHandler(deps = { adminClient, readSession, u
         totals.processed += result.counts.processed;
         totals.success += result.counts.success;
         totals.failed += result.counts.failed;
-        messages.push(result.message);
+        messages.push(`${result.references.length ? `${result.references.join(', ')}: ` : ''}${result.message}`);
         if (result.error) errors.push(result.error);
         if (result.status === 'FAILED' || outcome !== 'FAILED' && result.status === 'SUCCESS') outcome = result.status;
       }

@@ -254,10 +254,13 @@ try {
   await page.getByRole('button', { name: 'Back to Developer Settings' }).click();
   await page.getByRole('heading', { name: 'Developer Settings' }).waitFor();
   const loadsBeforeReopen = { schedulerLoads, queueLoads, schedulingRequests };
+  const backgroundLoad = page.waitForResponse(response => response.url().endsWith('/api/scheduler/auto-register-cm-queue') && response.request().method() === 'GET');
   await page.getByText('Auto Register in CM', { exact: true }).click();
   await page.locator('h2').getByText('Auto Register in CM', { exact: true }).waitFor();
   assert.equal(await page.getByRole('status', { name: 'Preparing Auto Register in CM' }).count(), 0, 'Cached Auto Register data opens immediately');
-  assert.deepEqual({ schedulerLoads, queueLoads, schedulingRequests }, loadsBeforeReopen, 'Reopening Auto Register does not fetch unchanged data again');
+  await backgroundLoad;
+  assert.ok(schedulerLoads > loadsBeforeReopen.schedulerLoads && queueLoads > loadsBeforeReopen.queueLoads, 'Cached navigation revalidates in the background');
+  assert.equal(schedulingRequests, loadsBeforeReopen.schedulingRequests, 'Cached navigation does not rediscover an unchanged queue');
   assert.deepEqual(errors, []);
   console.log('Auto Register in CM UI: settings toggle/navigation, scheduled and non-eligible tabs, queue, result logs, execution history, manual run and mobile layout passed.');
 } finally {

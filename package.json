@@ -45,7 +45,7 @@
     "test:registration-uploads": "tsx --test tests/registration-uploads.test.ts tests/registration-uploads-browser.test.ts tests/registration-email-completion.test.ts tests/registration-email-runtime.test.ts",
     "test:registration-uploads:ui": "tsx tests/registration-uploads-ui.ts && tsx tests/registration-batch-ui.ts",
     "test:company-queue-status:ui": "tsx tests/company-queue-status-ui.ts",
-    "test:scheduler:ui": "tsx tests/scheduler-ui.ts && tsx tests/auto-register-cm-ui.ts",
+    "test:scheduler:ui": "tsx tests/scheduler-ui.ts && tsx tests/auto-register-cm-ui.ts && tsx tests/auto-register-cm-live-ui.ts",
     "test:northport": "tsx --test tests/northport.test.ts tests/northport-db.test.ts tests/northport-scan.test.ts tests/northport-reprocess.test.ts tests/northport-gp-verification.test.ts tests/northport-history.test.ts tests/northport-retry.test.ts tests/dev-tools-router.test.ts tests/dev-tools-runtime.test.ts",
     "test:northport:ui": "tsx tests/northport-ui.ts",
     "test:northport:search:ui": "tsx tests/northport-search-ui.ts",

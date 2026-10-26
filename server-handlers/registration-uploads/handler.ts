@@ -84,7 +84,22 @@ export function createRegistrationUploadsHandler(deps = dependencies, options: {
         });
         if (acquired.error || !acquired.data) {
           const reason = [COMPANY_REGISTRATION_REQUIRED].find(message => acquired.error?.message?.includes(message));
-          return fail(409, reason || 'Unable to start this upload. Select a Pending asset registration and apply/configure the registration-upload migrations and saved processing scheduler.', { incomplete, registrationFailures });
+          if (reason) return fail(409, reason, { incomplete, registrationFailures });
+          const detail = acquired.error?.message || '';
+          const schemaMissing = ['PGRST202', '42883', '42P01', '42703'].includes(acquired.error?.code || '');
+          const schedulerMissing = detail.includes('Configure the saved file-upload processing scheduler');
+          const conflict = detail.includes('Select Pending asset registrations')
+            || detail.includes('Some registrations already have upload attempts')
+            || detail.includes('Another upload owns this batch')
+            || detail.includes('Use one workbook per registration type');
+          const errorCode = schemaMissing ? 'UPLOAD_SCHEMA_NOT_READY' : schedulerMissing ? 'UPLOAD_SCHEDULER_NOT_CONFIGURED'
+            : conflict ? 'UPLOAD_SELECTION_CHANGED' : 'UPLOAD_START_FAILED';
+          const message = schemaMissing ? 'Registration-upload database functions are unavailable. Apply the registration-upload migrations.'
+            : schedulerMissing ? 'Configure an enabled process_file_uploads scheduler for registration Excel uploads.'
+            : conflict ? 'The selection changed or includes an existing upload. Refresh the registrations and check their current results before retrying.'
+            : 'The database could not create the registration upload job. Check the server error code before retrying.';
+          console.error('Registration upload could not start:', errorCode, acquired.error?.code || 'NO_DATABASE_CODE');
+          return fail(conflict ? 409 : 503, `${message} [${errorCode}]`, { errorCode, incomplete, registrationFailures });
         }
         job = acquired.data.job;
         token = acquired.data.token;

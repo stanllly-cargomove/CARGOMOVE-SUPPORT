@@ -24,8 +24,10 @@ test('one automatic execution verifies trailer and vehicle batches without uploa
   process.env.CRON_SECRET = 'offline-auto-register-secret';
   process.env.SCHEDULER_PORTAL_URL = 'https://portal.example.test';
   process.env.CARGOMOVE_USERNAME = 'offline'; process.env.CARGOMOVE_PASSWORD = 'offline';
-  const subs = ['TRAILER', 'VEHICLE', 'TRAILER'].map((type, i) => ({ id: `s${i}`, registration_type: type,
+  const subs = ['TRAILER', 'VEHICLE', 'TRAILER'].map((type, i) => ({ id: `s${i}`, registration_type: type, status: 'PENDING',
     reference_no: `CMREG${i}`, cargomove_upload: { id: `30000000-0000-4000-8000-00000000000${i}`, state: 'PROCESSING' } }));
+  subs.push({ id: 'manual', registration_type: 'VEHICLE', status: 'DONE', reference_no: 'CMREG-MANUAL',
+    cargomove_upload: { id: '30000000-0000-4000-8000-000000000009', state: 'SUCCESS' } });
   const links: string[][] = [];
   const verified: string[] = [];
   const client = {
@@ -77,6 +79,8 @@ test('one automatic execution verifies trailer and vehicle batches without uploa
   await handler({ method: 'POST', body: {}, headers: { authorization: 'Bearer offline-auto-register-secret' } }, res);
   assert.equal(res.code, 200);
   assert.equal(res.body.successCount, 2);
+  assert.equal(res.body.processedCount, 2, 'Manual completion is not credited to this automatic execution');
+  assert.doesNotMatch(res.body.message, /CMREG-MANUAL/, 'Success messages identify only the registrations handled in this execution');
   assert.deepEqual(verified, [subs[0].cargomove_upload.id, subs[1].cargomove_upload.id]);
   assert.deepEqual(links, [['s0'], ['s1']], 'The untouched second trailer belongs to a later batch/run');
 });
@@ -200,7 +204,8 @@ test('temporary upload-check errors preserve every scheduled registration and re
         select() { return this; }, eq() { return this; }, in() { return this; }, not() { return this; },
         order() { return this; }, limit() { return this; }, timeout() { return this; },
         update(value: any) { update = value; return this; },
-        async maybeSingle() { return { data: table === 'automation_schedulers' ? { discovery_cursor: null } : { id: 'admin' }, error: null }; },
+        async maybeSingle() { return { data: table === 'automation_schedulers' ? { discovery_cursor: null }
+          : table === 'registration_submissions' ? { id: 'fixture', status: 'PENDING' } : { id: 'admin' }, error: null }; },
         then(resolve: any, reject: any) {
           let data: any[] = [];
           if (table === 'auto_register_cm_scheduled_items') {
@@ -314,7 +319,7 @@ test('only identified ineligible registrations fail when the rest of a batch hit
         update(value: any) { update = value; return this; },
         async maybeSingle() {
           const data = table === 'automation_schedulers' ? { discovery_cursor: null }
-            : table === 'registration_submissions' ? { id, reference_no: id === 's1' ? 'CMREG1' : 'CMREG2', registration_type: 'DRIVER',
+            : table === 'registration_submissions' ? { id, status: 'PENDING', reference_no: id === 's1' ? 'CMREG1' : 'CMREG2', registration_type: 'DRIVER',
               company_id: id === 's1' ? 'blocked' : 'registered', company_type: 'HAULAGE', port_id: 'port', port_location: 'JOHOR',
               data: { drivers: [{ name: 'Driver', driving_license: '12345', mobile_no: '0123456789' }] } }
               : table === 'companies' ? { id, company_type: 'HAULAGE', haulier_id: 'H1' } : { id: 'admin' };

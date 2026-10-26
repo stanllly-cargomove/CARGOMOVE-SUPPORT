@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Clock3, Loader2, Play, Search } from 'lucide-react';
 import { notifyError, notifySuccess } from '../common/notifications';
 import type { RegistrationSubmission } from '../../types';
 import { SubmissionDetailModal } from './SubmissionDetailModal';
 import { autoRegisterSchedule } from '../../utils/autoRegisterSchedule';
+import { subscribeToStorage } from '../../services/storage';
 
 type SchedulerRun = {
   id: string;
@@ -116,7 +117,7 @@ function AutoRegisterCmSkeleton() {
 
 async function readJson(response: Response, fallback: string) {
   const data = await response.json().catch(() => null);
-  if (!response.ok) throw new Error(data?.error || data?.message || fallback);
+  if (!response.ok) throw Object.assign(new Error(data?.error || data?.message || fallback), { status: response.status });
   return data;
 }
 
@@ -199,10 +200,11 @@ export function AutoRegisterCmToggle({ onChanged, value, cacheScope }: {
   );
 }
 
-export function AutoRegisterCmPage({ onBack, cacheScope = 'default', refreshVersion = 0 }: {
+export function AutoRegisterCmPage({ onBack, cacheScope = 'default', refreshVersion = 0, pollEnabled = true }: {
   onBack: () => void;
   cacheScope?: string;
   refreshVersion?: number;
+  pollEnabled?: boolean;
 }) {
   const cached = autoRegisterCache.get(cacheScope)?.snapshot;
   const [scheduler, setScheduler] = useState<AutoScheduler | null>(cached?.scheduler ?? null);
@@ -212,6 +214,8 @@ export function AutoRegisterCmPage({ onBack, cacheScope = 'default', refreshVers
   const [registrationTab, setRegistrationTab] = useState<'scheduled' | 'ineligible'>('scheduled');
   const [loading, setLoading] = useState(!cached);
   const [error, setError] = useState('');
+  const [syncError, setSyncError] = useState(false);
+  const mutationEpoch = useRef(0);
   const [localRefresh, setLocalRefresh] = useState(0);
   const [running, setRunning] = useState(false);
   const [registrationPage, setRegistrationPage] = useState(1);
@@ -222,43 +226,74 @@ export function AutoRegisterCmPage({ onBack, cacheScope = 'default', refreshVers
 
   useEffect(() => {
     const cachedEntry = autoRegisterCache.get(cacheScope);
-    const hadCachedData = Boolean(cachedEntry?.snapshot);
-    if (!localRefresh && cachedEntry?.refreshVersion === refreshVersion) {
+    let hasSnapshot = Boolean(cachedEntry?.snapshot);
+    if (cachedEntry) {
       setScheduler(cachedEntry.snapshot.scheduler);
       setRuns(cachedEntry.snapshot.runs);
       setRegistrations(cachedEntry.snapshot.registrations);
       setHistory(cachedEntry.snapshot.history);
       setLoading(false);
       setError('');
-      return;
+    } else {
+      setScheduler(null); setRuns([]); setRegistrations([]); setHistory([]);
+      setLoading(true); setError('');
     }
-    const controller = new AbortController();
-    if (!cachedEntry) setLoading(true);
-    setError('');
-    void (async () => {
+    if (!pollEnabled || running) return;
+
+    let stopped = false, inFlight = false, queued = false, queuedDiscovery = false, failures = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let activeController: AbortController | null = null;
+    const pageVisible = () => document.visibilityState !== 'hidden';
+    const refresh = async (discover = false) => {
+      if (stopped || !pageVisible()) return;
+      if (inFlight) { queued = true; queuedDiscovery ||= discover; return; }
+      if (timer) clearTimeout(timer);
+      inFlight = true;
+      const epoch = mutationEpoch.current;
+      const controller = new AbortController();
+      activeController = controller;
       try {
-        const [schedulerResponse, scheduleResponse] = await Promise.all([
-          fetch('/api/scheduler/auto-register-cm', { credentials: 'same-origin', signal: controller.signal }),
-          fetch('/api/scheduler/auto-register-cm-queue', {
+        const scheduleNew = async () => {
+          const response = await fetch('/api/scheduler/auto-register-cm-queue', {
             method: 'POST',
             credentials: 'same-origin',
             signal: controller.signal,
             headers: { 'Content-Type': 'application/json', 'X-CargoMove-Confirm': 'auto-schedule-auto-register-cm' },
             body: '{}',
-          }),
+          });
+          const data = await readJson(response, 'Unable to automatically schedule eligible registrations.');
+          if (typeof data?.scheduled !== 'number') throw new Error('The queue did not confirm automatic scheduling.');
+          return data.scheduled as number;
+        };
+        const loadQueue = async () => {
+          const response = await fetch('/api/scheduler/auto-register-cm-queue', { credentials: 'same-origin', signal: controller.signal });
+          const data = await readJson(response, 'Unable to load the scheduled registration queue.');
+          if (!Array.isArray(data?.registrations) || !Array.isArray(data?.history)) throw new Error('Auto Register returned incomplete registration data.');
+          return data;
+        };
+        const [schedulerData, queueData] = await Promise.all([
+          fetch('/api/scheduler/auto-register-cm', { credentials: 'same-origin', signal: controller.signal })
+            .then(response => readJson(response, 'Unable to load Auto Register in CM.')),
+          (async () => {
+            if (discover) await scheduleNew();
+            let data = await loadQueue();
+            // Ordinary polls only read. Queue discovery is needed when new
+            // eligible assets arrive, not on every background interval.
+            if (!discover && data.registrations.some((item: Registration) => item.eligible && !item.scheduled
+              && item.queueStatus === 'SCHEDULED' && item.submission.status === 'PENDING'
+              && item.submission.cargomove_upload?.state !== 'SUCCESS')) {
+              if (await scheduleNew()) data = await loadQueue();
+            }
+            return data;
+          })(),
         ]);
-        const [schedulerData, scheduleData] = await Promise.all([
-          readJson(schedulerResponse, 'Unable to load Auto Register in CM.'),
-          readJson(scheduleResponse, 'Unable to automatically schedule eligible registrations.'),
-        ]);
-        if (typeof scheduleData?.scheduled !== 'number') throw new Error('The queue did not confirm automatic scheduling.');
-        const queueResponse = await fetch('/api/scheduler/auto-register-cm-queue', { credentials: 'same-origin', signal: controller.signal });
-        const queueData = await readJson(queueResponse, 'Unable to load the scheduled registration queue.');
         if (!schedulerData?.scheduler || !Array.isArray(schedulerData.runs)
           || !Array.isArray(queueData.registrations) || !Array.isArray(queueData.history)) {
           throw new Error('Auto Register returned incomplete scheduler or registration data.');
         }
-        if (!controller.signal.aborted) {
+        if (!stopped && !controller.signal.aborted) {
+          // A toggle, manual run or storage change supersedes an older read.
+          if (epoch !== mutationEpoch.current) { queued = true; return; }
           const snapshot = {
             scheduler: schedulerData.scheduler,
             runs: schedulerData.runs,
@@ -270,19 +305,52 @@ export function AutoRegisterCmPage({ onBack, cacheScope = 'default', refreshVers
           setRuns(snapshot.runs);
           setRegistrations(snapshot.registrations);
           setHistory(snapshot.history);
+          hasSnapshot = true;
+          failures = 0;
+          setError(''); setSyncError(false);
         }
       } catch (reason) {
-        if (!controller.signal.aborted) {
+        controller.abort(); // Cancel the sibling request before retrying.
+        if (!stopped) {
+          failures++;
           const message = reason instanceof Error ? reason.message : 'Unable to load Auto Register in CM.';
-          if (hadCachedData) notifyError(message);
-          else setError(message);
+          if ([401, 403].includes((reason as { status?: number })?.status || 0)) {
+            autoRegisterCache.delete(cacheScope);
+            hasSnapshot = false;
+            setScheduler(null); setRuns([]); setRegistrations([]); setHistory([]);
+          }
+          if (!hasSnapshot) setError(message);
+          else { setSyncError(true); if (discover) notifyError(message); }
         }
       } finally {
-        if (!controller.signal.aborted) setLoading(false);
+        inFlight = false; activeController = null;
+        if (!stopped) {
+          setLoading(false);
+          if (queued) {
+            const discoverNext = queuedDiscovery;
+            queued = false; queuedDiscovery = false;
+            timer = setTimeout(() => { void refresh(discoverNext); }, 200);
+          } else if (pageVisible()) {
+            timer = setTimeout(() => { void refresh(); }, Math.min(60_000, 15_000 * 2 ** failures));
+          }
+        }
       }
-    })();
-    return () => controller.abort();
-  }, [cacheScope, localRefresh, refreshVersion]);
+    };
+    const resume = () => { void refresh(); };
+    const visibility = () => { if (!pageVisible()) { if (timer) clearTimeout(timer); } else resume(); };
+    const unsubscribe = subscribeToStorage(() => { mutationEpoch.current++; resume(); });
+    window.addEventListener('focus', resume);
+    window.addEventListener('online', resume);
+    document.addEventListener('visibilitychange', visibility);
+    void refresh(!cachedEntry || cachedEntry.refreshVersion !== refreshVersion || localRefresh > 0);
+    return () => {
+      stopped = true; activeController?.abort(); if (timer) clearTimeout(timer);
+      unsubscribe();
+      window.removeEventListener('focus', resume);
+      window.removeEventListener('online', resume);
+      document.removeEventListener('visibilitychange', visibility);
+    };
+  }, [cacheScope, localRefresh, refreshVersion, pollEnabled, running]);
 
   const ineligible = registrations.filter(registration => !registration.eligible);
   const scheduleTiming = autoRegisterSchedule(Date.now(), scheduler?.lastAutomaticRunAt);
@@ -306,6 +374,7 @@ export function AutoRegisterCmPage({ onBack, cacheScope = 'default', refreshVers
 
   const runNow = async () => {
     if (running || !queuedRegistrationCount || !window.confirm(`Run ${queuedRegistrationCount} scheduled registration${queuedRegistrationCount === 1 ? '' : 's'} in CargoMove now${scheduler?.isEnabled ? '' : ' while automatic scheduling is OFF'}?`)) return;
+    mutationEpoch.current++;
     setRunning(true);
     try {
       const response = await fetch('/api/scheduler/auto-register-cm', {
@@ -317,11 +386,11 @@ export function AutoRegisterCmPage({ onBack, cacheScope = 'default', refreshVers
       const data = await readJson(response, 'Auto Register in CM failed.');
       if (data.status === 'failed') notifyError(data.message);
       else notifySuccess(data.message || 'Auto Register in CM completed.');
-      setLocalRefresh(value => value + 1);
     } catch (reason) {
       notifyError(reason instanceof Error ? reason.message : 'Auto Register in CM failed.');
     } finally {
       setRunning(false);
+      setLocalRefresh(value => value + 1);
     }
   };
 
@@ -344,6 +413,7 @@ export function AutoRegisterCmPage({ onBack, cacheScope = 'default', refreshVers
         <p>{error}</p><button type="button" onClick={() => setLocalRefresh(value => value + 1)} className="mt-2 font-semibold underline">Try again</button>
       </div>}
       {loading && <AutoRegisterCmSkeleton />}
+      {syncError && scheduler && <div role="status" className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">Showing saved data. Live updates are temporarily unavailable and will retry automatically.</div>}
 
       {!loading && !error && scheduler && <>
         <section aria-label="Auto Register schedule overview" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
@@ -365,6 +435,7 @@ export function AutoRegisterCmPage({ onBack, cacheScope = 'default', refreshVers
               </div>
               <div className="flex shrink-0 items-center justify-between gap-3">
                 <AutoRegisterCmToggle value={scheduler.isEnabled} cacheScope={cacheScope} onChanged={isEnabled => {
+                  mutationEpoch.current++;
                   setScheduler(current => {
                     if (!current) return current;
                     const next = { ...current, isEnabled };
@@ -372,6 +443,7 @@ export function AutoRegisterCmPage({ onBack, cacheScope = 'default', refreshVers
                     if (entry) autoRegisterCache.set(cacheScope, { ...entry, snapshot: { ...entry.snapshot, scheduler: next } });
                     return next;
                   });
+                  setLocalRefresh(value => value + 1);
                 }} />
                 <button type="button" onClick={() => void runNow()} disabled={running || loading || !queuedRegistrationCount}
                   title={queuedRegistrationCount ? 'Run scheduled registrations now' : 'There are no scheduled registrations to run'}
