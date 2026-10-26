@@ -124,6 +124,26 @@ test('Auto Register in CM persists configuration, skips while off, serializes ru
     );
     assert.equal(await scalar("select has_function_privilege('authenticated','public.schedule_auto_register_cm_submissions(uuid,text[])','EXECUTE')"), false);
     assert.equal(await scalar("select has_function_privilege('service_role','public.schedule_auto_register_cm_submissions(uuid,text[])','EXECUTE')"), true);
+    await db.exec(readFileSync(new URL('../supabase/migrations/20261026020000_auto_register_cm_email_completion.sql', import.meta.url), 'utf8'));
+    const upload = '90000000-0000-4000-8000-000000000001';
+    await db.query("update registration_submissions set cargomove_upload=$1 where id='asset-3'", [{ id: upload, state: 'SUCCESS' }]);
+    await db.exec("update auto_register_cm_scheduled_items set status='SUCCESS',completed_at=now() where submission_id='asset-3' and status='SCHEDULED'");
+    assert.equal((await db.query<any>('select * from auto_register_cm_email_candidates()')).rows[0].id, 'asset-3', 'Existing verified Pending registrations are recovered');
+    const claim = () => scalar("select claim_registration_acceptance('asset-3',$1)", [upload]);
+    assert.equal(await claim(), 'CLAIMED');
+    assert.equal(await claim(), 'SENDING', 'Concurrent callers cannot claim the same acceptance email');
+    assert.equal((await db.query('select * from auto_register_cm_email_candidates()')).rows.length, 0, 'Uncertain sends cannot be replayed');
+    await db.exec("update registration_acceptance_deliveries set state='FAILED'");
+    assert.equal(await claim(), 'CLAIMED', 'An explicit Gmail rejection can be retried');
+    await db.exec("update registration_acceptance_deliveries set state='SENT',gmail_message_id='ack'");
+    assert.equal(await claim(), 'SENT', 'Acknowledged sends recover completion without sending again');
+    assert.equal((await db.query('select * from auto_register_cm_email_candidates()')).rows.length, 1);
+    for (const role of ['anon', 'authenticated']) {
+      assert.equal(await scalar("select has_function_privilege($1,'public.claim_registration_acceptance(text,uuid)','EXECUTE')", [role]), false);
+      assert.equal(await scalar("select has_function_privilege($1,'public.auto_register_cm_email_candidates()','EXECUTE')", [role]), false);
+      assert.equal(await scalar("select has_table_privilege($1,'public.registration_acceptance_deliveries','SELECT')", [role]), false);
+    }
+    assert.equal(await scalar("select schedule from automation_schedulers where scheduler_key='auto_register_cm'"), 'Every 20 minutes');
   } finally { await db.close(); }
 });
 

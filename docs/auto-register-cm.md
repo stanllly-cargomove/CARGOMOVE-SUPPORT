@@ -21,25 +21,27 @@ Run `npx tsx --test tests/dev-tools-router.test.ts tests/auto-register-cm-router
 after adding API routes to check the function count and scheduler routing.
 
 GitHub Actions calls `POST /api/scheduler/auto-register-cm` at minutes 7, 27 and
-47 of every hour. The existing persisted UTC two-hour request key admits one
-execution per window; subsequent calls return the recorded result without
-discovering or processing registrations. These extra delivery opportunities
-let a later automatic trigger catch a missed event. The first planned trigger
-in each window is at minute 7 of the even UTC hour (also even hours in MYT).
+47 of every hour. Each twenty-minute UTC delivery window admits one execution;
+repeated calls in that window return the recorded result. Later deliveries can
+advance other asset types, resume unfinished batches and complete acceptance
+emails instead of waiting two hours for the next admission.
 GitHub scheduling remains best-effort and does not guarantee punctual delivery.
 The workflow only sends HTTPS: it does not check out the repository, install packages,
 build the application, or deploy Vercel. The Vercel handler authenticates the
 Bearer token, atomically checks the persisted enabled flag, and exits successfully
 with `SKIPPED` before reading registrations when the scheduler is off.
 
-When enabled, the handler first discovers eligible Pending assets and saves them
-to the queue. Discovery uses keyset pages and a persisted cursor, with a bounded
+When enabled, the handler first recovers acceptance emails for already verified
+Pending submissions, then discovers eligible Pending assets and saves them to
+the queue. Discovery uses keyset pages and a persisted cursor, with a bounded
 time budget, so later registrations are inspected even when earlier ones remain
 non-eligible. Verified uploads awaiting email are excluded. The page can also
 request discovery; opening it is not required for automatic runs.
 
 The handler processes only saved `SCHEDULED` queue items, in batches
-of up to 100 of one asset type. It may resume an unfinished registration-upload
+of up to 100 of one asset type. Each invocation visits multiple asset types when
+its time budget permits. Never-attempted and least-recently-attempted queue items
+come first, so slow uploads cannot starve other files. It may resume an unfinished registration-upload
 batch only when that batch belongs to a scheduled queue item. Manual **Run Now** consumes
 the same scheduled queue as an automatic run and is disabled when that queue is
 empty. Each queue entry records `SCHEDULED` until verified, then `SUCCESS` or `FAILED`.
@@ -51,10 +53,23 @@ only identified validation failures or persisted terminal upload results mark
 Selected registrations are revalidated by the existing upload workflow when run,
 so eligibility changes after scheduling cannot bypass its checks. The existing
 database leases serialize upload/verification transitions and the application
-scheduler execution table adds a two-minute cross-instance lease. A UTC two-hour
-request key makes GitHub retries idempotent. Uploaded registrations that have
-already reached verified `SUCCESS` are not selected again while they wait for the
-separate acceptance-email workflow.
+scheduler execution table adds a two-minute cross-instance lease. A UTC
+twenty-minute request key makes duplicate deliveries idempotent. Safe failed
+registration retries still wait for the next two-hour window. Uploaded
+registrations that have reached verified `SUCCESS` never upload again.
+
+Automatic acceptance emails use the existing preview/send workflow, including
+port and registration-type assignments, notification recipients and the asset
+PDF. The matching built-in acceptance code is preferred; otherwise exactly one
+matching active code must be assigned. Missing or ambiguous configuration is
+reported in execution history and keeps the submission Pending.
+
+Manual and automatic acceptance sends share a persisted claim per submission and
+verified upload. Gmail acknowledgements are saved before completion moves the
+submission to Done. If completion fails, a later execution uses the saved receipt
+without sending again. An explicit Gmail client rejection can retry; an interrupted
+or uncertain send retains `SENDING` and requires reconciliation in Gmail before
+an operator changes its delivery state. Claims never expire into automatic replay.
 
 Manual **Run Now** uses the same path and safeguards but is permitted while the
 automatic enabled flag is off. It never changes that flag.
@@ -110,6 +125,14 @@ complete dependency snapshot, so their retry baseline is conservatively set to
   next run window. New fingerprints use canonical JSON and meaningful configuration,
 including both Port Klang ports, without timezone-sensitive timestamps.
 
+Before deploying this fix, apply
+`supabase/migrations/20261026020000_auto_register_cm_email_completion.sql` after
+the existing migrations to the **main application** database. It adds fair queue
+ordering and acceptance delivery receipts and changes the displayed schedule to
+Every 20 minutes. It preserves the enabled flag. Deploy the handler and workflow
+changes together. Existing automatically verified submissions still Pending are
+picked up by the next enabled execution; they are not uploaded again.
+
 ## Safe testing
 
 Run `npm run test:scheduler`, `npm run test:scheduler:ui`,
@@ -125,10 +148,8 @@ registrations.
 
 ## Operational notes
 
-- The next scheduled run shown on the page estimates the next two-hour
-  execution's first planned trigger at minute 7. If that trigger is missed,
-  later calls at minutes 27 and 47 (and in the following hour) can still admit
-  that window. The estimate does not confirm GitHub delivery.
+- The next scheduled run estimates the next delivery at minute 7, 27 or 47.
+  The estimate does not confirm GitHub delivery.
 - If execution history stops advancing, inspect the **Auto Register in CM**
   workflow in GitHub Actions. A missing workflow run means no trigger was
   recorded there; a failed workflow needs its HTTP result inspected. Eligibility
@@ -138,8 +159,9 @@ registrations.
 - Timestamps are stored as UTC and displayed in `Asia/Kuala_Lumpur`.
 - A run may report success with records still processing when the Vercel time
   budget is nearly exhausted. The next invocation resumes that durable batch.
-- A registration remains Pending in this application after verified CM processing
-  until its existing acceptance-email workflow completes.
+- Verified registrations remain Pending only until Gmail acknowledges their
+  acceptance email and database completion succeeds. Automatic execution attempts
+  both steps, including recovery of previously verified Pending submissions.
 - Queue rows are durable audit history. A first safe `FAILED` entry remains
   visible as `RE-SCHEDULED` on the page and can create one new queue entry in
   the next two-hour UTC window. A second failure stops automatic retries even

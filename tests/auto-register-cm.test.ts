@@ -2,11 +2,71 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createAutoRegisterCmHandler } from '../server-handlers/scheduler/auto-register-cm.js';
 
+test('one execution verifies both trailer and vehicle batches without uploading them again or linking untouched files', async () => {
+  process.env.CRON_SECRET = 'offline-auto-register-secret';
+  process.env.SCHEDULER_PORTAL_URL = 'https://portal.example.test';
+  process.env.CARGOMOVE_USERNAME = 'offline'; process.env.CARGOMOVE_PASSWORD = 'offline';
+  const subs = ['TRAILER', 'VEHICLE', 'TRAILER'].map((type, i) => ({ id: `s${i}`, registration_type: type,
+    reference_no: `CMREG${i}`, cargomove_upload: { id: `30000000-0000-4000-8000-00000000000${i}`, state: 'PROCESSING' } }));
+  const links: string[][] = [];
+  const verified: string[] = [];
+  const client = {
+    async rpc(name: string, args: any) {
+      if (name === 'auto_register_cm_actor') return { data: { id: 'admin', email: 'admin@example.test' }, error: null };
+      if (name === 'acquire_automation_scheduler') return { data: { id: 'run', status: 'RUNNING' }, error: null };
+      if (['auto_register_cm_email_candidates', 'auto_register_cm_pending_page'].includes(name)) return { data: [], error: null };
+      if (name === 'finish_automation_scheduler') return { data: true, error: null };
+      const sub = subs.find(sub => sub.cargomove_upload.id === args.p_id)!;
+      const job = { id: sub.cargomove_upload.id, batch_id: sub.cargomove_upload.id, submission_id: sub.id, state: sub.cargomove_upload.state };
+      if (name === 'claim_registration_upload_batch') return { data: { job, token: 'lease' }, error: null };
+      if (name === 'transition_registration_upload_batch') {
+        sub.cargomove_upload.state = args.p_state;
+        return { data: { ...job, state: args.p_state }, error: null };
+      }
+      throw new Error(`Unexpected RPC ${name}`);
+    },
+    from(table: string) {
+      let update: any;
+      const filters = new Map<string, any>();
+      const q: any = {
+        select() { return this; }, eq(key: string, value: any) { filters.set(key, value); return this; },
+        in(key: string, value: any) { filters.set(key, value); return this; }, not() { return this; },
+        order() { return this; }, limit() { return this; }, timeout() { return this; },
+        update(value: any) { update = value; return this; },
+        async maybeSingle() { return { data: table === 'automation_schedulers' ? { discovery_cursor: null }
+          : table === 'registration_submissions' ? subs.find(sub => sub.id === filters.get('id')) : { id: 'admin' }, error: null }; },
+        then(resolve: any, reject: any) {
+          let data: any[] = [];
+          if (table === 'auto_register_cm_scheduled_items') {
+            if (update?.run_id) links.push(filters.get('submission_id'));
+            if (!update) data = subs.map(sub => ({ id: `q-${sub.id}`, submission_id: sub.id, registration_type: sub.registration_type, reference_no: sub.reference_no }));
+          }
+          if (table === 'registration_uploads') data = subs.filter(sub => filters.has('batch_id')
+            ? sub.cargomove_upload.id === filters.get('batch_id')
+            : filters.get('submission_id')?.includes(sub.id) && sub.cargomove_upload.state !== 'SUCCESS')
+            .map(sub => ({ id: sub.cargomove_upload.id, batch_id: sub.cargomove_upload.id, submission_id: sub.id, state: sub.cargomove_upload.state }));
+          return Promise.resolve({ data, error: null }).then(resolve, reject);
+        },
+      }; return q;
+    },
+  };
+  const handler = createAutoRegisterCmHandler({ adminClient: () => client as any, readSession: () => null,
+    uploadWorkbook: async () => { throw new Error('Verified/resumed files must never upload again'); },
+    verifyWorkbook: async (_credentials, job) => { verified.push((job as any).id); return { state: 'SUCCESS', message: 'Verified', successCount: 1, errorCount: 0 }; },
+    runAutomation: async () => { throw new Error('Already processed files must never dispatch again'); } });
+  const res = responseMock();
+  await handler({ method: 'POST', body: {}, headers: { authorization: 'Bearer offline-auto-register-secret' } }, res);
+  assert.equal(res.code, 200);
+  assert.equal(res.body.successCount, 2);
+  assert.deepEqual(verified, [subs[0].cargomove_upload.id, subs[1].cargomove_upload.id]);
+  assert.deepEqual(links, [['s0'], ['s1']], 'The untouched second trailer belongs to a later batch/run');
+});
+
 function responseMock() {
   return { code: 200, body: null as any, setHeader() {}, status(code: number) { this.code = code; return this; }, json(body: any) { this.body = body; return this; } };
 }
 
-test('fallback triggers share a two-hour admission key and duplicate delivery never inspects registrations', async context => {
+test('each twenty-minute delivery advances work while duplicate delivery never inspects registrations', async context => {
   process.env.CRON_SECRET = 'offline-auto-register-secret';
   const keys: string[] = [];
   const client = {
@@ -23,15 +83,15 @@ test('fallback triggers share a two-hour admission key and duplicate delivery ne
     verifyWorkbook: async () => { throw new Error('Must not verify'); },
     runAutomation: async () => { throw new Error('Must not dispatch'); } });
   const clock = context.mock.method(Date, 'now');
-  for (const time of ['00:07', '00:27', '00:47', '01:07', '01:27', '01:47', '02:07']) {
+  for (const time of ['00:07', '00:08', '00:19', '00:27', '00:47', '01:07', '02:07']) {
     clock.mock.mockImplementation(() => Date.parse(`2026-10-26T${time}:00+08:00`));
     const response = responseMock();
     await handler({ method: 'POST', body: {}, headers: { authorization: 'Bearer offline-auto-register-secret' } }, response);
     assert.equal(response.code, 200);
     assert.match(response.body.message, /already handled/);
   }
-  assert.equal(new Set(keys.slice(0, 6)).size, 1);
-  assert.notEqual(keys[6], keys[0], 'The next two-hour window admits a new execution');
+  assert.equal(new Set(keys.slice(0, 3)).size, 1);
+  assert.notEqual(keys[3], keys[0], 'The next twenty-minute slot admits more work');
 });
 
 test('cron authentication is required and a disabled scheduler exits before registration access', async () => {
@@ -74,6 +134,7 @@ test('temporary upload-check errors preserve every scheduled registration and re
     async rpc(name: string, args: any) {
       if (name === 'auto_register_cm_actor') return { data: { id: '10000000-0000-4000-8000-000000000001', email: 'admin@example.test' }, error: null };
       if (name === 'acquire_automation_scheduler') return { data: { id: '20000000-0000-4000-8000-000000000001', status: 'RUNNING' }, error: null };
+      if (name === 'auto_register_cm_email_candidates') return { data: [], error: null };
       if (name === 'auto_register_cm_pending_page') return { data: [], error: null };
       if (name === 'claim_registration_upload_batch') return { data: null, error: { message: 'Temporary database timeout' } };
       if (name === 'finish_automation_scheduler') { final = args; return { data: true, error: null }; }
@@ -151,6 +212,7 @@ test('only identified ineligible registrations fail when the rest of a batch hit
     async rpc(name: string, args: any) {
       if (name === 'auto_register_cm_actor') return { data: { id: '10000000-0000-4000-8000-000000000001', email: 'admin@example.test' }, error: null };
       if (name === 'acquire_automation_scheduler') return { data: { id: '20000000-0000-4000-8000-000000000001', status: 'RUNNING' }, error: null };
+      if (name === 'auto_register_cm_email_candidates') return { data: [], error: null };
       if (name === 'auto_register_cm_pending_page') return { data: [], error: null };
       if (name === 'registration_upload_company_block_reason') return {
         data: transientApproval ? null : args.p_company_id === 'blocked' ? 'Parent company is not registered.' : null,
@@ -217,6 +279,7 @@ test('an enabled run discovers pending registrations before skipping an empty sc
       if (name === 'auto_register_cm_actor') return { data: { id: '10000000-0000-4000-8000-000000000001', email: 'admin@example.test' }, error: null };
       if (name === 'acquire_automation_scheduler') return { data: { id: '20000000-0000-4000-8000-000000000001', reason: 'acquired', status: 'RUNNING' }, error: null };
       if (name === 'finish_automation_scheduler') return { data: true, error: null };
+      if (name === 'auto_register_cm_email_candidates') return { data: [], error: null };
       if (name === 'auto_register_cm_pending_page') return { data: [], error: null };
       throw new Error(`Unexpected RPC ${name}`);
     },
@@ -248,5 +311,5 @@ test('an enabled run discovers pending registrations before skipping an empty sc
     message: 'No scheduled registrations are ready to process.', processedCount: 0, successCount: 0, failedCount: 0,
   });
   assert.deepEqual(tables, ['automation_schedulers', 'auto_register_cm_scheduled_items']);
-  assert.deepEqual(calls, ['auto_register_cm_actor', 'acquire_automation_scheduler', 'auto_register_cm_pending_page', 'finish_automation_scheduler']);
+  assert.deepEqual(calls, ['auto_register_cm_actor', 'acquire_automation_scheduler', 'auto_register_cm_email_candidates', 'auto_register_cm_pending_page', 'auto_register_cm_email_candidates', 'finish_automation_scheduler']);
 });

@@ -70,6 +70,7 @@ export function createSubmissionSendHandler(deps = { configuredClient, requireAd
     try { attachmentMetadata = validateTemplateAttachments(template.attachments || []); }
     catch (error) { return response.status(409).json({ error: error instanceof Error ? error.message : 'The template attachments are invalid.' }); }
     try {
+      // Claim as late as possible, after all preparation and before Gmail.
       if (attachmentMetadata.length && (!supabaseUrl || !serviceRoleKey)) throw new Error('Supabase Storage is not configured.');
       const attachments = [];
       let downloadedBytes = 0;
@@ -89,16 +90,40 @@ export function createSubmissionSendHandler(deps = { configuredClient, requireAd
         attachments.push({ path: 'generated/asset-registration-list.pdf', name: assetRegistrationPdfName([submissionResult.data]), content_type: 'application/pdf', size: pdf.length, data: pdf });
       }
       const accessToken = await deps.exchangeRefreshToken(deps.decryptRefreshToken(connectionResult.data));
+      if (pendingAcceptance) {
+        const claim = await client.rpc('claim_registration_acceptance', { p_submission_id: token.submissionId, p_upload_id: token.pendingUploadId });
+        if (claim.error) return response.status(503).json({ error: 'Acceptance email admission is unavailable.' });
+        if (claim.data === 'SENT') {
+          const completed = await client.rpc('complete_registration_email', { p_submission_id: token.submissionId, p_upload_id: token.pendingUploadId });
+          return response.status(completed.error ? 503 : 200).json(completed.error
+            ? { error: 'Email already sent; registration completion will be retried.' }
+            : { status: 'SENT', recovered: true });
+        }
+        if (claim.data !== 'CLAIMED') return response.status(409).json({ error: 'This acceptance email is sending or its outcome needs review in Gmail.' });
+      }
       const gmailResponse = await deps.fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
         method: 'POST',
+        signal: AbortSignal.timeout(15_000),
         headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ raw: createRawMessage(connectionResult.data.email, recipient, subject, messageBody, attachments) }),
       });
       const gmailMessage = await gmailResponse.json().catch(() => ({}));
+      if (pendingAcceptance && !gmailResponse.ok) {
+        // A positive rejection is safe to retry. Timeouts/ambiguous responses
+        // retain SENDING so another run cannot duplicate a delivered message.
+        if (gmailResponse.status >= 400 && gmailResponse.status < 500 && gmailResponse.status !== 408) {
+          await client.from('registration_acceptance_deliveries').update({ state: 'FAILED', updated_at: new Date().toISOString() })
+            .eq('submission_id', token.submissionId).eq('upload_id', token.pendingUploadId).eq('state', 'SENDING');
+        }
+      }
       if (!gmailResponse.ok || !gmailMessage.id) throw new Error(String(gmailMessage.error?.status || gmailMessage.error?.message || 'gmail_send_failed'));
       let warning: string | undefined;
       if (pendingAcceptance) {
         try {
+          const recorded = await client.from('registration_acceptance_deliveries')
+            .update({ state: 'SENT', gmail_message_id: gmailMessage.id, updated_at: new Date().toISOString() })
+            .eq('submission_id', token.submissionId).eq('upload_id', token.pendingUploadId).eq('state', 'SENDING').select('submission_id');
+          if (recorded.error || !recorded.data?.length) throw new Error('Email receipt could not be saved');
           const completed = await client.rpc('complete_registration_email', { p_submission_id: token.submissionId, p_upload_id: token.pendingUploadId });
           if (completed.error) throw new Error('Completion unavailable');
         } catch { warning = 'Email sent. The registration could not move to Done. Review its status before sending another email.'; }
@@ -107,7 +132,9 @@ export function createSubmissionSendHandler(deps = { configuredClient, requireAd
     } catch (error) {
       const message = publicError(error);
       console.error('Registration email failed:', message);
-      response.status(502).json({ error: 'Gmail could not send the email. The preview remains available for retry.' });
+      response.status(502).json({ error: pendingAcceptance
+        ? 'Gmail sending was not confirmed. The registration remains Pending; check its email delivery status before retrying.'
+        : 'Gmail could not send the email. The preview remains available for retry.' });
     }
   };
 }

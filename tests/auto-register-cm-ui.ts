@@ -51,7 +51,7 @@ try {
         schedulerLoads++;
         return route.fulfill({ json: { scheduler: {
         key: 'auto_register_cm', name: 'Auto Register in CM', description: 'Automatically execute CM registration',
-        schedule: 'Every 2 hours', isEnabled: enabled, lastRunAt: null, lastStatus: null, updatedAt: '2026-10-25T02:00:00.000Z',
+        schedule: 'Every 20 minutes', isEnabled: enabled, lastRunAt: null, lastStatus: null, updatedAt: '2026-10-25T02:00:00.000Z',
       }, runs: [
         { id: 'run-1', executionId: 'AUTOREG1000001', executionType: 'AUTOMATIC', status: 'SUCCESS', startedAt: '2026-10-25T02:00:00.000Z', finishedAt: '2026-10-25T02:01:00.000Z', durationMs: 60000, processedCount: 2, successCount: 2, failedCount: 0, message: 'Completed 2 registrations.', errorMessage: null, registrationReferences: ['CMREG400187', 'CMREG400188'] },
         { id: 'run-0', executionId: 'AUTOREG1000002', executionType: 'AUTOMATIC', status: 'FAILED', startedAt: '2026-10-25T00:00:00.000Z', finishedAt: '2026-10-25T00:01:00.000Z', durationMs: 60000, processedCount: 1, successCount: 0, failedCount: 1, message: 'CargoMove rejected the registration.', errorMessage: null, registrationReferences: ['CMREG400189', 'CMREG400187'] },

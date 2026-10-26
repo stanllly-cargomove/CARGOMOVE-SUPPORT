@@ -2,9 +2,8 @@ name: Auto Register in CM
 
 on:
   schedule:
-    # Repeated delivery opportunities avoid losing an entire two-hour window
-    # when GitHub delays/drops a scheduled event. The API's persisted two-hour
-    # request key admits work once per window; later calls return duplicate.
+    # Each delivery advances the durable queue, including unfinished batches and
+    # acceptance emails. Duplicate calls within a 20-minute slot are deduplicated.
     - cron: '7,27,47 * * * *'
   workflow_dispatch:
 
@@ -25,7 +24,7 @@ jobs:
           curl --fail-with-body --silent --show-error \
             --request POST \
             --connect-timeout 10 \
-            --max-time 110 \
+            --max-time 125 \
             --header "Authorization: Bearer $CRON_SECRET" \
             --header "Content-Type: application/json" \
             --data '{}' \

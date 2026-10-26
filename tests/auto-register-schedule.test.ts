@@ -3,11 +3,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { autoRegisterSchedule } from '../src/utils/autoRegisterSchedule.js';
 
-test('the next two-hour execution estimate matches the off-hour trigger at minute 7', () => {
+test('the next twenty-minute execution estimate matches the off-hour trigger at minute 7', () => {
   assert.equal(autoRegisterSchedule(Date.parse('2026-10-26T02:06:00+08:00')).nextSlot.toISOString(),
     '2026-10-25T18:07:00.000Z');
   assert.equal(autoRegisterSchedule(Date.parse('2026-10-26T02:09:00+08:00')).nextSlot.toISOString(),
-    '2026-10-25T20:07:00.000Z');
+    '2026-10-25T18:27:00.000Z');
   assert.equal(autoRegisterSchedule(Date.parse('2026-10-25T23:59:00+08:00')).nextSlot.toISOString(),
     '2026-10-25T16:07:00.000Z');
 });
