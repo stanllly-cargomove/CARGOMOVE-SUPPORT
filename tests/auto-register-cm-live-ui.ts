@@ -4,7 +4,7 @@ import { launchBrowser } from '../server-handlers/scheduler/automation.js';
 
 const bundle = await build({
   stdin: {
-    contents: `import React,{useState}from'react';import{createRoot}from'react-dom/client';import{AutoRegisterCmPage}from'./src/components/admin/AutoRegisterCm';function App(){const[open,setOpen]=useState(true),[active,setActive]=useState(true);return <><button onClick={()=>setActive(!active)}>Change active</button>{open?<AutoRegisterCmPage pollEnabled={active} onBack={()=>setOpen(false)}/>:<button onClick={()=>setOpen(true)}>Open queue</button>}</>}createRoot(document.getElementById('root')).render(<App/>);`,
+    contents: `import React,{useState}from'react';import{createRoot}from'react-dom/client';import{AutoRegisterCmPage}from'./src/components/admin/AutoRegisterCm';function App(){const[open,setOpen]=useState(true),[active,setActive]=useState(true);globalThis.__setAutoRegisterLiveOpen=setOpen;return <><button onClick={()=>setActive(!active)}>Change active</button>{open?<AutoRegisterCmPage pollEnabled={active} onBack={()=>setOpen(false)}/>:<button onClick={()=>setOpen(true)}>Open queue</button>}</>}createRoot(document.getElementById('root')).render(<App/>);`,
     resolveDir: process.cwd(), loader: 'tsx',
   },
   bundle: true, write: false, format: 'iife', platform: 'browser', define: { 'process.env.NODE_ENV': '"test"' },
@@ -79,7 +79,8 @@ try {
   await row('CMREG1').waitFor({ state: 'detached' });
   assert.equal(discoveries, 2, 'Another admin completing a submission only requires a background read');
 
-  await page.getByRole('button', { name: 'Back to Developer Settings' }).click();
+  assert.equal(await page.getByRole('button', { name: 'Back to Developer Settings' }).count(), 0);
+  await page.evaluate(() => (globalThis as any).__setAutoRegisterLiveOpen(false));
   records[1].pending = false;
   records.push({ id: 'CMREG3', pending: true, scheduled: true });
   holdReads();

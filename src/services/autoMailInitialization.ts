@@ -8,6 +8,12 @@ type Task = { progress: MailInitializationProgress; listeners: Set<(progress: Ma
 const tasks = new Map<string, Task>();
 onMailSessionCleared(() => { tasks.forEach(task => { task.cancelled = true; }); tasks.clear(); });
 const contextOf = (status?: Readiness) => status?.connectionVersion || status?.mailbox || '';
+async function warmRecentContent(scope:string, context:string, ids:string[]) {
+  const unique=[...new Set(ids)].slice(0,12);let cursor=0;
+  await Promise.all(Array.from({length:Math.min(4,unique.length)},async()=>{
+    while(cursor<unique.length){const id=unique[cursor++];await cachedMail(scope,`thread?id=${encodeURIComponent(id)}`,{context,requestSuffix:'&prefetch=1'});}
+  }));
+}
 export function mailInitialized(scope: string) {
   const status = peekMail<Readiness>(scope, 'status');
   return !!status?.mailboxConnected && !!peekMail<{ready:boolean}>(scope, 'initialized', contextOf(status))?.ready;
@@ -37,12 +43,18 @@ export async function initializeMail<T extends Readiness>(scope: string, report:
       const results = await Promise.allSettled(paths.map(async (path, index) => {
         if (!path) { update(index + 1, 'unavailable'); return; }
         update(index + 1, 'loading');
-        try { await cachedMail(scope, path, {context}); update(index + 1, 'ready'); }
+        try {
+          await cachedMail(scope, path, {context});
+          update(index + 1, 'ready');
+        }
         catch (error) { update(index + 1, 'error'); throw error; }
       }));
       if (current.cancelled) throw new Error('Your session ended. Sign in again.');
       const failure = results.find(result => result.status === 'rejected');
       if (failure?.status === 'rejected') throw new Error(failure.reason instanceof Error ? failure.reason.message : 'Unable to initialize mail. Please retry.');
+      const inbox=peekMail<{threads:{id:string}[]}>(scope,paths[0]!,context)?.threads||[];
+      const sent=peekMail<{threads:{id:string}[]}>(scope,paths[1]!,context)?.threads||[];
+      void warmRecentContent(scope,context,[...inbox.slice(0,8),...sent.slice(0,4)].map(item=>item.id)).catch(()=>{});
       writeMail(scope, 'initialized', {ready:true}, context);
       return {status, revalidate};
     })().finally(() => { if (tasks.get(scope) === current) tasks.delete(scope); });

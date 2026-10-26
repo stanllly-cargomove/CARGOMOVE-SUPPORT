@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Clock3, Loader2, Play, Search } from 'lucide-react';
+import { Activity, Bot, Check, CheckCircle2, ChevronDown, Clock3, FileText, Loader2, Play, Search, XCircle } from 'lucide-react';
 import { notifyError, notifySuccess } from '../common/notifications';
 import type { RegistrationSubmission } from '../../types';
 import { SubmissionDetailModal } from './SubmissionDetailModal';
@@ -98,6 +98,68 @@ function CompactPager({ page, pages, onPage, label }: { page: number; pages: num
         className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40">&gt;</button>
     </nav>
   );
+}
+
+const executionStatusOptions: Array<{ value: SchedulerRun['status']; label: string; description: string; row: string; selected: string; icon: string; check: string }> = [
+  { value: 'FAILED', label: 'Failed', description: 'One or more registrations failed.', row: 'bg-rose-50/60 hover:bg-rose-100/70', selected: 'bg-rose-100 ring-1 ring-inset ring-rose-200', icon: 'bg-rose-100 text-rose-700', check: 'text-rose-600' },
+  { value: 'SUCCESS', label: 'Success', description: 'Completed without registration failures.', row: 'bg-emerald-50/60 hover:bg-emerald-100/70', selected: 'bg-emerald-100 ring-1 ring-inset ring-emerald-200', icon: 'bg-emerald-100 text-emerald-700', check: 'text-emerald-600' },
+  { value: 'RUNNING', label: 'Running', description: 'Currently processing registrations.', row: 'bg-blue-50/60 hover:bg-blue-100/70', selected: 'bg-blue-100 ring-1 ring-inset ring-blue-200', icon: 'bg-blue-100 text-blue-700', check: 'text-blue-600' },
+  { value: 'SKIPPED', label: 'Skipped', description: 'Ended without processing registrations.', row: 'bg-amber-50/60 hover:bg-amber-100/70', selected: 'bg-amber-100 ring-1 ring-inset ring-amber-200', icon: 'bg-amber-100 text-amber-700', check: 'text-amber-600' },
+];
+
+function ExecutionStatusFilter({ value, onChange }: { value: SchedulerRun['status'][]; onChange: (value: SchedulerRun['status'][]) => void }) {
+  const menuRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const ignoreLayoutScrollUntil = useRef(0);
+  const [open, setOpen] = useState(false);
+  const selectedLabel = executionStatusOptions.filter(option => value.includes(option.value)).map(option => option.label).join(' + ') || 'No status';
+  useEffect(() => {
+    if (!open) return;
+    const close = () => menuRef.current?.hidePopover();
+    const closeOnScroll = () => { if (performance.now() >= ignoreLayoutScrollUntil.current) close(); };
+    window.addEventListener('scroll', closeOnScroll, true);
+    window.addEventListener('wheel', close, { passive: true });
+    window.addEventListener('touchmove', close, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', closeOnScroll, true);
+      window.removeEventListener('wheel', close);
+      window.removeEventListener('touchmove', close);
+    };
+  }, [open]);
+  return <>
+    <button ref={buttonRef} type="button" aria-label={`Filter execution logs by status: ${selectedLabel}`} aria-haspopup="dialog" aria-expanded={open}
+      className="inline-flex h-8 max-w-full items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700 shadow-sm outline-none hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-blue-500"
+      onClick={() => {
+        const menu = menuRef.current, button = buttonRef.current;
+        if (!menu || !button) return;
+        if (menu.matches(':popover-open')) { menu.hidePopover(); return; }
+        const rect = button.getBoundingClientRect();
+        menu.style.left = `${Math.max(8, Math.min(rect.right - 320, window.innerWidth - 328))}px`;
+        menu.style.top = `${Math.max(8, rect.bottom + 260 > window.innerHeight ? rect.top - 260 : rect.bottom + 6)}px`;
+        menu.showPopover();
+        menu.querySelector<HTMLButtonElement>('[aria-checked="true"]')?.focus();
+      }}>
+      <span className="truncate">Status</span>
+      <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden="true" />
+    </button>
+    <div ref={menuRef} popover="auto" role="dialog" aria-label="Execution status filter" onToggle={() => setOpen(menuRef.current?.matches(':popover-open') ?? false)}
+      style={{ position: 'fixed', margin: 0 }} className="w-80 max-w-[calc(100vw-1rem)] rounded-xl border border-slate-200 bg-white p-2 text-xs text-slate-700 shadow-xl">
+      <p className="px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Filter by status</p>
+      <div role="group" aria-label="Execution statuses">{executionStatusOptions.map(option => {
+        const selected = value.includes(option.value);
+        return <button key={option.value} type="button" role="checkbox" aria-checked={selected}
+          className={`mb-1 flex w-full items-start gap-2.5 rounded-lg px-2.5 py-1.5 text-left outline-none transition-colors last:mb-0 focus-visible:ring-2 focus-visible:ring-blue-500 ${selected ? option.selected : option.row}`}
+          onClick={() => {
+            ignoreLayoutScrollUntil.current = performance.now() + 150;
+            onChange(selected ? value.filter(status => status !== option.value) : [...value, option.value]);
+          }}>
+          <span className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${option.icon}`}><span className="h-2 w-2 rounded-full bg-current" aria-hidden="true" /></span>
+          <span className="min-w-0 flex-1"><span className="block font-semibold leading-4 text-slate-900">{option.label}</span><span className="mt-0.5 block text-[11px] leading-[15px] text-slate-500">{option.description}</span></span>
+          {selected && <Check className={`mt-0.5 h-4 w-4 shrink-0 ${option.check}`} aria-hidden="true" />}
+        </button>;
+      })}</div>
+    </div>
+  </>;
 }
 
 function AutoRegisterCmSkeleton() {
@@ -200,7 +262,7 @@ export function AutoRegisterCmToggle({ onChanged, value, cacheScope }: {
   );
 }
 
-export function AutoRegisterCmPage({ onBack, cacheScope = 'default', refreshVersion = 0, pollEnabled = true }: {
+export function AutoRegisterCmPage({ cacheScope = 'default', refreshVersion = 0, pollEnabled = true }: {
   onBack: () => void;
   cacheScope?: string;
   refreshVersion?: number;
@@ -221,6 +283,7 @@ export function AutoRegisterCmPage({ onBack, cacheScope = 'default', refreshVers
   const [registrationPage, setRegistrationPage] = useState(1);
   const [activeSubmission, setActiveSubmission] = useState<RegistrationSubmission | null>(null);
   const [logSearch, setLogSearch] = useState('');
+  const [logStatuses, setLogStatuses] = useState<SchedulerRun['status'][]>(['FAILED', 'SUCCESS']);
   const [logPageSize, setLogPageSize] = useState(25);
   const [logPage, setLogPage] = useState(1);
 
@@ -357,11 +420,13 @@ export function AutoRegisterCmPage({ onBack, cacheScope = 'default', refreshVers
   const scheduledRegistrations = registrations.filter(registration => registration.eligible && registration.queueStatus !== 'FAILED');
   const queuedRegistrationCount = scheduledRegistrations.filter(registration => registration.scheduled).length;
   const activeRegistrations = registrationTab === 'scheduled' ? scheduledRegistrations : ineligible;
-  const registrationPages = Math.max(1, Math.ceil(activeRegistrations.length / 10));
+  const registrationPageSize = 5;
+  const registrationPages = Math.max(1, Math.ceil(activeRegistrations.length / registrationPageSize));
   const currentRegistrationPage = Math.min(registrationPage, registrationPages);
-  const pagedRegistrations = activeRegistrations.slice((currentRegistrationPage - 1) * 10, currentRegistrationPage * 10);
+  const pagedRegistrations = activeRegistrations.slice((currentRegistrationPage - 1) * registrationPageSize, currentRegistrationPage * registrationPageSize);
   const normalizedLogSearch = logSearch.trim().toLowerCase();
   const filteredRuns = runs.filter(run => {
+    if (!logStatuses.includes(run.status)) return false;
     if (!normalizedLogSearch) return true;
     const registrationReferences = (run.registrationReferences || []).join(' ');
     return [run.executionType, run.executionId, run.status, malaysiaDate(run.startedAt), run.message, run.errorMessage || '',
@@ -371,6 +436,10 @@ export function AutoRegisterCmPage({ onBack, cacheScope = 'default', refreshVers
   const logPages = Math.max(1, Math.ceil(filteredRuns.length / logPageSize));
   const currentLogPage = Math.min(logPage, logPages);
   const pagedRuns = filteredRuns.slice((currentLogPage - 1) * logPageSize, currentLogPage * logPageSize);
+  const latestRun = runs[0] || null;
+  const successfulRegistrations = runs.reduce((total, run) => total + run.successCount, 0);
+  const failedRegistrations = runs.reduce((total, run) => total + run.failedCount, 0);
+  const activeExecutions = runs.filter(run => run.status === 'RUNNING').length;
 
   const runNow = async () => {
     if (running || !queuedRegistrationCount || !window.confirm(`Run ${queuedRegistrationCount} scheduled registration${queuedRegistrationCount === 1 ? '' : 's'} in CargoMove now${scheduler?.isEnabled ? '' : ' while automatic scheduling is OFF'}?`)) return;
@@ -397,16 +466,14 @@ export function AutoRegisterCmPage({ onBack, cacheScope = 'default', refreshVers
   return (
     <div className="w-full space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex min-w-0 items-start gap-3">
-          <button type="button" onClick={onBack} aria-label="Back to Developer Settings"
-            className="mt-0.5 rounded-lg p-2 text-slate-500 hover:bg-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
-            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          </button>
-          <div>
-            <h2 className="text-xl font-bold tracking-tight text-slate-900">Auto Register in CM</h2>
-            <p className="mt-1 max-w-2xl text-xs leading-5 text-slate-500">Review registrations, manage automatic scheduling, and track every result.</p>
-          </div>
+        <div>
+          <h2 className="text-xl font-bold tracking-tight text-slate-900">Auto Register in CM</h2>
+          <p className="mt-1 max-w-2xl text-xs leading-5 text-slate-500">Automatically register eligible data in CM, manage scheduling, and track every result.</p>
         </div>
+        {scheduler && <div className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-bold ${scheduler.isEnabled ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+          <span className={`h-2 w-2 rounded-full ${scheduler.isEnabled ? 'bg-emerald-500' : 'bg-slate-400'}`} aria-hidden="true" />
+          {scheduler.isEnabled ? 'Enabled' : 'Disabled'}
+        </div>}
       </div>
 
       {error && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
@@ -416,24 +483,14 @@ export function AutoRegisterCmPage({ onBack, cacheScope = 'default', refreshVers
       {syncError && scheduler && <div role="status" className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">Showing saved data. Live updates are temporarily unavailable and will retry automatically.</div>}
 
       {!loading && !error && scheduler && <>
-        <section aria-label="Auto Register schedule overview" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <h3 className="text-sm font-bold text-slate-900">{scheduler.name}</h3>
-                <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${scheduler.isEnabled ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>{scheduler.isEnabled ? 'Enabled' : 'Disabled'}</span>
-              </div>
-              <p className="mt-1 text-xs text-slate-600">{scheduler.description}</p>
-              <p className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-600"><Clock3 className="h-3.5 w-3.5" />Runs {scheduler.schedule}</p>
-            </div>
-            <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between lg:min-w-[360px]">
-              <div className="min-w-0">
-                <p className="text-xs font-bold text-slate-800">Automatic scheduling</p>
-                <p className="mt-0.5 text-[10px] leading-4 text-slate-500">
-                  {scheduler.isEnabled ? 'Eligible registrations run on schedule.' : 'Queued registrations wait until scheduling is enabled.'}
-                </p>
-              </div>
-              <div className="flex shrink-0 items-center justify-between gap-3">
+        <section aria-label="Auto Register schedule overview" className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+          <div className="grid gap-3 xl:grid-cols-[minmax(320px,0.95fr)_minmax(0,1.55fr)]">
+            <div className="flex min-h-[230px] flex-col rounded-xl border border-emerald-100 bg-gradient-to-br from-emerald-50 via-white to-cyan-50 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex min-w-0 items-start gap-3">
+                  <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-sm"><Bot className="h-5 w-5" aria-hidden="true" /></span>
+                  <div className="min-w-0"><h3 className="text-sm font-bold text-slate-900">Automatic scheduling</h3><p className="mt-0.5 text-[11px] leading-4 text-slate-600">{scheduler.isEnabled ? 'Eligible registrations will run automatically.' : 'Queued registrations wait until scheduling is enabled.'}</p></div>
+                </div>
                 <AutoRegisterCmToggle value={scheduler.isEnabled} cacheScope={cacheScope} onChanged={isEnabled => {
                   mutationEpoch.current++;
                   setScheduler(current => {
@@ -445,22 +502,57 @@ export function AutoRegisterCmPage({ onBack, cacheScope = 'default', refreshVers
                   });
                   setLocalRefresh(value => value + 1);
                 }} />
+              </div>
+              <div data-testid="next-trigger-card" className="mt-4 rounded-lg border border-slate-200 bg-white/90 px-3 py-2.5">
+                <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-500">Next planned trigger</span>
+                <strong className="mt-1 block truncate text-xs text-slate-900">{scheduler.isEnabled ? malaysiaDate(scheduleTiming.nextSlot) : 'Not scheduled'}</strong>
+                <span className="mt-1 block text-[10px] leading-4 text-slate-500">Estimate only; execution is confirmed in the logs.</span>
+              </div>
+              <div data-testid="schedule-frequency-card" className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white/90 px-3 py-2.5">
+                <div className="min-w-0"><span className="block text-[10px] font-bold uppercase tracking-wide text-slate-500">Run frequency</span><span className="mt-1 flex items-center gap-2 text-xs font-semibold text-slate-800"><Clock3 className="h-4 w-4 text-slate-500" aria-hidden="true" />{scheduler.schedule}</span></div>
                 <button type="button" onClick={() => void runNow()} disabled={running || loading || !queuedRegistrationCount}
                   title={queuedRegistrationCount ? 'Run scheduled registrations now' : 'There are no scheduled registrations to run'}
-                  className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
+                  className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-5 py-2 text-xs font-bold text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
                   {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}{running ? 'Running…' : 'Run Now'}
                 </button>
               </div>
             </div>
-          </div>
-          <div className="mt-4 grid gap-2 sm:grid-cols-4">
-            <div className="rounded-lg bg-slate-50 px-3 py-2"><span className="block text-[10px] text-slate-500">Last execution</span><strong className="mt-0.5 block text-xs text-slate-800">{scheduler.lastRunAt ? malaysiaDate(scheduler.lastRunAt) : 'Never'}</strong>{scheduler.lastAutomaticRunAt !== undefined && <span className="mt-1 block text-[10px] text-slate-500">Last automatic: {scheduler.lastAutomaticRunAt ? malaysiaDate(scheduler.lastAutomaticRunAt) : 'Never'}</span>}</div>
-            <div className="rounded-lg bg-slate-50 px-3 py-2"><span className="block text-[10px] text-slate-500">Next planned trigger</span><strong className="mt-0.5 block text-xs text-slate-800">{scheduler.isEnabled ? malaysiaDate(scheduleTiming.nextSlot) : 'Not scheduled'}</strong><span className="mt-1 block text-[10px] text-slate-500">Estimate only; execution is confirmed in the logs.</span></div>
-            <div className="rounded-lg bg-slate-50 px-3 py-2"><span className="block text-[10px] text-slate-500">Eligible now</span><strong className="mt-0.5 block text-xs text-slate-800">{scheduledRegistrations.length} registration{scheduledRegistrations.length === 1 ? '' : 's'}</strong></div>
-            <div className="rounded-lg bg-slate-50 px-3 py-2"><span className="block text-[10px] text-slate-500">Last result</span><strong className={`mt-0.5 block text-xs ${statusTone(scheduler.lastStatus || '')}`}>{scheduler.lastStatus || 'No runs'}</strong></div>
+
+            <div className="flex min-w-0 flex-col gap-3">
+              <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+                <div data-testid="overview-eligible-metric" className="grid grid-cols-[auto_minmax(0,1fr)_auto] grid-rows-2 items-center gap-x-2 rounded-xl border border-blue-100 bg-blue-50/70 p-3"><span className="row-span-2 inline-flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 text-blue-600"><FileText className="h-4 w-4" aria-hidden="true" /></span><span className="min-w-0 truncate text-[10px] font-semibold text-slate-600">Eligible now</span><strong className="col-start-3 row-span-2 row-start-1 text-xl leading-none text-slate-900">{scheduledRegistrations.length}</strong><span className="col-start-2 min-w-0 truncate text-[10px] text-slate-500">registration{scheduledRegistrations.length === 1 ? '' : 's'}</span></div>
+                <div data-testid="overview-success-metric" className="grid grid-cols-[auto_minmax(0,1fr)_auto] grid-rows-2 items-center gap-x-2 rounded-xl border border-emerald-100 bg-emerald-50/70 p-3"><span className="row-span-2 inline-flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600"><CheckCircle2 className="h-4 w-4" aria-hidden="true" /></span><span className="min-w-0 truncate text-[10px] font-semibold text-slate-600">Success</span><strong className="col-start-3 row-span-2 row-start-1 text-xl leading-none text-emerald-700">{successfulRegistrations}</strong><span className="col-start-2 min-w-0 truncate text-[10px] text-slate-500">completed</span></div>
+                <div data-testid="overview-failed-metric" className="grid grid-cols-[auto_minmax(0,1fr)_auto] grid-rows-2 items-center gap-x-2 rounded-xl border border-rose-100 bg-rose-50/70 p-3"><span className="row-span-2 inline-flex h-8 w-8 items-center justify-center rounded-lg bg-rose-100 text-rose-600"><XCircle className="h-4 w-4" aria-hidden="true" /></span><span className="min-w-0 truncate text-[10px] font-semibold text-slate-600">Failed</span><strong className="col-start-3 row-span-2 row-start-1 text-xl leading-none text-rose-700">{failedRegistrations}</strong><span className="col-start-2 min-w-0 truncate text-[10px] text-slate-500">registrations</span></div>
+                <div data-testid="overview-processing-metric" className="grid grid-cols-[auto_minmax(0,1fr)_auto] grid-rows-2 items-center gap-x-2 rounded-xl border border-amber-100 bg-amber-50/70 p-3"><span className="row-span-2 inline-flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100 text-amber-600"><Activity className="h-4 w-4" aria-hidden="true" /></span><span className="min-w-0 truncate text-[10px] font-semibold text-slate-600">Processing</span><strong className="col-start-3 row-span-2 row-start-1 text-xl leading-none text-amber-700">{activeExecutions}</strong><span className="col-start-2 min-w-0 truncate text-[10px] text-slate-500">active execution{activeExecutions === 1 ? '' : 's'}</span></div>
+              </div>
+              <div data-testid="last-execution-row" className="grid flex-1 grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:grid-cols-3 xl:grid-cols-[1.05fr_1.65fr_0.8fr_0.75fr_0.75fr_0.75fr] xl:gap-0 xl:p-4">
+                {latestRun ? <>
+                  <div data-testid="last-execution-status-section" className="flex h-full min-h-[72px] min-w-0 flex-col items-center justify-center px-2 py-1 text-center xl:px-3">
+                    <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Last execution</span>
+                    <span data-testid="last-execution-status" className={`mt-2 inline-flex h-7 w-28 shrink-0 items-center justify-center rounded-full px-3 text-[10px] font-bold ${statusTone(latestRun.status)}`}>{latestRun.status}</span>
+                  </div>
+                  <div className="flex h-full min-h-[72px] min-w-0 flex-col justify-center px-2 py-1 xl:border-l xl:border-slate-200 xl:px-5">
+                    <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-500">Last run</span>
+                    <strong className="mt-2 block truncate text-sm font-medium text-slate-900">{malaysiaDate(latestRun.startedAt)}</strong>
+                  </div>
+                  <div data-testid="last-execution-duration-section" className="flex h-full min-h-[72px] min-w-0 flex-col items-center justify-center px-2 py-1 text-center xl:border-l xl:border-slate-200 xl:px-5">
+                    <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-500">Duration</span>
+                    <strong className="mt-2 block text-lg font-medium leading-none text-slate-900">{latestRun.durationMs == null ? '—' : `${(latestRun.durationMs / 1000).toFixed(1)}s`}</strong>
+                  </div>
+                  <div data-testid="last-execution-success" className="flex h-full min-h-[72px] min-w-0 flex-col items-center justify-center rounded-xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-emerald-100/60 px-2 py-2 text-center xl:mx-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wide text-emerald-700">Success</span><strong className="mt-2 text-2xl leading-none text-emerald-600">{latestRun.successCount}</strong>
+                  </div>
+                  <div data-testid="last-execution-failed" className="flex h-full min-h-[72px] min-w-0 flex-col items-center justify-center rounded-xl border border-rose-100 bg-gradient-to-br from-rose-50 to-rose-100/60 px-2 py-2 text-center xl:mx-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wide text-rose-700">Failed</span><strong className="mt-2 text-2xl leading-none text-rose-600">{latestRun.failedCount}</strong>
+                  </div>
+                  <div data-testid="last-execution-total" className="flex h-full min-h-[72px] min-w-0 flex-col items-center justify-center rounded-xl border border-blue-100 bg-gradient-to-br from-blue-50 to-blue-100/60 px-2 py-2 text-center xl:ml-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wide text-blue-700">Total</span><strong className="mt-2 text-2xl leading-none text-blue-600">{latestRun.processedCount}</strong>
+                  </div>
+                </> : <div className="col-span-full px-2 py-4"><span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Last execution</span><p className="mt-2 text-xs text-slate-500">No execution history yet.</p></div>}
+              </div>
+            </div>
           </div>
           {scheduler.isEnabled && scheduleTiming.overdue && <div role="status" className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">Automatic trigger overdue. No automatic execution was recorded for the latest expected slot. {scheduler.cronTrigger?.isEnabled ? 'Check the Supabase Cron delivery job.' : 'Check GitHub Actions delivery.'}</div>}
-          {scheduler.cronTrigger?.isEnabled && <div className="mt-2 text-[10px] text-slate-500">Supabase trigger: {scheduler.cronTrigger.status}{scheduler.cronTrigger.lastTickAt ? ` · Last check ${malaysiaDate(scheduler.cronTrigger.lastTickAt)}` : ' · Waiting for its first check'}{scheduler.cronTrigger.errorCode ? ` · ${scheduler.cronTrigger.errorCode}` : ''}</div>}
         </section>
 
         <section aria-label="Registrations">
@@ -480,7 +572,7 @@ export function AutoRegisterCmPage({ onBack, cacheScope = 'default', refreshVers
           </div>
           <div data-testid="auto-register-tab-divider" aria-hidden="true" style={{ height: 1, backgroundColor: '#cbd5e1' }} className="w-full" />
           <div id="auto-register-registrations-panel" role="tabpanel" className="overflow-hidden rounded-b-xl rounded-tr-xl border-x border-b border-slate-200 bg-white shadow-sm">
-            <div data-testid="registration-table-viewport" className="overflow-hidden" style={{ minHeight: 410 }}>
+            <div data-testid="registration-table-viewport" className="overflow-hidden" style={{ minHeight: 214 }}>
               <table aria-label={registrationTab === 'scheduled' ? 'Scheduled registrations' : 'Non-eligible registrations'} style={{ tableLayout: 'fixed', width: '100%', maxWidth: '100%' }} className="w-full table-fixed border-collapse text-left text-[11px]">
                 <thead>
                   <tr
@@ -550,6 +642,7 @@ export function AutoRegisterCmPage({ onBack, cacheScope = 'default', refreshVers
                   onChange={event => { setLogSearch(event.target.value); setLogPage(1); }}
                   className="h-8 w-full rounded-lg border border-slate-200 bg-white pl-8 pr-3 text-xs text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 sm:w-56" />
               </div>
+              <ExecutionStatusFilter value={logStatuses} onChange={statuses => { setLogStatuses(statuses); setLogPage(1); }} />
               <select aria-label="Execution logs per page" value={logPageSize}
                 onChange={event => { setLogPageSize(Number(event.target.value)); setLogPage(1); }}
                 className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100">

@@ -14,7 +14,7 @@ let generation = 0;
 const clearListeners = new Set<()=>void>();
 const key = (scope:string,path:string,context='')=>JSON.stringify([scope,context,path]);
 const isReadiness = (id:string) => ['status','initialized'].includes(JSON.parse(id)[2]);
-const persistentPath = (path:string) => path === 'status' || path === 'initialized' || path.startsWith('threads?') || path.startsWith('thread?') || path.startsWith('outbox?');
+const persistentPath = (path:string) => path === 'status' || path === 'initialized' || path.startsWith('threads?') || path.startsWith('thread?') || path.startsWith('outbox?') || path.startsWith('knowledge?') || path.startsWith('knowledge-article?') || path.startsWith('learning?') || path.startsWith('learning-suggestion?');
 function validSnapshot(path:string, value:any) {
   if (!value || typeof value !== 'object') return false;
   if (path === 'status') return typeof value.state === 'string' && typeof value.mailboxConnected === 'boolean';
@@ -22,6 +22,10 @@ function validSnapshot(path:string, value:any) {
   if (path.startsWith('threads?')) return Array.isArray(value.threads) && value.threads.every((row:any) => row && ['id','subject','from','snippet'].every(field => typeof row[field] === 'string') && typeof row.unread === 'boolean');
   if (path.startsWith('thread?')) return ['id','subject','recipient','mailbox','connectionVersion'].every(field => typeof value[field] === 'string') && Array.isArray(value.messages) && value.messages.every((message:any) => message && ['id','from','to','date','body'].every(field => typeof message[field] === 'string'));
   if (path.startsWith('outbox?')) return Array.isArray(value.messages) && value.messages.every((job:any) => job && typeof job.id === 'string' && typeof job.subject === 'string' && ['to_addresses','cc_addresses','bcc_addresses','attachments'].every(field => Array.isArray(job[field])));
+  if (path.startsWith('knowledge-article?')) return value.article && typeof value.article.id === 'string' && typeof value.article.title === 'string' && (!value.revisions || Array.isArray(value.revisions));
+  if (path.startsWith('knowledge?')) return Array.isArray(value.articles) && typeof value.total === 'number';
+  if (path.startsWith('learning-suggestion?')) return value.suggestion && typeof value.suggestion.id === 'string' && Array.isArray(value.events);
+  if (path.startsWith('learning?')) return Array.isArray(value.suggestions) && typeof value.total === 'number';
   return false;
 }
 function restoreSnapshot() {
@@ -68,7 +72,7 @@ export function expireMail(scope:string,prefix='',context?:string) {
 export function expireMailStatus() {restoreSnapshot();for(const [id,entry] of entries)if(JSON.parse(id)[2]==='status')entry.at=0;persistSnapshot();}
 export function clearMailSession() {generation++;restored=true;restoredScopes.clear();entries.clear();pending.clear();try{sessionStorage.removeItem(SNAPSHOT_KEY);}catch{}clearListeners.forEach(fn=>fn());}
 export function onMailSessionCleared(fn:()=>void) {clearListeners.add(fn);return()=>clearListeners.delete(fn);}
-export async function cachedMail<T>(scope:string,path:string,options:{context?:string;force?:boolean;conditional?:boolean}={}):Promise<T> {
+export async function cachedMail<T>(scope:string,path:string,options:{context?:string;force?:boolean;conditional?:boolean;requestSuffix?:string}={}):Promise<T> {
   restoreSnapshot();
   const id=key(scope,path,options.context); const current=entries.get(id);
   if(pending.has(id))return pending.get(id) as Promise<T>;
@@ -77,7 +81,7 @@ export async function cachedMail<T>(scope:string,path:string,options:{context?:s
   const task=(async()=>{
     const old=current?.value as {historyId?:string}|undefined;
     const conditional=(!options.force||options.conditional)&&path.startsWith('threads?')&&!path.includes('pageToken=')&&old?.historyId;
-    const url=path+(conditional?`&historyId=${encodeURIComponent(old.historyId!)}`:'');
+    const url=path+(conditional?`&historyId=${encodeURIComponent(old.historyId!)}`:'')+(options.requestSuffix||'');
     const response=await fetch(`/api/auto-mail/${url}`,{credentials:'include',cache:'no-store'});
     let result=await response.json().catch(()=>({}));
     if(response.status===401){clearMailSession();throw new Error('Your session expired. Sign in again.');}

@@ -4,10 +4,11 @@ import northportRecovery from '../server-handlers/northport/handler.js';
 import systemVersions from '../server-handlers/system-versions.js';
 import profile from '../server-handlers/profile.js';
 import registrationUploads from '../server-handlers/registration-uploads/handler.js';
+import developerSettings from '../server-handlers/developer-settings.js';
 
 type Handler = (request:any,response:any)=>unknown;
-// Public URLs are preserved by explicit Vercel rewrites. Each handler retains
-// its own method, ADMIN, origin, confirmation and database admission checks.
+// Public URLs are preserved by explicit Vercel rewrites. Each handler owns its
+// access checks; settings exposes public feature flags and requires ADMIN writes.
 export function createDevToolsRouter(handlers:Record<string,Handler>={
   schedulers:schedulerCatalog,
   'run-scheduler':runScheduler,
@@ -15,6 +16,7 @@ export function createDevToolsRouter(handlers:Record<string,Handler>={
   'system-versions':systemVersions,
   profile,
   'registration-uploads':registrationUploads,
+  settings:developerSettings,
 }) {
   return async function devTools(request:any,response:any) {
     response.setHeader('Cache-Control','no-store');

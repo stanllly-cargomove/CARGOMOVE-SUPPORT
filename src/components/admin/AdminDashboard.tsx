@@ -342,7 +342,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           </div>
         </div>
 
-        <div className="overview-pending-table overflow-hidden">
+        <div className="overview-pending-table overflow-hidden md:min-h-[232px]">
           <table className="registration-queue-table overview-queue-table w-full table-fixed text-left text-[11px] font-normal border-collapse">
             <colgroup>
               <col style={{ width: '128px' }} />
@@ -367,7 +367,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             <tbody className="divide-y divide-slate-100">
               {visibleQueue.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-3 py-8 text-center text-slate-500">
+                  <td colSpan={7} className="h-[200px] px-3 text-center align-middle text-slate-500">
                     No pending registrations match the current filters.
                   </td>
                 </tr>

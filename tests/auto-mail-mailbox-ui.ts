@@ -155,6 +155,7 @@ try {
     await page.getByText('Message scheduled. View or cancel it in Scheduled.',{exact:true}).waitFor();assert.equal(composeSends,1,'Scheduling never sends immediately');
     await folders.getByRole('button',{name:'Scheduled',exact:true}).click();
     await page.getByRole('button',{name:'Cancel scheduled message',exact:true}).waitFor();
+    const scheduledSearch=page.getByRole('searchbox',{name:'Search emails'});assert.match(await scheduledSearch.getAttribute('placeholder')||'',/Search Scheduled/);await scheduledSearch.fill('missing schedule');await scheduledSearch.press('Enter');await page.getByText('No scheduled messages match this search.',{exact:true}).waitFor();await page.getByRole('button',{name:'Clear email search',exact:true}).click();await page.getByRole('button',{name:'Cancel scheduled message',exact:true}).waitFor();
     await page.screenshot({path:`test-results/auto-mail-scheduled-${width}.png`,fullPage:true});
     page.once('dialog',dialog=>dialog.accept());await page.getByRole('button',{name:'Cancel scheduled message',exact:true}).click();
     await page.getByText(/· CANCELLED/).waitFor();assert.equal(cancelled,true);

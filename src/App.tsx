@@ -10,8 +10,10 @@ import { PortalPage, pageFromPath, portalPaths } from './components/customer/por
 import { clearProtectedStorage, refreshProtectedStorage, startProtectedStorageSync } from './services/storage';
 import { ApplicationUser, getApplicationSession, logoutApplicationUser } from './services/auth';
 import { AccountLoadingScreen } from './components/common/AccountLoadingScreen';
+import { startDeveloperSettingsSync } from './services/developerSettings';
 
 export default function App() {
+  useEffect(() => startDeveloperSettingsSync(), []);
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(() => window.location.hash.includes('type=recovery') || window.location.hash.includes('error_code=otp_expired'));
   const [page, setPage] = useState(() => pageFromPath(window.location.pathname));
   const [routeKey, setRouteKey] = useState(() => window.location.pathname + window.location.search);

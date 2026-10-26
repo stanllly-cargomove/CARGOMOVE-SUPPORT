@@ -47,6 +47,7 @@ import {
 import { notifyError, notifySuccess, notifyWarning, summarizeError } from '../common/notifications';
 import { formatAdminDate } from '../../utils/date';
 import { isEmailTemplateForRegistration } from '../../utils/registrationEmailTemplates';
+import { useDeveloperSettings } from '../../services/developerSettings';
 
 interface SubmissionsListProps {
   status: SubmissionStatus;
@@ -378,6 +379,7 @@ function QueueMoreActions({ disabled, children }: {
 }
 
 export function SubmissionsList({ status, initialType = 'COMPANY', refreshVersion = 0 }: SubmissionsListProps) {
+  const { simulationEnabled } = useDeveloperSettings();
   const reducedMotion = useReducedMotion();
   // Read browser storage once on entry, then only when the data actually changes.
   const [{ submissions, companies }, setSnapshot] = useState(() => ({
@@ -404,6 +406,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY', refreshVersio
   const [exporting, setExporting] = useState(false);
   const [registrationProgress, setRegistrationProgress] = useState<RegistrationProgressState>({ active: false, complete: false, message: '', selectedCount: 0, successfulCount: 0, failedCount: 0, nextStep: 'queue' });
   const [simulationMenuOpen, setSimulationMenuOpen] = useState(false);
+  useEffect(() => { if (!simulationEnabled) setSimulationMenuOpen(false); }, [simulationEnabled]);
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<RegistrationType | 'ALL'>(initialType);
   const [portFilter, setPortFilter] = useState<string>('ALL');
@@ -783,6 +786,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY', refreshVersio
   };
 
   const simulateRegistrationAndEmail = async (outcome: 'success' | 'failure' | 'mixed') => {
+    if (!simulationEnabled) return;
     const wait = (milliseconds: number) => new Promise(resolve => window.setTimeout(resolve, milliseconds));
     const successfulCount = outcome === 'failure' ? 0 : outcome === 'mixed' ? 1 : 2;
     const failedCount = outcome === 'success' ? 0 : outcome === 'mixed' ? 1 : 2;
@@ -1094,7 +1098,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY', refreshVersio
             {statusDescriptions[status]}
           </p>
           </div>
-          {status === 'PENDING' && (
+          {status === 'PENDING' && simulationEnabled && (
             <div className="relative shrink-0">
               <button type="button" aria-label="Simulate" aria-haspopup="menu" aria-expanded={simulationMenuOpen} onClick={() => setSimulationMenuOpen(open => !open)} disabled={registrationProgress.active || exporting || savingCode} className="inline-flex h-7 items-center rounded-md border border-dashed border-blue-300 bg-blue-50 px-2 text-[9px] font-bold uppercase tracking-wide text-blue-700 transition hover:border-blue-400 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50" title="Temporary preview only — no data will be changed">
                 Simulate

@@ -5,7 +5,7 @@ import { launchBrowser } from '../server-handlers/scheduler/automation.js';
 
 const bundle = await build({
   stdin: {
-    contents: `import React,{useState} from 'react';import{createRoot}from'react-dom/client';import{DeveloperSettings}from'./src/components/admin/DeveloperSettings';import{AutoRegisterCmPage}from'./src/components/admin/AutoRegisterCm';function App(){const[page,setPage]=useState(false);return page?<AutoRegisterCmPage onBack={()=>setPage(false)}/>:<DeveloperSettings onOpenAutoRegisterCm={()=>setPage(true)} onOpenScheduler={()=>{}} onOpenExcelMapping={()=>{}} onOpenPortDepotConfig={()=>{}} onOpenAutoEmailConfig={()=>{}}/>}createRoot(document.getElementById('root')).render(<App/>);`,
+    contents: `import React,{useState} from 'react';import{createRoot}from'react-dom/client';import{DeveloperSettings}from'./src/components/admin/DeveloperSettings';import{AutoRegisterCmPage}from'./src/components/admin/AutoRegisterCm';function App(){const[page,setPage]=useState(false);globalThis.__setAutoRegisterTestPage=setPage;return page?<AutoRegisterCmPage onBack={()=>setPage(false)}/>:<DeveloperSettings onOpenAutoRegisterCm={()=>setPage(true)} onOpenScheduler={()=>{}} onOpenExcelMapping={()=>{}} onOpenPortDepotConfig={()=>{}} onOpenAutoEmailConfig={()=>{}}/>}createRoot(document.getElementById('root')).render(<App/>);`,
     resolveDir: process.cwd(), loader: 'tsx',
   },
   bundle: true, write: false, format: 'iife', platform: 'browser', define: { 'process.env.NODE_ENV': '"test"' },
@@ -46,6 +46,7 @@ try {
     const request = route.request();
     const url = new URL(request.url());
     assert.equal(url.origin, 'http://auto-register.test', 'External requests are forbidden in this test');
+    if (url.pathname === '/api/dev-tools/settings') return route.fulfill({ json: { settings: { registrationTestToolsEnabled: false, simulationEnabled: false } } });
     if (url.pathname === '/api/scheduler/auto-register-cm') {
       if (request.method() === 'GET') {
         schedulerLoads++;
@@ -125,8 +126,8 @@ try {
   await page.getByText('Next planned trigger', { exact: true }).waitFor();
   await page.getByText('Estimate only; execution is confirmed in the logs.', { exact: true }).waitFor();
   assert.equal(await page.getByRole('status').filter({ hasText: 'Automatic trigger overdue' }).isVisible(), true);
-  assert.equal(await page.getByText(/Last automatic:/).isVisible(), true);
-  assert.equal(await page.getByText(/Supabase trigger: REQUESTED/).isVisible(), true);
+  assert.equal(await page.getByText(/Last automatic:/).count(), 0);
+  assert.equal(await page.getByText(/Supabase trigger:/).count(), 0);
   assert.equal(await page.getByRole('button', { name: 'Refresh', exact: true }).count(), 0, 'Auto Register uses the shared Refresh data action');
   const scheduledTab = page.getByRole('tab', { name: /Scheduled registrations/ });
   await scheduledTab.waitFor();
@@ -135,7 +136,7 @@ try {
   assert.equal(await scheduledPager.getByText('1', { exact: true }).count(), 1);
   assert.equal(await scheduledPager.getByRole('button', { name: 'Previous scheduled registrations pagination page' }).isDisabled(), true);
   assert.equal(await scheduledPager.getByRole('button', { name: 'Next scheduled registrations pagination page' }).isDisabled(), true);
-  assert.equal(await page.getByTestId('registration-table-viewport').evaluate(element => getComputedStyle(element).minHeight), '410px', 'Table reserves space for ten compact rows plus the header');
+  assert.equal(await page.getByTestId('registration-table-viewport').evaluate(element => getComputedStyle(element).minHeight), '214px', 'Table reserves space for five compact rows plus the header');
   assert.equal(scheduled, true, 'Eligible registrations are scheduled automatically on page load');
   assert.equal(await page.getByRole('button', { name: /Schedule selected/ }).count(), 0);
   assert.ok(await page.getByText('Registration No.', { exact: true }).isVisible());
@@ -177,8 +178,29 @@ try {
   await page.getByRole('heading', { name: 'Execution logs' }).waitFor();
   const overview = page.getByRole('region', { name: 'Auto Register schedule overview' });
   assert.equal(await overview.getByText(/No automatic execution is recorded/).count(), 0);
-  assert.equal(await overview.getByText('2 registrations', { exact: true }).count(), 1, 'Scheduled registrations remain included in Eligible now');
-  assert.equal(await overview.getByRole('button', { name: 'Run Now' }).count(), 1, 'Run Now is grouped in the first card');
+  const eligibleMetric = overview.getByTestId('overview-eligible-metric');
+  assert.equal(await eligibleMetric.getByText('2', { exact: true }).count(), 1, 'Scheduled registrations remain included in Eligible now');
+  for (const [testId, label] of [['overview-eligible-metric', 'Eligible now'], ['overview-success-metric', 'Success'], ['overview-failed-metric', 'Failed'], ['overview-processing-metric', 'Processing']]) {
+    const metric = overview.getByTestId(testId);
+    const labelBox = await metric.getByText(label, { exact: true }).boundingBox();
+    const numberBox = await metric.locator('strong').boundingBox();
+    assert.ok(labelBox && numberBox && numberBox.x > labelBox.x, `${label} number is positioned on the right side`);
+  }
+  const frequencyCard = overview.getByTestId('schedule-frequency-card');
+  assert.equal(await frequencyCard.getByRole('button', { name: 'Run Now' }).count(), 1, 'Run Now is inside the Run frequency card');
+  const nextTriggerTop = await overview.getByTestId('next-trigger-card').evaluate(element => element.getBoundingClientRect().top);
+  const frequencyTop = await frequencyCard.evaluate(element => element.getBoundingClientRect().top);
+  assert.ok(nextTriggerTop < frequencyTop, 'Next planned trigger is positioned above Run frequency');
+  assert.deepEqual(await overview.getByTestId('last-execution-status').evaluate(element => {
+    const { width, height } = element.getBoundingClientRect();
+    return { width, height };
+  }), { width: 112, height: 28 }, 'Every last-execution status uses the same reduced fixed size');
+  assert.equal(await overview.getByText('Duration', { exact: true }).count(), 1, 'Duration has its own last-execution field');
+  assert.equal(await overview.getByText('Last run', { exact: true }).locator('..').locator('strong').evaluate(element => getComputedStyle(element).fontWeight), '500');
+  assert.equal(await overview.getByTestId('last-execution-duration-section').locator('strong').evaluate(element => getComputedStyle(element).fontWeight), '500');
+  assert.equal(await overview.getByTestId('last-execution-success').getByText('2', { exact: true }).count(), 1);
+  assert.equal(await overview.getByTestId('last-execution-failed').getByText('0', { exact: true }).count(), 1);
+  assert.equal(await overview.getByTestId('last-execution-total').getByText('2', { exact: true }).count(), 1);
   const pageToggle = overview.getByRole('switch', { name: 'Enable Auto Register in CM' });
   assert.equal(await pageToggle.getAttribute('aria-checked'), 'true');
   await pageToggle.click();
@@ -189,6 +211,20 @@ try {
   assert.equal(await page.getByRole('heading', { name: 'Results & Execution logs' }).count(), 0);
   assert.equal(await page.getByRole('table', { name: 'Auto Register in CM execution logs' }).count(), 1);
   const executionLogs = page.getByRole('table', { name: 'Auto Register in CM execution logs' });
+  const statusFilter = page.getByRole('button', { name: 'Filter execution logs by status: Failed + Success' });
+  assert.equal(await statusFilter.textContent(), 'Status', 'The compact control uses a general label without a filter icon');
+  assert.equal(await statusFilter.locator('svg').count(), 1, 'Only the dropdown chevron is shown in the status control');
+  await statusFilter.click();
+  const statusOptions = page.getByRole('dialog', { name: 'Execution status filter' });
+  assert.equal(await statusOptions.getByRole('checkbox', { name: /^Failed/ }).getAttribute('aria-checked'), 'true');
+  assert.equal(await statusOptions.getByRole('checkbox', { name: /^Success/ }).getAttribute('aria-checked'), 'true');
+  assert.equal(await statusOptions.getByRole('checkbox', { name: /^Running/ }).getAttribute('aria-checked'), 'false');
+  assert.equal(await statusOptions.getByRole('checkbox', { name: /^Skipped/ }).getAttribute('aria-checked'), 'false');
+  await statusOptions.getByRole('checkbox', { name: /^Failed/ }).click();
+  assert.equal(await executionLogs.getByText('AUTOREG1000002', { exact: true }).count(), 0, 'Status filtering removes failed executions when Failed is deselected');
+  await statusOptions.getByRole('checkbox', { name: /^Failed/ }).click();
+  await page.mouse.wheel(0, -40);
+  await statusOptions.waitFor({ state: 'hidden' });
   const logPageSize = page.getByRole('combobox', { name: 'Execution logs per page' });
   assert.equal(await logPageSize.inputValue(), '25');
   await logPageSize.selectOption('50');
@@ -229,6 +265,19 @@ try {
   assert.equal(await divider.evaluate(element => element.getBoundingClientRect().height), 1);
   assert.equal(await page.getByRole('tabpanel').evaluate(element => getComputedStyle(element).borderTopWidth), '0px', 'Original attached table has no duplicate top border');
   await page.setViewportSize({ width: 1440, height: 1000 });
+  const lastExecutionGeometry = await overview.getByTestId('last-execution-row').evaluate(element => Array.from(element.children).map(child => {
+    const rect = child.getBoundingClientRect();
+    return { center: Math.round(rect.top + rect.height / 2), height: Math.round(rect.height) };
+  }));
+  assert.ok(Math.max(...lastExecutionGeometry.map(item => item.center)) - Math.min(...lastExecutionGeometry.map(item => item.center)) <= 1, 'Last execution stays aligned on one desktop row');
+  assert.equal(new Set(lastExecutionGeometry.map(item => item.height)).size, 1, 'All six Last execution sections use the same desktop height');
+  for (const testId of ['last-execution-status-section', 'last-execution-duration-section']) {
+    const horizontalCenters = await overview.getByTestId(testId).evaluate(element => Array.from(element.children).map(child => {
+      const rect = child.getBoundingClientRect();
+      return Math.round(rect.left + rect.width / 2);
+    }));
+    assert.ok(Math.max(...horizontalCenters) - Math.min(...horizontalCenters) <= 1, `${testId} label and value are horizontally centered`);
+  }
   const tabBottom = await scheduledTab.evaluate(element => element.getBoundingClientRect().bottom);
   const headerTop = await page.getByRole('table', { name: 'Scheduled registrations' }).locator('thead').evaluate(element => element.getBoundingClientRect().top);
   assert.ok(Math.abs(headerTop - tabBottom) <= 2, 'Original tabs remain attached directly to the table');
@@ -251,7 +300,8 @@ try {
   page.once('dialog', dialog => dialog.accept());
   await overview.getByRole('button', { name: 'Run Now' }).click();
   assert.equal(manualRuns, 1);
-  await page.getByRole('button', { name: 'Back to Developer Settings' }).click();
+  assert.equal(await page.getByRole('button', { name: 'Back to Developer Settings' }).count(), 0, 'The detail page does not repeat a back button above the content');
+  await page.evaluate(() => (globalThis as any).__setAutoRegisterTestPage(false));
   await page.getByRole('heading', { name: 'Developer Settings' }).waitFor();
   const loadsBeforeReopen = { schedulerLoads, queueLoads, schedulingRequests };
   const backgroundLoad = page.waitForResponse(response => response.url().endsWith('/api/scheduler/auto-register-cm-queue') && response.request().method() === 'GET');

@@ -5,7 +5,7 @@ import { findCompanyByRegNo, getAutoAssignedPorts } from '../../../services/stor
 import { lookupRegisteredCompany } from '../../../services/registration';
 import { CompanyType, normalizeCompanyType } from '../../../services/companyHelper';
 import { notifyError, notifySuccess, notifyWarning } from '../../common/notifications';
-import { areRegistrationTestToolsEnabled } from '../../../services/developerSettings';
+import { useDeveloperSettings } from '../../../services/developerSettings';
 import { ArrowLeft, ArrowRight, Building2, Phone, CheckCircle2, Download, EllipsisVertical, Info, LoaderCircle, Upload } from 'lucide-react';
 import { COMPANY_STATES_BY_COUNTRY as statesByCountry } from '../../../constants/companyLocations';
 
@@ -162,7 +162,7 @@ export function CompanyForm({
   const [isImportingExcel, setIsImportingExcel] = useState(false);
   const [isPreflighting, setIsPreflighting] = useState(false);
   const [isExcelMenuOpen, setIsExcelMenuOpen] = useState(false);
-  const testToolsEnabled = areRegistrationTestToolsEnabled();
+  const { registrationTestToolsEnabled: testToolsEnabled } = useDeveloperSettings();
   const touchStartX = useRef<number | null>(null);
   const excelInputRef = useRef<HTMLInputElement>(null);
   const excelMenuRef = useRef<HTMLDivElement>(null);

@@ -3,7 +3,7 @@ import { AutoMailListTools } from './AutoMailListTools';
 import { AutoMailRelatedKnowledge } from './AutoMailRelatedKnowledge';
 import React, { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, BookOpen, MoreVertical, Plus } from 'lucide-react';
-import { KnowledgeArticle, KnowledgeRevision, knowledgeRequest } from '../../services/autoMailKnowledge';
+import { KnowledgeArticle, KnowledgeRevision, cachedKnowledgeRequest, expireKnowledgeRequests, knowledgeRequest, peekKnowledgeRequest } from '../../services/autoMailKnowledge';
 
 type Form = { title: string; summary: string; content: string; category: string; port: string; keywords: string };
 const blank = (): Form => ({ title: '', summary: '', content: '', category: 'General', port: 'ALL', keywords: '' });
@@ -40,12 +40,13 @@ function readArticleJson(text: string): Form {
 const button = 'rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium hover:bg-slate-50 disabled:opacity-50';
 const input = 'mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm disabled:bg-slate-50';
 
-export function AutoMailKnowledge({ ready, refreshToken = 0,onDirtyChange,onViewChange,hideHeader=false }: { hideHeader?:boolean; ready: boolean; refreshToken?: number;onDirtyChange?:(dirty:boolean)=>void;onViewChange?:(view:'list'|'add'|'edit')=>void }) {
-  const [articles, setArticles] = useState<KnowledgeArticle[]>([]);
-  const [total, setTotal] = useState(0);
+export function AutoMailKnowledge({ ready, refreshToken = 0,onDirtyChange,onViewChange,hideHeader=false,cacheScope='session',connection='' }: { hideHeader?:boolean; ready: boolean; refreshToken?: number;onDirtyChange?:(dirty:boolean)=>void;onViewChange?:(view:'list'|'add'|'edit')=>void;cacheScope?:string;connection?:string }) {
+  const initialList = peekKnowledgeRequest<{articles:KnowledgeArticle[];total:number}>(cacheScope,connection,'knowledge?q=&status=&offset=0&pageSize=20');
+  const [articles, setArticles] = useState<KnowledgeArticle[]>(()=>initialList?.articles||[]);
+  const [total, setTotal] = useState(()=>initialList?.total||0);
   const [filter, setFilter] = useState({ q: '', status: '', offset: 0, pageSize:20 });
   const [attempt, setAttempt] = useState(0);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(!initialList);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -58,6 +59,7 @@ export function AutoMailKnowledge({ ready, refreshToken = 0,onDirtyChange,onView
   const [jsonText, setJsonText] = useState('');
   const [jsonError, setJsonError] = useState('');
   const [optionsOpen,setOptionsOpen] = useState(false);
+  const previousRefreshToken = useRef(refreshToken);
   const optionsRef = useRef<HTMLDivElement>(null);
   const optionsButton = useRef<HTMLButtonElement>(null);
   useEffect(()=>{onViewChange?.(editorOpen ? selected ? 'edit' : 'add' : 'list');},[editorOpen,selected?.id,onViewChange]);
@@ -80,22 +82,23 @@ export function AutoMailKnowledge({ ready, refreshToken = 0,onDirtyChange,onView
     const controller = new AbortController();
     setLoading(true); setError('');
     const query = new URLSearchParams({ q: filter.q, status: filter.status, offset: String(filter.offset),pageSize:String(filter.pageSize) });
-    void knowledgeRequest<{ articles: KnowledgeArticle[]; total: number }>(`knowledge?${query}`, undefined, controller.signal)
+    const force=attempt>0||previousRefreshToken.current!==refreshToken;previousRefreshToken.current=refreshToken;
+    void cachedKnowledgeRequest<{ articles: KnowledgeArticle[]; total: number }>(cacheScope,connection,`knowledge?${query}`,force)
       .then(result => { if (!controller.signal.aborted) { setArticles(result.articles); setTotal(result.total); } })
       .catch(reason => { if (!controller.signal.aborted) setError(reason.message); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [ready, filter, attempt, refreshToken]);
+  }, [ready, filter, attempt, refreshToken, cacheScope, connection]);
 
   const applyArticle = (article: KnowledgeArticle) => {
     setJsonOpen(false); setJsonText(''); setJsonError('');
     setSelected(article); setForm({ title: article.title, summary: article.summary, content: article.content, category: article.category, port: article.port, keywords: article.keywords.join(', ') });
     setEditorOpen(true); setDirty(false);
   };
-  const open = async (id: string) => {
+  const open = async (id: string, force = false) => {
     if ((dirty || jsonText.trim()) && !window.confirm('Discard unsaved article changes and reload the saved article?')) return;
     setBusy(true); setError(''); setNotice('');
-    try { const result = await knowledgeRequest<{ article: KnowledgeArticle; revisions: KnowledgeRevision[] }>(`knowledge-article?id=${encodeURIComponent(id)}`); applyArticle(result.article); setRevisions(result.revisions); }
+    try { const result = await cachedKnowledgeRequest<{ article: KnowledgeArticle; revisions: KnowledgeRevision[] }>(cacheScope,connection,`knowledge-article?id=${encodeURIComponent(id)}`,force); applyArticle(result.article); setRevisions(result.revisions); }
     catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to open article.'); }
     finally { setBusy(false); }
   };
@@ -104,6 +107,7 @@ export function AutoMailKnowledge({ ready, refreshToken = 0,onDirtyChange,onView
     try {
       const result = await knowledgeRequest<{ article: KnowledgeArticle }>('knowledge', { ...form, keywords: form.keywords.split(',').map(tag => tag.trim()).filter(Boolean),
         ...(selected ? { id: selected.id, version: selected.version } : {}) });
+      expireKnowledgeRequests(cacheScope,connection);
       applyArticle(result.article); setRevisions([]); setAttempt(value => value + 1);
       setNotice('Draft saved. Review and approve it before using it in email searches.');
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to save article.'); }
@@ -114,6 +118,7 @@ export function AutoMailKnowledge({ ready, refreshToken = 0,onDirtyChange,onView
     setBusy(true); setError(''); setNotice('');
     try {
       const result = await knowledgeRequest<{ article: KnowledgeArticle }>('knowledge-review', { id: selected.id, version: selected.version, action });
+      expireKnowledgeRequests(cacheScope,connection);
       applyArticle(result.article); setRevisions([]); setAttempt(value => value + 1);
       setNotice(action === 'APPROVE' ? 'Article approved. It is now available in email searches.' : action === 'ARCHIVE' ? 'Article archived and excluded from email searches.' : 'Article returned to draft and excluded from email searches.');
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to update article status.'); }
@@ -184,7 +189,7 @@ export function AutoMailKnowledge({ ready, refreshToken = 0,onDirtyChange,onView
             <label className="block text-xs font-medium text-slate-700">Answer / procedure<textarea required maxLength={30000} rows={12} value={form.content} onChange={event => field('content', event.target.value)} className={input} disabled={busy} /></label>
             <AutoMailRelatedKnowledge key={selected?.id || 'new'} query={[form.title, form.summary, form.keywords].join('\n')} excludeId={selected?.id} disabled={busy} />
             {selected?.status === 'APPROVED' && <p className="text-xs text-amber-700">Saving changes returns this article to draft. Approve the revised version before using it again.</p>}
-            <div className="flex flex-wrap gap-2"><button type="submit" disabled={busy || !form.title.trim() || !form.content.trim() || (!!selected && !dirty)} className="rounded-lg bg-sky-600 px-3 py-2 text-xs font-medium text-white disabled:opacity-50">{busy ? 'Working...' : 'Save draft'}</button><button type="button" className={button} disabled={busy} onClick={closeEditor}>Cancel edits</button>{selected && <button type="button" className={button} disabled={busy} onClick={() => void open(selected.id)}>Reload & history</button>}</div>
+            <div className="flex flex-wrap gap-2"><button type="submit" disabled={busy || !form.title.trim() || !form.content.trim() || (!!selected && !dirty)} className="rounded-lg bg-sky-600 px-3 py-2 text-xs font-medium text-white disabled:opacity-50">{busy ? 'Working...' : 'Save draft'}</button><button type="button" className={button} disabled={busy} onClick={closeEditor}>Cancel edits</button>{selected && <button type="button" className={button} disabled={busy} onClick={() => void open(selected.id,true)}>Reload & history</button>}</div>
           </form>
           {selected && <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4">{selected.status === 'DRAFT' && <button className={button} disabled={busy || dirty} onClick={() => void review('APPROVE')}>Approve article</button>}{selected.status !== 'ARCHIVED' && <button className={button} disabled={busy || dirty} onClick={() => void review('ARCHIVE')}>Archive article</button>}{selected.status !== 'DRAFT' && <button className={button} disabled={busy || dirty} onClick={() => void review('DRAFT')}>Return to draft</button>}{dirty && <p className="w-full text-xs text-amber-700">Save or cancel edits before reviewing or switching articles.</p>}</div>}
           {revisions.length > 0 && <div className="mt-5 border-t border-slate-100 pt-4"><h4 className="mb-2 text-sm font-semibold">Revision history (latest 20)</h4>{revisions.map(revision => <details key={revision.id} className="border-b border-slate-100 py-2"><summary className="cursor-pointer text-xs text-slate-600">v{revision.version} · {revision.action.replaceAll('_', ' ')} · {new Date(revision.created_at).toLocaleString()}</summary><p className="mt-2 break-words text-sm font-medium">{revision.snapshot.title}</p><p className="my-1 text-xs text-slate-500">{revision.snapshot.status} · {revision.snapshot.port}</p><p className="max-h-64 overflow-auto whitespace-pre-wrap break-words text-sm text-slate-700">{revision.snapshot.content}</p></details>)}</div>}

@@ -61,7 +61,7 @@ export function AutoMailMailbox({ content, onCompose, composeReady, onAction, ca
       <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 px-2 pb-2 md:pl-2 md:pr-3">
         <header aria-label="Mail search and tools" className="flex shrink-0 items-center gap-2 py-2 sm:gap-3">
         {workspaceTitle&&<div className="min-w-0 flex-1 py-1"><h3 className="font-semibold text-slate-900">{workspaceTitle.title}</h3><p className="mt-1 text-xs text-slate-500">{workspaceTitle.description}</p></div>}
-        {!reading&&['inbox','sent','trash'].includes(folder)&&<form role="search" aria-label="Search mail" onSubmit={event => { event.preventDefault(); onSearch(search.trim()); }} className="min-w-0 flex-1">
+        {!showBack&&['inbox','sent','drafts','scheduled','trash'].includes(folder)&&<form role="search" aria-label="Search mail" onSubmit={event => { event.preventDefault(); onSearch(search.trim()); }} className="min-w-0 flex-1">
           <div className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-xl border border-slate-300 bg-white pl-3 pr-[5px] shadow-sm focus-within:ring-2 focus-within:ring-sky-300">
             <Search className="h-4 w-4 shrink-0 text-sky-700" /><input type="search" aria-label="Search emails" placeholder={`Search ${folderName(folder)} — sender, subject, or keyword`} value={search} onChange={event => setSearch(event.target.value)} disabled={disabled} className="h-full min-w-0 flex-1 bg-transparent text-sm text-slate-900 placeholder:text-slate-600 outline-none" />
             {(search || query) && <button type="button" aria-label="Clear email search" disabled={disabled} onClick={() => { setSearch(''); onSearch(''); }} className="rounded-full p-1 text-slate-500 hover:bg-slate-200"><X className="h-4 w-4" /></button>}

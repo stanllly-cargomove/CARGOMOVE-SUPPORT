@@ -10,7 +10,8 @@ const bundle = await build({
     import{ReviewScreen}from'./src/components/customer/ConfirmationScreen';
     import{EmailTemplateManager}from'./src/components/admin/EmailTemplateManager';
     import{logoutApplicationUser}from'./src/services/auth';
-    localStorage.setItem('cargomove_registration_test_tools_enabled','true');
+    import{loadDeveloperSettings}from'./src/services/developerSettings';
+    void loadDeveloperSettings();
     window.submitted=0;window.previewed=0;
     function App(){const[view,setView]=useState('review');return <main className="min-h-screen bg-slate-50 p-4 sm:p-6">
       <div className="mb-6 flex gap-4"><button onClick={()=>setView('review')}>Review</button><button onClick={()=>setView('templates')}>Templates</button><button onClick={()=>setView('away')}>Leave</button><button onClick={()=>void logoutApplicationUser().then(()=>setView('away'))}>End session</button></div>
@@ -34,6 +35,7 @@ try {
   await page.route('**/*', async route => {
     const request = route.request(), url = new URL(request.url());
     assert.equal(url.origin, 'http://review.test');
+    if (url.pathname === '/api/dev-tools/settings') return route.fulfill({ json: { settings: { registrationTestToolsEnabled: true, simulationEnabled: false } } });
     if (url.pathname === '/styles.css') return route.fulfill({ contentType: 'text/css', body: css });
     if (url.pathname.startsWith('/assets/')) return route.fulfill({ path: 'dist' + url.pathname });
     if (url.pathname === '/api/auth/logout') return route.fulfill({ json: {} });
@@ -54,6 +56,7 @@ try {
   });
   await page.goto('http://review.test');
   const nav = page.getByRole('navigation', { name: 'Review submission actions' });
+  await nav.getByRole('button', { name: /Excel/i }).waitFor();
   for (const width of [320, 390, 768, 1440]) {
     await page.setViewportSize({ width, height: 1000 });
     const boxes = await nav.getByRole('button').evaluateAll(buttons => buttons.map(button => { const rect = button.getBoundingClientRect(); return { top: rect.top, width: rect.width, height: rect.height, fits: button.scrollHeight <= button.clientHeight }; }));

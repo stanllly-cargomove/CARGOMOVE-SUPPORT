@@ -203,7 +203,7 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
   };
 
   const isDevSettingsPage = activeTab === 'schema' || activeTab === 'scheduler' || activeTab === 'ports' || activeTab === 'auto-email-config' || activeTab === 'auto-register-cm';
-  const activePageLabel = activeTab === 'auto-email-config' ? 'Auto Email Config' : activeTab === 'auto-register-cm' ? 'Auto Register in CM' : activeTab === 'auto-mail' ? 'Tools / Auto Mail' : activeTab === 'system-version' ? 'System Version' : activeTab === 'ports' ? 'Ports & Depots' : activeTab === 'schema' ? 'Excel Mapping' : activeTab === 'scheduler' ? 'Scheduler' : activeTab === 'northport-recovery' ? 'Tools / NP Container' : [...navItems, ...registrationQueueItems, ...devToolItems]
+  const activePageLabel = activeTab === 'auto-email-config' ? 'Auto Email Config' : activeTab === 'auto-register-cm' ? 'Auto Register in CM' : activeTab === 'auto-mail' ? 'Tools / Auto Mail' : activeTab === 'system-version' ? 'System Version' : activeTab === 'ports' ? 'Ports & Depots' : activeTab === 'schema' ? 'Excel Mapping' : activeTab === 'scheduler' ? 'System Scheduler' : activeTab === 'northport-recovery' ? 'Tools / NP Container' : [...navItems, ...registrationQueueItems, ...devToolItems]
     .find((item) => item.id === activeTab)?.label ?? (activeTab === 'account-settings' ? 'Account & Setting' : 'Dashboard');
 
   return (
@@ -548,7 +548,7 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
             onOpenAutoRegisterCm={() => setActiveTab('auto-register-cm')} onOpenScheduler={() => setActiveTab('scheduler')} onOpenExcelMapping={() => setActiveTab('schema')} onOpenPortDepotConfig={() => setActiveTab('ports')} onOpenAutoEmailConfig={() => openAutoEmailConfig()} />}
           {activeTab === 'auto-email-config' && user?.type === 'ADMIN' && <AutoEmailConfig onBack={() => setActiveTab('developer-settings')} onOpenMail={() => { setPortalMode('admin'); setActiveTab('auto-mail'); }} />}
           {activeTab === 'system-version' && <SystemVersion />}
-          {activeTab === 'scheduler' && <div className="w-full space-y-4"><div><h2 className="text-xl font-bold tracking-tight text-slate-900">Scheduler</h2><p className="mt-1 text-xs text-slate-500">Manage saved schedulers and request a run when needed.</p></div><CargoMoveScheduler /></div>}
+          {activeTab === 'scheduler' && <div className="w-full space-y-4"><div><h2 className="text-xl font-bold tracking-tight text-slate-900">System Scheduler</h2><p className="mt-1 text-xs text-slate-500">Manage saved schedulers and request a run when needed.</p></div><CargoMoveScheduler /></div>}
           {activeTab === 'auto-register-cm' && user?.type === 'ADMIN' && <AutoRegisterCmPage
             onBack={() => setActiveTab('developer-settings')}
             cacheScope={user.id || user.email}

@@ -10,6 +10,8 @@ const bundle = await build({ stdin: { contents: `
   import{SubmissionsList}from'./src/components/admin/SubmissionsList';
   import{NotificationToaster}from'./src/components/common/NotificationToaster';
   import{startProtectedStorageSync}from'./src/services/storage';
+  import{loadDeveloperSettings}from'./src/services/developerSettings';
+  void loadDeveloperSettings();
   function App(){const[status,setStatus]=React.useState<'PENDING'|'DONE'|'REJECTED'>('PENDING');useEffect(()=>startProtectedStorageSync(),[]);(window as any).setQueueStatus=setStatus;return <><SubmissionsList status={status} initialType="DRIVER"/><NotificationToaster/></>}
   createRoot(document.getElementById('root')).render(<App/>);`, resolveDir: process.cwd(), loader: 'tsx' }, bundle: true, write: false, format: 'iife', platform: 'browser', define: { 'process.env.NODE_ENV': '"test"' } });
 const css = (await Promise.all((await readdir('dist/assets')).filter(file => file.endsWith('.css')).map(file => readFile('dist/assets/' + file, 'utf8')))).join('\n');
@@ -34,6 +36,7 @@ try {
   const handleRoute = async (route: Route) => {
     const request = route.request(), url = new URL(request.url());
     assert.equal(url.origin, 'http://batch.test');
+    if (url.pathname === '/api/dev-tools/settings') return route.fulfill({ json: { settings: { registrationTestToolsEnabled: false, simulationEnabled: true } } });
     if (url.pathname === '/api/external-user-access') return route.fulfill({ json: { users: [] } });
     if (url.pathname === '/api/scheduler/auto-register-cm-queue' && request.method() === 'POST') {
       return route.fulfill({ json: { scheduled: 0 } });

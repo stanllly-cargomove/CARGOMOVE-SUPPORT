@@ -1,9 +1,9 @@
 import { AutoMailScopePicker } from './AutoMailScopePicker';
 import { AutoMailListTools } from './AutoMailListTools';
 import { AutoMailRelatedKnowledge } from './AutoMailRelatedKnowledge';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, RefreshCw } from 'lucide-react';
-import { KnowledgeArticle, knowledgeRequest } from '../../services/autoMailKnowledge';
+import { KnowledgeArticle, cachedKnowledgeRequest, expireKnowledgeRequests, knowledgeRequest, peekKnowledgeRequest } from '../../services/autoMailKnowledge';
 
 type Suggestion = {
   id: string; version: number; status: 'PENDING' | 'APPROVED' | 'REJECTED'; reason: string;
@@ -16,12 +16,13 @@ type Form = { title: string; content: string; summary: string; category: string;
 const button = 'rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium hover:bg-slate-50 disabled:opacity-50';
 const input = 'mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-50';
 
-export function AutoMailLearning({ ready, refreshToken, onReviewed,onDirtyChange,onViewChange,hideHeader=false }: { hideHeader?:boolean; onViewChange?:(view:'list'|'review')=>void; ready: boolean; refreshToken: number; onReviewed: () => void;onDirtyChange?:(dirty:boolean)=>void }) {
-  const [items, setItems] = useState<Suggestion[]>([]);
-  const [total, setTotal] = useState(0);
+export function AutoMailLearning({ ready, refreshToken, onReviewed,onDirtyChange,onViewChange,hideHeader=false,cacheScope='session',connection='' }: { hideHeader?:boolean; onViewChange?:(view:'list'|'review')=>void; ready: boolean; refreshToken: number; onReviewed: () => void;onDirtyChange?:(dirty:boolean)=>void;cacheScope?:string;connection?:string }) {
+  const initialList = peekKnowledgeRequest<{suggestions:Suggestion[];total:number}>(cacheScope,connection,'learning?q=&status=&offset=0&pageSize=20');
+  const [items, setItems] = useState<Suggestion[]>(()=>initialList?.suggestions||[]);
+  const [total, setTotal] = useState(()=>initialList?.total||0);
   const [filter, setFilter] = useState({ q:'', status: '', offset: 0, pageSize:20 });
   const [attempt, setAttempt] = useState(0);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(!initialList);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -29,6 +30,7 @@ export function AutoMailLearning({ ready, refreshToken, onReviewed,onDirtyChange
   const [events, setEvents] = useState<Event[]>([]);
   const [form, setForm] = useState<Form | null>(null);
   const [dirty, setDirty] = useState(false);
+  const previousRefreshToken = useRef(refreshToken);
   useEffect(()=>{onDirtyChange?.(dirty);return()=>onDirtyChange?.(false);},[dirty,onDirtyChange]);
   useEffect(()=>{onViewChange?.(selected?'review':'list');},[selected?.id,onViewChange]);
   const closeReview=()=>{
@@ -44,18 +46,19 @@ export function AutoMailLearning({ ready, refreshToken, onReviewed,onDirtyChange
     if (!ready) return;
     const controller = new AbortController(); setLoading(true); setError('');
     const query = new URLSearchParams({ q:filter.q,status: filter.status, offset: String(filter.offset),pageSize:String(filter.pageSize) });
-    void knowledgeRequest<{ suggestions: Suggestion[]; total: number }>(`learning?${query}`, undefined, controller.signal)
+    const force=attempt>0||previousRefreshToken.current!==refreshToken;previousRefreshToken.current=refreshToken;
+    void cachedKnowledgeRequest<{ suggestions: Suggestion[]; total: number }>(cacheScope,connection,`learning?${query}`,force)
       .then(result => { if (!controller.signal.aborted) { setItems(result.suggestions); setTotal(result.total); } })
       .catch(reason => { if (!controller.signal.aborted) setError(reason.message); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [ready, filter, attempt, refreshToken]);
+  }, [ready, filter, attempt, refreshToken, cacheScope, connection]);
 
-  const open = async (id: string) => {
+  const open = async (id: string, force = false) => {
     if (dirty && !window.confirm('Discard unsaved review changes and reload the saved suggestion?')) return;
     setBusy(true); setError(''); setNotice('');
     try {
-      const result = await knowledgeRequest<{ suggestion: Suggestion; events: Event[] }>(`learning-suggestion?id=${encodeURIComponent(id)}`);
+      const result = await cachedKnowledgeRequest<{ suggestion: Suggestion; events: Event[] }>(cacheScope,connection,`learning-suggestion?id=${encodeURIComponent(id)}`,force);
       const s = result.suggestion; setSelected(s); setEvents(result.events); setDirty(false); setMode('NEW'); setTarget(null); setTargets([]); setTargetQuery('');
       setForm({ title: s.proposed_title, content: s.proposed_content, summary: s.proposed_summary, category: s.proposed_category, port: s.proposed_port, keywords: s.proposed_keywords.join(', '), note: '' });
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to open suggestion.'); }
@@ -63,13 +66,13 @@ export function AutoMailLearning({ ready, refreshToken, onReviewed,onDirtyChange
   };
   const searchTargets = async () => {
     setBusy(true); setError('');
-    try { const result = await knowledgeRequest<{ articles: KnowledgeArticle[] }>(`knowledge?q=${encodeURIComponent(targetQuery)}&status=&offset=0`); setTargets(result.articles); }
+    try { const result = await cachedKnowledgeRequest<{ articles: KnowledgeArticle[] }>(cacheScope,connection,`knowledge?q=${encodeURIComponent(targetQuery)}&status=&offset=0`); setTargets(result.articles); }
     catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to find KB articles.'); }
     finally { setBusy(false); }
   };
   const chooseTarget = async (id: string) => {
     setBusy(true); setError('');
-    try { const result = await knowledgeRequest<{ article: KnowledgeArticle }>(`knowledge-article?id=${encodeURIComponent(id)}`); setTarget(result.article); setMode('UPDATE'); setDirty(true); }
+    try { const result = await cachedKnowledgeRequest<{ article: KnowledgeArticle }>(cacheScope,connection,`knowledge-article?id=${encodeURIComponent(id)}`,true); setTarget(result.article); setMode('UPDATE'); setDirty(true); }
     catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to load target article.'); }
     finally { setBusy(false); }
   };
@@ -79,6 +82,7 @@ export function AutoMailLearning({ ready, refreshToken, onReviewed,onDirtyChange
     try {
       const result = await knowledgeRequest<{ suggestion: Suggestion }>('learning-review', { ...form, id: selected.id, version: selected.version, action,
         keywords: form.keywords.split(',').map(tag => tag.trim()).filter(Boolean), targetId: mode === 'UPDATE' ? target?.id : null, targetVersion: mode === 'UPDATE' ? target?.version : null });
+      expireKnowledgeRequests(cacheScope,connection);
       setSelected(result.suggestion); setDirty(false); setEvents([]); setAttempt(value => value + 1); onReviewed();
       setNotice(action === 'APPROVE' ? 'Learning approved and published to the KB. Future drafts can use the reviewed answer.' : 'Suggestion rejected. The KB was not changed.');
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to review suggestion.'); }
@@ -109,7 +113,7 @@ export function AutoMailLearning({ ready, refreshToken, onReviewed,onDirtyChange
       {selected&&form&&<div className="min-w-0 border-t border-slate-200 bg-white p-4 sm:p-5">
         <button type="button" disabled={busy} onClick={closeReview} className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-sky-700 hover:underline disabled:opacity-50"><ArrowLeft className="h-4 w-4"/>Back to Learning review</button>
         <>
-          <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="font-semibold">Review suggestion</h4><span className="rounded-full bg-slate-100 px-2 py-1 text-xs">{selected.status} · v{selected.version}</span><button className={button} disabled={busy} onClick={() => void open(selected.id)}>Reload review history</button></div>
+          <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="font-semibold">Review suggestion</h4><span className="rounded-full bg-slate-100 px-2 py-1 text-xs">{selected.status} · v{selected.version}</span><button className={button} disabled={busy} onClick={() => void open(selected.id,true)}>Reload review history</button></div>
           <details className="my-4 rounded-lg border border-slate-200 p-3"><summary className="cursor-pointer text-sm font-medium">Source evidence{selected.evidence?.mailbox ? ` · ${selected.evidence.mailbox}` : ''}</summary><div className="mt-3 space-y-3"><div><h5 className="text-xs font-semibold">Customer question</h5><p className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words text-sm text-slate-600">{selected.evidence?.question || 'No question snapshot was recorded for this reply.'}</p></div>{selected.evidence?.ai_original && <div><h5 className="text-xs font-semibold">Original AI draft</h5><p className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words text-sm text-slate-600">{selected.evidence.ai_original}</p></div>}<div><h5 className="text-xs font-semibold">Reply actually sent</h5><p className="mt-1 max-h-64 overflow-auto whitespace-pre-wrap break-words text-sm text-slate-600">{selected.evidence?.sent_reply || selected.proposed_content}</p></div>{selected.evidence?.ai_sources?.map(source => <details key={source.id} className="rounded border border-slate-100 p-2"><summary className="cursor-pointer text-xs">Source snapshot: {source.title} · v{source.version}</summary><p className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words text-sm text-slate-600">{source.content}</p></details>)}</div></details>
           {selected.status !== 'PENDING' ? <div className="space-y-3"><p className="text-sm text-slate-600">Review note: {selected.review_note || 'No additional note.'}</p>{selected.reviewed_article && <><h5 className="text-sm font-semibold">Published: {selected.reviewed_article.title} · v{selected.reviewed_article.version}</h5><p className="whitespace-pre-wrap break-words text-sm text-slate-700">{selected.reviewed_article.content}</p></>}</div> : <form onSubmit={event => { event.preventDefault(); void review('APPROVE'); }} className="space-y-3">
             <p className="rounded-lg bg-amber-50 p-3 text-xs text-amber-800">Generalize names, email addresses, reference numbers and one-off details before approval. Confirm that the procedure applies to the selected port or scope.</p>

@@ -11,7 +11,7 @@ import {
   RegistrationSubmission,
 } from '../../types';
 import { exportSubmissionPreview } from '../../services/excelExport';
-import { areRegistrationTestToolsEnabled } from '../../services/developerSettings';
+import { useDeveloperSettings } from '../../services/developerSettings';
 import {
   CheckCircle2,
   Building2,
@@ -68,7 +68,7 @@ export function ReviewScreen({
   const [showEmailConfirmation, setShowEmailConfirmation] = useState(false);
   const [additionalEmail, setAdditionalEmail] = useState('');
   const [emailError, setEmailError] = useState('');
-  const testToolsEnabled = areRegistrationTestToolsEnabled();
+  const { registrationTestToolsEnabled: testToolsEnabled } = useDeveloperSettings();
   const touchStartX = useRef<number | null>(null);
   const categoryTitle = type === 'COMPANY'
     ? 'Company Master Onboarding'

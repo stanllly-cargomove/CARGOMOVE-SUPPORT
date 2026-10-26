@@ -39,6 +39,7 @@
     }
   },
   "rewrites": [
+    { "source": "/api/dev-tools/settings", "destination": "/api/dev-tools?route=settings" },
     {
       "source": "/api/scheduler/auto-register-cm-queue",
       "destination": "/api/scheduler/auto-register-cm?route=queue"

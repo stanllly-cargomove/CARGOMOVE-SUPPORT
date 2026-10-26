@@ -13,8 +13,8 @@ try {
   for(const width of [390,1440]) {
     const page=await browser.newPage({viewport:{width,height:1000}});await page.clock.install();
     const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
-    let statusGate=deferred();const inboxGate=deferred(),sentGate=deferred(),scheduleGate=deferred();
-    let version='v1',failScheduled=false,statuses=0,scheduled=0;const lists:URL[]=[];
+    let statusGate=deferred();const inboxGate=deferred(),sentGate=deferred(),scheduleGate=deferred(),contentGate=deferred();
+    let version='v1',failScheduled=false,statuses=0,scheduled=0,contentReads=0;const lists:URL[]=[];
     await page.route('**/*',async route=>{
       const url=new URL(route.request().url());
       if(url.pathname==='/styles.css')return route.fulfill({contentType:'text/css',body:css});
@@ -23,9 +23,10 @@ try {
       if(url.pathname==='/api/auto-mail/threads') {
         lists.push(url);await (url.searchParams.get('folder')==='sent'?sentGate:inboxGate).promise;
         const more=url.searchParams.has('pageToken');const sent=url.searchParams.get('folder')==='sent';
-        return route.fulfill({json:{threads:[{id:more?'second':'first',subject:more?'Older loaded email':sent?'Sent email':version==='v1'?'Cached inbox email':'New mailbox email',from:'Customer <customer@example.com>',to:'customer@example.com',snippet:'Stored mail',unread:false,timestamp:Date.now()}],nextPageToken:more?null:'page2'}});
+        return route.fulfill({json:{threads:[{id:`${sent?'sent-':'inbox-'}${more?'second':'first'}`,subject:more?'Older loaded email':sent?'Sent email':version==='v1'?'Cached inbox email':'New mailbox email',from:'Customer <customer@example.com>',to:'customer@example.com',snippet:'Stored mail',unread:false,timestamp:Date.now()}],nextPageToken:more?null:'page2'}});
       }
       if(url.pathname==='/api/auto-mail/outbox'){scheduled++;await scheduleGate.promise;return route.fulfill(failScheduled?{status:503,json:{error:'Scheduled is temporarily unavailable.'}}:{json:{messages:[],nextOffset:null,workerReady:true}});}
+      if(url.pathname==='/api/auto-mail/thread'){contentReads++;await contentGate.promise;const id=url.searchParams.get('id')||'';return route.fulfill({json:{id,subject:id.startsWith('sent-')?'Sent email':version==='v1'?'Cached inbox email':'New mailbox email',recipient:'customer@example.com',mailbox:'support@example.com',connectionVersion:version,replyBlocked:'',messages:[{id:`message-${id}`,from:'customer@example.com',to:'support@example.com',date:new Date().toISOString(),body:`Cached content for ${id}`,outbound:false,attachments:false}]}});}
       assert.ok(!url.pathname.startsWith('/api/'),'Unexpected API '+url.pathname);
       return route.fulfill({contentType:'text/html',body:`<meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/styles.css"><div id="root"></div><script>${bundle.outputFiles[0].text}</script>`});
     });
@@ -59,9 +60,10 @@ try {
     await page.getByRole('button',{name:/Cached inbox email/}).waitFor();
     assert.equal(await loader.count(),0);
     await folders.waitFor();
-    assert.equal(lists.length,2);assert.equal(scheduled,1);
+    assert.equal(lists.length,2);assert.equal(scheduled,1);assert.equal(contentReads,2,'Inbox and Sent content begin preloading during initialization');
+    contentGate.resolve();const readsBeforeOpen=contentReads;await page.getByRole('button',{name:/Cached inbox email/}).click();await page.getByText('Cached content for inbox-first',{exact:true}).waitFor();assert.equal(contentReads,readsBeforeOpen,'Opening prefetched mail shares its content request instead of fetching again');await page.getByRole('button',{name:'Back to Inbox',exact:true}).click();
     await folders.getByRole('button',{name:'Sent',exact:true}).click();await page.getByRole('button',{name:/Sent email/}).waitFor();
-    await folders.getByRole('button',{name:'Scheduled',exact:true}).click();await page.getByText('No scheduled messages yet.',{exact:false}).waitFor();
+    await folders.getByRole('button',{name:'Scheduled',exact:true}).click();const emptyScheduled=page.getByText('No scheduled messages yet.',{exact:false});await emptyScheduled.waitFor();assert.deepEqual(await emptyScheduled.locator('..').evaluate(element=>{const style=getComputedStyle(element);return [style.display,style.alignItems,style.justifyContent];}),['flex','center','center'],'Empty Scheduled is centered in the card');assert.match(await page.getByRole('searchbox',{name:'Search emails'}).getAttribute('placeholder')||'',/Search Scheduled/);
     assert.equal(lists.length,2);assert.equal(scheduled,1,'Prefetched Scheduled does not load again');
     await folders.getByRole('button',{name:'Inbox',exact:true}).click();await page.getByRole('button',{name:/Cached inbox email/}).waitFor();
     await page.getByRole('button',{name:'Load more',exact:true}).click();await page.getByRole('button',{name:/Older loaded email/}).waitFor();

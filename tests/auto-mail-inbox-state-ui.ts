@@ -24,6 +24,7 @@ try {
         const threads=Array.from({length:25},(_,i)=>({id:`thread${offset+i}`,subject:`Question ${offset+i} revision ${history}`,from:'customer@example.com',snippet:'Registration question',unread:false}));
         return route.fulfill({json:{threads,nextPageToken:offset<50?String(offset+25):null,historyId:String(history)}});
       }
+      if(url.pathname==='/api/auto-mail/thread'){const id=url.searchParams.get('id')||'';return route.fulfill({json:{id,subject:`Question ${id.replace('thread','')} revision ${history}`,recipient:'customer@example.com',mailbox:'support@example.com',connectionVersion:'v1',replyBlocked:'',messages:[{id:`message-${id}`,from:'customer@example.com',to:'support@example.com',date:new Date().toISOString(),body:'Registration question',outbound:false,attachments:false}]}});}
       assert.ok(!url.pathname.startsWith('/api/'),'Unexpected API '+url.pathname);
       return route.fulfill({contentType:'text/html',body:`<meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/styles.css"><div id="root"></div><script>${bundle.outputFiles[0].text}</script>`});
     });
