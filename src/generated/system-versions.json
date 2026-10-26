@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "version": "1.13.3",
-  "updatedAt": "2026-10-26T06:31:20.355Z",
+  "version": "1.13.4",
+  "updatedAt": "2026-10-26T07:06:58.161Z",
   "entries": [
     {
       "id": "account-settings",
@@ -42,9 +42,9 @@
         "server-handlers/_email.ts",
         "api/mail.ts"
       ],
-      "version": "1.1.6",
-      "updatedAt": "2026-10-26T06:31:20.355Z",
-      "fingerprint": "ad50dbef55015d167aeed97bd7826048d315cf4a2cbe9c73af7d07bf2890b512"
+      "version": "1.1.7",
+      "updatedAt": "2026-10-26T07:06:58.161Z",
+      "fingerprint": "2f2b3bf3400c733f2c2cb91d40eb9196dbf4940ac329d8a887ddc9432cbbe503"
     },
     {
       "id": "auto-mail",
@@ -895,9 +895,9 @@
     "server-handlers/northport/scan.ts": "d33d49f1ee7b6af5dfbce6b9dcec23b00d87a931c3031c70b767437514b919cd",
     "server-handlers/northport/scheduler-verification.ts": "a706cef9f5498bf6cee8a671d80f0e1e1c3d8017383e073482bd7e4616803259",
     "server-handlers/profile.ts": "8d962972b874694a0b49cd66f9e7382fd7ecc6fcf60950d5274d9ded06085f02",
-    "server-handlers/registration-uploads/automation.ts": "4d85664c6dd5063c0e5a06bb96cc37e9b1cee3de7cbbb93aa31463ff666c4d20",
+    "server-handlers/registration-uploads/automation.ts": "680f6e6572d43823d10c3c3c9e077026ed949bc3356208e5a20e870dd0fa8973",
     "server-handlers/registration-uploads/eligibility.ts": "58d85d5fdd92bc65efbaf3b96174d4c662d23db6b30582173f46b2671861f993",
-    "server-handlers/registration-uploads/handler.ts": "06fce9962d7b04dc1461ed8f410abf3f8bb242054d8dac7d7394643429c5e844",
+    "server-handlers/registration-uploads/handler.ts": "e77068534904d1201620355df759be167826373b4b390e3b8cae095544414e3d",
     "server-handlers/registration/config.ts": "6b7c4f2016d268e8235a7c2873d1875511c9c4a088abd9699feaabfd0e9e3539",
     "server-handlers/registration/lookup.ts": "62abd7ee52b4e3ef2397d0bfa2e526b368400ff4656f7c590a0ce2ab1a17b33d",
     "server-handlers/registration/status.ts": "753814e9b0d2570a96028c09cbe2ffb235155f717fcb30c6fbb1350488b210cd",
@@ -906,7 +906,7 @@
     "server-handlers/scheduler/auto-register-cm-discovery.ts": "02cdbd3e681c80740c82294783f53a1996cb41b30c99e9e43990373f9281a0a0",
     "server-handlers/scheduler/auto-register-cm-email.ts": "5bc7c319a02dcd1ccc1d6e38c740f56416d1a02c7c294c7d2124b4b64c5739ff",
     "server-handlers/scheduler/auto-register-cm-queue.ts": "c59d4140844e71b2b8d5aa015cf3f66ff63c7b079b9fbe5f6d3bf39e2a7bd2b4",
-    "server-handlers/scheduler/auto-register-cm.ts": "8c9b06b1f17ebbdb3690f06e3e0d43964b8868850067a9e6069481af9ed9ea20",
+    "server-handlers/scheduler/auto-register-cm.ts": "ec5d54e7703ac33e440101855f2df63a70d60b5ef6055a7c87cb8f744170ea41",
     "server-handlers/scheduler/automation.ts": "600829e517864ddb77fa16e03e04a39182dcd7eb8266dca41ff0386832a2e735",
     "server-handlers/scheduler/catalog.ts": "2d57b4deba6d3e50e12ff551702baab55b1bdfdeef6ac665233bbe7ce039a4fd",
     "server-handlers/scheduler/cron-signature.ts": "5ccfb38dfb7766e2c18a30a425a732a8a0072d65fd996332c14e6f96b0f9bf35",
@@ -1130,6 +1130,39 @@
     "vite.config.ts": "167e03f4e2c3298d4e3cbe61c5c1f8712073bf15d56c63d992827e99d3b7601b"
   },
   "history": [
+    {
+      "sourceCommit": "5cd66880e29538ccfb1f16291a292caacd061953",
+      "pushedBy": "lumoratechent-beep",
+      "commits": [
+        {
+          "sha": "e87cdfbb8b5791835f1cddc5e1ee928271249c4d",
+          "author": "cargomovemy",
+          "subject": "fix: complete Auto Register processing in one execution"
+        }
+      ],
+      "authors": [
+        "cargomovemy"
+      ],
+      "version": "1.13.4",
+      "previousVersion": "1.13.3",
+      "date": "2026-10-26T07:06:58.161Z",
+      "summary": "Updated existing pages, tools or shared system files",
+      "files": [
+        "server-handlers/registration-uploads/automation.ts",
+        "server-handlers/registration-uploads/handler.ts",
+        "server-handlers/scheduler/auto-register-cm.ts"
+      ],
+      "changes": [
+        {
+          "id": "auto-email",
+          "name": "Auto Email",
+          "kind": "tool",
+          "action": "updated",
+          "from": "1.1.6",
+          "to": "1.1.7"
+        }
+      ]
+    },
     {
       "sourceCommit": "d27807df7fd448e1687938af763fadd4cfa11546",
       "pushedBy": "lumoratechent-beep",
