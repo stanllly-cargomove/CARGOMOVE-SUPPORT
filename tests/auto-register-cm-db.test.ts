@@ -144,6 +144,57 @@ test('Auto Register in CM persists configuration, skips while off, serializes ru
       assert.equal(await scalar("select has_table_privilege($1,'public.registration_acceptance_deliveries','SELECT')", [role]), false);
     }
     assert.equal(await scalar("select schedule from automation_schedulers where scheduler_key='auto_register_cm'"), 'Every 20 minutes');
+    await db.exec(readFileSync(new URL('../supabase/migrations/20261026030000_auto_register_cm_email_visibility.sql', import.meta.url), 'utf8'));
+    await db.exec("update registration_acceptance_deliveries set state='SENDING'");
+    assert.equal((await db.query('select * from auto_register_cm_email_candidates()')).rows.length, 1,
+      'Uncertain deliveries stay visible for reporting; application code must not resend them');
+    assert.equal(await claim(), 'SENDING', 'Visibility never releases the no-replay claim');
+    await db.exec(readFileSync(new URL('../supabase/migrations/20261026040000_auto_register_cm_continuations.sql', import.meta.url), 'utf8'));
+    const step = (key: string, token: string | null = null) => scalar('select acquire_auto_register_cm_step($1,$2,$3)', [actor, key, token]);
+    const finishStep = (id: string, more: boolean, status = 'SUCCESS') => scalar(
+      "select finish_auto_register_cm_step($1,$2,1,0,0,'Saved step',null,$3)", [id, status, more]);
+    await db.exec("update automation_schedulers set is_enabled=true; update registration_submissions set status='DONE'");
+    assert.equal(await scalar('select auto_register_cm_has_work()'), false);
+    await db.exec("update registration_submissions set status='PENDING' where id='asset-3'");
+    assert.equal(await scalar('select auto_register_cm_has_work()'), true, 'Email completion keeps the chain alive after uploads finish');
+    await db.exec("update registration_submissions set status='DONE' where id='asset-3'");
+    const root = await step('auto_register_cm:delivery:1');
+    assert.equal((await step('auto_register_cm:delivery:1')).status, 'RUNNING', 'An in-flight root remains the same execution');
+    assert.equal((await step('auto_register_cm:delivery:1', upload)).reason, 'invalid_continuation');
+    const rootResult = await finishStep(root.id, true);
+    assert.ok(rootResult.continuationToken);
+    await assert.rejects(() => finishStep(root.id, true), /could not be saved/, 'Finalization cannot mint a second token');
+    assert.equal((await step('auto_register_cm:delivery:1')).continuationToken, rootResult.continuationToken,
+      'A lost HTTP response recovers the persisted token without repeating work');
+    const child = await step('auto_register_cm:delivery:999', rootResult.continuationToken);
+    assert.notEqual(child.id, root.id);
+    assert.equal((await step('auto_register_cm:delivery:999', rootResult.continuationToken)).id, child.id, 'Replaying a continuation admits only its original child');
+    assert.equal((await finishStep(child.id, false)).continuationToken, null);
+    assert.equal((await step('auto_register_cm:delivery:999', rootResult.continuationToken)).continuationToken, null, 'Completed work ends the chain');
+    const beforeDisable = await step('auto_register_cm:delivery:2');
+    const disabledToken = (await finishStep(beforeDisable.id, true)).continuationToken;
+    await db.exec('update automation_schedulers set is_enabled=false');
+    assert.equal((await step('auto_register_cm:delivery:2', disabledToken)).reason, 'disabled', 'Disabling the scheduler stops a chain between steps');
+    await db.exec('update automation_schedulers set is_enabled=true');
+    const beforeExpiry = await step('auto_register_cm:delivery:3');
+    const expiredToken = (await finishStep(beforeExpiry.id, true)).continuationToken;
+    await db.query("update automation_scheduler_runs set chain_started_at=now()-interval '19 minutes' where id=$1", [beforeExpiry.id]);
+    assert.equal((await step('auto_register_cm:delivery:3', expiredToken)).reason, 'invalid_continuation');
+    let token: string | null = null;
+    for (let index = 0; index < 8; index++) {
+      const run = await step('auto_register_cm:delivery:4', token);
+      const result = await finishStep(run.id, true);
+      token = result.continuationToken;
+      assert.equal(result.continuationLimitReached, index === 7);
+      assert.equal(!!token, index < 7, 'A chain is bounded to eight fresh execution budgets');
+    }
+    const failed = await step('auto_register_cm:delivery:5');
+    assert.equal((await finishStep(failed.id, true, 'FAILED')).continuationToken, null, 'Failure never authorizes another step');
+    for (const role of ['anon', 'authenticated']) {
+      assert.equal(await scalar("select has_function_privilege($1,'public.acquire_auto_register_cm_step(uuid,text,uuid)','EXECUTE')", [role]), false);
+      assert.equal(await scalar("select has_function_privilege($1,'public.finish_auto_register_cm_step(uuid,text,integer,integer,integer,text,text,boolean)','EXECUTE')", [role]), false);
+      assert.equal(await scalar("select has_function_privilege($1,'public.auto_register_cm_has_work()','EXECUTE')", [role]), false);
+    }
   } finally { await db.close(); }
 });
 

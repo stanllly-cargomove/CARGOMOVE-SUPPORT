@@ -13,19 +13,22 @@ export async function completeAutoRegistrationEmails(client: any, session: any, 
   handlers = {
     preview: createSubmissionPreviewHandler({ configuredClient: () => client, requireAdmin: () => session }),
     send: createSubmissionSendHandler({ configuredClient: () => client, requireAdmin: () => session, exchangeRefreshToken, decryptRefreshToken, fetch }),
-  }) {
+  }, attempted = new Set<string>()) {
   const candidates = await client.rpc('auto_register_cm_email_candidates', {});
   if (candidates.error) throw new Error('Unable to load automatic acceptance emails. Apply the email completion migration.');
   let completed = 0;
   const issues: string[] = [];
   for (const submission of candidates.data || []) {
     if (Date.now() + 25_000 >= deadline) break;
+    if (attempted.has(submission.id)) continue;
+    attempted.add(submission.id);
     try {
       // Persisted Gmail acknowledgements can complete even if templates or Gmail
       // configuration changed after sending. Never send that message again.
       const receipt = await client.from('registration_acceptance_deliveries').select('state')
         .eq('submission_id', submission.id).eq('upload_id', submission.cargomove_upload.id).timeout(8000).maybeSingle();
       if (receipt.error) throw new Error('Unable to inspect acceptance email receipt.');
+      if (receipt.data?.state === 'SENDING') throw new Error('An earlier email send is still in progress or has an uncertain outcome. Review Gmail Sent before retrying; no new email was sent. [GMAIL_SEND_UNCERTAIN]');
       if (receipt.data?.state === 'SENT') {
         const saved = await client.rpc('complete_registration_email', { p_submission_id: submission.id, p_upload_id: submission.cargomove_upload.id });
         if (saved.error) throw new Error('Email sent; registration completion needs retry.');

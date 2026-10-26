@@ -48,13 +48,14 @@ export function verifyUploadRows(results: unknown[], job: UploadIdentity): Verif
   return { ...details, state: 'UNKNOWN', message: 'CargoMove returned an unrecognized file status. Check the existing upload before retrying.' };
 }
 
-async function portal<T>(credentials: Credentials, work: (page: Page, armUpload: () => void) => Promise<T>, launch = launchBrowser): Promise<T> {
+async function portal<T>(credentials: Credentials, work: (page: Page, armUpload: () => void) => Promise<T>, launch = launchBrowser, budgetMs = 65000): Promise<T> {
   let browser: Browser | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    browser = await launch();
-    const activeBrowser = browser;
-    timer = setTimeout(() => { void activeBrowser.close().catch(() => {}); }, 65000);
+  let expired = false;
+  const execute = async () => {
+    const launched = await launch();
+    if (expired) { await launched.close().catch(() => {}); throw new Error('Browser deadline expired'); }
+    browser = launched;
     const context = await browser.newContext({ serviceWorkers: 'block', timezoneId: 'Asia/Kuala_Lumpur' });
     let armed = false;
     let sent = false;
@@ -67,7 +68,7 @@ async function portal<T>(credentials: Credentials, work: (page: Page, armUpload:
       const upload = url.href === UPLOAD && request.method() === 'POST' && armed && !sent;
       const navigation = ['/', '/bookings', '/administration/data_entry'].includes(url.pathname);
       const asset = /\.(?:js|css|woff2?|ttf|eot|svg|png|jpe?g|gif|ico|webp)$/i.test(url.pathname);
-      const allowed = url.origin === ORIGIN && (login || listing || upload || read && (navigation || asset))
+      const allowed = !expired && url.origin === ORIGIN && (login || listing || upload || read && (navigation || asset))
         && !/run_scheduled_task|data_entry_save|delete|update/i.test(url.pathname);
       if (allowed && upload) sent = true;
       return allowed ? route.continue() : route.abort();
@@ -87,8 +88,15 @@ async function portal<T>(credentials: Credentials, work: (page: Page, armUpload:
     const response = await page.goto(ENTRY, { waitUntil: 'domcontentloaded' });
     if (!response?.ok() || new URL(page.url()).origin !== ORIGIN || new URL(page.url()).pathname !== '/administration/data_entry'
       || await page.locator('input[type="password"]').count()) throw new Error();
-    return await work(page, () => { armed = true; });
+    return await work(page, () => { if (expired) throw new Error('Upload deadline expired'); armed = true; });
+  };
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => { expired = true; reject(new Error('CargoMove browser deadline expired')); }, budgetMs);
+  });
+  try {
+    return await Promise.race([execute(), timeout]);
   } finally {
+    expired = true;
     if (timer) clearTimeout(timer);
     await browser?.close().catch(() => {});
   }
@@ -131,14 +139,14 @@ export async function uploadWorkbook(credentials: Credentials, job: UploadIdenti
   }
 }
 
-export async function verifyWorkbook(credentials: Credentials, job: UploadIdentity, launch = launchBrowser): Promise<Verification> {
+export async function verifyWorkbook(credentials: Credentials, job: UploadIdentity, launch = launchBrowser, budgetMs = 65000): Promise<Verification> {
   try {
     return await portal(credentials, async page => {
       const response = await page.request.post(LIST, { form: { entity: job.entity, country: 'MY' }, maxRedirects: 0, maxRetries: 0, timeout: 15000 });
       const data = await response.json().catch(() => null);
       if (!response.ok() || !data?.state || !Array.isArray(data.results)) throw new Error();
       return verifyUploadRows(data.results, job);
-    }, launch);
+    }, launch, budgetMs);
   } catch {
     return { state: 'UNKNOWN', message: 'CargoMove file verification is unavailable. The registration remains Pending; no file was uploaded again.' };
   }

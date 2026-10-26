@@ -27,6 +27,8 @@ type AutoScheduler = {
   schedule: string;
   isEnabled: boolean;
   lastRunAt: string | null;
+  lastAutomaticRunAt?: string | null;
+  cronTrigger?: { isEnabled: boolean; lastTickAt: string | null; status: string; errorCode: string | null } | null;
   lastStatus: 'SUCCESS' | 'FAILED' | 'SKIPPED' | null;
 };
 
@@ -283,7 +285,7 @@ export function AutoRegisterCmPage({ onBack, cacheScope = 'default', refreshVers
   }, [cacheScope, localRefresh, refreshVersion]);
 
   const ineligible = registrations.filter(registration => !registration.eligible);
-  const scheduleTiming = autoRegisterSchedule();
+  const scheduleTiming = autoRegisterSchedule(Date.now(), scheduler?.lastAutomaticRunAt);
   const scheduledRegistrations = registrations.filter(registration => registration.eligible && registration.queueStatus !== 'FAILED');
   const queuedRegistrationCount = scheduledRegistrations.filter(registration => registration.scheduled).length;
   const activeRegistrations = registrationTab === 'scheduled' ? scheduledRegistrations : ineligible;
@@ -380,11 +382,13 @@ export function AutoRegisterCmPage({ onBack, cacheScope = 'default', refreshVers
             </div>
           </div>
           <div className="mt-4 grid gap-2 sm:grid-cols-4">
-            <div className="rounded-lg bg-slate-50 px-3 py-2"><span className="block text-[10px] text-slate-500">Last execution</span><strong className="mt-0.5 block text-xs text-slate-800">{scheduler.lastRunAt ? malaysiaDate(scheduler.lastRunAt) : 'Never'}</strong></div>
-            <div className="rounded-lg bg-slate-50 px-3 py-2"><span className="block text-[10px] text-slate-500">Next scheduled run (estimated)</span><strong className="mt-0.5 block text-xs text-slate-800">{scheduler.isEnabled ? malaysiaDate(scheduleTiming.nextSlot) : 'Not scheduled'}</strong></div>
+            <div className="rounded-lg bg-slate-50 px-3 py-2"><span className="block text-[10px] text-slate-500">Last execution</span><strong className="mt-0.5 block text-xs text-slate-800">{scheduler.lastRunAt ? malaysiaDate(scheduler.lastRunAt) : 'Never'}</strong>{scheduler.lastAutomaticRunAt !== undefined && <span className="mt-1 block text-[10px] text-slate-500">Last automatic: {scheduler.lastAutomaticRunAt ? malaysiaDate(scheduler.lastAutomaticRunAt) : 'Never'}</span>}</div>
+            <div className="rounded-lg bg-slate-50 px-3 py-2"><span className="block text-[10px] text-slate-500">Next planned trigger</span><strong className="mt-0.5 block text-xs text-slate-800">{scheduler.isEnabled ? malaysiaDate(scheduleTiming.nextSlot) : 'Not scheduled'}</strong><span className="mt-1 block text-[10px] text-slate-500">Estimate only; execution is confirmed in the logs.</span></div>
             <div className="rounded-lg bg-slate-50 px-3 py-2"><span className="block text-[10px] text-slate-500">Eligible now</span><strong className="mt-0.5 block text-xs text-slate-800">{scheduledRegistrations.length} registration{scheduledRegistrations.length === 1 ? '' : 's'}</strong></div>
             <div className="rounded-lg bg-slate-50 px-3 py-2"><span className="block text-[10px] text-slate-500">Last result</span><strong className={`mt-0.5 block text-xs ${statusTone(scheduler.lastStatus || '')}`}>{scheduler.lastStatus || 'No runs'}</strong></div>
           </div>
+          {scheduler.isEnabled && scheduleTiming.overdue && <div role="status" className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">Automatic trigger overdue. No automatic execution was recorded for the latest expected slot. {scheduler.cronTrigger?.isEnabled ? 'Check the Supabase Cron delivery job.' : 'Check GitHub Actions delivery.'}</div>}
+          {scheduler.cronTrigger?.isEnabled && <div className="mt-2 text-[10px] text-slate-500">Supabase trigger: {scheduler.cronTrigger.status}{scheduler.cronTrigger.lastTickAt ? ` · Last check ${malaysiaDate(scheduler.cronTrigger.lastTickAt)}` : ' · Waiting for its first check'}{scheduler.cronTrigger.errorCode ? ` · ${scheduler.cronTrigger.errorCode}` : ''}</div>}
         </section>
 
         <section aria-label="Registrations">

@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { deflateSync, inflateSync } from 'node:zlib';
 import { interPdfFonts } from './pdf-inter-font.js';
 
@@ -67,7 +68,7 @@ function columnsFor(type: AssetType): Column[] {
 function logoPixels() {
   // Decode the same transparent PNG used by the app's Logo component. PDF
   // image XObjects need the RGB pixels and transparency as separate streams.
-  const png = readFileSync(new URL('../../media/image-removebg-preview.png', import.meta.url));
+  const png = readFileSync(path.join(process.cwd(), 'media/image-removebg-preview.png'));
   if (png.subarray(0, 8).toString('hex') !== '89504e470d0a1a0a') throw new Error('Invalid CargoMove logo PNG.');
   const width = png.readUInt32BE(16);
   const height = png.readUInt32BE(20);

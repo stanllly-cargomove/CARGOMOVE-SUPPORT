@@ -44,3 +44,4 @@ package-lock.json
 # or deployment credentials. Schema migrations remain available to the graph.
 supabase/patches/
 supabase/auto-mail/setup-*.sql
+supabase/setup-auto-register-cm-cron.sql

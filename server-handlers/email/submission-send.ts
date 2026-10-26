@@ -10,7 +10,7 @@ function validRecipients(value: string) {
   return recipients.length > 0 && recipients.every((recipient) => EMAIL_PATTERN.test(recipient) && !/[\r\n]/.test(recipient));
 }
 
-export function createSubmissionSendHandler(deps = { configuredClient, requireAdmin, exchangeRefreshToken, decryptRefreshToken, fetch }) {
+export function createSubmissionSendHandler(deps = { configuredClient, requireAdmin, exchangeRefreshToken, decryptRefreshToken, fetch }, renderPdf = buildAssetRegistrationPdf) {
   return async function submissionSend(request: any, response: any) {
     noStore(response);
     if (request.method !== 'POST') return response.status(405).json({ error: 'Method not allowed.' });
@@ -69,6 +69,10 @@ export function createSubmissionSendHandler(deps = { configuredClient, requireAd
     let attachmentMetadata;
     try { attachmentMetadata = validateTemplateAttachments(template.attachments || []); }
     catch (error) { return response.status(409).json({ error: error instanceof Error ? error.message : 'The template attachments are invalid.' }); }
+    let stage = 'attachments';
+    let sendStarted = false;
+    let rejectedStatus: number | undefined;
+    let rejectedReason = '';
     try {
       // Claim as late as possible, after all preparation and before Gmail.
       if (attachmentMetadata.length && (!supabaseUrl || !serviceRoleKey)) throw new Error('Supabase Storage is not configured.');
@@ -86,10 +90,16 @@ export function createSubmissionSendHandler(deps = { configuredClient, requireAd
         attachments.push({ ...attachment, data });
       }
       if (submissionResult.data.registration_type !== 'COMPANY') {
-        const pdf = buildAssetRegistrationPdf(submissionResult.data.company_name, [submissionResult.data]);
+        stage = 'pdf';
+        const pdf = renderPdf(submissionResult.data.company_name, [submissionResult.data]);
         attachments.push({ path: 'generated/asset-registration-list.pdf', name: assetRegistrationPdfName([submissionResult.data]), content_type: 'application/pdf', size: pdf.length, data: pdf });
       }
-      const accessToken = await deps.exchangeRefreshToken(deps.decryptRefreshToken(connectionResult.data));
+      stage = 'credentials';
+      const refreshToken = deps.decryptRefreshToken(connectionResult.data);
+      stage = 'oauth';
+      const accessToken = await deps.exchangeRefreshToken(refreshToken, 10_000);
+      stage = 'message';
+      const raw = createRawMessage(connectionResult.data.email, recipient, subject, messageBody, attachments);
       if (pendingAcceptance) {
         const claim = await client.rpc('claim_registration_acceptance', { p_submission_id: token.submissionId, p_upload_id: token.pendingUploadId });
         if (claim.error) return response.status(503).json({ error: 'Acceptance email admission is unavailable.' });
@@ -101,20 +111,25 @@ export function createSubmissionSendHandler(deps = { configuredClient, requireAd
         }
         if (claim.data !== 'CLAIMED') return response.status(409).json({ error: 'This acceptance email is sending or its outcome needs review in Gmail.' });
       }
+      stage = 'send';
+      sendStarted = true;
       const gmailResponse = await deps.fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
         method: 'POST',
         signal: AbortSignal.timeout(15_000),
         headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ raw: createRawMessage(connectionResult.data.email, recipient, subject, messageBody, attachments) }),
+        body: JSON.stringify({ raw }),
       });
       const gmailMessage = await gmailResponse.json().catch(() => ({}));
-      if (pendingAcceptance && !gmailResponse.ok) {
+      if (!gmailResponse.ok && gmailResponse.status >= 400 && gmailResponse.status < 500 && gmailResponse.status !== 408) {
+        rejectedStatus = gmailResponse.status;
+        const reason = gmailMessage.error?.status;
+        if (['INVALID_ARGUMENT', 'UNAUTHENTICATED', 'PERMISSION_DENIED', 'NOT_FOUND', 'RESOURCE_EXHAUSTED', 'FAILED_PRECONDITION'].includes(reason)) rejectedReason = reason;
+      }
+      if (pendingAcceptance && rejectedStatus) {
         // A positive rejection is safe to retry. Timeouts/ambiguous responses
         // retain SENDING so another run cannot duplicate a delivered message.
-        if (gmailResponse.status >= 400 && gmailResponse.status < 500 && gmailResponse.status !== 408) {
-          await client.from('registration_acceptance_deliveries').update({ state: 'FAILED', updated_at: new Date().toISOString() })
-            .eq('submission_id', token.submissionId).eq('upload_id', token.pendingUploadId).eq('state', 'SENDING');
-        }
+        await client.from('registration_acceptance_deliveries').update({ state: 'FAILED', updated_at: new Date().toISOString() })
+          .eq('submission_id', token.submissionId).eq('upload_id', token.pendingUploadId).eq('state', 'SENDING');
       }
       if (!gmailResponse.ok || !gmailMessage.id) throw new Error(String(gmailMessage.error?.status || gmailMessage.error?.message || 'gmail_send_failed'));
       let warning: string | undefined;
@@ -130,11 +145,34 @@ export function createSubmissionSendHandler(deps = { configuredClient, requireAd
       }
       response.json({ status: 'SENT', sentAt: new Date().toISOString(), gmailMessageId: gmailMessage.id, ...(warning ? { warning } : {}) });
     } catch (error) {
-      const message = publicError(error);
-      console.error('Registration email failed:', message);
-      response.status(502).json({ error: pendingAcceptance
-        ? 'Gmail sending was not confirmed. The registration remains Pending; check its email delivery status before retrying.'
-        : 'Gmail could not send the email. The preview remains available for retry.' });
+      const cause = publicError(error);
+      let errorCode: string;
+      let message: string;
+      if (sendStarted) {
+        errorCode = rejectedStatus ? `GMAIL_HTTP_${rejectedStatus}` : 'GMAIL_SEND_UNCERTAIN';
+        message = rejectedStatus
+          ? `Gmail rejected the email (HTTP ${rejectedStatus}${rejectedReason ? `, ${rejectedReason}` : ''}). No email was sent. Check the registration Gmail connection and sending permissions.`
+          : 'Gmail did not confirm the send. Check Gmail Sent before retrying; this attempt will not resend automatically.';
+      } else if (stage === 'pdf') {
+        errorCode = 'PDF_PREPARATION_FAILED';
+        message = 'The registration PDF could not be prepared. No email was sent. Redeploy with the PDF logo and Inter font files included.';
+      } else if (stage === 'credentials') {
+        errorCode = 'GMAIL_TOKEN_DECRYPT_FAILED';
+        message = 'The saved registration Gmail credentials could not be decrypted. No email was sent. Check GOOGLE_TOKEN_ENCRYPTION_KEY or reconnect Gmail.';
+      } else if (stage === 'oauth') {
+        errorCode = cause === 'invalid_grant' ? 'GMAIL_RECONNECT_REQUIRED' : cause === 'invalid_client' || cause === 'gmail_oauth_not_configured' ? 'GMAIL_OAUTH_CONFIG_INVALID' : 'GMAIL_TOKEN_REFRESH_FAILED';
+        message = errorCode === 'GMAIL_RECONNECT_REQUIRED'
+          ? 'The registration Gmail authorization expired or was revoked. Reconnect Gmail. No email was sent.'
+          : 'Gmail authentication failed before sending. Check the registration Gmail connection and Google OAuth configuration. No email was sent.';
+      } else {
+        errorCode = stage === 'attachments' ? 'ATTACHMENT_PREPARATION_FAILED' : 'EMAIL_PREPARATION_FAILED';
+        message = stage === 'attachments'
+          ? 'The email attachments could not be loaded. No email was sent. Check the template attachments and Storage configuration.'
+          : 'The email message could not be prepared. No email was sent. Check its sender, recipients and template.';
+      }
+      console.error('Registration email failed:', errorCode);
+      response.status(502).json({ error: `${message} [${errorCode}]`, errorCode,
+        deliveryStatus: sendStarted && !rejectedStatus ? 'UNKNOWN' : 'NOT_SENT' });
     }
   };
 }

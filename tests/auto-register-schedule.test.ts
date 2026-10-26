@@ -12,6 +12,19 @@ test('the next twenty-minute execution estimate matches the off-hour trigger at 
     '2026-10-25T16:07:00.000Z');
 });
 
+test('the clock estimate cannot hide missed automatic executions or count a manual run as automatic delivery', () => {
+  const lastAutomatic = '2026-10-26T09:32:00+08:00';
+  for (const current of ['13:08', '13:28', '13:48']) {
+    const schedule = autoRegisterSchedule(Date.parse(`2026-10-26T${current}:00+08:00`), lastAutomatic);
+    assert.equal(schedule.overdue, true, 'Advancing the next planned slot must not clear the overdue warning');
+  }
+  assert.equal(autoRegisterSchedule(Date.parse('2026-10-26T13:15:00+08:00'), '2026-10-26T12:51:00+08:00').overdue, false, 'Allow ten minutes for trigger delivery');
+  assert.equal(autoRegisterSchedule(Date.parse('2026-10-26T13:18:00+08:00'), '2026-10-26T12:51:00+08:00').overdue, true);
+  assert.equal(autoRegisterSchedule(Date.parse('2026-10-26T13:18:00+08:00'), '2026-10-26T13:10:00+08:00').overdue, false);
+  assert.equal(autoRegisterSchedule(Date.parse('2026-10-26T13:18:00+08:00'), null).overdue, true);
+  assert.equal(autoRegisterSchedule(Date.parse('2026-10-26T13:18:00+08:00')).overdue, false, 'Older APIs without an automatic timestamp remain unknown');
+});
+
 test('workflow supplies later delivery opportunities throughout each two-hour window', () => {
   const workflow = readFileSync(new URL('../.github/workflows/auto-register-cm.yml', import.meta.url), 'utf8');
   const cron = workflow.match(/cron: '([^']+)'/)?.[1];

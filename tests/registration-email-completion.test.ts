@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createSubmissionSendHandler } from '../server-handlers/email/submission-send.js';
-import { createSubmissionPreviewToken } from '../server-handlers/_email.js';
+import { createSubmissionPreviewToken, exchangeRefreshToken } from '../server-handlers/_email.js';
 
 test('only an acknowledged acceptance email closes its verified Pending registration', async () => {
   const previous = process.env.SESSION_SECRET;
@@ -48,7 +48,10 @@ test('only an acknowledged acceptance email closes its verified Pending registra
       await handler({ method: 'POST', body: { previewToken, recipient: 'recipient@example.test', subject: 'Approved', body: '<p>Approved.</p>' } }, res);
       return res;
     };
-    assert.equal((await call()).code, 502); assert.equal(submission.status, 'PENDING'); assert.equal(completions, 0);
+    const rejected = await call();
+    assert.equal(rejected.code, 502); assert.equal(rejected.body.errorCode, 'GMAIL_HTTP_400');
+    assert.equal(rejected.body.deliveryStatus, 'NOT_SENT');
+    assert.equal(submission.status, 'PENDING'); assert.equal(completions, 0);
     gmailOk = true;
     assert.equal((await call()).body.status, 'SENT'); assert.equal(submission.status, 'DONE'); assert.equal(completions, 1);
     assert.equal((await call()).code, 409); assert.equal(gmailCalls, 2, 'A completed preview cannot send again');
@@ -66,4 +69,57 @@ test('only an acknowledged acceptance email closes its verified Pending registra
     assert.equal((await call()).code, 409);
     assert.equal(gmailCalls, sendsBeforeRecovery, 'An in-progress or ambiguous send cannot be replayed');
   } finally { if (previous === undefined) delete process.env.SESSION_SECRET; else process.env.SESSION_SECRET = previous; }
+});
+
+test('pre-send failures report their actual stage without claiming delivery or exposing raw credentials', async () => {
+  const previous = process.env.SESSION_SECRET;
+  process.env.SESSION_SECRET = 'offline-fixture-key';
+  try {
+    const session = { id: 'admin', email: 'admin@example.test', type: 'ADMIN', exp: Date.now() + 60000 };
+    const template: any = { id: 'acceptance-driver', active: true, trigger_status: 'DONE', template_code: 'A1', version: 1, attachments: [] };
+    const uploadId = '90000000-0000-4000-8000-000000000001';
+    const previewToken = createSubmissionPreviewToken(session, 'driver', 'DONE', 'recipient@example.test', template, 'port', uploadId);
+    for (const scenario of ['pdf', 'decrypt', 'refresh', 'config']) {
+      const handler = createSubmissionSendHandler({
+        requireAdmin: () => session,
+        configuredClient: () => ({ from(table: string) { return { select() { return this; }, eq() { return this; }, async maybeSingle() {
+          return { error: null, data: table === 'registration_submissions'
+            ? { status: 'PENDING', registration_type: 'DRIVER', port_id: 'port', cargomove_upload: { id: uploadId, state: 'SUCCESS' } }
+            : table === 'email_templates' ? template : table === 'gmail_connections' ? { email: 'sender@example.test' } : { port_id: 'port' } };
+        } }; }, rpc() { throw new Error('A failure before sending must never claim or complete delivery'); } }) as any,
+        decryptRefreshToken: () => { if (scenario === 'decrypt') throw new Error('private-credential-details'); return 'fixture-token'; },
+        exchangeRefreshToken: async () => { throw new Error(scenario === 'refresh' ? 'invalid_grant' : 'gmail_oauth_not_configured'); },
+        fetch: (async () => { throw new Error('No Gmail send before preparation succeeds'); }) as typeof fetch,
+      }, () => { if (scenario === 'pdf') throw new Error('ENOENT: private-file-path'); return Buffer.from('%PDF-test'); });
+      const res = { code: 200, body: null as any, setHeader() {}, status(code: number) { this.code = code; return this; }, json(body: any) { this.body = body; return this; } };
+      await handler({ method: 'POST', body: { previewToken, recipient: 'recipient@example.test', subject: 'Approved', body: '<p>Approved.</p>' } }, res);
+      assert.equal(res.code, 502);
+      assert.equal(res.body.deliveryStatus, 'NOT_SENT');
+      assert.equal(res.body.errorCode, { pdf: 'PDF_PREPARATION_FAILED', decrypt: 'GMAIL_TOKEN_DECRYPT_FAILED', refresh: 'GMAIL_RECONNECT_REQUIRED', config: 'GMAIL_OAUTH_CONFIG_INVALID' }[scenario]);
+      assert.match(res.body.error, /No email was sent/);
+      assert.doesNotMatch(JSON.stringify(res.body), /private-|fixture-token/);
+    }
+  } finally { if (previous === undefined) delete process.env.SESSION_SECRET; else process.env.SESSION_SECRET = previous; }
+});
+
+test('refreshing a connected Gmail account requires client credentials but not APP_URL', async context => {
+  const keys = ['APP_URL', 'GOOGLE_OAUTH_CLIENT_ID', 'GOOGLE_OAUTH_CLIENT_SECRET'];
+  const previous = keys.map(key => process.env[key]);
+  try {
+    delete process.env.APP_URL;
+    process.env.GOOGLE_OAUTH_CLIENT_ID = 'offline-client';
+    process.env.GOOGLE_OAUTH_CLIENT_SECRET = 'offline-secret';
+    let calls = 0;
+    context.mock.method(globalThis, 'fetch', async (url: string, init: any) => {
+      calls++;
+      assert.equal(url, 'https://oauth2.googleapis.com/token');
+      assert.equal(init.body.get('grant_type'), 'refresh_token');
+      assert.equal(init.body.has('redirect_uri'), false);
+      return new Response(JSON.stringify({ access_token: 'offline-access' }));
+    });
+    assert.equal(await exchangeRefreshToken('offline-refresh', 1000), 'offline-access');
+    delete process.env.GOOGLE_OAUTH_CLIENT_ID;
+    await assert.rejects(exchangeRefreshToken('offline-refresh'), /gmail_oauth_not_configured/);
+    assert.equal(calls, 1, 'Missing configuration fails before making any token request');
+  } finally { keys.forEach((key, index) => { if (previous[index] === undefined) delete process.env[key]; else process.env[key] = previous[index]; }); }
 });

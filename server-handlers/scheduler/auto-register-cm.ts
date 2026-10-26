@@ -7,6 +7,7 @@ import { runAutomation } from './automation.js';
 import { allowedOrigin, schedulerAdmin } from './access.js';
 import { scheduleEligibleAutoRegistrations } from './auto-register-cm-discovery.js';
 import { completeAutoRegistrationEmails } from './auto-register-cm-email.js';
+import { signedCronMatches } from './cron-signature.js';
 
 const KEY = 'auto_register_cm';
 const TERMINAL_UPLOAD = new Set(['SUCCESS', 'FAILED']);
@@ -55,7 +56,9 @@ export function createAutoRegisterCmHandler(deps = { adminClient, readSession, u
       response.setHeader('Allow', 'GET, PATCH, POST'); return fail(405, 'Method not allowed.');
     }
 
-    const automatic = request.method === 'POST' && secretMatches(request);
+    const signedBody = request.method === 'POST' && typeof request.headers?.['x-cargomove-cron-signature'] === 'string'
+      ? await requestBody(request).catch(() => null) : undefined;
+    const automatic = request.method === 'POST' && (secretMatches(request) || signedCronMatches(request.headers, signedBody));
     let access: any;
     if (automatic) {
       const client = deps.adminClient();
@@ -72,9 +75,13 @@ export function createAutoRegisterCmHandler(deps = { adminClient, readSession, u
     const { client, session } = access;
 
     if (request.method === 'GET') {
-      const [configuration, history] = await Promise.all([
+      const [configuration, history, lastAutomatic, cronState] = await Promise.all([
         client.from('automation_schedulers').select('*').eq('scheduler_key', KEY).timeout(8000).maybeSingle(),
         client.from('automation_scheduler_runs').select('*').eq('scheduler_key', KEY).order('started_at', { ascending: false }).limit(100).timeout(8000),
+        client.from('automation_scheduler_runs').select('started_at,chain_started_at,status').eq('scheduler_key', KEY)
+          .eq('execution_type', 'AUTOMATIC').order('started_at', { ascending: false }).limit(1).timeout(8000).maybeSingle(),
+        client.from('auto_register_cm_cron_state').select('is_enabled,last_tick_at,last_status,last_error_code')
+          .eq('scheduler_key', KEY).timeout(8000).maybeSingle(),
       ]);
       if (configuration.error || !configuration.data || history.error) return fail(503, 'Unable to load Auto Register in CM. Apply the scheduler migration.');
       const referencesByRun = new Map<string, Set<string>>();
@@ -99,10 +106,13 @@ export function createAutoRegisterCmHandler(deps = { adminClient, readSession, u
         key: row.scheduler_key, name: row.scheduler_name, description: row.description,
         schedule: row.schedule, isEnabled: row.is_enabled, lastRunAt: row.last_run_at,
         lastStatus: row.last_status, updatedAt: row.updated_at,
+        lastAutomaticRunAt: lastAutomatic.error ? undefined : lastAutomatic.data?.chain_started_at || lastAutomatic.data?.started_at || null,
+        cronTrigger: cronState.error || !cronState.data ? null : { isEnabled: cronState.data.is_enabled,
+          lastTickAt: cronState.data.last_tick_at, status: cronState.data.last_status, errorCode: cronState.data.last_error_code },
       }, runs: (history.data || []).map((row: any) => serializeRun(row, [...referencesByRun.get(row.id) || []])) });
     }
 
-    const body = await requestBody(request).catch(() => null) as Record<string, unknown> | null;
+    const body = (signedBody !== undefined ? signedBody : await requestBody(request).catch(() => null)) as Record<string, unknown> | null;
     if (!body || Array.isArray(body)) return fail(400, 'Invalid request body.');
     if (request.method === 'PATCH') {
       if (request.headers['x-cargomove-confirm'] !== 'manage-auto-register-cm'
@@ -115,18 +125,23 @@ export function createAutoRegisterCmHandler(deps = { adminClient, readSession, u
 
     if (!automatic && (request.headers['x-cargomove-confirm'] !== 'run-auto-register-cm'
       || Object.keys(body).length)) return fail(403, 'Request confirmation is invalid.');
-    if (automatic && Object.keys(body).length) return fail(400, 'The automatic trigger body must be empty.');
+    if (automatic && (Object.keys(body).some(key => !['window', 'continuationToken'].includes(key))
+      || body.window !== undefined && (!Number.isSafeInteger(body.window) || Math.abs(Number(body.window) - Math.floor(Date.now() / 1_200_000)) > 1)
+      || body.continuationToken !== undefined && (typeof body.continuationToken !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.continuationToken))
+      || body.window !== undefined && body.continuationToken !== undefined)) return fail(400, 'Invalid automatic delivery or continuation.');
 
     const executionType = automatic ? 'AUTOMATIC' : 'MANUAL';
-    const requestKey = automatic ? `${KEY}:delivery:${Math.floor(Date.now() / 1_200_000)}` : null;
-    const acquired = await client.rpc('acquire_automation_scheduler', {
-      p_scheduler_key: KEY, p_execution_type: executionType, p_actor: session.id, p_request_key: requestKey,
-    });
+    const requestKey = automatic ? `${KEY}:delivery:${body.window ?? Math.floor(Date.now() / 1_200_000)}` : null;
+    const acquired = automatic
+      ? await client.rpc('acquire_auto_register_cm_step', { p_actor: session.id, p_request_key: requestKey, p_continuation: body.continuationToken || null })
+      : await client.rpc('acquire_automation_scheduler', { p_scheduler_key: KEY, p_execution_type: executionType, p_actor: session.id, p_request_key: requestKey });
     if (acquired.error || !acquired.data) return fail(503, 'Scheduler admission is unavailable. Apply the scheduler migration.');
-    if (!acquired.data.id) return response.status(409).json({ status: 'skipped', message: 'Another Auto Register in CM execution is running.' });
+    if (acquired.data.reason === 'invalid_continuation') return fail(410, 'The continuation expired or is invalid. Work will resume on the next scheduled delivery.');
+    if (!acquired.data.id || acquired.data.reason === 'duplicate' && acquired.data.status === 'RUNNING') return response.status(409).json({ status: 'skipped', message: 'Another Auto Register in CM execution is running.' });
     if (acquired.data.reason === 'disabled') return response.status(200).json({ executionId: acquired.data.id, status: 'skipped', message: 'Auto Register in CM is disabled.' });
     if (acquired.data.reason === 'duplicate') return response.status(200).json({ executionId: acquired.data.id,
-      status: String(acquired.data.status || 'skipped').toLowerCase(), message: 'This twenty-minute delivery window was already handled.' });
+      status: String(acquired.data.status || 'skipped').toLowerCase(), message: acquired.data.message || 'This twenty-minute delivery window was already handled.',
+      continuationToken: acquired.data.continuationToken || null, continuationDelayMs: acquired.data.continuationDelayMs || 5000 });
 
     const executionId = acquired.data.id;
     // Leave enough headroom for a worst-case 65-second CargoMove browser step and
@@ -134,14 +149,15 @@ export function createAutoRegisterCmHandler(deps = { adminClient, readSession, u
     const workDeadline = Date.now() + 100_000;
     let emailCompleted = 0;
     const emailIssues = new Set<string>();
+    const attemptedEmails = new Set<string>();
     const completeEmails = async () => {
       if (Date.now() + 25_000 >= workDeadline) return;
-      const result = await completeAutoRegistrationEmails(client, session, workDeadline);
+      const result = await completeAutoRegistrationEmails(client, session, workDeadline, undefined, attemptedEmails);
       emailCompleted += result.completed;
       result.issues.forEach(issue => emailIssues.add(issue));
     };
     const finish = async (status: 'SUCCESS' | 'FAILED' | 'SKIPPED', counts: { processed: number; success: number; failed: number }, message: string, error?: string) => {
-      if (status !== 'FAILED') await completeEmails();
+      if (!automatic && status !== 'FAILED') await completeEmails();
       if (emailCompleted) {
         if (status === 'SKIPPED') status = 'SUCCESS';
         message += ` ${emailCompleted} acceptance email(s) completed; registrations moved to Done.`;
@@ -151,28 +167,47 @@ export function createAutoRegisterCmHandler(deps = { adminClient, readSession, u
         error = [...emailIssues].join(' ').slice(0, 1000);
         message += ` ${emailIssues.size} acceptance email(s) need attention: ${error}`;
       }
-      const saved = await client.rpc('finish_automation_scheduler', { p_id: executionId, p_status: status,
-        p_processed: counts.processed, p_success: counts.success, p_failed: counts.failed, p_message: message, p_error: error || null });
-      if (saved.error || saved.data !== true) throw new Error('Execution result could not be saved.');
+      let hasMore = false;
+      if (automatic && status !== 'FAILED') {
+        const remaining = await client.rpc('auto_register_cm_has_work', {});
+        if (remaining.error || typeof remaining.data !== 'boolean') throw new Error('Unable to inspect remaining automatic work.');
+        hasMore = remaining.data;
+      }
+      const saved = await client.rpc(automatic ? 'finish_auto_register_cm_step' : 'finish_automation_scheduler', { p_id: executionId, p_status: status,
+        p_processed: counts.processed, p_success: counts.success, p_failed: counts.failed, p_message: message, p_error: error || null,
+        ...(automatic ? { p_has_more: hasMore } : {}) });
+      if (saved.error || !saved.data || !automatic && saved.data !== true) throw new Error('Execution result could not be saved.');
       return response.status(status === 'FAILED' ? 500 : 200).json({ executionId, status: status.toLowerCase(), message,
-        processedCount: counts.processed, successCount: counts.success, failedCount: counts.failed });
+        processedCount: counts.processed, successCount: counts.success, failedCount: counts.failed,
+        ...(automatic ? saved.data : {}) });
     };
 
     try {
       // Recover previously verified Pending registrations before browser work
       // consumes this invocation's budget.
-      await completeEmails();
+      if (!automatic) await completeEmails();
       // Discovery runs under scheduler admission, including when no administrator
       // opens the page. Its durable cursor resumes on the next bounded scan.
-      await scheduleEligibleAutoRegistrations(client, session.id, { deadline: Date.now() + 20_000 });
+      await scheduleEligibleAutoRegistrations(client, session.id, { deadline: Math.min(workDeadline - 68_000, Date.now() + (automatic ? 5_000 : 20_000)) });
+      if (automatic) {
+        // Email preparation/sending uses its own request, never the headroom
+        // left after CargoMove browser work.
+        await completeEmails();
+        if (attemptedEmails.size) return await finish('SUCCESS', { processed: 0, success: 0, failed: 0 },
+          'Acceptance email completion checked for verified registrations.');
+      }
       if (Date.now() + 68_000 >= workDeadline) {
         return await finish('SKIPPED', { processed: 0, success: 0, failed: 0 },
           'Eligible registrations were queued. Processing will continue on the next run.');
       }
       const systemReadSession = () => session;
-      const systemScheduler = createSchedulerHandler({ adminClient: () => client, readSession: systemReadSession, runAutomation: deps.runAutomation });
+      const systemScheduler = createSchedulerHandler({ adminClient: () => client, readSession: systemReadSession,
+        runAutomation: automatic ? (credentials, beforeDispatch, launch, _budget, target) =>
+          deps.runAutomation(credentials, beforeDispatch, launch, 30_000, target) : deps.runAutomation });
       const uploads = createRegistrationUploadsHandler({ adminClient: () => client, readSession: systemReadSession,
-        uploadWorkbook: deps.uploadWorkbook, verifyWorkbook: deps.verifyWorkbook, runScheduler: systemScheduler });
+        uploadWorkbook: deps.uploadWorkbook,
+        verifyWorkbook: automatic ? (credentials, job) => deps.verifyWorkbook(credentials, job, undefined, 45_000) : deps.verifyWorkbook,
+        runScheduler: systemScheduler });
       const callUploads = async (payload: Record<string, unknown>) => {
         const captured = captureResponse();
         await uploads({ method: 'POST', body: payload, headers: { origin: internalOrigin(), 'sec-fetch-site': 'same-origin',
@@ -187,7 +222,9 @@ export function createAutoRegisterCmHandler(deps = { adminClient, readSession, u
       if (scheduled.error) throw new Error('Unable to load the saved Auto Register queue.');
       const scheduledItems = scheduled.data || [];
       if (!scheduledItems.length) {
-        return await finish('SKIPPED', { processed: 0, success: 0, failed: 0 }, 'No scheduled registrations are ready to process.');
+        return await finish('SKIPPED', { processed: 0, success: 0, failed: 0 }, emailIssues.size
+          ? 'CargoMove registration is complete; acceptance emails remain pending.'
+          : 'No scheduled registrations are ready to process.');
       }
 
       const processGroup = async (scheduledIds: string[]) => {
@@ -254,7 +291,7 @@ export function createAutoRegisterCmHandler(deps = { adminClient, readSession, u
         let submissions = result.body?.submissions || (result.body?.submission ? [result.body.submission] : []);
         let states = submissions.map((item: any) => item.cargomove_upload?.state).filter(Boolean);
         const jobId = submissions[0]?.cargomove_upload?.id;
-        while (jobId && states.length && states.some((state: string) => !TERMINAL_UPLOAD.has(state))
+        while (!automatic && jobId && states.length && states.some((state: string) => !TERMINAL_UPLOAD.has(state))
           && Date.now() + 68_000 < workDeadline) {
           await wait(Math.min(10_000, Math.max(1_000, Number(result.body?.nextCheckMs) || 3_000)));
           if (Date.now() + 68_000 >= workDeadline) break;
@@ -296,9 +333,11 @@ export function createAutoRegisterCmHandler(deps = { adminClient, readSession, u
             : result.body?.submission?.cargomove_upload?.message || 'CargoMove rejected the registration batch.';
           return await finish('FAILED', { processed, success, failed }, message, 'One or more registrations failed.');
         }
+        if (states.includes('UNKNOWN')) return await finish('FAILED', { processed, success, failed: 0 },
+          'An existing CargoMove upload has an uncertain result. Review its audit before continuing; no file was uploaded again.');
         const pendingCount = states.filter((state: string) => !TERMINAL_UPLOAD.has(state)).length;
         return await finish('SUCCESS', { processed, success, failed: 0 }, pendingCount
-          ? `${processed} registration(s) were advanced safely; ${pendingCount} remain in verified processing and will resume on the next run.`
+          ? `${pendingCount} registration(s) are awaiting confirmation from CargoMove. The next ${automatic ? 'workflow request' : 'run'} will check the existing uploads.`
           : `${success} registration(s) were verified successfully in CargoMove.`);
       };
 
@@ -321,6 +360,7 @@ export function createAutoRegisterCmHandler(deps = { adminClient, readSession, u
         messages.push(result.message);
         if (result.error) errors.push(result.error);
         if (result.status === 'FAILED' || outcome !== 'FAILED' && result.status === 'SUCCESS') outcome = result.status;
+        if (automatic) break;
       }
       return await finish(outcome, totals, messages.join(' '), errors.join(' ') || undefined);
     } catch (error) {

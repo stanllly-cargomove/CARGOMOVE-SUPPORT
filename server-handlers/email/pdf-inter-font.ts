@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { inflateSync } from 'node:zlib';
 
 type InterPdfFont = {
@@ -100,8 +101,8 @@ let cachedFonts: { regular: InterPdfFont; bold: InterPdfFont } | undefined;
 
 export function interPdfFonts() {
   if (!cachedFonts) cachedFonts = {
-    regular: loadInterFont(readFileSync(new URL('../../node_modules/@fontsource/inter/files/inter-latin-400-normal.woff', import.meta.url))),
-    bold: loadInterFont(readFileSync(new URL('../../node_modules/@fontsource/inter/files/inter-latin-700-normal.woff', import.meta.url))),
+    regular: loadInterFont(readFileSync(path.join(process.cwd(), 'node_modules/@fontsource/inter/files/inter-latin-400-normal.woff'))),
+    bold: loadInterFont(readFileSync(path.join(process.cwd(), 'node_modules/@fontsource/inter/files/inter-latin-700-normal.woff'))),
   };
   return cachedFonts;
 }

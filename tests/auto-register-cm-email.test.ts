@@ -84,6 +84,13 @@ test('automatic verified trailer and vehicle emails use assigned codes, recipien
     assert.equal(sends.length, 2);
     templates[0].active = true;
 
+    const attempted = new Set<string>();
+    templates[0].active = false;
+    assert.equal((await completeAutoRegistrationEmails(client, session, Date.now() + 100_000, handlers, attempted)).issues.length, 1);
+    templates[0].active = true;
+    assert.deepEqual(await completeAutoRegistrationEmails(client, session, Date.now() + 100_000, handlers, attempted), { completed: 0, issues: [] });
+    assert.equal(sends.length, 2, 'The before/after passes do not retry a failed candidate within the same execution');
+
     // An interrupted send remains Pending and holds its claim on the next run.
     subs[0].status = 'PENDING'; receipts.delete(subs[0].id); failGmail = true;
     assert.equal((await completeAutoRegistrationEmails(client, session, Date.now() + 100_000, handlers)).issues.length, 1);

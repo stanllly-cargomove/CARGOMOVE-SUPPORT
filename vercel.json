@@ -20,7 +20,8 @@
   ],
   "functions": {
     "api/mail.ts": {
-      "maxDuration": 120
+      "maxDuration": 120,
+      "includeFiles": "{media/image-removebg-preview.png,node_modules/@fontsource/inter/files/inter-latin-400-normal.woff,node_modules/@fontsource/inter/files/inter-latin-700-normal.woff}"
     },
     "api/dev-tools.ts": {
       "maxDuration": 120,
@@ -34,7 +35,7 @@
       "regions": [
         "sin1"
       ],
-      "includeFiles": "node_modules/@sparticuz/chromium/bin/**"
+      "includeFiles": "{node_modules/@sparticuz/chromium/bin/**,media/image-removebg-preview.png,node_modules/@fontsource/inter/files/inter-latin-400-normal.woff,node_modules/@fontsource/inter/files/inter-latin-700-normal.woff}"
     }
   },
   "rewrites": [

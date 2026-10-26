@@ -21,26 +21,46 @@ Run `npx tsx --test tests/dev-tools-router.test.ts tests/auto-register-cm-router
 after adding API routes to check the function count and scheduler routing.
 
 GitHub Actions calls `POST /api/scheduler/auto-register-cm` at minutes 7, 27 and
-47 of every hour. Each twenty-minute UTC delivery window admits one execution;
-repeated calls in that window return the recorded result. Later deliveries can
-advance other asset types, resume unfinished batches and complete acceptance
-emails instead of waiting two hours for the next admission.
+47 of every hour. Each twenty-minute UTC delivery window admits one initial
+execution. The workflow pins that window in its request body so a retry crossing
+the next window cannot create a new initial execution.
+
+An automatic request advances at most one upload batch: upload, or check/request
+CargoMove processing, or verify completion. Acceptance emails use a separate
+request. After saving its result, the server atomically persists a random
+continuation token if durable work remains. GitHub waits five seconds and follows
+that token with another HTTPS request, giving each step its own Vercel allowance.
+It does not wait for another scheduled event between these steps.
+
+Continuation admission rechecks the enabled flag and the shared execution lease.
+A token always identifies the same next execution. Repeated delivery recovers its
+saved response/token without re-uploading a file, re-dispatching processing, or
+re-sending an acknowledged acceptance email. Tokens are service-only and are never
+returned in browser history responses or printed in workflow logs. The workflow
+retries transport interruptions and busy admission with the identical request.
+Failed steps stop the chain; uncertain uploads/sends retain their audit safeguards.
+Each chain is limited to eight requests and eighteen minutes; the workflow leaves
+extra headroom and defers remaining durable work to a later schedule. Concurrent
+GitHub runs queue instead of cancelling a request that may have submitted work.
 GitHub scheduling remains best-effort and does not guarantee punctual delivery.
+An optional independent Supabase Cron driver can start and continue the same
+durable chain when GitHub misses an event; see the setup below.
 The workflow only sends HTTPS: it does not check out the repository, install packages,
 build the application, or deploy Vercel. The Vercel handler authenticates the
 Bearer token, atomically checks the persisted enabled flag, and exits successfully
 with `SKIPPED` before reading registrations when the scheduler is off.
 
-When enabled, the handler first recovers acceptance emails for already verified
-Pending submissions, then discovers eligible Pending assets and saves them to
-the queue. Discovery uses keyset pages and a persisted cursor, with a bounded
+When enabled, the handler discovers eligible Pending assets, then recovers
+acceptance emails for already verified Pending submissions before browser work.
+Discovery uses keyset pages and a persisted cursor, with a bounded
 time budget, so later registrations are inspected even when earlier ones remain
 non-eligible. Verified uploads awaiting email are excluded. The page can also
 request discovery; opening it is not required for automatic runs.
 
 The handler processes only saved `SCHEDULED` queue items, in batches
-of up to 100 of one asset type. Each invocation visits multiple asset types when
-its time budget permits. Never-attempted and least-recently-attempted queue items
+of up to 100 of one asset type. An automatic request advances one batch, while a
+manual invocation can visit multiple asset types if its time budget permits.
+Never-attempted and least-recently-attempted queue items
 come first, so slow uploads cannot starve other files. It may resume an unfinished registration-upload
 batch only when that batch belongs to a scheduled queue item. Manual **Run Now** consumes
 the same scheduled queue as an automatic run and is disabled when that queue is
@@ -54,7 +74,7 @@ Selected registrations are revalidated by the existing upload workflow when run,
 so eligibility changes after scheduling cannot bypass its checks. The existing
 database leases serialize upload/verification transitions and the application
 scheduler execution table adds a two-minute cross-instance lease. A UTC
-twenty-minute request key makes duplicate deliveries idempotent. Safe failed
+twenty-minute initial request key and persisted continuation tokens make deliveries idempotent. Safe failed
 registration retries still wait for the next two-hour window. Uploaded
 registrations that have reached verified `SUCCESS` never upload again.
 
@@ -133,12 +153,103 @@ Every 20 minutes. It preserves the enabled flag. Deploy the handler and workflow
 changes together. Existing automatically verified submissions still Pending are
 picked up by the next enabled execution; they are not uploaded again.
 
+Apply `supabase/migrations/20261026040000_auto_register_cm_continuations.sql`
+after the email visibility migration before deploying the consecutive-request
+handler and workflow. It adds persisted chain metadata/tokens and service-only
+admission, finish and remaining-work functions. Existing upload and email claims,
+retry limits, history and the enabled flag are preserved. No new API function is
+created. The worker remains HTTPS-only with no checkout, installation or build.
+Automatic verification has a 45-second browser budget, and its CargoMove scheduler
+request has a 30-second browser budget. These include browser startup; a browser
+that launches after its deadline is closed without performing work.
+
+## Independent initial delivery with Supabase Cron
+
+This addresses a missing initial GitHub event, which continuation tokens alone
+cannot fix. It uses the **main application** database, never Auto Mail's project.
+GitHub remains available and may follow the same tokens; persisted admission and
+upload/email claims serialize both delivery drivers.
+
+Apply `20261026050000_auto_register_cm_cron_trigger.sql` after migrations 030 and
+040. This creates an **inactive** driver only; applying it does not install a job,
+enable the application toggle or submit registrations. Keep migrations 030/040
+already applied; do not rerun them. Push/deploy the signed-request application
+before provisioning this new driver.
+
+One-time setup after deployment:
+
+1. In the main Supabase project's Vault, create these two named secrets:
+   - `auto_register_cm_url`: your production HTTPS URL ending exactly in
+     `/api/scheduler/auto-register-cm`, without query parameters.
+   - `auto_register_cm_cron_secret`: the existing **Production Vercel CRON_SECRET**
+     value. This is not `GOOGLE_TOKEN_ENCRYPTION_KEY` or a Supabase service key.
+2. Open `supabase/setup-auto-register-cm-cron.sql` in that project's SQL Editor.
+   Review and run it once. It enables pg_cron/pg_net/pgcrypto, installs one
+   once-per-minute job and activates the driver. Re-running replaces the same
+   named job. Keep actual secret values out of the file and source control.
+3. The existing Auto Register enabled toggle controls whether registrations run.
+   When enabled, the job starts windows at minutes 7, 27 and 47, catching a missed
+   tick later in the same window. It follows an outstanding continuation on a
+   later minute without waiting for the next 20-minute window.
+4. Refresh Auto Register. Check **Last automatic**, **Supabase trigger** and the
+   execution logs. The first new automatic execution confirms actual delivery;
+   **Next planned trigger** remains a clock estimate. A ten-minute grace period
+   precedes the overdue warning. A manual run cannot clear that warning.
+
+The driver waits for its own pg_net response, retries the exact original body on
+transport uncertainty or busy admission, and stops on rejected/failed responses.
+It respects the same eight-step/eighteen-minute chain cap. HTTP retries are
+bounded separately. Completed windows are not requested each minute. Configuration
+and HTTP failures appear as safe diagnostic codes in the developer page.
+
+Vault protects the cron secret at rest. Because pg_net's request queue is readable
+by database roles, its queued requests contain a two-minute HMAC proof bound to
+this endpoint and the specific window/token, **not the raw cron secret**. Captured
+proofs cannot authorize another step, and replays of the same step remain
+idempotent. The tick function is executable only by postgres; browser roles have
+no state-table access, and the API selects only non-secret diagnostic columns.
+Do not change pg_net's platform-owned queue grants or policies.
+
+To stop just this delivery driver, set its state `is_enabled=false` in SQL or
+unschedule `auto-register-cm-delivery` in Supabase Cron. The app toggle stops both
+GitHub and Supabase from processing registrations. Do not delete upload/email
+audits or reset uncertain send claims when troubleshooting delivery.
+
+References: [Supabase Cron](https://supabase.com/docs/guides/cron),
+[pg_net](https://supabase.com/docs/guides/database/extensions/pg_net), and
+[queued request header visibility](https://supabase.com/kb/troubleshooting/database-roles-can-read-request-headers-queued-by-pg_net).
+
 ## Safe testing
 
 Run `npm run test:scheduler`, `npm run test:scheduler:ui`,
 `npm run test:registration-uploads`, `npm run lint`, and `npm run build`.
 These tests use local/injected database and browser fixtures.
 They do not connect to production Supabase or CargoMove.
+
+Acceptance PDFs load their logo and Inter fonts from the application root.
+Both the mail and scheduler functions explicitly package these files in
+`vercel.json`. The registration email runtime test bundles the PDF renderer at
+both API entry locations and runs it from an isolated deployment directory with
+only those assets copied. Gmail token refresh uses the client ID and secret;
+`APP_URL` is required for the OAuth connection flow, not for refreshing a saved grant.
+
+Apply `supabase/migrations/20261026030000_auto_register_cm_email_visibility.sql`
+after the email completion migration. It keeps uncertain sends visible to the
+automatic email checker. The checker reports them without attempting a send.
+
+Email failures now include a safe error code. `PDF_PREPARATION_FAILED`,
+`ATTACHMENT_PREPARATION_FAILED`, `GMAIL_TOKEN_DECRYPT_FAILED`, and
+`GMAIL_TOKEN_REFRESH_FAILED` mean preparation failed before a send request.
+`GMAIL_RECONNECT_REQUIRED` means Google rejected the saved refresh grant;
+reconnect the registration Gmail account. `GMAIL_OAUTH_CONFIG_INVALID` means its
+server client credentials need checking. `GMAIL_HTTP_4xx` reports a confirmed
+client rejection. `GMAIL_SEND_UNCERTAIN` retains the existing no-replay claim and
+requires checking Gmail Sent. Missing delivery rows mean this workflow never
+reached its send claim; do not describe that as an uncertain Gmail delivery.
+An ACTIVE connection and saved send scope do not by themselves prove its refresh
+grant is still valid. No access tokens or provider response bodies are included
+in execution errors. A candidate is attempted at most once in each execution,
+even when email completion runs before and after CargoMove browser work.
 
 To verify wiring without processing records, leave the toggle OFF and manually
 dispatch `.github/workflows/auto-register-cm.yml`. The job should succeed and the
@@ -148,8 +259,9 @@ registrations.
 
 ## Operational notes
 
-- The next scheduled run estimates the next delivery at minute 7, 27 or 47.
-  The estimate does not confirm GitHub delivery.
+- Next planned trigger estimates a slot at minute 7, 27 or 47. It never confirms
+  delivery. Last automatic and the overdue warning show actual trigger history.
+  The optional Supabase trigger status also shows its last database check.
 - If execution history stops advancing, inspect the **Auto Register in CM**
   workflow in GitHub Actions. A missing workflow run means no trigger was
   recorded there; a failed workflow needs its HTTP result inspected. Eligibility
@@ -157,8 +269,10 @@ registrations.
   the production workflow as a diagnostic while enabled: it processes real
   registrations.
 - Timestamps are stored as UTC and displayed in `Asia/Kuala_Lumpur`.
-- A run may report success with records still processing when the Vercel time
-  budget is nearly exhausted. The next invocation resumes that durable batch.
+- An automatic execution may report an upload awaiting confirmation. GitHub
+  follows the saved continuation to check that existing upload in the same
+  workflow. If the chain reaches its time/step limit, the next delivery resumes it.
+  Each API step retains its own execution log and registration references.
 - Verified registrations remain Pending only until Gmail acknowledges their
   acceptance email and database completion succeeds. Automatic execution attempts
   both steps, including recovery of previously verified Pending submissions.

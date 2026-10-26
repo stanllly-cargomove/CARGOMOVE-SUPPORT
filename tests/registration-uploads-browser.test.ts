@@ -3,7 +3,19 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright-core';
 import * as XLSX from 'xlsx';
-import { uploadWorkbook } from '../server-handlers/registration-uploads/automation.js';
+import { uploadWorkbook, verifyWorkbook } from '../server-handlers/registration-uploads/automation.js';
+
+test('verification budget includes browser startup and closes a browser that launches after expiry', async () => {
+  let resolveLaunch!: (browser: any) => void;
+  let closed = 0;
+  const launched = new Promise<any>(resolve => { resolveLaunch = resolve; });
+  const result = await verifyWorkbook({ username: 'fixture', password: 'fixture' },
+    { entity: 'driver', filename: 'CMREG1_DRIVER.xlsx', expected_rows: 1 }, () => launched, 10);
+  assert.equal(result.state, 'UNKNOWN');
+  resolveLaunch({ close: async () => { closed++; }, newContext() { throw new Error('Expired verification must not open a context'); } });
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(closed, 1);
+});
 
 test('browser startup failures are retryable only before any upload dispatch marker', async () => {
   let marked = false;

@@ -255,7 +255,11 @@ export function googleOAuthConfig() {
 }
 
 export async function exchangeRefreshToken(refreshToken: string, timeoutMs?: number) {
-  const { clientId, clientSecret } = googleOAuthConfig();
+  // Refreshing an existing grant does not use the OAuth callback URL. A missing
+  // APP_URL must not prevent an already connected account from sending mail.
+  const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
+  if (!clientId || !clientSecret) throw new Error('gmail_oauth_not_configured');
   const response = await fetch('https://oauth2.googleapis.com/token', {
     signal: timeoutMs ? AbortSignal.timeout(timeoutMs) : undefined,
     method: 'POST',

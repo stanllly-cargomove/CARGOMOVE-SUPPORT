@@ -121,8 +121,9 @@ class PostgrestBuilder implements PromiseLike<{ data: any; error: any; count?: n
     return this;
   }
 
-  order(column: string, options?: { ascending?: boolean }) {
-    this.orderValue = [this.orderValue, `${column}.${options?.ascending === false ? 'desc' : 'asc'}`].filter(Boolean).join(',');
+  order(column: string, options?: { ascending?: boolean; nullsFirst?: boolean }) {
+    const nulls = options?.nullsFirst === undefined ? '' : options.nullsFirst ? '.nullsfirst' : '.nullslast';
+    this.orderValue = [this.orderValue, `${column}.${options?.ascending === false ? 'desc' : 'asc'}${nulls}`].filter(Boolean).join(',');
     return this;
   }
 

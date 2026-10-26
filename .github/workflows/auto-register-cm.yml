@@ -9,23 +9,59 @@ on:
 
 permissions: {}
 
+concurrency:
+  group: auto-register-cm
+  cancel-in-progress: false
+
 jobs:
   trigger:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 18
     steps:
-      - name: Trigger Vercel scheduler API
+      - name: Advance registration, verification and email steps
         env:
           VERCEL_TASK_URL: ${{ secrets.VERCEL_TASK_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
-          test -n "$VERCEL_TASK_URL"
-          test -n "$CRON_SECRET"
-          curl --fail-with-body --silent --show-error \
-            --request POST \
-            --connect-timeout 10 \
-            --max-time 125 \
-            --header "Authorization: Bearer $CRON_SECRET" \
-            --header "Content-Type: application/json" \
-            --data '{}' \
-            "$VERCEL_TASK_URL"
+          node --input-type=module <<'NODE'
+          const url = new URL(process.env.VERCEL_TASK_URL);
+          const secret = process.env.CRON_SECRET;
+          if (url.protocol !== 'https:' || url.username || url.password || !secret) throw new Error('Configure the HTTPS scheduler URL and CRON_SECRET.');
+          const deadline = Date.now() + 16 * 60_000;
+          const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+          // Pin the first request to its original delivery window, including a
+          // retry that crosses a 20-minute boundary. Never retry with a new body.
+          let body = { window: Math.floor(Date.now() / 1_200_000) };
+          for (let step = 0; step < 8; step++) {
+            let result;
+            for (let attempt = 0; attempt < 14; attempt++) {
+              if (Date.now() + 130_000 > deadline) {
+                console.log('Workflow time budget reached. Durable work will resume on the next schedule.');
+                process.exit(0);
+              }
+              let response;
+              try {
+                response = await fetch(url, { method: 'POST', redirect: 'error', signal: AbortSignal.timeout(125_000),
+                  headers: { Authorization: `Bearer ${secret}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+              } catch {
+                if (attempt === 13) throw new Error('Scheduler delivery could not be confirmed; the saved step will be reconciled on the next schedule.');
+                await sleep(10_000); continue;
+              }
+              result = await response.json().catch(() => null);
+              if (response.status === 409 && attempt < 13) { await sleep(10_000); continue; }
+              if (!response.ok || !result || result.status === 'failed') throw new Error(result?.error || result?.message || `Scheduler HTTP ${response.status}`);
+              break;
+            }
+            // Continuation tokens and credentials must never be printed.
+            console.log(JSON.stringify({ step: step + 1, status: result.status, message: result.message,
+              processed: result.processedCount, success: result.successCount, failed: result.failedCount }));
+            if (!result.continuationToken) {
+              if (result.continuationLimitReached) console.log('Step limit reached. Remaining durable work will resume on the next schedule.');
+              break;
+            }
+            if (step === 7) break;
+            if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(result.continuationToken)) throw new Error('Invalid scheduler continuation.');
+            body = { continuationToken: result.continuationToken };
+            await sleep(Math.min(30_000, Math.max(1_000, Number(result.continuationDelayMs) || 5000)));
+          }
+          NODE
