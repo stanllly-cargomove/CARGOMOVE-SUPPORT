@@ -823,9 +823,9 @@ export function UserRegistration() {
                 </div>
               )}
             </div>
-            <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4">
-              <button type="button" onClick={() => setPreview(null)} disabled={sending} className="rounded-lg px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200">Cancel</button>
-              <button type="button" onClick={() => void sendPreview()} disabled={sending} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-60"><Mail className="h-4 w-4" />{sending ? 'Sending...' : 'Send Email'}</button>
+            <div className="flex items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-5 py-4">
+              <button type="button" onClick={() => setPreview(null)} disabled={sending} className="inline-flex h-10 w-32 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-100 disabled:opacity-60 sm:w-36">Cancel</button>
+              <button type="button" onClick={() => void sendPreview()} disabled={sending} className="inline-flex h-10 w-32 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-xs font-bold text-white shadow-sm hover:bg-blue-700 disabled:opacity-60 sm:w-36"><Mail className="h-4 w-4" />{sending ? 'Sending...' : 'Send Email'}</button>
             </div>
           </div>
         </div>

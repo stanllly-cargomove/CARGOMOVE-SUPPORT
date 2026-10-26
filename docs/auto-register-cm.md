@@ -120,6 +120,19 @@ work, so a completed manual registration cannot block another Pending asset.
 Group messages name the registrations actually handled; database admission
 failures carry a safe diagnostic code rather than a generic success or skip.
 
+A CargoMove `not_processed` file is an accepted upload waiting for processing.
+If the processing scheduler fails before its dispatch marker (for example, its
+separate login fails), the upload remains `UPLOADED` and retains that diagnostic
+for a later continuation. An identified waiting/processing file does not become
+`UNKNOWN` just because ten minutes elapsed. A successful dispatch is never
+repeated while waiting for CargoMove's result.
+
+Migration `20261026070000_registration_upload_scheduler_recovery.sql` adds
+lease-protected recovery for older uploads incorrectly marked `UNKNOWN`: the
+server must find the exact file still waiting, and the linked scheduler audit
+must prove `FAILED` with no dispatch. Uncertain or dispatched requests retain
+their replay protection. This migration never triggers a scheduler or sends mail.
+
 The page has two registration tabs. **Scheduled registrations** shows queued
 items as `SCHEDULED` and safe first failures as `RE-SCHEDULED`; hovering the
 second tag explains the first failure. After a second failure, the registration

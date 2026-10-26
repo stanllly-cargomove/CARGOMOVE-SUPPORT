@@ -472,6 +472,71 @@ test('merged uploads filter incomplete references, share a single file and stay 
   }
 });
 
+test('an accepted file survives scheduler login failure and recovers only a proven failure before dispatch', async () => {
+  const f = await fixture();
+  const previous = { ...process.env };
+  process.env.SCHEDULER_PORTAL_URL = 'https://portal.example.test'; process.env.CARGOMOVE_USERNAME = 'fixture'; process.env.CARGOMOVE_PASSWORD = 'fixture';
+  let uploads = 0, runs = 0, failedRun = '', ready = false;
+  try {
+    for (const name of ['20261025010000_registration_upload_batches.sql', '20261026070000_registration_upload_scheduler_recovery.sql'])
+      await f.db.exec(readFileSync(new URL('../supabase/migrations/' + name, import.meta.url), 'utf8'));
+    const handler = createRegistrationUploadsHandler({ adminClient: () => f.client as any,
+      readSession: () => ({ id: actor, email: 'admin@example.test', type: 'ADMIN', exp: Date.now() + 60000 }),
+      uploadWorkbook: async (_credentials, _job, _buffer, before) => { uploads++; await before(); return { state: 'UPLOADED', message: 'Accepted' }; },
+      verifyWorkbook: async () => ({ state: 'PROCESSING', readyForScheduler: ready, uploadId: 'exact-accepted-file', message: 'File uploaded. Waiting for CargoMove processing.' }),
+      runScheduler: async (_req: any, res: any) => {
+        runs++;
+        if (runs > 1) return res.json({ status: 'trigger_requested' });
+        const acquired = await f.rpc('acquire_saved_cargomove_scheduler', { p_actor: actor, p_scheduler_id: scheduler });
+        assert.equal(acquired.error, null); failedRun = acquired.data.id;
+        await f.rpc('finish_cargomove_scheduler', { p_id: failedRun, p_status: 'FAILED', p_message: 'CargoMove login failed or requires additional authentication.' });
+        return res.status(502).json({ status: 'failed', executionId: failedRun, message: 'CargoMove login failed or requires additional authentication.' });
+      },
+    });
+    const call = async (body: any) => { const res = response(); await handler({ method: 'POST', body,
+      headers: { origin: 'https://portal.example.test', 'x-cargomove-confirm': 'registration-upload' } }, res); return res; };
+    const started = await call({ action: 'start', submissionId: 'driver' });
+    const jobId = started.body.submission.cargomove_upload.id;
+    const alreadyProcessing = await call({ action: 'check', jobId });
+    assert.equal(alreadyProcessing.body.submission.cargomove_upload.state, 'UPLOADED', 'CargoMove can start processing through its own worker without our dispatch');
+    assert.equal(runs, 0);
+    ready = true;
+    const failedLogin = await call({ action: 'check', jobId });
+    assert.equal(failedLogin.body.submission.cargomove_upload.state, 'UPLOADED');
+    assert.match(failedLogin.body.submission.cargomove_upload.message, /login failed/);
+    assert.equal(failedLogin.body.deferred, true, 'Do not retry the same failed login in a tight loop');
+    assert.equal(uploads, 1);
+
+    // Reproduce the old deployment's incorrect UNKNOWN state after that login failure.
+    const lease = await f.rpc('claim_registration_upload_batch', { p_actor: actor, p_id: jobId });
+    await f.rpc('transition_registration_upload_batch', { p_id: jobId, p_token: lease.data.token, p_state: 'DISPATCHING', p_message: 'Old dispatch marker' });
+    await f.rpc('transition_registration_upload_batch', { p_id: jobId, p_token: lease.data.token, p_state: 'UNKNOWN', p_message: 'Old uncertain classification', p_scheduler_run_id: failedRun });
+    const wrongLease = await f.rpc('recover_registration_upload_scheduler_failure', { p_id: jobId, p_token: actor });
+    assert.match(wrongLease.error?.message || '', /lease expired/i);
+    const recovered = await call({ action: 'check', jobId });
+    assert.equal(recovered.body.submission.cargomove_upload.state, 'PROCESSING');
+    assert.equal(runs, 2, 'A known failure before dispatch can request processing of the same file');
+    assert.equal(uploads, 1, 'Recovery never uploads the workbook again');
+
+    await f.db.query("update registration_uploads set created_at=now()-interval '20 minutes' where id=$1", [jobId]);
+    const waiting = await call({ action: 'check', jobId });
+    assert.equal(waiting.body.submission.cargomove_upload.state, 'PROCESSING', 'not_processed remains waiting even after ten minutes');
+    assert.equal(runs, 2, 'A processing request is not repeated just because the file remains waiting');
+
+    const uncertainLease = await f.rpc('claim_registration_upload_batch', { p_actor: actor, p_id: jobId });
+    await f.rpc('transition_registration_upload_batch', { p_id: jobId, p_token: uncertainLease.data.token, p_state: 'UNKNOWN', p_message: 'A genuinely uncertain dispatch' });
+    await f.db.query("update cargomove_scheduler_runs set dispatch_at=now() where id=$1", [failedRun]);
+    const uncertain = await call({ action: 'check', jobId });
+    assert.equal(uncertain.body.submission.cargomove_upload.state, 'UNKNOWN');
+    assert.equal(runs, 2, 'A recorded dispatch is never repeated automatically');
+    assert.equal(uploads, 1);
+    assert.equal((await f.db.query<any>(`select has_function_privilege('authenticated','recover_registration_upload_scheduler_failure(uuid,uuid)','EXECUTE') as allowed`)).rows[0].allowed, false);
+  } finally {
+    for (const key of ['SCHEDULER_PORTAL_URL', 'CARGOMOVE_USERNAME', 'CARGOMOVE_PASSWORD']) if (previous[key] === undefined) delete process.env[key]; else process.env[key] = previous[key];
+    await f.db.close();
+  }
+});
+
 test('manual completion reconciles stale scheduling and unblocks the remaining Pending workbook', async () => {
   const f = await fixture();
   try {

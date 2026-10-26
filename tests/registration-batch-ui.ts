@@ -76,19 +76,49 @@ try {
   };
   await page.route('**/*', handleRoute);
   await page.goto('http://batch.test');
+  await page.getByRole('button', { name: 'Simulate', exact: true }).click();
+  await page.getByRole('menu', { name: 'Simulation result', exact: true }).getByRole('menuitem', { name: 'Success', exact: true }).click();
+  const simulatedProgress = page.getByRole('dialog', { name: 'Registering in CargoMove', exact: true });
+  await simulatedProgress.waitFor();
+  await simulatedProgress.getByRole('button', { name: 'Review 2 Emails', exact: true }).click();
+  const simulationPreview = page.getByRole('dialog', { name: 'Registration Email Preview', exact: true });
+  await simulationPreview.waitFor();
+  await simulationPreview.getByText('Temporary simulation only. No CargoMove upload, registration update, or email delivery occurred.', { exact: true }).waitFor();
+  assert.equal(await simulationPreview.getByRole('button', { name: 'Simulation', exact: true }).isDisabled(), true);
+  assert.equal(starts, 0, 'The temporary simulation must not start a CargoMove upload');
+  assert.equal(sends, 0, 'The temporary simulation must not send email');
+  await simulationPreview.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await page.getByRole('button', { name: 'Simulate', exact: true }).click();
+  await page.getByRole('menu', { name: 'Simulation result', exact: true }).getByRole('menuitem', { name: 'Failure', exact: true }).click();
+  await simulatedProgress.getByText('Registration failed', { exact: true }).waitFor();
+  await simulatedProgress.getByText('2 registrations could not be completed. Review the result in the queue.', { exact: true }).waitFor();
+  await simulatedProgress.getByRole('button', { name: 'Return to Queue', exact: true }).click();
+  await simulatedProgress.waitFor({ state: 'hidden' });
+  assert.equal(await simulationPreview.count(), 0, 'A fully failed simulation must not open an email preview');
+  await page.getByRole('button', { name: 'Simulate', exact: true }).click();
+  await page.getByRole('menu', { name: 'Simulation result', exact: true }).getByRole('menuitem', { name: 'Mixed result', exact: true }).click();
+  await simulatedProgress.getByText('Registration partially completed', { exact: true }).waitFor();
+  await simulatedProgress.getByRole('button', { name: 'Review Email', exact: true }).click();
+  await simulationPreview.waitFor();
+  await simulationPreview.getByText('Temporary mixed-result simulation', { exact: false }).waitFor();
+  await simulationPreview.getByRole('button', { name: 'Cancel', exact: true }).click();
+  assert.equal(starts, 0, 'All temporary simulation outcomes must avoid CargoMove uploads');
+  assert.equal(sends, 0, 'All temporary simulation outcomes must avoid email delivery');
   const selectAll = async () => { for (const checkbox of await page.locator('tbody input[type="checkbox"]').all()) await checkbox.check(); };
   const openBulkMenu = async () => {
     await page.getByRole('button', { name: 'More registration actions', exact: true }).hover();
     assert.equal(await page.getByRole('menu').isVisible(), true, 'Hover opens the menu immediately');
   };
   await page.getByText('CMREG400001', { exact: true }).filter({ visible: true }).waitFor();
-  assert.equal(await page.getByRole('button', { name: 'REGISTER & EMAIL', exact: true }).locator('svg').count(), 0,
+  assert.equal(await page.getByRole('button', { name: 'AUTO REGISTER', exact: true }).locator('svg').count(), 0,
     'Queue registration action buttons must not show an Excel icon');
-  await page.getByRole('button', { name: 'REGISTER & EMAIL', exact: true }).hover();
-  await page.getByRole('tooltip', {
+  await page.getByRole('button', { name: 'AUTO REGISTER', exact: true }).hover();
+  const autoRegisterTooltip = page.getByRole('tooltip', {
     name: 'Uploads the selected registrations to CargoMove for processing. After verification, you can preview and send the completion email.',
     exact: true,
-  }).waitFor();
+  });
+  await autoRegisterTooltip.waitFor();
+  await autoRegisterTooltip.getByText('AUTO REGISTER', { exact: true }).waitFor();
   const badgeFits = await page.locator('tbody tr').first().locator('td').nth(6).evaluate(td => {
     const badge = td.querySelector('span')!; const box = badge.getBoundingClientRect(), cell = td.getBoundingClientRect();
     return box.width >= 104 && box.left >= cell.left && box.right <= cell.right;
@@ -113,8 +143,18 @@ try {
   assert.equal(XLSX.utils.sheet_to_json(XLSX.read(await readFile((await draft.path())!)).Sheets.Sheet1).length, 3);
   assert.equal(starts, 0); assert.ok(submissions.every(sub => sub.status === 'PENDING'));
   const registrationDownload = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'REGISTER & EMAIL', exact: true }).click();
+  await page.getByRole('button', { name: 'AUTO REGISTER', exact: true }).click();
+  const registrationProgress = page.getByRole('dialog', { name: 'Registering in CargoMove', exact: true });
+  await registrationProgress.waitFor();
+  const progressBox = await registrationProgress.evaluate(element => ({ width: element.clientWidth, height: element.clientHeight }));
+  assert.ok(progressBox.width > 700, 'Registration progress uses the full email-preview dialog width');
+  const progressbar = registrationProgress.getByRole('progressbar', { name: 'Registration and email preparation progress', exact: true });
+  const firstProgress = Number(await progressbar.getAttribute('aria-valuenow'));
+  await page.waitForTimeout(120);
+  const laterProgress = Number(await progressbar.getAttribute('aria-valuenow'));
+  assert.ok(laterProgress > firstProgress, `Registration progress should advance smoothly (${firstProgress} -> ${laterProgress})`);
   assert.equal((await registrationDownload).suggestedFilename(), 'CMREG400001 - CMREG400002_DRIVER_ BY-cargomove-register.vercel.app.xlsx');
+  await registrationProgress.getByRole('button', { name: 'Continue to Email Setup', exact: true }).click();
   const codes = page.getByRole('dialog', { name: 'Batch email codes' }); await codes.waitFor();
   assert.equal(starts, 1); assert.ok(submissions.every(sub => sub.status === 'PENDING'));
   await page.getByText(/2 successful, 1 incomplete/).waitFor();
@@ -124,6 +164,16 @@ try {
   await codes.getByRole('combobox', { name: 'Batch email code' }).selectOption('DONE-2');
   await codes.getByRole('button', { name: 'Preview emails', exact: true }).click();
   const preview = page.getByRole('dialog', { name: 'Registration Email Preview' }); await preview.waitFor();
+  const previewBox = await preview.evaluate(element => ({ width: element.clientWidth, height: element.clientHeight }));
+  assert.ok(Math.abs(progressBox.width - previewBox.width) <= 1 && Math.abs(progressBox.height - previewBox.height) <= 1,
+    'Registration progress and email preview dialogs use the same dimensions');
+  const [emailCancelBox, emailSendBox] = await Promise.all([
+    preview.getByRole('button', { name: 'Cancel', exact: true }).boundingBox(),
+    preview.getByRole('button', { name: 'Send Email', exact: true }).boundingBox(),
+  ]);
+  assert.ok(emailCancelBox && emailSendBox && emailCancelBox.x < emailSendBox.x, 'Email preview Cancel stays left and Send Email stays right');
+  assert.ok(Math.abs(emailCancelBox.width - emailSendBox.width) <= 1 && Math.abs(emailCancelBox.height - emailSendBox.height) <= 1,
+    'Email preview Cancel and Send Email buttons use the same size');
   assert.ok(await preview.getByRole('navigation', { name: 'Email preview pagination' }).isVisible());
   await preview.getByRole('button', { name: 'Send Email', exact: true }).click();
   await page.getByText('Offline send failure', { exact: true }).waitFor();
@@ -220,11 +270,9 @@ try {
   await companyRow.locator('input[type="checkbox"]').check();
   const companyExportButton = page.getByRole('button', { name: 'MANUAL REGISTER', exact: true });
   const labelToDividerGap = await companyExportButton.evaluate(button => {
-    const textNode = Array.from(button.childNodes).find(node => node.nodeType === Node.TEXT_NODE && node.textContent?.trim());
-    if (!textNode) return -1;
-    const range = document.createRange();
-    range.selectNodeContents(textNode);
-    return button.getBoundingClientRect().right - range.getBoundingClientRect().right;
+    const visibleLabel = Array.from(button.querySelectorAll('span')).find(span => span.getBoundingClientRect().width > 0);
+    if (!visibleLabel) return -1;
+    return button.getBoundingClientRect().right - visibleLabel.getBoundingClientRect().right;
   });
   assert.ok(labelToDividerGap >= 12, `Manual Register label should have clear space before the divider (got ${labelToDividerGap}px)`);
   await companyExportButton.hover();
@@ -233,6 +281,7 @@ try {
     exact: true,
   });
   await companyExportTooltip.waitFor();
+  await companyExportTooltip.getByText('MANUAL REGISTER', { exact: true }).waitFor();
   const [companyExportBox, companyTooltipBox] = await Promise.all([
     companyExportButton.boundingBox(),
     companyExportTooltip.boundingBox(),

@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { RegistrationSubmission, RegistrationType, SubmissionStatus, Company, RejectionReason } from '../../types';
 import {
   getSubmissions,
@@ -41,6 +42,7 @@ import {
   Info,
   CircleCheck,
   CircleX,
+  Loader2,
 } from 'lucide-react';
 import { notifyError, notifySuccess, notifyWarning, summarizeError } from '../common/notifications';
 import { formatAdminDate } from '../../utils/date';
@@ -85,6 +87,105 @@ const VIEWPORT_EDGE_PADDING = 8;
 const PAGE_SIZE_OPTIONS = [20, 30, 50];
 const MINIMUM_VISIBLE_ROWS = 4;
 const SUBMISSION_ROW_HEIGHT = 56;
+const EMAIL_DIALOG_SHELL = 'flex h-[min(720px,92vh)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-2xl';
+type RegistrationNextStep = 'preview' | 'codes' | 'queue';
+
+type RegistrationProgressState = {
+  active: boolean;
+  complete: boolean;
+  message: string;
+  selectedCount: number;
+  successfulCount: number;
+  failedCount: number;
+  nextStep: RegistrationNextStep;
+};
+
+function RegistrationProgressModal({ progress, onProceed }: { progress: RegistrationProgressState; onProceed: () => void }) {
+  const reducedMotion = useReducedMotion();
+  const [displayed, setDisplayed] = useState(2);
+  const checking = /checking|verif/i.test(progress.message);
+  const target = progress.complete ? 100 : checking ? 88 : progress.message ? 62 : 28;
+
+  useEffect(() => {
+    if (reducedMotion) {
+      setDisplayed(target);
+      return;
+    }
+    const timer = window.setInterval(() => {
+      setDisplayed(current => {
+        if (current >= target) return current;
+        const distance = target - current;
+        return Math.min(target, current + (progress.complete ? Math.max(1, Math.min(4, distance * 0.16)) : Math.max(0.18, Math.min(0.9, distance * 0.06))));
+      });
+    }, 50);
+    return () => window.clearInterval(timer);
+  }, [progress.complete, reducedMotion, target]);
+
+  const percent = progress.complete && displayed >= 99.5 ? 100 : Math.min(99, Math.floor(displayed));
+  const result = progress.failedCount === 0 ? 'success' : progress.successfulCount === 0 ? 'failure' : 'mixed';
+  const statusMessage = progress.complete
+    ? result === 'success'
+      ? progress.nextStep === 'queue'
+        ? `${progress.successfulCount} registration${progress.successfulCount === 1 ? '' : 's'} verified, but an email preview is not available. Review the queue for details.`
+        : `${progress.successfulCount} registration${progress.successfulCount === 1 ? '' : 's'} verified. ${progress.nextStep === 'codes' ? 'Continue to select the email code.' : 'Your email preview is ready.'}`
+      : result === 'failure'
+        ? `${progress.failedCount} registration${progress.failedCount === 1 ? '' : 's'} could not be completed. Review the result in the queue.`
+        : `${progress.successfulCount} registration${progress.successfulCount === 1 ? '' : 's'} verified and ${progress.failedCount} failed. ${progress.nextStep === 'codes' ? 'Continue to select the email code for the successful registration.' : progress.nextStep === 'preview' ? 'The successful email preview is ready.' : 'Review the queue for details.'}`
+    : progress.message || 'Preparing the selected registrations...';
+  const resultTone = result === 'success'
+    ? { surface: 'bg-emerald-100 text-emerald-600 shadow-[0_0_0_12px_rgba(16,185,129,0.08)]', text: 'text-emerald-700', bar: 'bg-emerald-500', title: 'Registration successful' }
+    : result === 'failure'
+      ? { surface: 'bg-red-100 text-red-600 shadow-[0_0_0_12px_rgba(239,68,68,0.08)]', text: 'text-red-700', bar: 'bg-red-500', title: 'Registration failed' }
+      : { surface: 'bg-amber-100 text-amber-600 shadow-[0_0_0_12px_rgba(245,158,11,0.08)]', text: 'text-amber-700', bar: 'bg-amber-500', title: 'Registration partially completed' };
+
+  return (
+    <div className="fixed inset-0 z-[75] flex items-center justify-center bg-slate-900/55 p-4 backdrop-blur-xs">
+      <div role="dialog" aria-modal="true" aria-labelledby="registration-progress-title" className={EMAIL_DIALOG_SHELL}>
+        <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-4">
+          <div>
+            <h3 id="registration-progress-title" className="font-bold text-slate-900">Registering in CargoMove</h3>
+            <p className="mt-0.5 text-xs text-slate-500">{progress.selectedCount} selected registration{progress.selectedCount === 1 ? '' : 's'}</p>
+          </div>
+          <span className={`rounded-full px-3 py-1 text-[11px] font-semibold ${!progress.complete ? 'bg-blue-50 text-blue-700' : result === 'failure' ? 'bg-red-50 text-red-700' : result === 'mixed' ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>{progress.complete ? 'Result ready' : 'Please keep this window open'}</span>
+        </div>
+        <div className="relative flex flex-1 items-center justify-center overflow-hidden p-6 sm:p-10">
+          <AnimatePresence mode="wait" initial={false}>
+            {progress.complete ? (
+              <motion.div key="complete" initial={reducedMotion ? false : { opacity: 0, scale: 0.88 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: reducedMotion ? 0 : 0.35, ease: 'easeOut' }} className="w-full max-w-md text-center">
+                <motion.div initial={reducedMotion ? false : { scale: 0.65, rotate: -12 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: 'spring', stiffness: 260, damping: 18 }} className={`mx-auto flex h-24 w-24 items-center justify-center rounded-full ${resultTone.surface}`}>
+                  {result === 'success' ? <CircleCheck aria-hidden="true" className="h-12 w-12" /> : result === 'failure' ? <CircleX aria-hidden="true" className="h-12 w-12" /> : <AlertTriangle aria-hidden="true" className="h-12 w-12" />}
+                </motion.div>
+                <p className={`mt-7 text-lg font-bold ${resultTone.text}`}>{resultTone.title}</p>
+                <p className="mt-2 text-sm leading-6 text-slate-500">{statusMessage}</p>
+                <button type="button" onClick={onProceed} disabled={percent < 100} className={`mt-12 min-w-56 rounded-lg px-8 py-3 text-xs font-bold text-white shadow-sm transition disabled:cursor-wait disabled:opacity-50 ${result === 'failure' || progress.nextStep === 'queue' ? 'bg-slate-700 hover:bg-slate-800' : result === 'mixed' ? 'bg-amber-600 hover:bg-amber-700' : 'bg-emerald-600 hover:bg-emerald-700'}`}>
+                  {result === 'failure' || progress.nextStep === 'queue' ? 'Return to Queue' : progress.nextStep === 'codes' ? 'Continue to Email Setup' : `Review ${progress.successfulCount === 1 ? 'Email' : `${progress.successfulCount} Emails`}`}
+                </button>
+              </motion.div>
+            ) : (
+              <motion.div key="working" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={reducedMotion ? undefined : { opacity: 0, y: -8 }} className="w-full max-w-lg text-center">
+                <div className="relative mx-auto flex h-28 w-28 items-center justify-center">
+                  <motion.span aria-hidden="true" className="absolute inset-0 rounded-full border border-blue-200" animate={reducedMotion ? undefined : { scale: [0.82, 1.18], opacity: [0.7, 0] }} transition={{ duration: 1.6, repeat: Infinity, ease: 'easeOut' }}/>
+                  <span className="flex h-20 w-20 items-center justify-center rounded-full bg-blue-50 text-blue-600 shadow-[0_0_0_10px_rgba(59,130,246,0.06)]"><Loader2 aria-hidden="true" className={`h-9 w-9 ${reducedMotion ? '' : 'animate-spin'}`}/></span>
+                </div>
+                <h4 className="mt-6 text-lg font-bold text-slate-900">Processing your registrations</h4>
+                <p role="status" aria-live="polite" className="mt-2 min-h-10 text-sm leading-5 text-slate-500">{statusMessage}</p>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+        <div className="border-t border-slate-200 bg-slate-50 px-5 py-5">
+          <div role="progressbar" aria-label="Registration and email preparation progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent} aria-valuetext={`${percent}% estimated. ${statusMessage}`} className="relative h-3 overflow-hidden rounded-full bg-slate-200">
+            <motion.div initial={false} animate={{ width: `${displayed}%` }} transition={{ duration: reducedMotion ? 0 : 0.12, ease: 'linear' }} className={`h-full rounded-full ${progress.complete ? resultTone.bar : 'bg-gradient-to-r from-blue-500 via-sky-400 to-emerald-400'}`}/>
+            {!progress.complete && !reducedMotion && (
+              <motion.span aria-hidden="true" className="absolute inset-y-0 w-1/3 bg-gradient-to-r from-transparent via-white/55 to-transparent" initial={{ left: '-35%' }} animate={{ left: '100%' }} transition={{ duration: 1.25, repeat: Infinity, ease: 'linear' }}/>
+            )}
+          </div>
+          <div className="mt-2 flex items-center justify-between text-xs"><span className="text-slate-500">Upload · Process · Verify · Prepare email</span><span className="font-semibold tabular-nums text-slate-700">{percent}%</span></div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function defaultSortForStatus(status: SubmissionStatus): SubmissionSort {
   return status === 'PENDING' ? 'SUBMITTED_ASC' : 'SUBMITTED_DESC';
@@ -136,8 +237,9 @@ const registrationTypeTabs: Array<{ value: RegistrationType; label: string }> = 
 
 const MANUAL_REGISTER_TOOLTIP = 'Downloads the company registration Excel for manual processing. Selected submissions are moved to Closed/Done. No email is sent.';
 const REGISTER_AND_EMAIL_TOOLTIP = 'Uploads the selected registrations to CargoMove for processing. After verification, you can preview and send the completion email.';
-function QueueTooltip({ tooltip, children, className = 'relative inline-flex', placement = 'top' }: {
+function QueueTooltip({ tooltip, title, children, className = 'relative inline-flex', placement = 'top' }: {
   tooltip: string;
+  title?: string;
   children: React.ReactNode;
   className?: string;
   placement?: 'top' | 'right-lower';
@@ -170,7 +272,8 @@ function QueueTooltip({ tooltip, children, className = 'relative inline-flex', p
         <div id={tooltipId} role="tooltip"
           className={`pointer-events-none fixed z-[80] rounded-lg bg-slate-900 px-3 py-2 text-xs leading-5 text-white shadow-xl ${placement === 'top' ? '-translate-y-full' : ''}`}
           style={{ top: tooltipPosition.top, left: tooltipPosition.left, width: tooltipPosition.width }}>
-          {tooltip}
+          {title && <span aria-hidden="true" className="mb-0.5 block font-bold text-white">{title}</span>}
+          <span className="block text-slate-200">{tooltip}</span>
         </div>,
         document.body,
       )}
@@ -178,9 +281,9 @@ function QueueTooltip({ tooltip, children, className = 'relative inline-flex', p
   );
 }
 
-function QueuePrimaryAction({ tooltip, children }: { tooltip?: string; children: React.ReactNode }) {
+function QueuePrimaryAction({ tooltip, title, children }: { tooltip?: string; title?: string; children: React.ReactNode }) {
   if (!tooltip) return <div className="relative flex min-w-0 flex-1">{children}</div>;
-  return <QueueTooltip tooltip={tooltip} className="relative flex min-w-0 flex-1">{children}</QueueTooltip>;
+  return <QueueTooltip tooltip={tooltip} title={title} className="relative flex min-w-0 flex-1">{children}</QueueTooltip>;
 }
 
 function QueueMoreActions({ disabled, children }: {
@@ -275,6 +378,7 @@ function QueueMoreActions({ disabled, children }: {
 }
 
 export function SubmissionsList({ status, initialType = 'COMPANY', refreshVersion = 0 }: SubmissionsListProps) {
+  const reducedMotion = useReducedMotion();
   // Read browser storage once on entry, then only when the data actually changes.
   const [{ submissions, companies }, setSnapshot] = useState(() => ({
     submissions: getSubmissions(),
@@ -298,7 +402,8 @@ export function SubmissionsList({ status, initialType = 'COMPANY', refreshVersio
   }, [companies, submissions]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [exporting, setExporting] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState('');
+  const [registrationProgress, setRegistrationProgress] = useState<RegistrationProgressState>({ active: false, complete: false, message: '', selectedCount: 0, successfulCount: 0, failedCount: 0, nextStep: 'queue' });
+  const [simulationMenuOpen, setSimulationMenuOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<RegistrationType | 'ALL'>(initialType);
   const [portFilter, setPortFilter] = useState<string>('ALL');
@@ -322,6 +427,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY', refreshVersio
   const [savingCode, setSavingCode] = useState(false);
   const [submissionEmailPreviews, setSubmissionEmailPreviews] = useState<EmailPreview[]>([]);
   const [submissionEmailPreviewIndex, setSubmissionEmailPreviewIndex] = useState(0);
+  const [simulatingEmailPreview, setSimulatingEmailPreview] = useState(false);
   const [emailSendMode, setEmailSendMode] = useState<'SUBMISSION' | 'USER'>('SUBMISSION');
   const [sendingSubmissionEmail, setSendingSubmissionEmail] = useState(false);
   const [batchCodes, setBatchCodes] = useState<Array<CodeSelection & { templateId: string }>>([]);
@@ -331,6 +437,9 @@ export function SubmissionsList({ status, initialType = 'COMPANY', refreshVersio
     setSnapshot({ submissions: getSubmissions(), companies: getCompanies() });
     setEligibilityRefreshVersion(version => version + 1);
   };
+  const finishRegistrationProgress = React.useCallback(() => {
+    setRegistrationProgress(current => ({ ...current, active: false }));
+  }, []);
 
   React.useEffect(() => subscribeToStorage(refreshList), []);
 
@@ -382,8 +491,10 @@ export function SubmissionsList({ status, initialType = 'COMPANY', refreshVersio
     setAssignIdCompany(null);
     setIdFilter('ALL');
     setCodeSelection(null);
+    setRegistrationProgress(current => ({ ...current, active: false }));
     setSubmissionEmailPreviews([]);
     setSubmissionEmailPreviewIndex(0);
+    setSimulatingEmailPreview(false);
     setEmailSendMode('SUBMISSION');
     setSortBy(defaultSortForStatus(status));
     setCurrentPage(1);
@@ -531,6 +642,11 @@ export function SubmissionsList({ status, initialType = 'COMPANY', refreshVersio
   const primaryActionTooltip = companyManualRegistration
     ? MANUAL_REGISTER_TOOLTIP
     : status === 'PENDING' ? REGISTER_AND_EMAIL_TOOLTIP : undefined;
+  const primaryActionLabel = status === 'PENDING'
+    ? exporting
+      ? companyManualRegistration ? 'EXPORTING...' : 'UPLOADING & VERIFYING...'
+      : companyManualRegistration ? 'MANUAL REGISTER' : 'AUTO REGISTER'
+    : 'Export Excel';
 
   const handleCompanyManualRegistration = async (selectedSubs: RegistrationSubmission[]) => {
     const result = exportSubmissionsToExcel(selectedSubs, { downloadOnly: true });
@@ -643,19 +759,67 @@ export function SubmissionsList({ status, initialType = 'COMPANY', refreshVersio
     }
 
     setExporting(true);
-    const res = await generateRegistrationExcel(selectedSubs, setUploadProgress);
-    setExporting(false);
+    setRegistrationProgress({ active: true, complete: false, message: 'Preparing the selected registrations...', selectedCount: selectedSubs.length, successfulCount: 0, failedCount: 0, nextStep: 'queue' });
+    const res = await generateRegistrationExcel(selectedSubs, message => {
+      if (message) setRegistrationProgress(current => ({ ...current, message }));
+    });
     refreshList();
     if (res.downloaded.length) notifySuccess(`${res.downloaded.length} Company registration(s) downloaded. Complete their manual registration using the Register action.`);
     const summary = `${res.verified.length} successful, ${res.incompleteCount} incomplete.`;
     if (res.incompleteCount) notifyWarning(`${summary}\n${res.error.replaceAll(COMPANY_REGISTRATION_REQUIRED, 'Company must be registered.')}`);
     else if (res.verified.length) notifySuccess(summary);
+    let nextStep: RegistrationNextStep = 'queue';
     if (res.verified.length) {
       refreshList();
       setSelectedIds([]);
       const assets = res.verified.filter((submission) => submission.registration_type !== 'COMPANY');
-      if (assets.length) void openSubmissionBatchEmailPreview(assets, 'DONE');
+      if (assets.length) {
+        setRegistrationProgress(current => ({ ...current, message: 'Preparing the registration email preview...' }));
+        nextStep = await openSubmissionBatchEmailPreview(assets, 'DONE');
+      }
     }
+    setExporting(false);
+    setRegistrationProgress(current => ({ ...current, complete: true, successfulCount: res.verified.length, failedCount: res.incompleteCount, nextStep }));
+  };
+
+  const simulateRegistrationAndEmail = async (outcome: 'success' | 'failure' | 'mixed') => {
+    const wait = (milliseconds: number) => new Promise(resolve => window.setTimeout(resolve, milliseconds));
+    const successfulCount = outcome === 'failure' ? 0 : outcome === 'mixed' ? 1 : 2;
+    const failedCount = outcome === 'success' ? 0 : outcome === 'mixed' ? 1 : 2;
+    setSimulationMenuOpen(false);
+    setSimulatingEmailPreview(false);
+    setSubmissionEmailPreviews([]);
+    setRegistrationProgress({
+      active: true,
+      complete: false,
+      message: 'Preparing 2 selected registrations...',
+      selectedCount: 2,
+      successfulCount: 0,
+      failedCount: 0,
+      nextStep: 'queue',
+    });
+    await wait(900);
+    setRegistrationProgress(current => ({ ...current, message: 'Uploading the registration workbook to CargoMove...' }));
+    await wait(1100);
+    setRegistrationProgress(current => ({ ...current, message: 'Checking CargoMove processing and verifying registration results...' }));
+    await wait(1300);
+    setRegistrationProgress(current => ({ ...current, message: successfulCount ? 'Preparing email preview for successful registrations...' : 'Finalizing the registration results...' }));
+    await wait(800);
+    if (successfulCount) {
+      setSubmissionEmailPreviews([{
+        recipient: 'customer@example.com',
+        subject: outcome === 'mixed' ? 'CargoMove registration result' : 'CargoMove registration completed successfully',
+        body: `<p>Dear Customer,</p><p>${outcome === 'mixed' ? 'One selected registration was completed successfully; one requires review.' : 'Your CargoMove registration has been completed successfully.'}</p><p>This is a temporary simulation preview. No registration was uploaded and no email can be sent.</p>`,
+        templateName: outcome === 'mixed' ? 'Temporary mixed-result simulation' : 'Temporary success simulation',
+        templateCode: 'SIMULATION',
+        portId: 'Preview only',
+        previewToken: 'temporary-simulation',
+        attachments: [],
+      }]);
+      setSubmissionEmailPreviewIndex(0);
+      setSimulatingEmailPreview(true);
+    }
+    setRegistrationProgress(current => ({ ...current, complete: true, successfulCount, failedCount, nextStep: successfulCount ? 'preview' : 'queue' }));
   };
 
   const handleOpenAssignIdForSub = (sub: RegistrationSubmission) => {
@@ -684,6 +848,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY', refreshVersio
       const generated = userAcceptance
         ? await generateWelcomeEmailPreview(selection.linkedUserId!, template.id, selection.portId)
         : await generateSubmissionEmailPreview(selection.submission.id, selection.status, template.id, selection.portId);
+      setSimulatingEmailPreview(false);
       setSubmissionEmailPreviews([generated]);
       setSubmissionEmailPreviewIndex(0);
       setEmailSendMode(userAcceptance ? 'USER' : 'SUBMISSION');
@@ -778,7 +943,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY', refreshVersio
     }
   };
 
-  const openSubmissionBatchEmailPreview = async (selected: RegistrationSubmission[], outcome: 'DONE' | 'REJECTED') => {
+  const openSubmissionBatchEmailPreview = async (selected: RegistrationSubmission[], outcome: 'DONE' | 'REJECTED'): Promise<RegistrationNextStep> => {
     setSavingCode(true);
     try {
       const catalog = await getEmailTemplateCatalog();
@@ -792,11 +957,14 @@ export function SubmissionsList({ status, initialType = 'COMPANY', refreshVersio
           templates, templateId: templates.length === 1 ? templates[0].id : '', alreadyUpdated: outcome === 'DONE' });
       }
       if (incomplete.length) notifyWarning(`${incomplete.length} email(s) incomplete. ${incomplete.join('\n')}`);
-      if (!choices.length) return;
-      if (outcome === 'DONE' && choices.every(choice => choice.templateId)) await prepareBatchEmails(choices);
-      else { setBatchCodes(choices); setBatchCodePage(0); }
+      if (!choices.length) return 'queue';
+      if (outcome === 'DONE' && choices.every(choice => choice.templateId)) {
+        return await prepareBatchEmails(choices) ? 'preview' : 'queue';
+      }
+      setBatchCodes(choices); setBatchCodePage(0); return 'codes';
     } catch (error) {
       notifyError(error instanceof Error ? error.message : 'Unable to prepare the registration email.');
+      return 'queue';
     } finally { setSavingCode(false); }
   };
 
@@ -818,10 +986,12 @@ export function SubmissionsList({ status, initialType = 'COMPANY', refreshVersio
     }
     refreshList();
     setBatchCodes([]);
+    setSimulatingEmailPreview(false);
     setSubmissionEmailPreviews(previews); setSubmissionEmailPreviewIndex(0); setEmailSendMode('SUBMISSION');
     setSavingCode(false);
     if (incomplete.length) notifyWarning(`${previews.length} email preview(s) ready, ${incomplete.length} incomplete. ${incomplete.join('\n')}`);
     else if (choices[0]?.status === 'REJECTED') notifySuccess(`${choices.length} registration(s) moved to Rejected. Review the emails before sending.`);
+    return previews.length;
   };
 
   const submissionEmailPreview = submissionEmailPreviews[submissionEmailPreviewIndex] || null;
@@ -917,11 +1087,27 @@ export function SubmissionsList({ status, initialType = 'COMPANY', refreshVersio
   return (
     <div className="registration-queue space-y-4 md:space-y-6">
       <div>
-        <div>
+        <div className="flex items-start justify-between gap-3">
+          <div>
           <h2 className={`text-lg md:text-xl font-bold tracking-tight ${statusTitleColors[status]}`}>{statusTitles[status]}</h2>
           <p className="mt-1 text-[11px] leading-relaxed text-slate-500 md:text-xs">
             {statusDescriptions[status]}
           </p>
+          </div>
+          {status === 'PENDING' && (
+            <div className="relative shrink-0">
+              <button type="button" aria-label="Simulate" aria-haspopup="menu" aria-expanded={simulationMenuOpen} onClick={() => setSimulationMenuOpen(open => !open)} disabled={registrationProgress.active || exporting || savingCode} className="inline-flex h-7 items-center rounded-md border border-dashed border-blue-300 bg-blue-50 px-2 text-[9px] font-bold uppercase tracking-wide text-blue-700 transition hover:border-blue-400 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50" title="Temporary preview only — no data will be changed">
+                Simulate
+              </button>
+              {simulationMenuOpen && (
+                <div role="menu" aria-label="Simulation result" className="absolute right-0 top-full z-40 mt-1 w-40 overflow-hidden rounded-lg border border-slate-200 bg-white p-1 shadow-xl">
+                  <button role="menuitem" type="button" onClick={() => void simulateRegistrationAndEmail('success')} className="w-full rounded-md px-3 py-2 text-left text-xs font-semibold text-emerald-700 hover:bg-emerald-50">Success</button>
+                  <button role="menuitem" type="button" onClick={() => void simulateRegistrationAndEmail('failure')} className="w-full rounded-md px-3 py-2 text-left text-xs font-semibold text-red-700 hover:bg-red-50">Failure</button>
+                  <button role="menuitem" type="button" onClick={() => void simulateRegistrationAndEmail('mixed')} className="w-full rounded-md px-3 py-2 text-left text-xs font-semibold text-amber-700 hover:bg-amber-50">Mixed result</button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
       </div>
@@ -981,19 +1167,16 @@ export function SubmissionsList({ status, initialType = 'COMPANY', refreshVersio
               <option value="WITH_ID">WITH ID</option>
             </select>
           <div className="flex min-w-0 flex-1">
-            <QueuePrimaryAction tooltip={primaryActionTooltip}>
+            <QueuePrimaryAction tooltip={primaryActionTooltip} title={status === 'PENDING' ? companyManualRegistration ? 'MANUAL REGISTER' : 'AUTO REGISTER' : undefined}>
               <button
                 type="button"
                 onClick={handleBulkExport}
+                aria-label={primaryActionLabel}
                 aria-describedby={primaryActionTooltip ? 'queue-primary-action-tooltip' : undefined}
                 disabled={selectedIds.length === 0 || exporting || savingCode}
-                className="inline-flex h-9 min-w-0 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-l-lg bg-emerald-600 pl-2 pr-4 text-[10px] font-bold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40 sm:pl-3 sm:pr-5"
+                className="inline-flex h-9 min-w-0 flex-1 items-center justify-center overflow-hidden rounded-l-lg bg-emerald-600 px-1.5 text-[8px] font-bold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40 min-[420px]:px-2 min-[420px]:text-[9px] 2xl:px-5 2xl:text-[10px]"
               >
-                {status === 'PENDING'
-                  ? exporting
-                    ? (companyManualRegistration ? 'EXPORTING...' : 'UPLOADING & VERIFYING...')
-                    : companyManualRegistration ? 'MANUAL REGISTER' : 'REGISTER & EMAIL'
-                  : 'Export Excel'}
+                <span className="whitespace-nowrap text-center leading-none">{primaryActionLabel}</span>
               </button>
             </QueuePrimaryAction>
             <QueueMoreActions
@@ -1394,7 +1577,10 @@ export function SubmissionsList({ status, initialType = 'COMPANY', refreshVersio
       )}
 
       {/* Submission Detail Modal */}
-      {uploadProgress && <p role="status" className="text-xs text-blue-700">{uploadProgress}</p>}
+      {registrationProgress.active && createPortal(
+        <RegistrationProgressModal progress={registrationProgress} onProceed={finishRegistrationProgress} />,
+        document.body,
+      )}
       <SubmissionDetailModal
         submission={submissions.find(sub => sub.id === activeSubmission?.id) || activeSubmission}
         isOpen={!!activeSubmission}
@@ -1486,22 +1672,23 @@ export function SubmissionsList({ status, initialType = 'COMPANY', refreshVersio
         </div>
       </div>}
 
-      {submissionEmailPreview && (
+      {submissionEmailPreview && !registrationProgress.active && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 p-4 backdrop-blur-xs">
-          <div role="dialog" aria-modal="true" aria-labelledby="submission-email-preview-title" className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-2xl">
+          <motion.div role="dialog" aria-modal="true" aria-labelledby="submission-email-preview-title" initial={reducedMotion ? false : { opacity: 0, scale: 0.98, y: 8 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={{ duration: reducedMotion ? 0 : 0.25, ease: 'easeOut' }} className={EMAIL_DIALOG_SHELL}>
             <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-4">
-              <div><h3 id="submission-email-preview-title" className="font-bold text-slate-900">Registration Email Preview</h3><p className="mt-0.5 text-xs text-slate-500">{submissionEmailPreview.templateCode ? `${submissionEmailPreview.templateCode} — ` : ''}{submissionEmailPreview.templateName}{submissionEmailPreview.portId ? ` · ${submissionEmailPreview.portId}` : ''}</p></div>
-              <button type="button" onClick={() => setSubmissionEmailPreviews([])} disabled={sendingSubmissionEmail} aria-label="Close email preview" className="rounded-lg p-1 text-slate-400 hover:text-slate-700"><X className="h-5 w-5" /></button>
+              <div><div className="flex items-center gap-2"><h3 id="submission-email-preview-title" className="font-bold text-slate-900">Registration Email Preview</h3>{simulatingEmailPreview && <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-blue-700">Simulation</span>}</div><p className="mt-0.5 text-xs text-slate-500">{submissionEmailPreview.templateCode ? `${submissionEmailPreview.templateCode} — ` : ''}{submissionEmailPreview.templateName}{submissionEmailPreview.portId ? ` · ${submissionEmailPreview.portId}` : ''}</p></div>
+              <button type="button" onClick={() => { setSubmissionEmailPreviews([]); setSimulatingEmailPreview(false); }} disabled={sendingSubmissionEmail} aria-label="Close email preview" className="rounded-lg p-1 text-slate-400 hover:text-slate-700"><X className="h-5 w-5" /></button>
             </div>
             <div className="space-y-4 overflow-y-auto p-5">
+              {simulatingEmailPreview && <p role="note" className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-800">Temporary simulation only. No CargoMove upload, registration update, or email delivery occurred.</p>}
               <label className="block text-xs font-semibold text-slate-700">To<input value={submissionEmailPreview.recipient} readOnly className="mt-1.5 w-full rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 font-normal text-slate-700" /></label>
               <label className="block text-xs font-semibold text-slate-700">Subject<input value={submissionEmailPreview.subject} onChange={(event) => updateSubmissionEmailPreview((current) => ({ ...current, subject: event.target.value }))} className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" /></label>
               {submissionEmailPreview.attachments.map((attachment) => <div key={attachment.path} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs"><span className="flex min-w-0 items-center gap-3"><PdfAttachmentIcon /><span className="min-w-0"><span className="block text-slate-500">Attachment</span><strong className="block truncate text-slate-800" title={attachment.name}>{attachment.name}</strong></span></span>{attachment.path.startsWith('/api/email/submission-attachment') && <span className="flex shrink-0 gap-3"><a href={attachment.path} target="_blank" rel="noreferrer" className="font-semibold text-blue-600 hover:text-blue-800">View</a><a href={`${attachment.path}&download=1`} className="font-semibold text-blue-600 hover:text-blue-800">Download</a></span>}</div>)}
               <div className="text-xs font-semibold text-slate-700">Message<RichTextEmailEditor value={submissionEmailPreview.body} onChange={(body) => updateSubmissionEmailPreview((current) => ({ ...current, body }))} minHeightClassName="min-h-64" /></div>
             </div>
-            <div className="relative flex flex-col items-center gap-3 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:justify-end">
+            <div className="flex flex-col items-center gap-3 border-t border-slate-200 bg-slate-50 px-5 py-4">
               {submissionEmailPreviews.length > 1 && (
-                <nav className="flex items-center gap-1 sm:absolute sm:left-1/2 sm:-translate-x-1/2" aria-label="Email preview pagination">
+                <nav className="flex items-center justify-center gap-1" aria-label="Email preview pagination">
                   <button
                     type="button"
                     onClick={() => setSubmissionEmailPreviewIndex((index) => Math.max(0, index - 1))}
@@ -1534,12 +1721,12 @@ export function SubmissionsList({ status, initialType = 'COMPANY', refreshVersio
                   </button>
                 </nav>
               )}
-              <div className="flex gap-2 sm:ml-auto">
-                <button type="button" onClick={() => setSubmissionEmailPreviews([])} disabled={sendingSubmissionEmail} className="rounded-lg px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200">Cancel</button>
-                <button type="button" onClick={() => void sendAssetRegistrationEmail()} disabled={sendingSubmissionEmail} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-60"><Mail className="h-4 w-4" />{sendingSubmissionEmail ? 'Sending...' : 'Send Email'}</button>
+              <div className="flex w-full items-center justify-between gap-3">
+                <button type="button" onClick={() => { setSubmissionEmailPreviews([]); setSimulatingEmailPreview(false); }} disabled={sendingSubmissionEmail} className="inline-flex h-10 w-32 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-100 disabled:opacity-60 sm:w-36">Cancel</button>
+                <button type="button" onClick={() => { if (!simulatingEmailPreview) void sendAssetRegistrationEmail(); }} disabled={sendingSubmissionEmail || simulatingEmailPreview} className="inline-flex h-10 w-32 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-xs font-bold text-white shadow-sm hover:bg-blue-700 disabled:opacity-60 sm:w-36"><Mail className="h-4 w-4" />{simulatingEmailPreview ? 'Simulation' : sendingSubmissionEmail ? 'Sending...' : 'Send Email'}</button>
               </div>
             </div>
-          </div>
+          </motion.div>
         </div>
       )}
     </div>

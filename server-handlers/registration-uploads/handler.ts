@@ -10,7 +10,7 @@ import { COMPANY_REGISTRATION_REQUIRED } from '../../shared/registration-eligibi
 import { registrationUploadBlockReason } from './eligibility.js';
 
 type Job = { id: string; submission_id: string; entity: string; scheduler_id: string; state: string; filename: string;
-  expected_rows: number; upload_id?: string; updated_at: string; created_at: string; success_count?: number; error_count?: number };
+  expected_rows: number; upload_id?: string; scheduler_run_id?: string; updated_at: string; created_at: string; success_count?: number; error_count?: number };
 const dependencies = { adminClient, readSession, uploadWorkbook, verifyWorkbook, runScheduler };
 
 export function createRegistrationUploadsHandler(deps = dependencies, options: { deadline?: number } = {}) {
@@ -174,6 +174,18 @@ export function createRegistrationUploadsHandler(deps = dependencies, options: {
         await transition(result.state, result.message, extra(result));
         return reply();
       }
+      // Recover only a proven pre-dispatch scheduler failure, after the exact
+      // accepted file is found still waiting. An ambiguous dispatch stays locked.
+      if (job.state === 'UNKNOWN' && result.readyForScheduler && job.scheduler_run_id) {
+        const recovered = await client.rpc<Job>('recover_registration_upload_scheduler_failure', { p_id: job.id, p_token: token });
+        if (recovered.error) return fail(503, 'Unable to reconcile the saved scheduler failure. Apply the registration-upload scheduler recovery migration.');
+        if (recovered.data) job = recovered.data;
+      }
+      if (job.state === 'UNKNOWN') {
+        await transition('UNKNOWN', result.retryable ? result.message
+          : 'The existing file was checked, but its earlier scheduler dispatch remains uncertain. No scheduler was requested again.', extra(result));
+        return reply(5000, undefined, true);
+      }
       // Only a known accepted upload can request a scheduler. UNKNOWN never redispatches.
       if (job.state === 'UPLOADED' && result.readyForScheduler) {
         const members = await client.from('registration_uploads').select('submission_id').eq('batch_id', job.id).timeout(8000);
@@ -189,8 +201,8 @@ export function createRegistrationUploadsHandler(deps = dependencies, options: {
         }
         const saved = await client.from('cargomove_schedulers').select('id,worker_name,enabled').eq('id', job.scheduler_id).timeout(8000).maybeSingle();
         if (saved.error || !saved.data?.enabled || saved.data.worker_name !== 'process_file_uploads') {
-          await transition('UNKNOWN', 'The saved file processing scheduler is unavailable or has changed target. Check the existing upload.');
-          return reply();
+          await transition('UPLOADED', 'File uploaded. Configure the saved process_file_uploads scheduler before processing can start.', extra(result));
+          return reply(5000, undefined, true, false, true);
         }
         if (options.deadline && Date.now() + 20_000 >= options.deadline) {
           await transition('UPLOADED', 'File uploaded. Processing will resume automatically because the execution time budget is nearly exhausted.', extra(result));
@@ -207,12 +219,20 @@ export function createRegistrationUploadsHandler(deps = dependencies, options: {
           await transition('PROCESSING', 'Processing requested. Waiting for this file’s verified result.', runExtra);
           return reply(5000);
         }
+        if (runExtra.p_scheduler_run_id && schedulerResponse.body?.status === 'failed') {
+          const audit = await client.from('cargomove_scheduler_runs').select('status,dispatch_at')
+            .eq('id', runExtra.p_scheduler_run_id).timeout(8000).maybeSingle();
+          if (!audit.error && audit.data?.status === 'FAILED' && audit.data.dispatch_at === null) {
+            await transition('UPLOADED', `File uploaded; the processing scheduler did not dispatch. ${String(schedulerResponse.body?.message || 'Check CargoMove scheduler access.').slice(0, 250)}`, runExtra);
+            return reply(10000, undefined, false, false, true);
+          }
+        }
         if ([409, 429].includes(schedulerResponse.code) && !executionId) {
           // Shared cooldown / another active request: no dispatch occurred for this job.
           // Unresolved global UNKNOWN outcomes need operator reconciliation.
           if (/uncertain|unknown/i.test(schedulerResponse.body?.message || '')) {
-            await transition('UNKNOWN', 'A scheduler request has an uncertain outcome. Check CargoMove before requesting another run.');
-            return reply();
+            await transition('UPLOADED', 'File uploaded. A previous shared scheduler request needs review before processing can be requested.');
+            return reply(10000, undefined, true, false, true);
           }
           await transition('UPLOADED', 'File uploaded. Waiting for the shared scheduler to become available.');
           return reply(schedulerResponse.code === 429 ? 30000 : 10000);
@@ -221,10 +241,11 @@ export function createRegistrationUploadsHandler(deps = dependencies, options: {
         return reply();
       }
       const waitingForListing = result.state === 'MISSING' && Date.now() - Date.parse(job.created_at) < 60000 && job.state === 'UPLOADED';
-      const timedOut = Date.now() - Date.parse(job.created_at) > 10 * 60000;
-      const nextState = waitingForListing ? 'UPLOADED' : result.state === 'UNKNOWN' || result.state === 'MISSING' || timedOut ? 'UNKNOWN' : 'PROCESSING';
-      await transition(nextState, timedOut && nextState === 'UNKNOWN'
-        ? 'CargoMove processing has not been confirmed. The registration remains Pending; check the existing file.' : result.message, extra(result));
+      // Age alone cannot turn an identified not_processed/processing file into
+      // UNKNOWN. CargoMove may legitimately wait for its own scheduled worker.
+      const nextState = waitingForListing || job.state === 'UPLOADED' && result.state === 'PROCESSING'
+        ? 'UPLOADED' : result.state === 'UNKNOWN' || result.state === 'MISSING' ? 'UNKNOWN' : 'PROCESSING';
+      await transition(nextState, result.message, extra(result));
       return reply(5000);
     } catch {
       // Persisted dispatch markers and leases prevent replay after an interrupted function.

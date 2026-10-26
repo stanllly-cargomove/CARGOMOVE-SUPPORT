@@ -369,7 +369,9 @@ export function createAutoRegisterCmHandler(deps = { adminClient, readSession, u
           'An existing CargoMove upload has an uncertain result. Review its audit before continuing; no file was uploaded again.');
         const pendingCount = states.filter((state: string) => !TERMINAL_UPLOAD.has(state)).length;
         return await finish('SUCCESS', { processed, success, failed: 0 }, pendingCount
-          ? `${pendingCount} registration(s) are awaiting confirmation from CargoMove. ${result.body?.blocked ? 'Processing is blocked; review the existing upload message.' : result.body?.deferred ? 'Progress was saved for automatic continuation.' : 'The execution time budget was reached; the existing uploads will resume automatically.'}`
+          ? `${pendingCount} registration(s) are awaiting confirmation from CargoMove. ${result.body?.blocked || result.body?.deferred
+            ? `${String(submissions[0]?.cargomove_upload?.message || 'Progress was saved.')} Processing will resume with the existing file.`
+            : 'The execution time budget was reached; the existing uploads will resume automatically.'}`
           : `${success} registration(s) were verified successfully in CargoMove.`);
       };
 
