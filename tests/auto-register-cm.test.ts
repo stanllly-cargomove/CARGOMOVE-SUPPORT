@@ -20,7 +20,7 @@ test('the deployed database client orders unattempted registrations first', asyn
   }
 });
 
-test('one automatic request verifies one batch without uploading again or linking untouched files', async () => {
+test('one automatic execution verifies trailer and vehicle batches without uploading again or linking untouched files', async () => {
   process.env.CRON_SECRET = 'offline-auto-register-secret';
   process.env.SCHEDULER_PORTAL_URL = 'https://portal.example.test';
   process.env.CARGOMOVE_USERNAME = 'offline'; process.env.CARGOMOVE_PASSWORD = 'offline';
@@ -76,9 +76,9 @@ test('one automatic request verifies one batch without uploading again or linkin
   const res = responseMock();
   await handler({ method: 'POST', body: {}, headers: { authorization: 'Bearer offline-auto-register-secret' } }, res);
   assert.equal(res.code, 200);
-  assert.equal(res.body.successCount, 1);
-  assert.deepEqual(verified, [subs[0].cargomove_upload.id]);
-  assert.deepEqual(links, [['s0']], 'The untouched second trailer belongs to a later batch/run');
+  assert.equal(res.body.successCount, 2);
+  assert.deepEqual(verified, [subs[0].cargomove_upload.id, subs[1].cargomove_upload.id]);
+  assert.deepEqual(links, [['s0'], ['s1']], 'The untouched second trailer belongs to a later batch/run');
 });
 
 function responseMock() {

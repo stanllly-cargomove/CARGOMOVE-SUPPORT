@@ -13,7 +13,7 @@ type Job = { id: string; submission_id: string; entity: string; scheduler_id: st
   expected_rows: number; upload_id?: string; updated_at: string; created_at: string; success_count?: number; error_count?: number };
 const dependencies = { adminClient, readSession, uploadWorkbook, verifyWorkbook, runScheduler };
 
-export function createRegistrationUploadsHandler(deps = dependencies) {
+export function createRegistrationUploadsHandler(deps = dependencies, options: { deadline?: number } = {}) {
   return async function registrationUploads(request: any, response: any) {
     response.setHeader('Cache-Control', 'no-store');
     const fail = (code: number, error: string, extra: Record<string, unknown> = {}) => response.status(code).json({ error, ...extra });
@@ -40,13 +40,13 @@ export function createRegistrationUploadsHandler(deps = dependencies) {
       if (result.error || !result.data) throw new Error();
       job = result.data;
     };
-    const reply = async (nextCheckMs = 3000, download?: { filename: string; base64: string }, blocked = false, retryable = false) => {
+    const reply = async (nextCheckMs = 3000, download?: { filename: string; base64: string }, blocked = false, retryable = false, deferred = false) => {
       const members = await client.from('registration_uploads').select('submission_id').eq('batch_id', job!.id).timeout(8000);
       const ids = members.data?.length ? members.data.map((member: any) => member.submission_id) : [job!.submission_id];
       const rows = await Promise.all(ids.map((id: string) => client.from('registration_submissions').select('*').eq('id', id).timeout(8000).maybeSingle()));
       if (members.error || rows.some((row: any) => row.error || !row.data)) return fail(503, 'Upload progress was saved, but the registration could not be refreshed. Check its existing upload.');
       // Lease tokens and upstream account/session data never reach the browser.
-      return response.status(200).json({ submission: rows[0].data, submissions: rows.map((row: any) => row.data), incomplete, registrationFailures, nextCheckMs, ...(download ? { download } : {}), ...(blocked ? { blocked: true } : {}), ...(retryable ? { retryable: true } : {}) });
+      return response.status(200).json({ submission: rows[0].data, submissions: rows.map((row: any) => row.data), incomplete, registrationFailures, nextCheckMs, ...(download ? { download } : {}), ...(blocked ? { blocked: true } : {}), ...(retryable ? { retryable: true } : {}), ...(deferred ? { deferred: true } : {}) });
     };
     try {
       if (body.action === 'start') {
@@ -141,7 +141,17 @@ export function createRegistrationUploadsHandler(deps = dependencies) {
       job = acquired.data.job;
       token = acquired.data.token;
       if (acquired.data.busy || !token || ['SUCCESS', 'FAILED'].includes(job.state)) return reply();
+      if (options.deadline && Date.now() + 15_000 >= options.deadline) {
+        await transition(job.state, 'The execution time budget is nearly exhausted. The saved upload will resume automatically.');
+        return reply(5000, undefined, false, false, true);
+      }
       const result = await deps.verifyWorkbook(credentials, job);
+      // A failed read does not make a known accepted upload uncertain. Preserve
+      // its durable state so a later read can verify it without uploading again.
+      if (result.retryable && ['UPLOADED', 'PROCESSING'].includes(job.state)) {
+        await transition(job.state, result.message);
+        return reply(5000, undefined, false, false, true);
+      }
       const extra = (value: Verification) => ({
         p_upload_id: value.uploadId ?? null, p_success_count: value.successCount ?? null, p_error_count: value.errorCount ?? null,
       });
@@ -166,6 +176,10 @@ export function createRegistrationUploadsHandler(deps = dependencies) {
         if (saved.error || !saved.data?.enabled || saved.data.worker_name !== 'process_file_uploads') {
           await transition('UNKNOWN', 'The saved file processing scheduler is unavailable or has changed target. Check the existing upload.');
           return reply();
+        }
+        if (options.deadline && Date.now() + 20_000 >= options.deadline) {
+          await transition('UPLOADED', 'File uploaded. Processing will resume automatically because the execution time budget is nearly exhausted.', extra(result));
+          return reply(5000, undefined, false, false, true);
         }
         await transition('DISPATCHING', 'Requesting the saved CargoMove file processing scheduler.', extra(result));
         const schedulerResponse = { code: 200, body: null as any, setHeader() {},

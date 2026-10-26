@@ -144,9 +144,12 @@ export function createAutoRegisterCmHandler(deps = { adminClient, readSession, u
       continuationToken: acquired.data.continuationToken || null, continuationDelayMs: acquired.data.continuationDelayMs || 5000 });
 
     const executionId = acquired.data.id;
-    // Leave enough headroom for a worst-case 65-second CargoMove browser step and
-    // Vercel response/audit writes. Durable state is resumed by the next trigger.
+    // Work through upload, processing and verification in this execution.
+    // Browser budgets shrink with the remaining time; final audit writes retain
+    // headroom before Vercel's hard timeout. Continuation is the fallback.
     const workDeadline = Date.now() + 100_000;
+    const browserBudget = (maximum: number) => Math.max(1_000, Math.min(maximum, workDeadline - Date.now() - 8_000));
+    let verifiedThisExecution = false;
     let emailCompleted = 0;
     const emailIssues = new Set<string>();
     const attemptedEmails = new Set<string>();
@@ -157,7 +160,7 @@ export function createAutoRegisterCmHandler(deps = { adminClient, readSession, u
       result.issues.forEach(issue => emailIssues.add(issue));
     };
     const finish = async (status: 'SUCCESS' | 'FAILED' | 'SKIPPED', counts: { processed: number; success: number; failed: number }, message: string, error?: string) => {
-      if (!automatic && status !== 'FAILED') await completeEmails();
+      if (status !== 'FAILED' && (!automatic || verifiedThisExecution)) await completeEmails();
       if (emailCompleted) {
         if (status === 'SKIPPED') status = 'SUCCESS';
         message += ` ${emailCompleted} acceptance email(s) completed; registrations moved to Done.`;
@@ -190,11 +193,11 @@ export function createAutoRegisterCmHandler(deps = { adminClient, readSession, u
       // opens the page. Its durable cursor resumes on the next bounded scan.
       await scheduleEligibleAutoRegistrations(client, session.id, { deadline: Math.min(workDeadline - 68_000, Date.now() + (automatic ? 5_000 : 20_000)) });
       if (automatic) {
-        // Email preparation/sending uses its own request, never the headroom
-        // left after CargoMove browser work.
+        // Recover emails left by earlier runs. Newly verified registrations
+        // also complete their email below if this execution has time remaining.
         await completeEmails();
-        if (attemptedEmails.size) return await finish('SUCCESS', { processed: 0, success: 0, failed: 0 },
-          'Acceptance email completion checked for verified registrations.');
+        if (emailIssues.size) return await finish('FAILED', { processed: 0, success: 0, failed: 0 },
+          'Acceptance email completion needs attention.');
       }
       if (Date.now() + 68_000 >= workDeadline) {
         return await finish('SKIPPED', { processed: 0, success: 0, failed: 0 },
@@ -202,12 +205,13 @@ export function createAutoRegisterCmHandler(deps = { adminClient, readSession, u
       }
       const systemReadSession = () => session;
       const systemScheduler = createSchedulerHandler({ adminClient: () => client, readSession: systemReadSession,
-        runAutomation: automatic ? (credentials, beforeDispatch, launch, _budget, target) =>
-          deps.runAutomation(credentials, beforeDispatch, launch, 30_000, target) : deps.runAutomation });
+        runAutomation: (credentials, beforeDispatch, launch, _budget, target) =>
+          deps.runAutomation(credentials, beforeDispatch, launch, browserBudget(30_000), target) });
       const uploads = createRegistrationUploadsHandler({ adminClient: () => client, readSession: systemReadSession,
-        uploadWorkbook: deps.uploadWorkbook,
-        verifyWorkbook: automatic ? (credentials, job) => deps.verifyWorkbook(credentials, job, undefined, 45_000) : deps.verifyWorkbook,
-        runScheduler: systemScheduler });
+        uploadWorkbook: (credentials, job, buffer, beforeUpload) =>
+          deps.uploadWorkbook(credentials, job, buffer, beforeUpload, undefined, browserBudget(65_000)),
+        verifyWorkbook: (credentials, job) => deps.verifyWorkbook(credentials, job, undefined, browserBudget(25_000)),
+        runScheduler: systemScheduler }, { deadline: workDeadline });
       const callUploads = async (payload: Record<string, unknown>) => {
         const captured = captureResponse();
         await uploads({ method: 'POST', body: payload, headers: { origin: internalOrigin(), 'sec-fetch-site': 'same-origin',
@@ -291,10 +295,11 @@ export function createAutoRegisterCmHandler(deps = { adminClient, readSession, u
         let submissions = result.body?.submissions || (result.body?.submission ? [result.body.submission] : []);
         let states = submissions.map((item: any) => item.cargomove_upload?.state).filter(Boolean);
         const jobId = submissions[0]?.cargomove_upload?.id;
-        while (!automatic && jobId && states.length && states.some((state: string) => !TERMINAL_UPLOAD.has(state))
-          && Date.now() + 68_000 < workDeadline) {
+        const checkReserve = 15_000;
+        while (jobId && states.length && !states.includes('UNKNOWN') && states.some((state: string) => !TERMINAL_UPLOAD.has(state))
+          && !result.body?.blocked && !result.body?.deferred && Date.now() + checkReserve < workDeadline) {
           await wait(Math.min(10_000, Math.max(1_000, Number(result.body?.nextCheckMs) || 3_000)));
-          if (Date.now() + 68_000 >= workDeadline) break;
+          if (Date.now() + checkReserve >= workDeadline) break;
           result = await callUploads({ action: 'check', jobId });
           if (result.code >= 400) break;
           submissions = result.body?.submissions || (result.body?.submission ? [result.body.submission] : submissions);
@@ -316,6 +321,7 @@ export function createAutoRegisterCmHandler(deps = { adminClient, readSession, u
         for (const submission of submissions) {
           const state = submission.cargomove_upload?.state;
           if (state !== 'SUCCESS' && state !== 'FAILED') continue;
+          if (state === 'SUCCESS') verifiedThisExecution = true;
           const saved = await client.from('auto_register_cm_scheduled_items').update({
             status: state === 'SUCCESS' ? 'SUCCESS' : 'FAILED',
             completed_at: new Date().toISOString(),
@@ -337,7 +343,7 @@ export function createAutoRegisterCmHandler(deps = { adminClient, readSession, u
           'An existing CargoMove upload has an uncertain result. Review its audit before continuing; no file was uploaded again.');
         const pendingCount = states.filter((state: string) => !TERMINAL_UPLOAD.has(state)).length;
         return await finish('SUCCESS', { processed, success, failed: 0 }, pendingCount
-          ? `${pendingCount} registration(s) are awaiting confirmation from CargoMove. The next ${automatic ? 'workflow request' : 'run'} will check the existing uploads.`
+          ? `${pendingCount} registration(s) are awaiting confirmation from CargoMove. ${result.body?.blocked ? 'Processing is blocked; review the existing upload message.' : result.body?.deferred ? 'Progress was saved for automatic continuation.' : 'The execution time budget was reached; the existing uploads will resume automatically.'}`
           : `${success} registration(s) were verified successfully in CargoMove.`);
       };
 
@@ -360,7 +366,6 @@ export function createAutoRegisterCmHandler(deps = { adminClient, readSession, u
         messages.push(result.message);
         if (result.error) errors.push(result.error);
         if (result.status === 'FAILED' || outcome !== 'FAILED' && result.status === 'SUCCESS') outcome = result.status;
-        if (automatic) break;
       }
       return await finish(outcome, totals, messages.join(' '), errors.join(' ') || undefined);
     } catch (error) {

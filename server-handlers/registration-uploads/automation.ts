@@ -4,7 +4,7 @@ import { launchBrowser, ORIGIN } from '../scheduler/automation.js';
 export type UploadIdentity = { entity: string; filename: string; upload_id?: string | null; expected_rows: number; existing_upload_ids?: string[]; upload_started_at?: string | null };
 export type UploadResult = { state: 'UPLOADED' | 'FAILED' | 'UNKNOWN'; message: string; retryable?: boolean };
 export type Verification = { state: 'SUCCESS' | 'FAILED' | 'PROCESSING' | 'UNKNOWN' | 'MISSING'; message: string;
-  uploadId?: string; successCount?: number; errorCount?: number; readyForScheduler?: boolean };
+  uploadId?: string; successCount?: number; errorCount?: number; readyForScheduler?: boolean; retryable?: boolean };
 type Credentials = { username: string; password: string };
 const ENTRY = `${ORIGIN}/administration/data_entry`;
 const UPLOAD = `${ORIGIN}/administration/data_entry_upload_ajax`;
@@ -103,7 +103,7 @@ async function portal<T>(credentials: Credentials, work: (page: Page, armUpload:
 }
 
 export async function uploadWorkbook(credentials: Credentials, job: UploadIdentity, buffer: Buffer,
-  beforeUpload: (evidence?: { existingUploadIds: string[]; startedAt: string }) => Promise<void>, launch = launchBrowser): Promise<UploadResult> {
+  beforeUpload: (evidence?: { existingUploadIds: string[]; startedAt: string }) => Promise<void>, launch = launchBrowser, budgetMs = 65000): Promise<UploadResult> {
   let dispatched = false;
   try {
     if (!['vehicle', 'trailer', 'driver'].includes(job.entity) || !/^[A-Za-z0-9_ .:\-]+\.xlsx$/.test(job.filename)) throw new Error();
@@ -131,7 +131,7 @@ export async function uploadWorkbook(credentials: Credentials, job: UploadIdenti
       if (response.ok() && [true, 1].includes(body?.state)) return { state: 'UPLOADED', message: 'File uploaded to CargoMove. Preparing processing.' };
       if (body?.state === false) return { state: 'FAILED', message: `Failed to upload this file in CargoMove. ${cleanMessage(body.message)}` };
       return { state: 'UNKNOWN', message: 'CargoMove upload acceptance could not be confirmed. Check the existing file before retrying.' };
-    }, launch);
+    }, launch, budgetMs);
   } catch {
     return dispatched
       ? { state: 'UNKNOWN', message: 'The CargoMove upload response was interrupted. Check the existing file before retrying.' }
@@ -148,6 +148,6 @@ export async function verifyWorkbook(credentials: Credentials, job: UploadIdenti
       return verifyUploadRows(data.results, job);
     }, launch, budgetMs);
   } catch {
-    return { state: 'UNKNOWN', message: 'CargoMove file verification is unavailable. The registration remains Pending; no file was uploaded again.' };
+    return { state: 'UNKNOWN', retryable: true, message: 'CargoMove file verification is temporarily unavailable. The existing upload will be checked again; no file was uploaded again.' };
   }
 }

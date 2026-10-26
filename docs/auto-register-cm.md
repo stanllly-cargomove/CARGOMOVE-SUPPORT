@@ -25,12 +25,19 @@ GitHub Actions calls `POST /api/scheduler/auto-register-cm` at minutes 7, 27 and
 execution. The workflow pins that window in its request body so a retry crossing
 the next window cannot create a new initial execution.
 
-An automatic request advances at most one upload batch: upload, or check/request
-CargoMove processing, or verify completion. Acceptance emails use a separate
-request. After saving its result, the server atomically persists a random
-continuation token if durable work remains. GitHub waits five seconds and follows
-that token with another HTTPS request, giving each step its own Vercel allowance.
-It does not wait for another scheduled event between these steps.
+An execution attempts the complete registration sequence for each selected asset
+batch as time permits: export Excel, upload, request CargoMove processing and poll the result.
+Automatic runs and manual Run Now continue checking the same saved upload inside
+that execution instead of stopping after the upload. Verified registrations also complete their acceptance
+email and move to Done if enough time remains. An execution works for up to
+100 seconds, reserving time for audit writes before Vercel's hard timeout.
+
+Only work that genuinely remains unfinished receives a persisted continuation
+token: for example, CargoMove is still processing, the time budget is exhausted,
+or its read-only listing is temporarily unavailable. GitHub follows that token
+after five seconds; Supabase Cron follows it on a later minute check. Both resume
+the saved upload without exporting/uploading it or dispatching processing again.
+They do not wait for another twenty-minute registration window between steps.
 
 Continuation admission rechecks the enabled flag and the shared execution lease.
 A token always identifies the same next execution. Repeated delivery recovers its
@@ -58,8 +65,8 @@ non-eligible. Verified uploads awaiting email are excluded. The page can also
 request discovery; opening it is not required for automatic runs.
 
 The handler processes only saved `SCHEDULED` queue items, in batches
-of up to 100 of one asset type. An automatic request advances one batch, while a
-manual invocation can visit multiple asset types if its time budget permits.
+of up to 100 of one asset type. Automatic and manual executions can visit multiple
+asset types if their time budget permits.
 Never-attempted and least-recently-attempted queue items
 come first, so slow uploads cannot starve other files. It may resume an unfinished registration-upload
 batch only when that batch belongs to a scheduled queue item. Manual **Run Now** consumes
@@ -159,9 +166,13 @@ handler and workflow. It adds persisted chain metadata/tokens and service-only
 admission, finish and remaining-work functions. Existing upload and email claims,
 retry limits, history and the enabled flag are preserved. No new API function is
 created. The worker remains HTTPS-only with no checkout, installation or build.
-Automatic verification has a 45-second browser budget, and its CargoMove scheduler
-request has a 30-second browser budget. These include browser startup; a browser
-that launches after its deadline is closed without performing work.
+Automatic verification has a maximum 25-second browser budget, and its CargoMove
+scheduler request has a maximum 30-second browser budget. Each shrinks with the
+execution's remaining time. Processing is deferred before dispatch if there is
+insufficient time to request it safely. Temporary read failures preserve an
+accepted upload's UPLOADED/PROCESSING state for later verification; unknown or
+partial CargoMove outcomes still require review. Browser budgets include startup;
+a browser that launches after its deadline closes without performing work.
 
 ## Independent initial delivery with Supabase Cron
 

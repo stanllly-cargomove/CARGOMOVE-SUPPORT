@@ -12,6 +12,7 @@ test('verification budget includes browser startup and closes a browser that lau
   const result = await verifyWorkbook({ username: 'fixture', password: 'fixture' },
     { entity: 'driver', filename: 'CMREG1_DRIVER.xlsx', expected_rows: 1 }, () => launched, 10);
   assert.equal(result.state, 'UNKNOWN');
+  assert.equal(result.retryable, true, 'A timed-out read can be retried without replaying an upload');
   resolveLaunch({ close: async () => { closed++; }, newContext() { throw new Error('Expired verification must not open a context'); } });
   await new Promise(resolve => setTimeout(resolve, 0));
   assert.equal(closed, 1);
