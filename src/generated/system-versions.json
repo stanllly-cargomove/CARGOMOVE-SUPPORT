@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "version": "1.13.7",
-  "updatedAt": "2026-10-26T17:16:04.794Z",
+  "version": "1.13.8",
+  "updatedAt": "2026-10-27T00:46:28.344Z",
   "entries": [
     {
       "id": "account-settings",
@@ -1129,11 +1129,34 @@
     "supabase/migrations/20261026060000_auto_register_cm_queue_completion.sql": "8d2f14feb745f8d34bd4c664e2ead5d761f8ceb2c2e571057feef1dc9126f027",
     "supabase/migrations/20261026070000_registration_upload_scheduler_recovery.sql": "ddabdfb8be11398332b45f79e42c6a9917c8d0d821590d1113448be8f2eee30b",
     "supabase/migrations/20261027000000_shared_developer_settings.sql": "9f73349d0f6bd7a40d130f95053a0d6bb792f7114f7cbedfcf1debe0858b69c5",
+    "supabase/migrations/20261027010000_northport_repeat_recovery.sql": "bf90ebeebba7da232d27d35eee4fcafa51c795edf09497fe3311edd90753588c",
     "supabase/patches/20261022_tclu2294366_success.sql": "6911436a7ea1747e566f735f85a863fcabaab7df69acee041ba1bedc2053fa85",
     "supabase/setup-auto-register-cm-cron.sql": "92c0c1074a9b00ad84b4cdf724d8754570fdadd72dc931aab14879c9838fb13f",
     "vite.config.ts": "167e03f4e2c3298d4e3cbe61c5c1f8712073bf15d56c63d992827e99d3b7601b"
   },
   "history": [
+    {
+      "sourceCommit": "53c9afa1234b5ec0c8ddf6ed9ee07af5c13ce2f0",
+      "pushedBy": "lumoratechent-beep",
+      "commits": [
+        {
+          "sha": "53c9afa1234b5ec0c8ddf6ed9ee07af5c13ce2f0",
+          "author": "cargomovemy",
+          "subject": "Allow repeated Northport recoveries"
+        }
+      ],
+      "authors": [
+        "cargomovemy"
+      ],
+      "version": "1.13.8",
+      "previousVersion": "1.13.7",
+      "date": "2026-10-27T00:46:28.344Z",
+      "summary": "Updated existing pages, tools or shared system files",
+      "files": [
+        "supabase/migrations/20261027010000_northport_repeat_recovery.sql"
+      ],
+      "changes": []
+    },
     {
       "sourceCommit": "8b9adc1aad2f991f1e38122ee2b5040ca505fa14",
       "pushedBy": "lumoratechent-beep",
