@@ -199,13 +199,16 @@ export function createNorthportHandler(deps = { adminClient, readSession, withFt
         response.setHeader('Content-Disposition',`attachment; filename="${source.filename}"`);
         return response.send(bytes);
       }
-      if (input.action === 'resume-approved') {
-        if (!uploadsEnabled()) throw new RecoveryError('Production uploads are disabled until all preproduction verification gates are confirmed.',403);
+      if (input.action === 'resume-approved' || input.action === 'prepare-retry') {
+        const retry = input.action === 'prepare-retry';
+        if (!(retry && input.edit === true) && !uploadsEnabled()) throw new RecoveryError('Production uploads are disabled until all preproduction verification gates are confirmed.',403);
         if (typeof input.id !== 'string' || !/^[a-f0-9-]{36}$/i.test(input.id)) throw new RecoveryError('Invalid recovery ID.');
-        const saved = await client.from('northport_recoveries').select('*').eq('id',input.id).eq('actor',session.id).eq('status','Approved').timeout(8000).maybeSingle();
+        const saved = await client.from('northport_recoveries').select(retry?'*,scheduler_run:cargomove_scheduler_runs(last_run_verification)':'*').eq('id',input.id).timeout(8000).maybeSingle();
         if (saved.error) throw new RecoveryError('Unable to load the approved recovery.',503);
         const recovery = saved.data;
-        if (!recovery || recovery.actor !== session.id || recovery.status !== 'Approved') throw new RecoveryError('Only your approved, not-yet-uploaded recovery can be resumed. Refresh history before continuing.',409);
+        if (retry) {
+          if (!recovery || recoveryFlow(recovery).label !== 'FAIL' || (input.edit !== true && (['Failed','Uploading','Approved'].includes(recovery.status) || ['unknown','Dispatching'].includes(recovery.scheduler_status)))) throw new RecoveryError('This attempt cannot be retried automatically. An uncertain upload or scheduler outcome requires operator review. No file was uploaded.',409);
+        } else if (!recovery || recovery.actor !== session.id || recovery.status !== 'Approved') throw new RecoveryError('Only your approved, not-yet-uploaded recovery can be resumed. Refresh history before continuing.',409);
         const info = filenameInfo(recovery.source_filename);
         if (!info) throw new RecoveryError('The approved source filename is invalid.',409);
         const original = await deps.withFtp(async (ftp,config) => { await ftp.cd(config.success); return download(ftp,recovery.source_filename); });
@@ -221,7 +224,7 @@ export function createNorthportHandler(deps = { adminClient, readSession, withFt
         const prepared = prepareReprocessFile(original,recovery.source_record,row,values);
         if (hash('northport-whole-file:' + digest + ':' + filename + ':' + hash(prepared.bytes)) !== recovery.approved_hash) throw new RecoveryError('Saved file does not match the approved recovery. No upload was started.',409);
         const source: Source = {actor:session.id,filename:recovery.source_filename,digest,expires:Date.now()+30*60000,...info,record:recovery.source_record,totalRecords:csv.rows.length,values:row,format:csv.format};
-        return response.json({id:recovery.id,token:sign(source),values,containerType:recovery.container_type,approved:true,identityConfirmed:true});
+        return response.json({id:recovery.id,token:sign(source),values,containerType:recovery.container_type,approved:true,identityConfirmed:true,...(retry?{match:{...source,token:sign(source)},searchSetup:recovery.search_setup}:{} )});
       }
       if (input.action === 'manual-review') {
         if (typeof input.id!=='string'||!/^[a-f0-9-]{36}$/i.test(input.id)||!['SUCCESS','FAIL'].includes(input.outcome)||typeof input.note!=='string'||input.note.trim().length<5||input.note.trim().length>1000

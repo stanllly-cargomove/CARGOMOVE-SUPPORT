@@ -94,6 +94,19 @@ function RecordActions({ disabled, onChoose }: { disabled: boolean; onChoose: (a
     </div>
   </>;
 }
+function RecoveryRetryButton({disabled,retryDisabled,onRetry,onEdit}:{disabled:boolean;retryDisabled:boolean;onRetry:()=>void;onEdit:()=>void}) {
+  const menuRef=useRef<HTMLDivElement>(null);
+  const [open,setOpen]=useState(false);
+  return <div className="inline-flex rounded-lg bg-emerald-600 shadow-sm">
+    <button type="button" disabled={disabled||retryDisabled} className={reprocessButtonClass+' rounded-r-none shadow-none'} onClick={onRetry}><RefreshCw aria-hidden="true" className="h-4 w-4"/>Retry Recovery</button>
+    <button type="button" aria-label="Retry recovery options" aria-haspopup="dialog" aria-expanded={open} disabled={disabled} className="inline-flex w-9 items-center justify-center rounded-r-lg border-l border-emerald-500 text-white hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-50" onClick={event=>{
+      const menu=menuRef.current;if(!menu)return;
+      if(menu.matches(':popover-open')){menu.hidePopover();return;}
+      const rect=event.currentTarget.getBoundingClientRect();menu.style.left=Math.max(8,Math.min(rect.right-192,window.innerWidth-200))+'px';menu.style.top=Math.max(8,rect.top-52)+'px';menu.showPopover();menu.querySelector('button')?.focus();
+    }}><MoreVertical aria-hidden="true" className="h-4 w-4"/></button>
+    <div ref={menuRef} popover="auto" role="dialog" aria-label="Retry recovery options" onToggle={()=>setOpen(menuRef.current?.matches(':popover-open')??false)} style={{position:'fixed',margin:0}} className="w-48 rounded-lg border border-slate-200 bg-white p-1.5 text-xs text-slate-700 shadow-xl"><button type="button" disabled={disabled} className="w-full rounded-md px-3 py-2 text-left hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" onClick={()=>{menuRef.current?.hidePopover();onEdit();}}>Search and re-edit</button></div>
+  </div>;
+}
 function FileEditorDialog({ children, busy, onClose, label = 'Container file editor', header, headerActions, footer, compact = false }: { children: React.ReactNode; busy: boolean; onClose: () => void; label?: string; header?: React.ReactNode; headerActions?: React.ReactNode; footer?: React.ReactNode; compact?: boolean }) {
   const ref=useRef<HTMLDialogElement>(null);
   const backdropPointerDown=useRef(false);
@@ -396,8 +409,26 @@ export function NorthportRecovery({ onBack, active = true }: { onBack: () => voi
         setMessage(response.ok?(data.message||'Northport processing requested.'):'Northport processing requested. GP verification unavailable; check GP from recovery details later.');
       } catch {setMessage('Northport processing requested. GP verification unavailable; check GP from recovery details later.');}
     };
+    let submissionMatch=selected;
+    let retryEditor:{match:Match;values:string[]}|null=null;
     try {
-      if(name==='retry-recovery') {
+      if(name==='retry-recovery'||name==='search-reedit') {
+        if(name==='retry-recovery'&&!enabled)throw new Error('Reprocessing is disabled until production uploads are verified.');
+        let response:Response;
+        for(let attempt=0;;attempt++) {
+          response=await fetch('/api/dev-tools/northport-recovery',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CargoMove-Confirm':'northport-recovery'},body:JSON.stringify({action:'prepare-retry',id:payload.recovery.id,edit:name==='search-reedit'}),signal:controller.signal});
+          if(response.status!==429||attempt>0)break;
+          await batchPause(5100,controller.signal);
+        }
+        const saved=await recoveryResponse(response);
+        if(!response.ok)throw new Error(saved.error||'Unable to restore the saved recovery.');
+        submissionMatch=saved.match;
+        if(name==='retry-recovery') {
+          payload={token:saved.token,values:saved.values,approved:true,identityConfirmed:true,searchSetup:saved.searchSetup};
+          name='approve-reprocess';
+        } else retryEditor={match:saved.match,values:saved.values};
+      }
+      if(name==='search-reedit') {
         const retry=recoveryRetrySetup(payload.recovery as Recovery);
         setHistoryDetail(null);setForm(retry.setup);setShowExactFilename(!!retry.setup.sourceFilename);
         setFilenameOptions(false);setSelected(null);setApproved(null);setResults([]);setSearchSummary(null);setDisplayProgress(0);
@@ -451,7 +482,7 @@ export function NorthportRecovery({ onBack, active = true }: { onBack: () => voi
       if(name==='approve-reprocess') {
         if(!enabled)throw new Error('Reprocess is disabled until production upload compatibility is verified.');
         const temporaryId=`requested-${Date.now()}`;
-        showRequested({id:temporaryId,container:payload.values[0],container_type:selected!.type,source_filename:selected!.filename,recovery_filename:'',submitted_by:'You',created_at:new Date().toISOString(),changed_fields:NORTHPORT_COLUMNS.filter((_,index)=>payload.values[index]!==selected!.values[index]),status:'Requested'});
+        showRequested({id:temporaryId,container:payload.values[0],container_type:submissionMatch!.type,source_filename:submissionMatch!.filename,recovery_filename:'',submitted_by:'You',created_at:new Date().toISOString(),changed_fields:NORTHPORT_COLUMNS.filter((_,index)=>payload.values[index]!==submissionMatch!.values[index]),status:'Requested'});
         setReprocessStarted(true);
         let approvalResponse:Response;
         for(let retry=0;;retry++) {
@@ -481,7 +512,7 @@ export function NorthportRecovery({ onBack, active = true }: { onBack: () => voi
           onUploaded:()=>{setRecoveryUploaded(true);setBusy('reprocess-wait');void loadHistory();},
           onScheduler:()=>{setBusy('reprocess-scheduler');},
         });
-        await checkGpAfterScheduler(approval.recovery.id,selected?.type);
+        await checkGpAfterScheduler(approval.recovery.id,submissionMatch?.type);
         setSelected(null);setApproved(null);setReview(false);
         return;
       }
@@ -499,6 +530,11 @@ export function NorthportRecovery({ onBack, active = true }: { onBack: () => voi
           setResults([...matches]);setSearchSummary({...data,mode:payload.mode,matches:[...matches],scannedFiles:[...scannedFiles],errors:[...errors],listed,candidates,complete:!cursor&&data.complete&&errors.length===0,scanning:!!cursor});
           if(cursor)await batchPause(5100,controller.signal);
         }while(cursor&&!controller.signal.aborted);
+        if(retryEditor) {
+          const match=matches.find(row=>row.filename===retryEditor!.match.filename&&row.record===retryEditor!.match.record)||retryEditor.match;
+          setDrafts({[match.filename+':'+match.record]:[...retryEditor.values]});
+          setSelected(match);setValues([...retryEditor.values]);setReview(false);setReprocessStarted(false);setRecoveryUploaded(false);setIdentityConfirmed(false);
+        }
         return;
       }
       if(name==='cancel'||name==='cancel-approved') {setSelected(null);setReview(false);setApproved(null);setHistoryDetail(null);}
@@ -680,7 +716,7 @@ export function NorthportRecovery({ onBack, active = true }: { onBack: () => voi
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" disabled={!!busy} className={secondaryClass+' mr-auto'} onClick={()=>setHistoryDetail(null)}>Close</button>
         {canManuallyReview(historyDetail,manualReviewEnabled)&&<RecoveryStatusMenu recovery={historyDetail} busy={!!busy} onSave={(outcome,note)=>void action('manual-review',{id:historyDetail.id,outcome,note,expectedReviewId:historyDetail.manual_review?.id||null})}/>}
-        {recoveryFlow(historyDetail).label==='FAIL'?<button type="button" disabled={!!busy} className={reprocessButtonClass} onClick={()=>void action('retry-recovery',{recovery:historyDetail})}><RefreshCw aria-hidden="true" className="h-4 w-4"/>Retry Recovery</button>:<>
+        {recoveryFlow(historyDetail).label==='FAIL'?<RecoveryRetryButton disabled={!!busy} retryDisabled={!enabled} onRetry={()=>void action('retry-recovery',{recovery:historyDetail})} onEdit={()=>void action('search-reedit',{recovery:historyDetail})}/>:<>
           {historyDetail.status==='Approved'&&recoveryFlow(historyDetail).label!=='CANCELLED'&&<button type="button" disabled={!!busy} className={cancelButtonClass} onClick={()=>void action('cancel-approved',{id:historyDetail.id})}>Cancel recovery</button>}
           {recoveryFlow(historyDetail).label==='PROCESSING'&&['Uploaded','Scheduler Triggered','Processing','Verification Unavailable'].includes(historyDetail.status)&&<button type="button" disabled={!!busy} className={buttonClass} onClick={()=>void action('verify-result',{id:historyDetail.id})}>{historyDetail.container_type==='GP'?'Check GP in CargoMove':'Check scheduler in CargoMove'}</button>}
           {historyDetail.status==='Approved'&&<button type="button" disabled={!enabled||!!busy} className={reprocessButtonClass} onClick={()=>setConfirmation({action:'resume-reprocess',container:historyDetail.container,payload:{id:historyDetail.id}})}><RefreshCw className="h-4 w-4"/>Resume reprocessing</button>}

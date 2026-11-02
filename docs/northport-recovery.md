@@ -4,11 +4,20 @@ Integrated location: **Admin Portal → Tools → NP Container**. Only the exist
 
 ## Deployment and configuration
 
+### Saved-edit retries (2 November 2026)
+
+Apply `20261102010000_northport_failed_recovery_retry.sql` before deploying this update. **Retry Recovery** now prepares the exact saved source record, checks the original file hash and approved whole-file hash, and submits a new approval using the saved `approved_values` and search settings. It then uploads, requests the scheduler and checks the result through the existing audited flow. Every earlier attempt stays in history. No search or repeated data entry is required.
+
+The three-dot button inside Retry Recovery offers **Search and re-edit**. It restores the search settings and opens the retained record with the saved edits after searching. The saved source token remains subject to fresh source-hash verification when approving or uploading. Older modified recoveries without approved values require operator review.
+
+Confirmed negative GP results, failed scheduler requests and completed EX requests with failed result verification release source/container admission for another approval. New active approvals remain unique; uncertain uploads (`Failed`/`Uploading`) and unknown or active scheduler dispatch keep their locks and cannot be retried automatically. An existing incoming FTP filename still blocks overwrite. No live database, FTP or scheduler operations were performed while developing this change.
+
+
 ### Retry searches, compact details and type-specific result checks
 
 Apply `20261021040000_northport_retry_search_setup.sql` before deploying this update. New approvals retain the validated EIR timestamp, before/after window, search mode and optional exact filename; the selected record supplies its actual container and GP/EX type. The retained snapshot comes from the search that produced the selected results, rather than later unsaved form edits.
 
-For a FAIL result, the popup footer contains only **Close** on the left and **Retry Recovery** on the right. Retry closes the popup, scrolls to the first search card, restores those settings, and repeats the read-only search after the shared request interval. A retry never uploads a file, dispatches a scheduler, deletes audit history, resets a failed upload or releases duplicate protection. New search results still require review and explicit approval, and an already-uploaded/uncertain attempt must still be reconciled before another upload. For older records without saved EIR/window settings, retry explicitly reports a fallback: search the exact retained source filename using its file timestamp and a 10-minute-before/30-minute-after window. It does not invent the original EIR time or silently claim a full-window scan.
+For a FAIL result, the popup footer contains **Close** on the left and **Retry Recovery** on the right, with a three-dot **Search and re-edit** option. Retry uses the saved approved edits as described above. Search and re-edit restores the original search settings and opens the saved record with its edits after the read-only search. For older records without saved EIR/window settings, it searches the exact retained source filename using its file timestamp and a 10-minute-before/30-minute-after window and reports that fallback. It does not invent the original EIR time or claim a full-window scan. Uncertain upload and scheduler outcomes still require reconciliation before another upload.
 
 The shared **verify-result** action handles GP by checking the exact Northport gatepass/container pair and EX by reading the associated scheduler's Last run against the saved pre-dispatch baseline and dispatch time. EX rechecking has a 45-second browser budget and blocks scheduler execution URLs; it never invokes a task. Processing popups show **Check GP in CargoMove** or **Check scheduler in CargoMove** according to type. FAIL popups omit both checks. The old GP-only action remains compatible with the automatic GP workflow.
 

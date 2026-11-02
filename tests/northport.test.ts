@@ -391,6 +391,17 @@ test('resume restores approved edits, verifies the original whole file, and neve
     h.setProfile({...recovery,actor:'other'});assert.equal((await h.call({action:'resume-approved',id})).code,409);
     h.setProfile({...recovery,approved_values:null});assert.equal((await h.call({action:'resume-approved',id})).code,409);
     h.setProfile({...recovery,approved_hash:'tampered'});assert.equal((await h.call({action:'resume-approved',id})).code,409);
+    h.setProfile({...recovery,container_type:'GP',status:'Scheduler Triggered',gp_verification:{status:'NOT_FOUND'}});
+    const retry=await h.call({action:'prepare-retry',id});
+    assert.equal(retry.code,200);assert.deepEqual(retry.body.values,payload.values);
+    assert.equal(retry.body.match.record,recovery.source_record);assert.equal(retry.body.match.filename,gpName);
+    assert.equal(h.schedulerCalls,0,'Retry preparation never dispatches');
+    for(const extra of [{status:'Failed'},{status:'Uploading'},{status:'Scheduler Triggered',scheduler_status:'unknown'},{status:'Scheduler Triggered',scheduler_status:'Dispatching'},{status:'Import Verified',gp_verification:{status:'VERIFIED'}}]) {
+      h.setProfile({...recovery,container_type:'GP',gp_verification:{status:'NOT_FOUND'},...extra});
+      assert.equal((await h.call({action:'prepare-retry',id})).code,409);
+    }
+    h.setProfile({...recovery,container_type:'GP',status:'Scheduler Triggered',gp_verification:{status:'NOT_FOUND'},approved_hash:'tampered'});
+    assert.equal((await h.call({action:'prepare-retry',id})).code,409);
     h.setProfile(recovery);h.setSource(ex);assert.equal((await h.call({action:'resume-approved',id})).code,409);
     assert.equal(h.schedulerCalls,0);
   } finally {process.env.NORTHPORT_RECOVERY_UPLOAD_ENABLED='false';for(const gate of gates)delete process.env['NORTHPORT_'+gate];}

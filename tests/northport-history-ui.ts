@@ -27,6 +27,16 @@ try {
     if(url.pathname==='/api/dev-tools/northport-recovery') {
       if(route.request().method()==='GET')return route.fulfill({json:{history:previewHistory||[history],manualReviewEnabled:true,historyWarning:showWarning?warning:undefined,uploadsEnabled:true,missingGates:[]}});
       const body=route.request().postDataJSON();actions.push(body.action);
+      if(body.action==='prepare-retry') {
+        const row=previewHistory?.find(row=>row.id===body.id)||history;
+        const original=[row.container,...Array(19).fill('')];const values=[...original];values[16]='2026-11-02 08:28:14';
+        return route.fulfill({json:{token:'retained-source',values,approved:true,identityConfirmed:true,searchSetup:row.search_setup,match:{filename:row.source_filename,record:1,type:row.container_type,timestamp:'2026-10-17T01:20:16',token:'retained-source',values:original}}});
+      }
+      if(body.action==='approve') {
+        assert.equal(body.token,'retained-source');assert.equal(body.values[16],'2026-11-02 08:28:14','Retry preserves the saved user edit');assert.equal(body.approved,true);
+        return route.fulfill({json:{recovery:{id:history.id,status:'Approved'},uploadsEnabled:true}});
+      }
+      if(body.action==='editor-records') return route.fulfill({json:{filename:exportRow.source_filename,rows:[[exportRow.container,...Array(19).fill('')]],editorToken:'editor-source'}});
       if(body.action==='search') {
         const retryRow=previewHistory?.find(row=>row.container===body.unit)||history;
         assert.equal(body.unit,retryRow.container);assert.equal(body.type,retryRow.container_type);assert.equal(body.timestamp,retryRow.search_setup.timestamp);assert.equal(body.before,7);assert.equal(body.after,12);assert.equal(body.mode,'files');
@@ -46,7 +56,7 @@ try {
         assert.deepEqual(Object.keys(body).sort(),['action','id']);
         const exportRow=previewHistory?.find(row=>row.id===body.id&&row.container_type==='EX');
         if(exportRow){exportRow.scheduler_run={last_run_verification:{status:'ADVANCED',before:'Yesterday at 11:59 PM',after:'Today at 12:01 AM',observedAt:'2026-10-21T00:02:00Z'}};return route.fulfill({json:{status:'Import Verified',message:'Export scheduler run verified.'}});}
-        const matched=actions.filter(action=>action==='verify-gp'||action==='verify-result').length>1;
+        const matched=body.action==='verify-result';
         history.gp_verification={status:matched?'VERIFIED':'NOT_FOUND',gatepass:'000123-GP',container:history.container,observedAt:'2026-10-20T03:01:00Z',updatedAt:matched?'2026-10-20T03:00:00Z':null,updatedWithinTolerance:matched?true:null,toleranceSeconds:120};
         if(matched)history.status='Import Verified';
         return route.fulfill({json:{status:matched?'Import Verified':'Pending Verification',message:matched?'Verified — GP found in CargoMove.':'GP pending verification.'}});
@@ -119,15 +129,18 @@ try {
   assert.equal(await details.getByRole('button',{name:'Refresh status',exact:true}).count(),0);
   assert.equal(await details.getByRole('button',{name:'Check GP in CargoMove',exact:true}).count(),0);
   const failButtons=await details.locator('.border-t').last().getByRole('button').allTextContents();
-  assert.deepEqual(failButtons.map(text=>text.trim()),['Close','Retry Recovery']);
+  assert.deepEqual(failButtons.map(text=>text.trim()),['Close','Retry Recovery','']);
   const closeBounds=await details.getByRole('button',{name:'Close',exact:true}).boundingBox();
   const retryBounds=await details.getByRole('button',{name:'Retry Recovery',exact:true}).boundingBox();
   assert.ok(closeBounds&&retryBounds&&closeBounds.x<retryBounds.x);
+  await details.getByRole('button',{name:'Retry recovery options',exact:true}).click();
+  await page.getByRole('button',{name:'Search and re-edit',exact:true}).waitFor();
+  await page.keyboard.press('Escape');
   await details.getByRole('button',{name:'Retry Recovery',exact:true}).click();
   await details.waitFor({state:'hidden'});
   await page.waitForFunction(()=>Array.from(document.querySelectorAll('button')).some(button=>button.textContent==='Refresh History'&&!button.disabled));
-  assert.equal(await page.getByLabel('Container No.',{exact:true}).inputValue(),history.container);
-  assert.deepEqual(actions,['cancel-approved','resume-approved','upload','scheduler','verify-gp','search'],'Retry repeats the search without uploading or dispatching');
+  assert.equal(await page.getByLabel('Container No.',{exact:true}).inputValue(),'');
+  assert.deepEqual(actions,['cancel-approved','resume-approved','upload','scheduler','verify-gp','prepare-retry','approve','upload','scheduler','verify-gp'],'Retry restores edits and reprocesses without searching');
   // A separate pending-check fixture exercises the shared GP verification button.
   history.gp_verification=null;
   await page.getByRole('button',{name:'Refresh History',exact:true}).click();
@@ -135,7 +148,7 @@ try {
   await details.getByRole('button',{name:'Check GP in CargoMove',exact:true}).click();
   await details.getByText('SUCCESS',{exact:true}).waitFor();
   await checkStatusTag('SUCCESS','rgb(236, 253, 245)');
-  assert.deepEqual(actions,['cancel-approved','resume-approved','upload','scheduler','verify-gp','search','verify-result'],'Rechecking GP must not upload or request another scheduler run');
+  assert.deepEqual(actions,['cancel-approved','resume-approved','upload','scheduler','verify-gp','prepare-retry','approve','upload','scheduler','verify-gp','verify-result'],'Rechecking GP must not upload or request another scheduler run');
   assert.match(await details.innerText(),/000123-GP/);
   assert.match(await details.innerText(),/Within tolerance/);
   await page.setViewportSize({width:390,height:844});
@@ -220,8 +233,14 @@ try {
   await details.getByRole('button',{name:'Retry Recovery',exact:true}).click();
   await details.waitFor({state:'hidden'});
   await page.waitForFunction(()=>Array.from(document.querySelectorAll('button')).some(button=>button.textContent==='Refresh History'&&!button.disabled));
-  assert.equal(await page.getByLabel('Container No.',{exact:true}).inputValue(),'EXPORT123');
-  assert.deepEqual(actions,[...beforeExport,'verify-result','search'],'EX verification and retry do not upload or trigger a scheduler');
+  assert.equal(await page.getByLabel('Container No.',{exact:true}).inputValue(),'');
+  assert.deepEqual(actions,[...beforeExport,'verify-result','prepare-retry','approve','upload','scheduler'],'EX retry reprocesses saved edits without searching');
+  await page.getByRole('button',{name:'EXPORT123',exact:true}).click();
+  await details.getByRole('button',{name:'Retry recovery options',exact:true}).click();
+  await page.getByRole('button',{name:'Search and re-edit',exact:true}).click();
+  await page.getByRole('dialog',{name:'Container file editor',exact:true}).waitFor();
+  assert.equal(await page.getByLabel('STACKTIME',{exact:true}).inputValue(),'2026-11-02 08:28:14','Search and re-edit restores the saved values');
+  assert.ok(actions.includes('search'));
   assert.deepEqual(errors,[]);
   console.log('Recovery details layout, cancellation, resume ordering and status refresh passed.');
 } finally {await browser.close();}

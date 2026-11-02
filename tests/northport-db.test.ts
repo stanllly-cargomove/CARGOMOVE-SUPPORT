@@ -26,6 +26,8 @@ test('PostgreSQL migration enforces RLS, administrator admission, durable dedupl
     await db.exec(searchSql);await db.exec(searchSql);
     const repeatSql=readFileSync(new URL('../supabase/migrations/20261027010000_northport_repeat_recovery.sql',import.meta.url),'utf8');
     await db.exec(repeatSql);await db.exec(repeatSql);
+    const retrySql=readFileSync(new URL('../supabase/migrations/20261102010000_northport_failed_recovery_retry.sql',import.meta.url),'utf8');
+    await db.exec(retrySql);await db.exec(retrySql);
     const scalar=async(sql:string,params:any[]=[])=>Object.values((await db.query<any>(sql,params)).rows[0])[0] as any;
     assert.equal(await scalar('select northport_admit_request($1)',[actor]),true);
     assert.equal(await scalar('select northport_admit_request($1)',[actor]),false);
@@ -90,7 +92,7 @@ test('PostgreSQL migration enforces RLS, administrator admission, durable dedupl
     assert.equal(await scalar('select count(*)::int from northport_recoveries'),beforeRerun,'Repeated migration runs preserve all audit rows');
     await db.exec('drop index public.northport_recovery_source_once;drop function public.northport_record_cancelled(uuid,text,text,text,text,integer,text)');
     await db.exec(cancellationSql);
-    await db.exec(repeatSql);
+    await db.exec(repeatSql);await db.exec(retrySql);
     await assert.rejects(()=>approve(other,'CANCEL123','different-key','different-hash'),/unique constraint/,'Reruns and repair preserve active duplicate protection');
     assert.equal(await scalar("select has_function_privilege('authenticated','public.northport_cancel_approved(uuid,uuid)','EXECUTE')"),false);
     const manual=await approve(actor,'MANUAL123','manual-source','manual-hash');
@@ -128,6 +130,16 @@ test('PostgreSQL migration enforces RLS, administrator admission, durable dedupl
     const completedEx=await approveEx();
     await db.query("update northport_recoveries set status='Scheduler Triggered',processing_result='Scheduler run observed — container import not verified' where id=$1",[completedEx.id]);
     assert.notEqual((await approveEx()).id,completedEx.id,'A completed export recovery can be recovered again');
+    const failed=await approve(actor,'RETRY123','retry-source','retry-hash');
+    await db.query("update northport_recoveries set status='Scheduler Triggered',gp_verification=$1::jsonb where id=$2",[JSON.stringify({status:'NOT_FOUND'}),failed.id]);
+    const retry=await approve(actor,'RETRY123','retry-source','retry-hash');
+    assert.notEqual(retry.id,failed.id,'A failed GP result allows a new audited approval');
+    assert.equal((await approve(actor,'RETRY123','retry-source','retry-hash')).id,retry.id,'Concurrent identical retry is idempotent');
+    await assert.rejects(()=>approve(other,'RETRY123','retry-source','retry-hash'),/unique constraint/);
+    await db.query("update northport_recoveries set status='Failed' where id=$1",[retry.id]);
+    await assert.rejects(()=>approve(actor,'RETRY123','retry-source','retry-hash'),/unique constraint/,'Uncertain upload retains its lock');
+    await db.query("update northport_recoveries set status='Scheduler Triggered',scheduler_status='unknown',gp_verification=$1::jsonb where id=$2",[JSON.stringify({status:'NOT_FOUND'}),retry.id]);
+    await assert.rejects(()=>approve(actor,'RETRY123','retry-source','retry-hash'),/unique constraint/,'Unknown scheduler outcome retains its lock');
     await db.exec('set role authenticated');
     await assert.rejects(()=>db.query('select * from northport_recovery_reviews'),/permission denied/);
     await assert.rejects(()=>db.query('select * from northport_recoveries'),/permission denied/);
