@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "version": "1.13.10",
-  "updatedAt": "2026-11-02T03:38:39.907Z",
+  "version": "1.13.11",
+  "updatedAt": "2026-11-02T05:02:07.032Z",
   "entries": [
     {
       "id": "account-settings",
@@ -42,9 +42,9 @@
         "server-handlers/_email.ts",
         "api/mail.ts"
       ],
-      "version": "1.2.0",
-      "updatedAt": "2026-11-02T03:38:39.907Z",
-      "fingerprint": "649d7ff239d5c960250a3119cd85d7ea00fa9d2e45b7b428ab367d0e7363dbc5"
+      "version": "1.2.1",
+      "updatedAt": "2026-11-02T05:02:07.032Z",
+      "fingerprint": "10fc208595c1b65159e71e81d67b1276260cde1b8b8a9df823879894eaefbaf1"
     },
     {
       "id": "auto-mail",
@@ -909,7 +909,7 @@
     "server-handlers/scheduler/auto-register-cm-email.ts": "5bc7c319a02dcd1ccc1d6e38c740f56416d1a02c7c294c7d2124b4b64c5739ff",
     "server-handlers/scheduler/auto-register-cm-queue.ts": "14206bd2d6cf6c3b61d770cf59c18b12a387f37e174cadc9026df71346c7f444",
     "server-handlers/scheduler/auto-register-cm.ts": "404f68e4c2bfe59edc73d21821a6dcea1f00a47e00c79bd942c5a6fef5a9dad4",
-    "server-handlers/scheduler/automation.ts": "d64a6f16fd155fc25f7b712bca183d78f5302f826318ab7311021eafe8a6c606",
+    "server-handlers/scheduler/automation.ts": "99329ade2b2abb73567fb366acafc8e20eac83b777563ed5c66035de37424142",
     "server-handlers/scheduler/catalog.ts": "2d57b4deba6d3e50e12ff551702baab55b1bdfdeef6ac665233bbe7ce039a4fd",
     "server-handlers/scheduler/cron-signature.ts": "5ccfb38dfb7766e2c18a30a425a732a8a0072d65fd996332c14e6f96b0f9bf35",
     "server-handlers/scheduler/handler.ts": "e5254d50decd3bdd6676f933bd28f5be9c1a3f9a6ea09d59420fc4bc4d02bc6b",
@@ -1140,6 +1140,37 @@
     "vite.config.ts": "167e03f4e2c3298d4e3cbe61c5c1f8712073bf15d56c63d992827e99d3b7601b"
   },
   "history": [
+    {
+      "sourceCommit": "550d6a82872718563ae5d7cdf9faf7254908b6f5",
+      "pushedBy": "lumoratechent-beep",
+      "commits": [
+        {
+          "sha": "0ed47aae4e5774e8415b7308de367ecad4e2ea30",
+          "author": "cargomovemy",
+          "subject": "fix scheduler"
+        }
+      ],
+      "authors": [
+        "cargomovemy"
+      ],
+      "version": "1.13.11",
+      "previousVersion": "1.13.10",
+      "date": "2026-11-02T05:02:07.032Z",
+      "summary": "Updated existing pages, tools or shared system files",
+      "files": [
+        "server-handlers/scheduler/automation.ts"
+      ],
+      "changes": [
+        {
+          "id": "auto-email",
+          "name": "Auto Email",
+          "kind": "tool",
+          "action": "updated",
+          "from": "1.2.0",
+          "to": "1.2.1"
+        }
+      ]
+    },
     {
       "sourceCommit": "ba08b36022232c79b4a6630d3c5c763335cb8849",
       "pushedBy": "lumoratechent-beep",
