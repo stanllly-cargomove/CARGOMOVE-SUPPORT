@@ -120,17 +120,29 @@ test('API authorization, origin, revoked roles, shared admission and audit failu
   assert.equal((await call()).body.status, 'unknown');
 });
 
-function browserMock(options: { login?: boolean; tasks?: boolean; dispatchError?: boolean; status?: number; body?: string; location?: string; loginFormMissing?: boolean; taskLinkMissing?: boolean; taskListFailures?:number; taskListDelay?: boolean; target?: typeof NORTHPORT_TARGET; lastRuns?: [string,string] } = {}) {
+function browserMock(options: { login?: boolean; tasks?: boolean; dispatchError?: boolean; status?: number; body?: string; location?: string; loginFormMissing?: boolean; taskLinkMissing?: boolean; taskListFailures?:number; taskListDelay?: boolean; target?: typeof NORTHPORT_TARGET; lastRuns?: [string,string]; homeFailures?: number; homeStatuses?: readonly number[]; homeRedirect?: string } = {}) {
   let url = '';
   let closed = 0;
   let sends = 0;
   let requestOptions: any;
   let taskLookups=0;
+  let homeLoads = 0;
+  let loginSubmissions = 0;
   let taskListReady = !options.taskListDelay;
   const expectedUrl = schedulerUrl(options.target || NORTHPORT_TARGET);
-  const child = { async waitFor() { if (options.loginFormMissing) throw new Error('secret'); }, async fill() {}, async click() {} };
+  const child = { async waitFor() { if (options.loginFormMissing) throw new Error('secret'); }, async fill() {}, async click() { loginSubmissions++; } };
   const page = {
-    async goto(target: string) { url = target; return { ok: () => options.tasks !== false || target !== TASKS_URL }; },
+    async goto(target: string) {
+      url = target;
+      if (target === 'https://www.cargomove.my/') {
+        homeLoads++;
+        if (homeLoads <= (options.homeFailures || 0)) throw new Error('net::ERR_CONNECTION_RESET secret');
+        if (options.homeRedirect) url = options.homeRedirect;
+        const status = options.homeStatuses?.[homeLoads - 1] ?? 200;
+        return { ok: () => status >= 200 && status < 300, status: () => status };
+      }
+      return { ok: () => options.tasks !== false || target !== TASKS_URL };
+    },
     url: () => url,
     async waitForNavigation() { url = 'https://www.cargomove.my/bookings'; },
     locator(selector: string) {
@@ -158,8 +170,44 @@ function browserMock(options: { login?: boolean; tasks?: boolean; dispatchError?
     } },
   };
   const browser = { async newContext() { return context; }, async close() { closed++; } };
-  return { browser, stats: () => ({ closed, sends, requestOptions }) };
+  return { browser, stats: () => ({ closed, sends, requestOptions, homeLoads, loginSubmissions }) };
 }
+
+test('consecutive recoveries tolerate a transient login-page failure without repeating login or dispatch', async () => {
+  for (const options of [{}, { homeFailures: 1 }, { homeStatuses: [503, 200] }, { homeStatuses: [429, 200] }]) {
+    const mock = browserMock(options);
+    let marked = 0;
+    const result = await runAutomation({ username: 'test', password: 'secret' }, async () => { marked++; }, async () => mock.browser as any);
+    assert.equal(result.status, 'TRIGGER_REQUESTED');
+    assert.equal(mock.stats().homeLoads, Object.keys(options).length ? 2 : 1);
+    assert.equal(mock.stats().loginSubmissions, 1);
+    assert.equal(marked, 1);
+    assert.equal(mock.stats().sends, 1);
+    assert.equal(mock.stats().closed, 1);
+  }
+});
+
+test('login-page retries are bounded and never submit credentials or dispatch on failure', async () => {
+  for (const [options, loads, message] of [
+    [{ homeFailures: 2 }, 2, /after two attempts/],
+    [{ homeStatuses: [503, 502] }, 2, /HTTP 502/],
+    [{ homeStatuses: [403] }, 1, /HTTP 403/],
+    [{ homeRedirect: 'https://unexpected.example.test/' }, 1, /unexpected site/],
+  ] as const) {
+    const mock = browserMock(options);
+    let marked = 0;
+    const result = await runAutomation({ username: 'test', password: 'secret' }, async () => { marked++; }, async () => mock.browser as any);
+    assert.equal(result.status, 'FAILED');
+    assert.match(result.message, message);
+    assert.match(result.message, /No scheduler request was sent/);
+    assert.ok(!result.message.includes('secret'));
+    assert.equal(mock.stats().homeLoads, loads);
+    assert.equal(mock.stats().loginSubmissions, 0);
+    assert.equal(mock.stats().sends, 0);
+    assert.equal(marked, 0);
+    assert.equal(mock.stats().closed, 1);
+  }
+});
 
 test('automation sends exactly once, does not claim completion, and closes the browser', async () => {
   const mock = browserMock();

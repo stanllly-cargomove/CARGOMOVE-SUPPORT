@@ -147,9 +147,30 @@ export async function runAutomation(
         ? route.abort() : route.continue();
     });
     const page = await context.newPage();
-    message = 'CargoMove is unavailable or the login page could not be loaded.';
-    const home = await page.goto(`${ORIGIN}/`, { waitUntil: 'domcontentloaded', timeout: remaining() });
-    if (!home?.ok() || new URL(page.url()).origin !== ORIGIN) throw new Error();
+    for (let attempt = 0; attempt < 2; attempt++) {
+      message = `The server could not load the CargoMove login page${attempt ? ' after two attempts' : ''}. No scheduler request was sent. Use Retry scheduler in recovery history.`;
+      let retryable = true;
+      try {
+        if (Date.now() >= deadline) throw new Error();
+        const home = await page.goto(`${ORIGIN}/`, { waitUntil: 'domcontentloaded', timeout: remaining() });
+        if (new URL(page.url()).origin !== ORIGIN) {
+          retryable = false;
+          message = 'CargoMove redirected the login page to an unexpected site. No scheduler request was sent.';
+          throw new Error();
+        }
+        if (!home?.ok()) {
+          const status = home?.status();
+          retryable = status === undefined || status === 408 || status === 429 || status >= 500;
+          message = `The CargoMove login page returned ${status ? `HTTP ${status}` : 'no response'}. No scheduler request was sent. Use Retry scheduler in recovery history.`;
+          throw new Error();
+        }
+        break;
+      } catch (error) {
+        // Only repeat the public GET before submitting credentials. Login and
+        // scheduler dispatch are never replayed, including uncertain outcomes.
+        if (attempt || !retryable || Date.now() + 1000 >= deadline) throw error;
+      }
+    }
     // Verified against the public login HTML on 2026-10-16.
     const form = page.locator(`form[action="${ORIGIN}/user/login"]`);
     message = 'The CargoMove login form could not be found. The site may have changed.';

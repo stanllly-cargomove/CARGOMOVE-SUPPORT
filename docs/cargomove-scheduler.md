@@ -147,6 +147,16 @@ stored in audit messages or returned to the browser.
 
 ## Testing
 
+The public login-page GET is retried once for a connection/navigation failure or
+HTTP 408, 429 or 5xx, within the existing automation deadline. Other HTTP failures
+and unexpected origins stop immediately. Login submission and the scheduler
+trigger are never retried. A transient failure opening a second recovery no longer
+ends the run on its first page-load error. Persistent failures report the login
+page stage (and HTTP status when available), without asserting that CargoMove is
+down. Uploaded recoveries can use **Retry scheduler** without uploading again.
+This handles the confirmed single-attempt failure path; the original production
+connection failure has not been reproduced or attributed to an upstream outage.
+
 - Run `npm run test:scheduler`, `npm run test:scheduler:ui`, `npm run lint`, and
   `npm run build`. The offline UI test uses a cached Playwright test browser; if
   absent, install it with `npx playwright-core install chromium`. This test browser
