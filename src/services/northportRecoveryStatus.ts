@@ -1,7 +1,15 @@
 import type { Recovery } from '../types/northport';
 
+export function canRetryScheduler(recovery: Recovery): boolean {
+  if (recovery.in_progress || recovery.manual_review?.outcome==='SUCCESS' || recovery.gp_verification?.status==='VERIFIED') return false;
+  return ['Uploaded','Verification Unavailable'].includes(recovery.status)
+    && (recovery.scheduler_status==='not_sent' || (recovery.scheduler_status==='failed'
+      && recovery.scheduler_run?.status==='FAILED' && recovery.scheduler_run.dispatch_at===null));
+}
+
 export function recoveryFlow(recovery: Recovery) {
   if (recovery.in_progress) return {label:'PROCESSING',tone:'blue',step:recovery.status==='Uploaded'?2:1,description:'Recovery requested. The file is being prepared, uploaded and checked. Open these details for the latest result.'};
+  if (canRetryScheduler(recovery)) return {label:'FAIL',tone:'red',step:2,description:'The recovery file is uploaded. No scheduler request was sent. Retry scheduler to continue without uploading again.'};
   if (recovery.manual_review) return {label:recovery.manual_review.outcome,tone:recovery.manual_review.outcome==='SUCCESS'?'green':'red',step:3,description:`Manually verified by ${recovery.manual_review.reviewedBy}. ${recovery.manual_review.note}`};
   if (recovery.status==='Cancelled' || recovery.status==='Approved') return {label:'CANCELLED',tone:'gray',step:recovery.status==='Approved'?1:0,description:recovery.status==='Approved'?'The file was approved but was not uploaded. No processing was completed.':'Recovery cancelled before upload. No file was sent to FTP.'};
   if (recovery.container_type==='GP' && recovery.gp_verification?.status==='VERIFIED') return {label:'SUCCESS',tone:'green',step:3,description:'The exact gatepass and container pair was found in CargoMove Northport Gatepasses.'};

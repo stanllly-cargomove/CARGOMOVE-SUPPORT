@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { canRetryScheduler, recoveryFlow } from '../src/services/northportRecoveryStatus.js';
 import { recoveryRetrySetup } from '../src/services/northportRetry.js';
 import { verifySchedulerRun } from '../server-handlers/northport/scheduler-verification.js';
 import { createNorthportHandler } from '../server-handlers/northport/handler.js';
@@ -34,7 +35,7 @@ test('EX check reads Last run without triggering a task and closes the browser',
   const page:any={setDefaultTimeout(){},setDefaultNavigationTimeout(){},
     goto:async(url:string)=>{currentUrl=url;destinations.push(url);return {ok:()=>true};},url:()=>currentUrl,
     waitForNavigation:async()=>{currentUrl=ORIGIN+'/bookings';},
-    locator:(selector:string)=>selector.startsWith('#scheduled_tasks')?link:{locator:()=>field,count:async()=>0},
+    locator:(selector:string)=>selector.startsWith('#scheduled_tasks a')?link:{locator:()=>field,count:async()=>0},
   };
   const context:any={route:async(_pattern:string,handler:any)=>{routeHandler=handler;},newPage:async()=>page};
   const result=await verifySchedulerRun({...NORTHPORT_TARGET,before:'Yesterday at 12:00 AM',dispatchAt:now},async()=>({newContext:async()=>context,close:async()=>{closed++;}} as any));
@@ -58,4 +59,14 @@ test('shared result endpoint routes EX to the associated scheduler audit, withou
   await handler({method:'POST',headers:{origin:'https://portal.example.test','x-cargomove-confirm':'northport-recovery'},body:{action:'verify-result',id}},response);
   assert.equal(response.code,200);assert.equal(response.body.status,'Import Verified');assert.equal(checks,1);
   assert.deepEqual(updates,[{last_run_verification:evidence}]);
+});
+
+test('history offers scheduler-only retry for fresh and legacy confirmed unsent failures',()=>{
+  const row={status:'Verification Unavailable',container_type:'GP',scheduler_status:'not_sent'} as Recovery;
+  assert.equal(canRetryScheduler(row),true);assert.equal(recoveryFlow(row).label,'FAIL');
+  assert.equal(canRetryScheduler({...row,scheduler_status:'failed',scheduler_run:{status:'FAILED',dispatch_at:null}}),true);
+  assert.equal(canRetryScheduler({...row,scheduler_status:'failed'}),false);
+  assert.equal(canRetryScheduler({...row,scheduler_status:'failed',scheduler_run:{status:'FAILED',dispatch_at:'2026-11-02T01:00:00Z'}}),false);
+  assert.equal(canRetryScheduler({...row,scheduler_status:'unknown'}),false);
+  assert.equal(canRetryScheduler({...row,in_progress:true}),false);
 });

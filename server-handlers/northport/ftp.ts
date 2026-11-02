@@ -40,11 +40,24 @@ export async function download(client: Client, filename: string) {
   if (size > MAX_FILE) throw new RecoveryError('CSV exceeds the 2 MiB file limit.');
   return Buffer.concat(chunks);
 }
-export async function safeUpload(client: Client, filename: string, id: string, bytes: Buffer) {
+export async function safeUpload(client: Client, filename: string, id: string, bytes: Buffer, reuseIdentical = false) {
   if (!/^(?:CM_CONTAINER_\d{14}_(GP|EX)|REPROCESS_[A-Z0-9]{1,32})\.csv$/.test(filename) || !/^[a-f0-9-]{36}$/i.test(id)) throw new RecoveryError('Invalid recovery destination.');
   // This must also be verified on the real server: RNTO must refuse an existing target.
   const temporary = `.northport-${id}.part`;
   const files = await client.list();
+  const existing = files.find(f => f.name.toLowerCase() === filename.toLowerCase());
+  if (reuseIdentical && existing) {
+    // Explicit history retry: reconcile a previously completed rename without
+    // overwriting the pending file or uploading a second copy.
+    let size = 0; const chunks: Buffer[] = [];
+    await client.downloadTo(new Writable({write(chunk, _encoding, callback) {
+      size += chunk.length;
+      if (size > bytes.length) return callback(new RecoveryError('The pending recovery file differs from the saved approval. No file was overwritten.',409));
+      chunks.push(Buffer.from(chunk));callback();
+    }}), existing.name);
+    if (!Buffer.concat(chunks).equals(bytes)) throw new RecoveryError('The pending recovery file differs from the saved approval. No file was overwritten.',409);
+    return;
+  }
   if (files.some(f => [filename.toLowerCase(),temporary.toLowerCase()].includes(f.name.toLowerCase()))) throw new RecoveryError('Recovery filename collision. No file was uploaded.',409);
   await client.uploadFrom(Readable.from(bytes), temporary);
   if (await client.size(temporary) !== bytes.length) throw new RecoveryError('Upload size verification failed. Operator review required.',502);

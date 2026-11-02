@@ -12,11 +12,11 @@ import { readScanCursor, signScanCursor } from './scan.js';
 import { NORTHPORT_UPLOAD_GATES as GATES, uploadsEnabled } from './configuration.js';
 import { verifyGatepass } from './gatepass-verification.js';
 import { verifySchedulerRun } from './scheduler-verification.js';
-import { recoveryFlow } from '../../src/services/northportRecoveryStatus.js';
+import { canRetryScheduler, recoveryFlow } from '../../src/services/northportRecoveryStatus.js';
 export { uploadsEnabled } from './configuration.js';
 
 const hash = (v: string | Buffer) => crypto.createHash('sha256').update(v).digest('hex');
-type Source = Omit<Match,'token'|'fileToken'> & { actor: string; digest: string; expires: number; format: ReturnType<typeof parseCsv>['format'] };
+type Source = Omit<Match,'token'|'fileToken'> & { actor: string; digest: string; expires: number; format: ReturnType<typeof parseCsv>['format']; retryOf?: string };
 function sign(source: Source) {
   const encoded = Buffer.from(JSON.stringify(source)).toString('base64url');
   return encoded + '.' + crypto.createHmac('sha256', process.env.SESSION_SECRET!).update('northport:' + encoded).digest('base64url');
@@ -52,14 +52,22 @@ export function createNorthportHandler(deps = { adminClient, readSession, withFt
     const { client, session } = access;
     try {
       if (request.method === 'GET') {
-        const readHistory = (columns:string) => client.from('northport_recoveries').select(columns).order('created_at',{ascending:false}).limit(50).timeout(8000);
-        let columns=fields+',manual_review,search_setup,scheduler_run:cargomove_scheduler_runs(last_run_verification)';
+        const readHistory = (columns:string) => {
+          let query=client.from('northport_recoveries').select(columns);
+          if(columns.includes(',removed_at'))query=query.is('removed_at',null);
+          return query.order('created_at',{ascending:false}).limit(50).timeout(8000);
+        };
+        let columns=fields+',manual_review,search_setup,removed_at,scheduler_run:cargomove_scheduler_runs(last_run_verification,status,dispatch_at)';
         let history = await readHistory(columns);
         const missingMigrations:string[]=[];
         let manualReviewEnabled=true;
-        for(let attempt=0;attempt<3&&history.error?.code==='42703';attempt++) {
-          if (/last_run_verification/.test(history.error.message || '')) {
-            columns=columns.replace(',scheduler_run:cargomove_scheduler_runs(last_run_verification)','');
+        let historyRemovalEnabled=true;
+        for(let attempt=0;attempt<4&&history.error?.code==='42703';attempt++) {
+          if (/removed_at/.test(history.error.message || '')) {
+            columns=columns.replace(',removed_at','');historyRemovalEnabled=false;
+            missingMigrations.push('20261102040000_northport_remove_failed_history.sql');
+          } else if (/last_run_verification/.test(history.error.message || '')) {
+            columns=columns.replace(',scheduler_run:cargomove_scheduler_runs(last_run_verification,status,dispatch_at)','');
             missingMigrations.push('20261021000000_scheduler_verification_30_seconds.sql');
           } else if (/manual_review/.test(history.error.message || '')) {
             columns=columns.replace(',manual_review','');manualReviewEnabled=false;
@@ -74,7 +82,7 @@ export function createNorthportHandler(deps = { adminClient, readSession, withFt
         if (history.error) throw new RecoveryError(/gp_verification/.test(history.error.message || '')
           ? 'Recovery history requires 20261021010000_northport_gp_verification.sql. Apply it and refresh.'
           : 'Recovery history could not be loaded. Check the database connection and Northport schema.',503);
-        return response.json({ history: history.data || [], manualReviewEnabled, ...(historyWarning?{historyWarning}:{}), uploadsEnabled: uploadsEnabled(), missingGates: GATES.filter(g => process.env[`NORTHPORT_${g}`] !== 'true') });
+        return response.json({ history: history.data || [], manualReviewEnabled, historyRemovalEnabled, ...(historyWarning?{historyWarning}:{}), uploadsEnabled: uploadsEnabled(), missingGates: GATES.filter(g => process.env[`NORTHPORT_${g}`] !== 'true') });
       }
       if (!allowedOrigin(request.headers.origin) || request.headers['sec-fetch-site'] === 'cross-site' || request.headers['x-cargomove-confirm'] !== 'northport-recovery') return fail(403,'Invalid request origin or confirmation.');
       const input = await body(request);
@@ -203,11 +211,13 @@ export function createNorthportHandler(deps = { adminClient, readSession, withFt
         const retry = input.action === 'prepare-retry';
         if (!(retry && input.edit === true) && !uploadsEnabled()) throw new RecoveryError('Production uploads are disabled until all preproduction verification gates are confirmed.',403);
         if (typeof input.id !== 'string' || !/^[a-f0-9-]{36}$/i.test(input.id)) throw new RecoveryError('Invalid recovery ID.');
-        const saved = await client.from('northport_recoveries').select(retry?'*,scheduler_run:cargomove_scheduler_runs(last_run_verification)':'*').eq('id',input.id).timeout(8000).maybeSingle();
+        const saved = await client.from('northport_recoveries').select(retry?'*,scheduler_run:cargomove_scheduler_runs(last_run_verification,status,dispatch_at)':'*').eq('id',input.id).timeout(8000).maybeSingle();
         if (saved.error) throw new RecoveryError('Unable to load the approved recovery.',503);
         const recovery = saved.data;
         if (retry) {
-          if (!recovery || recoveryFlow(recovery).label !== 'FAIL' || (input.edit !== true && (['Failed','Uploading','Approved'].includes(recovery.status) || ['unknown','Dispatching'].includes(recovery.scheduler_status)))) throw new RecoveryError('This attempt cannot be retried automatically. An uncertain upload or scheduler outcome requires operator review. No file was uploaded.',409);
+          if (!recovery || recoveryFlow(recovery).label !== 'FAIL') throw new RecoveryError('This recovery is no longer failed. Refresh history before retrying.',409);
+          if (input.edit !== true && canRetryScheduler(recovery)) throw new RecoveryError('The file is already uploaded and no scheduler request was sent. Use Retry scheduler in recovery history; no upload is needed.',409);
+          if (input.edit !== true && (['Uploading','Approved'].includes(recovery.status) || recovery.scheduler_status === 'Dispatching' || (recovery.scheduler_status === 'unknown' && recovery.status !== 'Failed'))) throw new RecoveryError('This recovery still has an active or unresolved scheduler request. Check its result before retrying.',409);
         } else if (!recovery || recovery.actor !== session.id || recovery.status !== 'Approved') throw new RecoveryError('Only your approved, not-yet-uploaded recovery can be resumed. Refresh history before continuing.',409);
         const info = filenameInfo(recovery.source_filename);
         if (!info) throw new RecoveryError('The approved source filename is invalid.',409);
@@ -223,8 +233,15 @@ export function createNorthportHandler(deps = { adminClient, readSession, withFt
         const filename = reprocessFilename(values[0]);
         const prepared = prepareReprocessFile(original,recovery.source_record,row,values);
         if (hash('northport-whole-file:' + digest + ':' + filename + ':' + hash(prepared.bytes)) !== recovery.approved_hash) throw new RecoveryError('Saved file does not match the approved recovery. No upload was started.',409);
-        const source: Source = {actor:session.id,filename:recovery.source_filename,digest,expires:Date.now()+30*60000,...info,record:recovery.source_record,totalRecords:csv.rows.length,values:row,format:csv.format};
+        const source: Source = {actor:session.id,filename:recovery.source_filename,digest,expires:Date.now()+30*60000,...info,record:recovery.source_record,totalRecords:csv.rows.length,values:row,format:csv.format,...(retry?{retryOf:recovery.id}:{})};
         return response.json({id:recovery.id,token:sign(source),values,containerType:recovery.container_type,approved:true,identityConfirmed:true,...(retry?{match:{...source,token:sign(source)},searchSetup:recovery.search_setup}:{} )});
+      }
+      if (input.action === 'remove-history') {
+        if(typeof input.id!=='string'||!/^[a-f0-9-]{36}$/i.test(input.id))throw new RecoveryError('Invalid recovery ID.');
+        const removed=await client.rpc<any>('northport_remove_failed_history',{p_actor:session.id,p_id:input.id});
+        if(removed.error)throw new RecoveryError('History removal requires 20261102040000_northport_remove_failed_history.sql. No record was removed.',503);
+        if(!removed.data?.removed)throw new RecoveryError('Only a failed recovery with no active upload or scheduler request can be removed. Refresh history.',409);
+        return response.json({id:input.id,message:'Failed recovery removed from history.'});
       }
       if (input.action === 'manual-review') {
         if (typeof input.id!=='string'||!/^[a-f0-9-]{36}$/i.test(input.id)||!['SUCCESS','FAIL'].includes(input.outcome)||typeof input.note!=='string'||input.note.trim().length<5||input.note.trim().length>1000
@@ -305,7 +322,7 @@ export function createNorthportHandler(deps = { adminClient, readSession, withFt
         if (!claimed.data) throw new RecoveryError('Recovery is already submitted, does not match approval, or is owned by another administrator.',409);
         try {
           if (claimed.data.recovery_filename !== filename) throw new RecoveryError('Unexpected reprocess filename. Check the whole-file recovery migration.',503);
-          await deps.withFtp(async (ftp,config)=>{ await ftp.cd(config.base); await safeUpload(ftp,claimed.data.recovery_filename,input.id,bytes); });
+          await deps.withFtp(async (ftp,config)=>{ await ftp.cd(config.base); await safeUpload(ftp,claimed.data.recovery_filename,input.id,bytes,!!source.retryOf); });
           const saved = await client.from('northport_recoveries').update({status:'Uploaded',processing_result:'Verification Unavailable'}).eq('id',input.id).timeout(8000);
           if (saved.error) throw new RecoveryError('File may be uploaded but audit update failed. Check FTP and history; do not retry.',502);
           return response.json({status:'Uploaded',message:'Recovery File Uploaded. Container import verification is unavailable.'});
@@ -360,8 +377,9 @@ export function createNorthportHandler(deps = { adminClient, readSession, withFt
           await deps.runScheduler({method:'POST',headers:{...request.headers,'x-cargomove-confirm':'run-northport-containers'},body:{}},relay);
         } catch { result = {status:'unknown',message:'Scheduler outcome uncertain. Check existing scheduler audit.'}; }
         const success = result?.status === 'trigger_requested';
-        const processingResult=result?.lastRunVerification?.status==='ADVANCED'?'Scheduler run observed — container import not verified':'Verification Unavailable';
-        const saved = await client.from('northport_recoveries').update({status:success?'Scheduler Triggered':'Verification Unavailable',scheduler_status:result?.status || 'unknown',scheduler_run_id:result?.executionId || null,processing_result:processingResult}).eq('id',input.id).timeout(8000);
+        const notSent=result?.schedulerRequestSent===false && result?.status!=='unknown';
+        const processingResult=!success?(result?.message||'Scheduler result unavailable'):result?.lastRunVerification?.status==='ADVANCED'?'Scheduler run observed — container import not verified':'Verification Unavailable';
+        const saved = await client.from('northport_recoveries').update({status:success?'Scheduler Triggered':'Verification Unavailable',scheduler_status:notSent?'not_sent':result?.status || 'unknown',scheduler_run_id:result?.executionId || null,processing_result:processingResult}).eq('id',input.id).timeout(8000);
         if (saved.error) throw new RecoveryError('Scheduler outcome audit unavailable. Check scheduler history before another run.',502);
         return response.status(code).json({ ...result, status:success?'Scheduler Triggered':'Verification Unavailable',processingResult });
       }

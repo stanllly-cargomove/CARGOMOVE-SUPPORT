@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readSession, signSession } from '../api/_runtime.js';
 import { allowedOrigin, createSchedulerHandler } from '../server-handlers/scheduler/handler.js';
-import { classifySchedulerResponse, runAutomation, compareLastRun, lastRunTimestamp, launchWindowsBrowser, RUN_URL, TASKS_URL } from '../server-handlers/scheduler/automation.js';
+import { classifySchedulerResponse, runAutomation, compareLastRun, lastRunTimestamp, launchWindowsBrowser, waitForSchedulerTask, RUN_URL, TASKS_URL } from '../server-handlers/scheduler/automation.js';
 import { DEFAULT_SCHEDULER_ID, NORTHPORT_TARGET, parseSchedulerUrl, schedulerUrl } from '../server-handlers/scheduler/targets.js';
 import { createSchedulerCatalog } from '../server-handlers/scheduler/catalog.js';
 
@@ -98,6 +98,7 @@ test('API authorization, origin, revoked roles, shared admission and audit failu
     assert.equal((await call()).code, code);
   }
   assert.equal(executions, 0);
+  assert.equal((await call()).body.schedulerRequestSent,false,'A rejected concurrent request did not dispatch');
   reason='cooldown';cooldownSeconds=45;
   assert.equal((await call()).body.message,'Please wait 45 seconds between scheduler requests.');
   cooldownSeconds=30;
@@ -119,11 +120,12 @@ test('API authorization, origin, revoked roles, shared admission and audit failu
   assert.equal((await call()).body.status, 'unknown');
 });
 
-function browserMock(options: { login?: boolean; tasks?: boolean; dispatchError?: boolean; status?: number; body?: string; location?: string; loginFormMissing?: boolean; taskLinkMissing?: boolean; taskListDelay?: boolean; target?: typeof NORTHPORT_TARGET; lastRuns?: [string,string] } = {}) {
+function browserMock(options: { login?: boolean; tasks?: boolean; dispatchError?: boolean; status?: number; body?: string; location?: string; loginFormMissing?: boolean; taskLinkMissing?: boolean; taskListFailures?:number; taskListDelay?: boolean; target?: typeof NORTHPORT_TARGET; lastRuns?: [string,string] } = {}) {
   let url = '';
   let closed = 0;
   let sends = 0;
   let requestOptions: any;
+  let taskLookups=0;
   let taskListReady = !options.taskListDelay;
   const expectedUrl = schedulerUrl(options.target || NORTHPORT_TARGET);
   const child = { async waitFor() { if (options.loginFormMissing) throw new Error('secret'); }, async fill() {}, async click() {} };
@@ -136,6 +138,7 @@ function browserMock(options: { login?: boolean; tasks?: boolean; dispatchError?
         first() { return this; },
         locator: (selector:string) => selector==='xpath=ancestor::tr[1]' ? {locator:()=>({nth:()=>({innerText:async()=>options.lastRuns?.[sends?1:0]||'Not available'})}),waitFor:async()=>{}} : child,
         async waitFor() {
+          if(selector.startsWith('#scheduled_tasks a')&&++taskLookups<=(options.taskListFailures||0))throw new Error('read-only list interrupted');
           if (options.taskLinkMissing) throw new Error();
           if (options.taskListDelay) await new Promise(resolve => setTimeout(resolve, 20));
           taskListReady = true;
@@ -379,4 +382,31 @@ test('run API resolves only the selected saved ID and trusts the database target
   assert.equal(response.code, 200);
   assert.equal(response.body.scheduler, 'example_task');
   assert.equal(runs, 1);
+});
+
+ test('task lookup filters paginated DataTables before waiting for the exact saved target',async()=>{
+  const events:string[]=[];
+  const page:any={locator:(selector:string)=>selector.includes('_filter')?{waitFor:async()=>{},count:async()=>1,fill:async(value:string)=>events.push(value),press:async(key:string)=>events.push(key)}:{waitFor:async()=>{assert.ok(selector.includes(NORTHPORT_TARGET.taskId));events.push('exact task');}}};
+  await waitForSchedulerTask(page,NORTHPORT_TARGET,1000);
+  assert.deepEqual(events,[NORTHPORT_TARGET.workerName,'Enter','exact task']);
+});
+
+test('scheduler response exposes whether dispatch was recorded, including failures before dispatch',async()=>{
+  process.env.CARGOMOVE_USERNAME='test';process.env.CARGOMOVE_PASSWORD='test';process.env.SCHEDULER_PORTAL_URL='https://portal.example.test';
+  let marked=false;
+  const client:any={from:()=>({select(){return this;},eq(){return this;},timeout(){return this;},maybeSingle:async()=>({data:{id:'admin'}})}),rpc:async(name:string)=>({data:name.startsWith('acquire')?{id:'run',worker_name:NORTHPORT_TARGET.workerName,task_id:NORTHPORT_TARGET.taskId}:true})};
+  for(const send of [false,true]) {
+    const handler=createSchedulerHandler({adminClient:()=>client,readSession:()=>({id:'admin',email:'admin@example.test',type:'ADMIN',exp:Date.now()+60000}),runAutomation:async(_credentials,beforeDispatch)=>{
+      if(send){await beforeDispatch();marked=true;}
+      return {status:send?'UNKNOWN':'FAILED',message:send?'Uncertain':'Task list unavailable. No scheduler request was sent.'};
+    }});
+    const response=responseMock();await handler({method:'POST',body:{},headers:{origin:'https://portal.example.test','x-cargomove-confirm':'run-northport-containers'}},response);
+    assert.equal(response.body.schedulerRequestSent,send);assert.equal(marked,send);
+  }
+});
+
+test('one transient task-list failure reloads safely before the sole scheduler dispatch',async()=>{
+  const mock=browserMock({taskListFailures:1});let marked=0;
+  const result=await runAutomation({username:'test',password:'secret'},async()=>{marked++;},async()=>mock.browser as any);
+  assert.equal(result.status,'TRIGGER_REQUESTED');assert.equal(marked,1);assert.equal(mock.stats().sends,1);
 });

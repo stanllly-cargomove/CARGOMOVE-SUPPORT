@@ -3,15 +3,15 @@ import assert from 'node:assert/strict';
 import { createNorthportHandler } from '../server-handlers/northport/handler.js';
 
 test('history tolerates the missing scheduler evidence column and reports precise schema failures',async()=>{
-  for(const scenario of ['ready','missing-scheduler','missing-manual','missing-search','missing-optional','missing-gp','network'] as const) {
+  for(const scenario of ['ready','missing-scheduler','missing-manual','missing-search','missing-optional','missing-removal','missing-gp','network'] as const) {
     const columns:string[]=[];
     const client:any={from:(table:string)=>{
-      let selected='';
-      const query:any={select(value:string){selected=value;return this;},eq(){return this;},order(){return this;},limit(){return this;},timeout(){return this;},
+      let selected='';let filtered=false;
+      const query:any={select(value:string){selected=value;return this;},eq(){return this;},is(column:string,value:any){assert.equal(column,'removed_at');assert.equal(value,null);filtered=true;return this;},order(){return this;},limit(){assert.equal(filtered,selected.includes(',removed_at'),'Removed entries are excluded before pagination');return this;},timeout(){return this;},
         maybeSingle:async()=>({data:{id:'profile'},error:null}),
         then(resolve:any){
           assert.equal(table,'northport_recoveries');columns.push(selected);
-          const error=scenario==='network'?{message:'fetch failed'}
+          const error=(scenario==='missing-removal'||scenario==='missing-optional')&&selected.includes('removed_at')?{code:'42703',message:'column northport_recoveries.removed_at does not exist'}:scenario==='network'?{message:'fetch failed'}
             :(scenario==='missing-manual'||scenario==='missing-optional')&&selected.includes('manual_review')?{code:'42703',message:'column northport_recoveries.manual_review does not exist'}
             :(scenario==='missing-search'||scenario==='missing-optional')&&selected.includes('search_setup')?{code:'42703',message:'column northport_recoveries.search_setup does not exist'}
             :scenario==='missing-gp'?{code:'42703',message:'column northport_recoveries.gp_verification does not exist'}
@@ -25,13 +25,13 @@ test('history tolerates the missing scheduler evidence column and reports precis
     await handler({method:'GET',headers:{}},response);
     if(!['missing-gp','network'].includes(scenario)) {
       assert.equal(response.code,200);assert.equal(response.body.history[0].id,'existing-recovery');
-      assert.equal(columns.length,scenario==='ready'?1:scenario==='missing-optional'?4:2);
+      assert.equal(columns.length,scenario==='ready'?1:scenario==='missing-optional'?5:2);
       if(scenario==='missing-scheduler') {
         assert.match(response.body.historyWarning,/20261021000000_scheduler_verification_30_seconds.sql/);
         assert.ok(!columns[1].includes('scheduler_run:'));
-      } else if(scenario==='missing-manual') {assert.equal(response.body.manualReviewEnabled,false);assert.match(response.body.historyWarning,/20261021030000_northport_manual_reviews.sql/);}
+      } else if(scenario==='missing-removal'){assert.equal(response.body.historyRemovalEnabled,false);assert.match(response.body.historyWarning,/20261102040000_northport_remove_failed_history.sql/);assert.ok(!columns[1].includes('removed_at'));} else if(scenario==='missing-manual') {assert.equal(response.body.manualReviewEnabled,false);assert.match(response.body.historyWarning,/20261021030000_northport_manual_reviews.sql/);}
       else if(scenario==='missing-search'){assert.equal(response.body.manualReviewEnabled,true);assert.match(response.body.historyWarning,/20261021040000_northport_retry_search_setup.sql/);}
-      else if(scenario==='missing-optional'){assert.equal(response.body.manualReviewEnabled,false);assert.match(response.body.historyWarning,/20261021040000_northport_retry_search_setup.sql/);assert.ok(!columns[3].includes('manual_review')&&!columns[3].includes('search_setup')&&!columns[3].includes('scheduler_run:'));}
+      else if(scenario==='missing-optional'){assert.equal(response.body.manualReviewEnabled,false);assert.match(response.body.historyWarning,/20261021040000_northport_retry_search_setup.sql/);assert.ok(!columns[4].includes('manual_review')&&!columns[4].includes('search_setup')&&!columns[4].includes('scheduler_run:'));}
       else {assert.equal(response.body.historyWarning,undefined);assert.equal(response.body.manualReviewEnabled,true);}
     } else {
       assert.equal(response.code,503);assert.equal(columns.length,1,'Do not retry unrelated failures');
@@ -64,4 +64,22 @@ test('manual review API validates notes, records the authenticated actor and rej
   conflict=true;assert.equal((await call()).code,409);
   row={...row,status:'Approved'};assert.equal((await call()).code,409);
   assert.equal(reviews.length,2);
+});
+
+test('remove-history uses the authenticated administrator and only a successful database removal closes the action',async()=>{
+  process.env.SCHEDULER_PORTAL_URL='https://portal.example.test';
+  const id='10000000-0000-4000-8000-000000000001';let result:any={removed:true};let schemaError=false;const calls:any[]=[];
+  const client:any={from:()=>({select(){return this;},eq(){return this;},timeout(){return this;},maybeSingle:async()=>({data:{id:'profile'}})}),rpc:async(name:string,args:any)=>{
+    if(name==='northport_admit_request')return {data:true};
+    assert.equal(name,'northport_remove_failed_history');calls.push(args);return {data:result,error:schemaError?{code:'PGRST202'}:null};
+  }};
+  const handler=createNorthportHandler({adminClient:()=>client,readSession:()=>({id:'signed-admin',email:'admin@example.test',type:'ADMIN'}),withFtp:async()=>assert.fail('Removal must not access FTP'),runScheduler:async()=>assert.fail('Removal must not run scheduler')} as any);
+  const call=async(body:any={action:'remove-history',id,actor:'forged'})=>{
+    const response:any={code:200,setHeader(){},status(code:number){this.code=code;return this;},json(body:any){this.body=body;return this;}};
+    await handler({method:'POST',headers:{origin:'https://portal.example.test','x-cargomove-confirm':'northport-recovery'},body},response);return response;
+  };
+  assert.equal((await call({action:'remove-history',id:'invalid'})).code,400);assert.equal(calls.length,0);
+  assert.equal((await call()).code,200);assert.deepEqual(calls[0],{p_actor:'signed-admin',p_id:id});
+  result={reason:'not_failed'};assert.equal((await call()).code,409);
+  schemaError=true;assert.equal((await call()).code,503);
 });

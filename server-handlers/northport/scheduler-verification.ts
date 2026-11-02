@@ -1,5 +1,5 @@
 import type { Browser } from 'playwright-core';
-import { compareLastRun, launchBrowser, ORIGIN, TASKS_URL, type LastRunVerification } from '../scheduler/automation.js';
+import { compareLastRun, waitForSchedulerTask, launchBrowser, ORIGIN, TASKS_URL, type LastRunVerification } from '../scheduler/automation.js';
 import { schedulerUrl, type SchedulerTarget } from '../scheduler/targets.js';
 
 export async function verifySchedulerRun(input:SchedulerTarget&{before:string|null;dispatchAt:number},launch:()=>Promise<Browser>=launchBrowser):Promise<LastRunVerification> {
@@ -28,7 +28,7 @@ export async function verifySchedulerRun(input:SchedulerTarget&{before:string|nu
       const result=await page.goto(TASKS_URL,{waitUntil:'domcontentloaded'});
       if(!result?.ok()||page.url().split('?')[0]!==TASKS_URL||await page.locator('input[type="password"]').count())return unavailable();
       const link=page.locator(`#scheduled_tasks a[href*="run_scheduled_task?"][href*="id=${input.taskId}"][href*="name=${input.workerName}"]`).first();
-      await link.waitFor({state:'attached'});
+      await waitForSchedulerTask(page,input,8000);
       const after=(await link.locator('xpath=ancestor::tr[1]').locator('td').nth(2).innerText()).trim();
       return compareLastRun(input.before,after,input.dispatchAt,Date.now(),input.dispatchAt);
     };

@@ -5,7 +5,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { ArrowLeft, Check, CheckCircle2, ChevronDown, Clock3, Container, Download, FileClock, FileSearch, History, Info, Loader2, Minus, MoreVertical, PlugZap, RefreshCw, Search, ShieldCheck, X, Zap } from 'lucide-react';
 import { NORTHPORT_COLUMNS, NORTHPORT_SEARCH_MODES, type Match, type Recovery, type ScannedFile, type SearchMode } from '../../types/northport';
 import { reprocessApprovedRecovery, type ReprocessSubmission } from '../../services/northportReprocess';
-import { recoveryFlow } from '../../services/northportRecoveryStatus';
+import { canRetryScheduler, recoveryFlow } from '../../services/northportRecoveryStatus';
 import { recoveryRetrySetup } from '../../services/northportRetry';
 import { NorthportScannedFiles } from './NorthportScannedFiles';
 import { NorthportContainerPagination } from './NorthportContainerPagination';
@@ -94,17 +94,17 @@ function RecordActions({ disabled, onChoose }: { disabled: boolean; onChoose: (a
     </div>
   </>;
 }
-function RecoveryRetryButton({disabled,retryDisabled,onRetry,onEdit}:{disabled:boolean;retryDisabled:boolean;onRetry:()=>void;onEdit:()=>void}) {
+function RecoveryRetryButton({disabled,retryDisabled,onRetry,onEdit,onRemove,label='Retry Recovery'}:{disabled:boolean;retryDisabled:boolean;label?:string;onRemove?:()=>void;onRetry:()=>void;onEdit:()=>void}) {
   const menuRef=useRef<HTMLDivElement>(null);
   const [open,setOpen]=useState(false);
   return <div className="inline-flex rounded-lg bg-emerald-600 shadow-sm">
-    <button type="button" disabled={disabled||retryDisabled} className={reprocessButtonClass+' rounded-r-none shadow-none'} onClick={onRetry}><RefreshCw aria-hidden="true" className="h-4 w-4"/>Retry Recovery</button>
+    <button type="button" disabled={disabled||retryDisabled} className={reprocessButtonClass+' rounded-r-none shadow-none'} onClick={onRetry}><RefreshCw aria-hidden="true" className="h-4 w-4"/>{label}</button>
     <button type="button" aria-label="Retry recovery options" aria-haspopup="dialog" aria-expanded={open} disabled={disabled} className="inline-flex w-9 items-center justify-center rounded-r-lg border-l border-emerald-500 text-white hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-50" onClick={event=>{
       const menu=menuRef.current;if(!menu)return;
       if(menu.matches(':popover-open')){menu.hidePopover();return;}
-      const rect=event.currentTarget.getBoundingClientRect();menu.style.left=Math.max(8,Math.min(rect.right-192,window.innerWidth-200))+'px';menu.style.top=Math.max(8,rect.top-52)+'px';menu.showPopover();menu.querySelector('button')?.focus();
+      const rect=event.currentTarget.getBoundingClientRect();menu.style.left=Math.max(8,Math.min(rect.right-192,window.innerWidth-200))+'px';menu.style.top=Math.max(8,rect.top-(onRemove?96:52))+'px';menu.showPopover();menu.querySelector('button')?.focus();
     }}><MoreVertical aria-hidden="true" className="h-4 w-4"/></button>
-    <div ref={menuRef} popover="auto" role="dialog" aria-label="Retry recovery options" onToggle={()=>setOpen(menuRef.current?.matches(':popover-open')??false)} style={{position:'fixed',margin:0}} className="w-48 rounded-lg border border-slate-200 bg-white p-1.5 text-xs text-slate-700 shadow-xl"><button type="button" disabled={disabled} className="w-full rounded-md px-3 py-2 text-left hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" onClick={()=>{menuRef.current?.hidePopover();onEdit();}}>Search and re-edit</button></div>
+    <div ref={menuRef} popover="auto" role="dialog" aria-label="Retry recovery options" onToggle={()=>setOpen(menuRef.current?.matches(':popover-open')??false)} style={{position:'fixed',margin:0}} className="w-48 rounded-lg border border-slate-200 bg-white p-1.5 text-xs text-slate-700 shadow-xl"><button type="button" disabled={disabled} className="w-full rounded-md px-3 py-2 text-left hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" onClick={()=>{menuRef.current?.hidePopover();onEdit();}}>Search and re-edit</button>{onRemove&&<button type="button" disabled={disabled} className="mt-1 w-full rounded-md border-t border-slate-100 px-3 py-2 text-left text-red-700 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500" onClick={()=>{menuRef.current?.hidePopover();onRemove();}}>Remove from history</button>}</div>
   </div>;
 }
 function FileEditorDialog({ children, busy, onClose, label = 'Container file editor', header, headerActions, footer, compact = false }: { children: React.ReactNode; busy: boolean; onClose: () => void; label?: string; header?: React.ReactNode; headerActions?: React.ReactNode; footer?: React.ReactNode; compact?: boolean }) {
@@ -306,6 +306,7 @@ export function NorthportRecovery({ onBack, active = true }: { onBack: () => voi
   const [historyError,setHistoryError] = useState('');
   const [historyWarning,setHistoryWarning] = useState('');
   const [manualReviewEnabled,setManualReviewEnabled] = useState(false);
+  const [historyRemovalEnabled,setHistoryRemovalEnabled] = useState(false);
   const reprocessCooldownSeconds = Math.min(5,Math.max(0,Math.ceil((reprocessAvailableAt-cooldownClock)/1000)));
   const setError=(text:string)=>{if(text)notifyError(text,notificationOptions);};
   const setMessage=(text:string)=>{if(text)notifySuccess(text,notificationOptions);};
@@ -323,7 +324,7 @@ export function NorthportRecovery({ onBack, active = true }: { onBack: () => voi
       if(activeRecovery.current&&!rows.some(row=>row.id===activeRecovery.current!.id)) rows.unshift(activeRecovery.current);
       setHistory(rows);setEnabled(data.uploadsEnabled);setGates(data.missingGates);setHistoryError('');
       setHistoryWarning(data.historyWarning||'');
-      setManualReviewEnabled(data.manualReviewEnabled===true);
+      setManualReviewEnabled(data.manualReviewEnabled===true);setHistoryRemovalEnabled(data.historyRemovalEnabled===true);
       setHistoryDetail(current=>current?rows.find(row=>row.id===current.id)||current:null);
     } catch(e) { if (!signal?.aborted) {setHistoryError((e as Error).message);if(!historyError)notifyError((e as Error).message,notificationOptions);} }
   }
@@ -541,7 +542,7 @@ export function NorthportRecovery({ onBack, active = true }: { onBack: () => voi
       let response:Response;
       for(let retry=0;;retry++) {
         response=await fetch('/api/dev-tools/northport-recovery',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CargoMove-Confirm':'northport-recovery'},body:JSON.stringify({action:name,...payload}),signal:controller.signal});
-        if(!['cancel','cancel-approved'].includes(name)||response.status!==429||retry>0)break;
+        if(!['cancel','cancel-approved','remove-history'].includes(name)||response.status!==429||retry>0)break;
         await batchPause(5100,controller.signal);
       }
       const data=await recoveryResponse(response);
@@ -552,6 +553,7 @@ export function NorthportRecovery({ onBack, active = true }: { onBack: () => voi
       if(name==='verify-gp'||name==='verify-result') {if(data.status==='Verification Failed')setError(data.message);else setMessage(data.message);}
       if(name==='cancel'||name==='cancel-approved') setMessage(data.message);
       if(name==='manual-review') setMessage(data.message);
+      if(name==='remove-history'){setHistory(previous=>previous.filter(row=>row.id!==payload.id));setHistoryDetail(null);setMessage(data.message);}
     } catch(e) {
       if(name==='search')setSearchSummary(previous=>({listed:0,candidates:0,...previous,scanning:false,complete:false,interrupted:true}));
       if(controller.signal.aborted) setMessage('Search cancelled.'); else {
@@ -716,7 +718,7 @@ export function NorthportRecovery({ onBack, active = true }: { onBack: () => voi
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" disabled={!!busy} className={secondaryClass+' mr-auto'} onClick={()=>setHistoryDetail(null)}>Close</button>
         {canManuallyReview(historyDetail,manualReviewEnabled)&&<RecoveryStatusMenu recovery={historyDetail} busy={!!busy} onSave={(outcome,note)=>void action('manual-review',{id:historyDetail.id,outcome,note,expectedReviewId:historyDetail.manual_review?.id||null})}/>}
-        {recoveryFlow(historyDetail).label==='FAIL'?<RecoveryRetryButton disabled={!!busy} retryDisabled={!enabled} onRetry={()=>void action('retry-recovery',{recovery:historyDetail})} onEdit={()=>void action('search-reedit',{recovery:historyDetail})}/>:<>
+        {recoveryFlow(historyDetail).label==='FAIL'?<RecoveryRetryButton onRemove={historyRemovalEnabled?()=>void action('remove-history',{id:historyDetail.id}):undefined} disabled={!!busy} retryDisabled={!enabled} label={canRetryScheduler(historyDetail)?'Retry scheduler':'Retry Recovery'} onRetry={()=>void action(canRetryScheduler(historyDetail)?'scheduler':'retry-recovery',canRetryScheduler(historyDetail)?{id:historyDetail.id}:{recovery:historyDetail})} onEdit={()=>void action('search-reedit',{recovery:historyDetail})}/>:<>
           {historyDetail.status==='Approved'&&recoveryFlow(historyDetail).label!=='CANCELLED'&&<button type="button" disabled={!!busy} className={cancelButtonClass} onClick={()=>void action('cancel-approved',{id:historyDetail.id})}>Cancel recovery</button>}
           {recoveryFlow(historyDetail).label==='PROCESSING'&&['Uploaded','Scheduler Triggered','Processing','Verification Unavailable'].includes(historyDetail.status)&&<button type="button" disabled={!!busy} className={buttonClass} onClick={()=>void action('verify-result',{id:historyDetail.id})}>{historyDetail.container_type==='GP'?'Check GP in CargoMove':'Check scheduler in CargoMove'}</button>}
           {historyDetail.status==='Approved'&&<button type="button" disabled={!enabled||!!busy} className={reprocessButtonClass} onClick={()=>setConfirmation({action:'resume-reprocess',container:historyDetail.container,payload:{id:historyDetail.id}})}><RefreshCw className="h-4 w-4"/>Resume reprocessing</button>}

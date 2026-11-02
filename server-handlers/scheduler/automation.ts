@@ -1,6 +1,8 @@
-import type { Browser, BrowserType } from 'playwright-core';
+import type { Browser, BrowserType, Page } from 'playwright-core';
 import { existsSync } from 'node:fs';
 import { NORTHPORT_TARGET, schedulerUrl, type SchedulerTarget } from './targets.js';
+import { adminClient } from '../../api/_runtime.js';
+import { CargoMoveAccountBusyError, launchAccountBrowser } from './account-session.js';
 
 export const SCHEDULER = 'northport_containers';
 export const ORIGIN = 'https://www.cargomove.my';
@@ -73,6 +75,10 @@ export async function launchWindowsBrowser(playwright: Pick<BrowserType, 'execut
 }
 
 export async function launchBrowser(): Promise<Browser> {
+  return launchAccountBrowser(adminClient(), launchUncoordinatedBrowser);
+}
+
+async function launchUncoordinatedBrowser(): Promise<Browser> {
   const { chromium: playwright } = await import('playwright-core');
   // Prefer managed Chromium locally; use installed browsers when it is absent.
   // Vercel continues to use the packaged Linux binary.
@@ -81,6 +87,19 @@ export async function launchBrowser(): Promise<Browser> {
   }
   const { default: chromium } = await import('@sparticuz/chromium');
   return playwright.launch({ args: chromium.args, executablePath: await chromium.executablePath(), headless: true, timeout: 20000 });
+}
+
+// DataTables may paginate the saved task away from the first visible page.
+// Filter only the task list, then require the exact saved id/name before dispatch.
+export async function waitForSchedulerTask(page: Page, scheduler: SchedulerTarget, timeout: number) {
+  const search = page.locator('#scheduled_tasks_filter input[type="search"]');
+  try {await search.waitFor({state:'visible',timeout:Math.min(2000,timeout)});} catch { /* Some task pages have no search control. */ }
+  if (await search.count()) {
+    await search.fill(scheduler.workerName,{timeout});
+    await search.press('Enter',{timeout});
+  }
+  await page.locator(`#scheduled_tasks a[href*="run_scheduled_task?"][href*="id=${scheduler.taskId}"][href*="name=${scheduler.workerName}"]`)
+    .waitFor({state:'attached',timeout});
 }
 
 // No raw upstream errors, URLs, HTML, credentials or cookies leave this module.
@@ -143,15 +162,19 @@ export async function runAutomation(
       form.locator('button[type="submit"]').click({ timeout: remaining() }),
     ]);
     if (await form.count() || new URL(page.url()).origin !== ORIGIN || /\/user\//i.test(new URL(page.url()).pathname)) throw new Error();
-    message = 'The CargoMove Scheduled Tasks page is inaccessible or requires additional authentication.';
-    const tasks = await page.goto(TASKS_URL, { waitUntil: 'domcontentloaded', timeout: remaining() });
-    if (!tasks?.ok() || page.url().split('?')[0] !== TASKS_URL || await page.locator('input[type="password"]').count()) throw new Error();
-    // Verified in CargoMove's admin-scheduled_tasks.js: DataTables populates
-    // #scheduled_tasks through POST scheduled_tasks_ajax after the HTML loads.
-    // Wait for the exact link in that table rather than inspecting the empty DOM.
-    message = 'CargoMove task list did not load, or the saved scheduler is not listed for this account. No scheduler request was sent.';
-    await page.locator(`#scheduled_tasks a[href*="run_scheduled_task?"][href*="id=${scheduler.taskId}"][href*="name=${scheduler.workerName}"]`)
-      .waitFor({ state: 'attached', timeout: remaining() });
+    for (let attempt=0;attempt<2;attempt++) {
+      try {
+        message = 'The CargoMove Scheduled Tasks page is inaccessible or requires additional authentication. No scheduler request was sent.';
+        const tasks = await page.goto(TASKS_URL, { waitUntil: 'domcontentloaded', timeout: remaining() });
+        if (!tasks?.ok() || page.url().split('?')[0] !== TASKS_URL || await page.locator('input[type="password"]').count()) throw new Error();
+        message = 'CargoMove task list did not load, or the saved scheduler is not listed for this account. No scheduler request was sent. Use Retry scheduler in recovery history.';
+        await waitForSchedulerTask(page,scheduler,Math.min(10000,remaining()));
+        break;
+      } catch (error) {
+        // Retry only this read-only page load, never the scheduler execution URL.
+        if (attempt || Date.now()+1000>=deadline) throw error;
+      }
+    }
     const links = await page.locator('a[href]').evaluateAll(nodes => nodes.map(node => (node as HTMLAnchorElement).href));
     if (!links.some(href => {
       const url = new URL(href);
@@ -184,6 +207,7 @@ export async function runAutomation(
       try {
         const refreshed=await page.goto(TASKS_URL,{waitUntil:'domcontentloaded',timeout:Math.min(5000,remaining())});
         if(!refreshed?.ok()||page.url().split('?')[0]!==TASKS_URL) break;
+        await waitForSchedulerTask(page,scheduler,Math.min(3000,remaining()));
         await taskRow.waitFor({state:'attached',timeout:Math.min(3000,remaining())});
         verification=compareLastRun(before,await readLastRun(),beforeObservedAt,Date.now(),dispatchedAt);
         if(verification.status==='ADVANCED') break;
@@ -193,10 +217,10 @@ export async function runAutomation(
       ?'Scheduler request accepted. CargoMove Last run advanced; a scheduler run was observed. Container import is not verified.'
       :verification.status==='UNCHANGED'?'Scheduler request accepted. CargoMove Last run has not advanced yet. Completion is not verified.'
       :'Scheduler request accepted. CargoMove Last run could not be verified. Completion is not verified.'};
-  } catch {
+  } catch (error) {
     return dispatched
       ? { status: 'UNKNOWN', message: 'The request may have been sent. Check CargoMove Scheduled Tasks before attempting another run.' }
-      : { status: 'FAILED', message };
+      : { status: 'FAILED', message: error instanceof CargoMoveAccountBusyError ? error.message : message };
   } finally {
     if (launchTimer) clearTimeout(launchTimer);
     if (timer) clearTimeout(timer);

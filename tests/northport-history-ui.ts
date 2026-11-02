@@ -25,8 +25,9 @@ try {
   await page.route('**/*',async route=>{
     const url=new URL(route.request().url());assert.equal(url.origin,'http://recovery.test');
     if(url.pathname==='/api/dev-tools/northport-recovery') {
-      if(route.request().method()==='GET')return route.fulfill({json:{history:previewHistory||[history],manualReviewEnabled:true,historyWarning:showWarning?warning:undefined,uploadsEnabled:true,missingGates:[]}});
+      if(route.request().method()==='GET')return route.fulfill({json:{history:previewHistory||[history],manualReviewEnabled:true,historyRemovalEnabled:true,historyWarning:showWarning?warning:undefined,uploadsEnabled:true,missingGates:[]}});
       const body=route.request().postDataJSON();actions.push(body.action);
+      if(body.action==='remove-history'){previewHistory=previewHistory!.filter(row=>row.id!==body.id);return route.fulfill({json:{id:body.id,message:'Failed recovery removed from history.'}});}
       if(body.action==='prepare-retry') {
         const row=previewHistory?.find(row=>row.id===body.id)||history;
         const original=[row.container,...Array(19).fill('')];const values=[...original];values[16]='2026-11-02 08:28:14';
@@ -128,7 +129,7 @@ try {
   assert.match(await details.innerText(),/Actual status/);
   assert.equal(await details.getByRole('button',{name:'Refresh status',exact:true}).count(),0);
   assert.equal(await details.getByRole('button',{name:'Check GP in CargoMove',exact:true}).count(),0);
-  const failButtons=await details.locator('.border-t').last().getByRole('button').allTextContents();
+  const failButtons=await details.locator('.northport-dialog-footer').getByRole('button').allTextContents();
   assert.deepEqual(failButtons.map(text=>text.trim()),['Close','Retry Recovery','']);
   const closeBounds=await details.getByRole('button',{name:'Close',exact:true}).boundingBox();
   const retryBounds=await details.getByRole('button',{name:'Retry Recovery',exact:true}).boundingBox();
@@ -241,6 +242,21 @@ try {
   await page.getByRole('dialog',{name:'Container file editor',exact:true}).waitFor();
   assert.equal(await page.getByLabel('STACKTIME',{exact:true}).inputValue(),'2026-11-02 08:28:14','Search and re-edit restores the saved values');
   assert.ok(actions.includes('search'));
+  previewHistory=[{...history,container:'SHARED123',status:'Verification Unavailable',scheduler_status:'not_sent',gp_verification:null}];
+  await page.reload();
+  await page.getByRole('button',{name:'SHARED123',exact:true}).click();
+  await page.getByRole('button',{name:'Retry scheduler',exact:true}).waitFor();
+  const beforeSchedulerRetry=actions.length;
+  await page.getByRole('button',{name:'Retry scheduler',exact:true}).click();
+  await page.waitForFunction(()=>Array.from(document.querySelectorAll('button')).some(button=>button.textContent==='Refresh History'&&!button.disabled));
+  assert.deepEqual(actions.slice(beforeSchedulerRetry),['scheduler','verify-gp'],'Retry scheduler does not search, approve or upload again');
+  const beforeRemove=actions.length;
+  await details.getByRole('button',{name:'Retry recovery options',exact:true}).click();
+  await page.getByRole('button',{name:'Remove from history',exact:true}).click();
+  await details.waitFor({state:'hidden'});
+  await page.waitForFunction(()=>Array.from(document.querySelectorAll('button')).some(button=>button.textContent==='Refresh History'&&!button.disabled));
+  assert.equal(await page.getByRole('button',{name:'SHARED123',exact:true}).count(),0);
+  assert.deepEqual(actions.slice(beforeRemove),['remove-history'],'Removing history does not upload or dispatch');
   assert.deepEqual(errors,[]);
   console.log('Recovery details layout, cancellation, resume ordering and status refresh passed.');
 } finally {await browser.close();}

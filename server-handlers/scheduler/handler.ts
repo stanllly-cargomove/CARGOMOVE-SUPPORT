@@ -9,8 +9,9 @@ export function createSchedulerHandler(deps = { adminClient, readSession, runAut
     response.setHeader('Cache-Control', 'no-store');
     const timestamp = new Date().toISOString();
     let workerName = SCHEDULER;
+    let dispatchRecorded = false;
     const reply = (code: number, message: string, status = 'FAILED', extra = {}) => response.status(code).json({
-      success: status === 'TRIGGER_REQUESTED', scheduler: workerName, timestamp, status: status.toLowerCase(), message, ...extra,
+      success: status === 'TRIGGER_REQUESTED', scheduler: workerName, timestamp, status: status.toLowerCase(), message, schedulerRequestSent:dispatchRecorded, ...extra,
     });
     if (request.method !== 'POST') { response.setHeader('Allow', 'POST'); return reply(405, 'Method not allowed.'); }
     const access = await schedulerAdmin(request, deps);
@@ -47,6 +48,7 @@ export function createSchedulerHandler(deps = { adminClient, readSession, runAut
       const outcome: Outcome = await deps.runAutomation({ username, password }, async () => {
         const marked = await client.rpc<boolean>('mark_cargomove_scheduler_dispatch', { p_id: runId });
         if (marked.error || marked.data !== true) throw new Error('Dispatch audit unavailable');
+        dispatchRecorded = true;
       }, undefined, undefined, target);
       const saved = await client.rpc<boolean>('finish_cargomove_scheduler', { p_id: runId, p_status: outcome.status, p_message: outcome.message });
       if (saved.error || saved.data !== true) return reply(502, 'Unable to save the final result. Check CargoMove and the execution audit before another run.', 'UNKNOWN', { executionId: runId });
