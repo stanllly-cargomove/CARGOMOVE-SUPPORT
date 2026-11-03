@@ -4,11 +4,11 @@ import { readFileSync } from 'node:fs';
 import { unzipSync } from 'fflate';
 import { NORTHPORT_COLUMNS } from '../src/types/northport.js';
 import { filenameInfo, malaysiaTime, localTime, searchInput, parseCsv, generateCsv, prepareReprocessFile, validateValues, MAX_FILE, RecoveryError } from '../server-handlers/northport/format.js';
-import { ftpConfig, withFtp, safeUpload, download } from '../server-handlers/northport/ftp.js';
+import { ftpConfig, withFtp, safeUpload, download, downloadSource, sourceDirectory } from '../server-handlers/northport/ftp.js';
 import { createNorthportHandler } from '../server-handlers/northport/handler.js';
 import { recoveryFlow } from '../src/services/northportRecoveryStatus.js';
 import type { Recovery } from '../src/types/northport.js';
-import { searchFiles, PARTIAL_LISTING_WARNING } from '../server-handlers/northport/listing.js';
+import { searchFiles, searchSourceFiles, PARTIAL_LISTING_WARNING } from '../server-handlers/northport/listing.js';
 import { containsContainerText, signFileSource, signEditorSource, verifyEditorSource } from '../server-handlers/northport/inspection.js';
 
 const gpName='CM_CONTAINER_20261017012016_GP.csv';
@@ -58,12 +58,19 @@ function harness() {
   let entries=[{name:gpName,isFile:true,size:gp.length},{name:exName,isFile:true,size:ex.length},{name:'CM_CONTAINER_20261015012016_GP.csv',isFile:true,size:999999}];
   const directories:string[]=[];const downloads:string[]=[];const updates:any[]=[];const rpcCalls:{name:string;args:any}[]=[];let approve:any=null;let claim:any=null;let claimError=false;let uploadFailure=false;let uploadedBytes:Buffer|null=null;let uploadedName='';let schedulerClaim=true;let rate=true;let ftpError=false;let source=gp;let incoming:Buffer|null=null;let schedulerFailure=false;let schedulerCalls=0;let uploaded=false;
   const listingRequests:(string|undefined)[]=[];
-  let sizeLookup=async(_name:string)=>1;
-  const ftp={pwd:async()=>'/account',cd:async(path:string)=>{directories.push(path);},list:async(pattern?:string)=>{listingRequests.push(pattern);return entries;},downloadTo:async(stream:any,name:string)=>{downloads.push(name);stream.end(name.startsWith('REPROCESS_')&&incoming?incoming:name===exName?ex:source);},uploadFrom:async(stream:any)=>{uploaded=true;if(uploadFailure)throw new RecoveryError('Transfer interrupted',502);const chunks:Buffer[]=[];for await(const chunk of stream)chunks.push(Buffer.from(chunk));uploadedBytes=Buffer.concat(chunks);},size:async(name:string)=>name.endsWith('.part')&&uploadedBytes?uploadedBytes.length:sizeLookup(name),rename:async(_from:string,to:string)=>{uploadedName=to;}};
+  let sizeLookup=async(_name:string)=>1;let sourceArchived=false;
+  const ftp={pwd:async()=>'/account',cd:async(path:string)=>{directories.push(path);},list:async(pattern?:string)=>{listingRequests.push(pattern);return entries;},downloadTo:async(stream:any,name:string)=>{
+    const info=filenameInfo(name);
+    if(info) {
+      if(sourceArchived&&directories.at(-1)==='/incoming/SUCCESS')throw Object.assign(new Error('550 File not found'),{code:550});
+      assert.equal(directories.at(-1),sourceArchived?'/incoming/SUCCESS_ARCHIVES':sourceDirectory({success:'/incoming/SUCCESS',archives:'/incoming/SUCCESS_ARCHIVES'},info.time),'Every source read must use its date-based directory or archive fallback');
+    }
+    downloads.push(name);stream.end(name.startsWith('REPROCESS_')&&incoming?incoming:name===exName?ex:source);
+  },uploadFrom:async(stream:any)=>{uploaded=true;if(uploadFailure)throw new RecoveryError('Transfer interrupted',502);const chunks:Buffer[]=[];for await(const chunk of stream)chunks.push(Buffer.from(chunk));uploadedBytes=Buffer.concat(chunks);},size:async(name:string)=>name.endsWith('.part')&&uploadedBytes?uploadedBytes.length:sizeLookup(name),rename:async(_from:string,to:string)=>{uploadedName=to;}};
   const client={from(){const query:any={select(){return this;},eq(){return this;},is(){return this;},order(){return this;},limit(){return this;},timeout(){return this;},update(value:any){updates.push(value);return this;},async maybeSingle(){return {data:profile,error:null};},then(resolve:any){return Promise.resolve({data:[],error:null}).then(resolve);}};return query;},async rpc(name:string,args:any){rpcCalls.push({name,args});return {error:name==='northport_claim_file_upload'&&claimError?{message:'Missing function'}:null,data:name==='northport_admit_request'?rate:name==='northport_approve'?approve:name==='northport_claim_file_upload'?claim:name==='northport_claim_scheduler'||name==='northport_cancel_approved'?schedulerClaim:name==='northport_record_cancelled'?{id:'cancelled-attempt',status:'Cancelled'}:null};}};
-  const handler=createNorthportHandler({adminClient:()=>client as any,readSession:()=>session,withFtp:async(operation:any)=>{if(ftpError)throw new RecoveryError('FTP operation failed',502);return operation(ftp,{base:'/incoming',success:'/incoming/SUCCESS',access:{secure:true}});},runScheduler:async(_req:any,res:any)=>{schedulerCalls++;res.status(schedulerFailure?502:200).json({status:schedulerFailure?'failed':'trigger_requested',message:'Test result',executionId:'run-test'});}} as any);
+  const handler=createNorthportHandler({adminClient:()=>client as any,readSession:()=>session,withFtp:async(operation:any)=>{if(ftpError)throw new RecoveryError('FTP operation failed',502);return operation(ftp,{base:'/incoming',success:'/incoming/SUCCESS',archives:'/incoming/SUCCESS_ARCHIVES',access:{secure:true}});},runScheduler:async(_req:any,res:any)=>{schedulerCalls++;res.status(schedulerFailure?502:200).json({status:schedulerFailure?'failed':'trigger_requested',message:'Test result',executionId:'run-test'});}} as any);
   const call=async(payload:any,overrides:any={})=>{const response:any={code:200,body:null,headers:{} as Record<string,string>,setHeader(name:string,value:string){this.headers[name]=value;},status(code:number){this.code=code;return this;},json(body:any){this.body=body;return this;},send(body:any){this.body=body;return this;}};await handler({method:'POST',headers:{origin:'https://portal.example.test','x-cargomove-confirm':'northport-recovery'},body:payload,...overrides},response);return response;};
-  return {call,directories,downloads,updates,rpcCalls,listingRequests,setSize:(fn:typeof sizeLookup)=>sizeLookup=fn,get uploaded(){return uploaded;},get uploadedBytes(){return uploadedBytes;},get uploadedName(){return uploadedName;},get schedulerCalls(){return schedulerCalls;},setSession:(v:any)=>session=v,setProfile:(v:any)=>profile=v,setEntries:(v:any)=>entries=v,setRate:(v:boolean)=>rate=v,setFtpError:()=>ftpError=true,setSource:(v:Buffer)=>source=v,setIncoming:(v:Buffer)=>incoming=v,setApprove:(v:any)=>approve=v,setClaim:(v:any)=>claim=v,setClaimError:()=>claimError=true,setUploadFailure:()=>uploadFailure=true,setSchedulerFailure:()=>schedulerFailure=true,setSchedulerClaim:(v:boolean)=>schedulerClaim=v};
+  return {call,directories,downloads,updates,rpcCalls,listingRequests,setSize:(fn:typeof sizeLookup)=>sizeLookup=fn,get uploaded(){return uploaded;},get uploadedBytes(){return uploadedBytes;},get uploadedName(){return uploadedName;},get schedulerCalls(){return schedulerCalls;},setSession:(v:any)=>session=v,setProfile:(v:any)=>profile=v,setEntries:(v:any)=>entries=v,setRate:(v:boolean)=>rate=v,setFtpError:()=>ftpError=true,setSource:(v:Buffer)=>source=v,setSourceArchived:()=>sourceArchived=true,setIncoming:(v:Buffer)=>incoming=v,setApprove:(v:any)=>approve=v,setClaim:(v:any)=>claim=v,setClaimError:()=>claimError=true,setUploadFailure:()=>uploadFailure=true,setSchedulerFailure:()=>schedulerFailure=true,setSchedulerClaim:(v:boolean)=>schedulerClaim=v};
 }
 
 test('search modes default to Basic Scan and never search incoming or silently change type and time',async()=>{
@@ -72,7 +79,7 @@ test('search modes default to Basic Scan and never search incoming or silently c
   for(const mode of ['standard','files','content']) {
     const h=harness();const result=await h.call({action:'search',...search,type:'GP',sourceFilename:gpName,mode});
     assert.equal(result.code,200);assert.equal(result.body.mode,mode);assert.equal(result.body.start,'2026-10-17T01:15:00');assert.equal(result.body.end,'2026-10-17T01:50:00');
-    assert.deepEqual(h.directories,['/incoming/SUCCESS']);assert.deepEqual(h.downloads,[gpName]);
+    assert.deepEqual(h.directories,['/incoming/SUCCESS_ARCHIVES','/incoming/SUCCESS_ARCHIVES']);assert.deepEqual(h.downloads,[gpName]);
     assert.equal(result.body.scannedFiles.length,mode==='standard'?0:1);
     assert.equal(h.uploaded,false);assert.equal(h.schedulerCalls,0);
   }
@@ -87,7 +94,7 @@ test('Advanced Scan lists matches and nonmatches and bypasses incomplete listing
     const first=await h.call(input);assert.equal(first.code,200);assert.ok(first.body.nextCursor);assert.equal(first.body.scannedFiles[0].status,'match');assert.equal(first.body.scannedFiles[0].matches,1);
     assert.equal((await h.call({...input,mode:'content',cursor:first.body.nextCursor})).code,400);
     const last=await h.call({...input,cursor:first.body.nextCursor});assert.equal(last.body.complete,true);assert.equal(last.body.nextCursor,null);assert.equal(last.body.scannedFiles[0].filename,lastName);assert.equal(last.body.progress.files,2);
-    assert.deepEqual(h.listingRequests,[]);assert.deepEqual(h.directories,['/incoming/SUCCESS','/incoming/SUCCESS']);
+    assert.deepEqual(h.listingRequests,[]);assert.deepEqual(h.directories,Array(4).fill('/incoming/SUCCESS_ARCHIVES'));
     const noMatch=await h.call({...input,sourceFilename:gpName,unit:'OTHER123'});assert.equal(noMatch.body.scannedFiles[0].status,'no-match');assert.equal(noMatch.body.scannedFiles[0].records,3);
   } finally {process.env.NORTHPORT_FTP_LISTING_MODE='full';}
 });
@@ -161,6 +168,149 @@ test('date discovery covers Malaysia midnight and up to three dates, deduplicate
     ftp.list=async()=>{throw new Error('Listing failed');};await assert.rejects(()=>searchFiles(ftp,searchInput(search)),/Listing failed/);
     process.env.NORTHPORT_FTP_LISTING_MODE='unrecognized';await assert.rejects(()=>searchFiles(ftp,searchInput(search)),/listing mode/);
   } finally {process.env.NORTHPORT_FTP_LISTING_MODE='full';}
+});
+
+test('source directory cutoff uses Malaysia midnight, including yesterday and year boundaries',()=>{
+  const config={success:'/containers/SUCCESS',archives:'/containers/SUCCESS_ARCHIVES'};
+  const midnight=malaysiaTime('2026-01-01T00:00:00');
+  assert.equal(sourceDirectory(config,midnight-1000,midnight-1),config.success);
+  assert.equal(sourceDirectory(config,midnight-1000,midnight),config.archives);
+  assert.equal(sourceDirectory(config,midnight-86400000,midnight),config.archives);
+  assert.equal(sourceDirectory(config,midnight,midnight),config.success);
+});
+
+test('all discovery modes route a midnight window across archive and current directories',async()=>{
+  const config={success:'/containers/SUCCESS',archives:'/containers/SUCCESS_ARCHIVES'};
+  const oldName='CM_CONTAINER_20261231235959_GP.csv';const todayName='CM_CONTAINER_20270101000000_GP.csv';
+  const now=malaysiaTime('2027-01-01T00:01:00');
+  const filter=searchInput({...search,timestamp:'2027-01-01T00:00:00',type:'GP',before:1,after:0});
+  const saved=process.env.NORTHPORT_FTP_LISTING_MODE;
+  try {
+    for (const mode of ['full','date-pattern','timestamp-scan']) {
+      process.env.NORTHPORT_FTP_LISTING_MODE=mode;
+      let directory='';const paths:string[]=[];
+      const files=new Map([[config.archives,[oldName]],[config.success,[oldName,todayName]]]);
+      const ftp:any={cd:async(path:string)=>{directory=path;paths.push(path);},list:async(pattern?:string)=>files.get(directory)!.filter(name=>!pattern||name.includes(pattern.slice(1,-1))).map(name=>({name,size:gp.length,isFile:true})),size:async(name:string)=>{
+        if(files.get(directory)!.includes(name))return gp.length;
+        throw Object.assign(new Error('550 No such file'),{code:550});
+      }};
+      const result=await searchSourceFiles(ftp,config,filter,{now});
+      assert.deepEqual(result.files.map(file=>file.name).sort(),[oldName,todayName].sort(),mode);
+      assert.deepEqual(paths,mode==='full'?[config.success,config.archives]:mode==='date-pattern'?[config.archives,config.success,config.archives]:[config.archives,config.success],mode);
+      if(mode==='timestamp-scan')assert.equal(result.scan?.nextOffset,61);
+      for(const [sourceFilename,expected] of [[oldName,config.archives],[todayName,config.success]]) {
+        paths.length=0;
+        const exact=await searchSourceFiles(ftp,config,{...filter,sourceFilename},{now});
+        assert.equal(exact.scope,'file');assert.equal(exact.files[0].name,sourceFilename);assert.deepEqual(paths,[expected]);
+      }
+    }
+  } finally {if(saved===undefined)delete process.env.NORTHPORT_FTP_LISTING_MODE;else process.env.NORTHPORT_FTP_LISTING_MODE=saved;}
+});
+
+test('timestamp continuation changes directory when its next batch reaches today',async()=>{
+  const config={success:'/containers/SUCCESS',archives:'/containers/SUCCESS_ARCHIVES'};
+  const now=malaysiaTime('2027-01-01T00:01:00');const paths:string[]=[];
+  const filter=searchInput({...search,timestamp:'2027-01-01T00:00:00',type:'GP',before:10,after:0,mode:'files'});
+  const ftp:any={cd:async(path:string)=>{paths.push(path);},size:async()=>{throw Object.assign(new Error('550 No such file'),{code:550});}};
+  const first=await searchSourceFiles(ftp,config,filter,{now});assert.equal(first.scan?.nextOffset,600);assert.deepEqual(paths,[config.archives]);
+  paths.length=0;const last=await searchSourceFiles(ftp,config,filter,{now,offset:first.scan!.nextOffset});
+  assert.equal(last.scan?.nextOffset,601);assert.deepEqual(paths,[config.success]);
+  ftp.cd=async()=>{throw new RecoveryError('Archive access denied',502);};
+  await assert.rejects(()=>searchSourceFiles(ftp,config,filter,{now}),/Archive access denied/);
+});
+
+test('today searches discover early archives and current files once in every discovery mode',async()=>{
+  const config={success:'/containers/SUCCESS',archives:'/containers/SUCCESS_ARCHIVES'};
+  const names=['CM_CONTAINER_20261103010000_GP.csv','CM_CONTAINER_20261103010001_GP.csv','CM_CONTAINER_20261103010002_GP.csv'];
+  const now=malaysiaTime('2026-11-03T12:00:00');
+  const filter=searchInput({...search,timestamp:'2026-11-03T01:00:00',type:'GP',before:0,after:1});
+  const saved=process.env.NORTHPORT_FTP_LISTING_MODE;
+  try {
+    for (const mode of ['full','date-pattern','timestamp-scan','exact']) {
+      process.env.NORTHPORT_FTP_LISTING_MODE=mode==='exact'?'full':mode;
+      let directory='';const checks:string[]=[];const changes:string[]=[];
+      const files=new Map([[config.success,[names[1],names[2]]],[config.archives,[names[0],names[2]]]]);
+      const ftp:any={cd:async(path:string)=>{directory=path;changes.push(path);},list:async()=>files.get(directory)!.map(name=>({name,isFile:true,size:directory===config.success?100:200})),size:async(path:string)=>{
+        const slash=path.lastIndexOf('/');const folder=slash<0?directory:path.slice(0,slash);const name=path.slice(slash+1);checks.push(`${folder}/${name}`);
+        if(files.get(folder)?.includes(name))return folder===config.success?100:200;
+        throw Object.assign(new Error('550 File not found'),{code:550});
+      }};
+      const result=await searchSourceFiles(ftp,config,{...filter,sourceFilename:mode==='exact'?names[0]:''},{now});
+      assert.deepEqual(result.files.map(file=>file.name).sort(),mode==='exact'?[names[0]]:names,mode);
+      assert.equal(result.files.find(file=>file.name===names[0])?.size,200);
+      if(mode!=='exact')assert.equal(result.files.find(file=>file.name===names[2])?.size,100,'SUCCESS takes precedence for duplicates');
+      if(mode==='timestamp-scan'||mode==='exact') {
+        assert.deepEqual(checks.slice(0,2),[`${config.success}/${names[0]}`,`${config.archives}/${names[0]}`]);
+        assert.deepEqual(changes,[config.success],'Fallback SIZE must not repeatedly switch directories');
+      }
+    }
+  } finally {if(saved===undefined)delete process.env.NORTHPORT_FTP_LISTING_MODE;else process.env.NORTHPORT_FTP_LISTING_MODE=saved;}
+});
+
+test('today source downloads fall back only on explicit file absence and retain download limits',async(t)=>{
+  t.mock.method(Date,'now',()=>malaysiaTime('2026-10-17T12:00:00'));
+  const config={success:'/containers/SUCCESS',archives:'/containers/SUCCESS_ARCHIVES'};
+  const missing=()=>Object.assign(new Error('550 No such file'),{code:550});
+  let directory='';let primaryError:unknown=missing();let archived=gp;const reads:string[]=[];
+  const ftp:any={cd:async(path:string)=>{directory=path;},downloadTo:async(stream:any,name:string)=>{
+    reads.push(`${directory}/${name}`);
+    if(directory===config.success&&primaryError)throw primaryError;
+    await new Promise<void>((resolve,reject)=>{stream.on('error',reject);stream.on('finish',resolve);stream.end(directory===config.archives?archived:gp);});
+  }};
+  assert.deepEqual(await downloadSource(ftp,config,gpName),gp);
+  assert.deepEqual(reads,[`${config.success}/${gpName}`,`${config.archives}/${gpName}`]);
+  primaryError=null;reads.length=0;await downloadSource(ftp,config,gpName);assert.equal(reads.length,1);
+  for(const error of [Object.assign(new Error('550 Permission denied'),{code:550}),Object.assign(new Error('550 File unavailable'),{code:550}),new Error('Timed out')]) {
+    primaryError=error;reads.length=0;await assert.rejects(()=>downloadSource(ftp,config,gpName),error);assert.equal(reads.length,1);
+  }
+  primaryError=missing();archived=Buffer.alloc(MAX_FILE+1);await assert.rejects(()=>downloadSource(ftp,config,gpName),/file limit/);
+  ftp.cd=async()=>{throw missing();};reads.length=0;await assert.rejects(()=>downloadSource(ftp,config,gpName),/No such file/);assert.equal(reads.length,0,'Directory errors do not trigger file fallback');
+});
+
+test('today filename fallback keeps missing, cancellation and permission outcomes distinct',async()=>{
+  const config={success:'/containers/SUCCESS',archives:'/containers/SUCCESS_ARCHIVES'};
+  const filter=searchInput({...search,sourceFilename:gpName});const now=malaysiaTime('2026-10-17T12:00:00');
+  const missing=()=>Object.assign(new Error('550 File not found'),{code:550});
+  let checks=0;const ftp:any={cd:async()=>{},size:async()=>{checks++;throw missing();}};
+  await assert.rejects(()=>searchSourceFiles(ftp,config,filter,{now}),/File not found/);assert.equal(checks,2);
+  for(const error of [Object.assign(new Error('550 Permission denied'),{code:550}),new Error('Connection reset')]) {
+    checks=0;ftp.size=async()=>{checks++;throw error;};await assert.rejects(()=>searchSourceFiles(ftp,config,filter,{now}),error);assert.equal(checks,1);
+  }
+  const controller=new AbortController();checks=0;ftp.size=async()=>{checks++;controller.abort();throw missing();};
+  await assert.rejects(()=>searchSourceFiles(ftp,config,filter,{now,signal:controller.signal}),/cancelled/);assert.equal(checks,1);
+});
+
+test('signed results can be downloaded and reprocessed from archives after Malaysia midnight',async(t)=>{
+  let now=malaysiaTime('2026-10-17T23:59:00');t.mock.method(Date,'now',()=>now);
+  const h=harness();
+  const found=await h.call({action:'search',...search,sourceFilename:gpName,mode:'files'});
+  assert.equal(found.code,200);assert.deepEqual([...new Set(h.directories)],['/incoming/SUCCESS']);
+  now=malaysiaTime('2026-10-18T00:01:00');h.directories.length=0;
+  const {token,fileToken,values}=found.body.matches[0];
+  for(const input of [
+    {action:'download-source',token}, {action:'download-file',token:fileToken},
+    {action:'editor-records',token}, {action:'list-containers',token},
+    {action:'download-all',files:[{kind:'record',token}]},
+    {action:'download-reprocess',token,values}
+  ]) {const response=await h.call(input);assert.equal(response.code,200,JSON.stringify(response.body));}
+  assert.equal(h.directories.length,6);assert.ok(h.directories.every(path=>path==='/incoming/SUCCESS_ARCHIVES'));
+  assert.equal(h.uploaded,false);assert.equal(h.schedulerCalls,0);
+});
+
+test('signed downloads and reprocess exports follow a source archived during the same day and still verify its hash',async(t)=>{
+  t.mock.method(Date,'now',()=>malaysiaTime('2026-10-17T12:00:00'));
+  const h=harness();const found=await h.call({action:'search',...search,sourceFilename:gpName,mode:'files'});
+  assert.equal(found.code,200);h.setSourceArchived();h.directories.length=0;
+  const {token,fileToken,values}=found.body.matches[0];
+  for(const input of [
+    {action:'download-source',token}, {action:'download-file',token:fileToken},
+    {action:'editor-records',token}, {action:'list-containers',token},
+    {action:'download-all',files:[{kind:'record',token}]},
+    {action:'download-reprocess',token,values}
+  ]) {const result=await h.call(input);assert.equal(result.code,200,JSON.stringify(result.body));}
+  assert.deepEqual(h.directories,Array.from({length:6},()=>['/incoming/SUCCESS','/incoming/SUCCESS_ARCHIVES']).flat());
+  h.setSource(ex);const changed=await h.call({action:'download-source',token});assert.equal(changed.code,409);
+  assert.equal(h.uploaded,false);assert.equal(h.schedulerCalls,0);
 });
 test('search downloads only timestamp candidates, filters GP/EX and matches UNIT exactly',async()=>{
   const h=harness();const res=await h.call({action:'search',...search});assert.equal(res.code,200);assert.equal(res.body.matches.length,1);assert.equal(res.body.matches[0].record,1);assert.equal(res.body.candidates,2);assert.ok(!h.downloads.some(n=>n.includes('20261015')));
@@ -477,6 +627,23 @@ test('FTP configuration never downgrades TLS and connection errors always close'
     process.env.NORTHPORT_FTP_SECURE='false';process.env.NORTHPORT_FTP_ALLOW_PLAINTEXT='false';assert.throws(()=>ftpConfig(),/Plain FTP/);
     process.env.NORTHPORT_FTP_SECURE='bad';assert.throws(()=>ftpConfig(),/TLS/);
   } finally {delete process.env.NORTHPORT_FTP_PASSWORD;delete process.env.NORTHPORT_FTP_SECURE;delete process.env.NORTHPORT_FTP_ALLOW_PLAINTEXT;}
+});
+
+test('FTP source paths default to SUCCESS and SUCCESS_ARCHIVES and stay inside incoming',()=>{
+  const keys=['NORTHPORT_FTP_PASSWORD','NORTHPORT_FTP_SECURE','NORTHPORT_FTP_BASE_DIR','NORTHPORT_FTP_SUCCESS_DIR','NORTHPORT_FTP_SUCCESS_ARCHIVES_DIR'];
+  const saved=keys.map(key=>process.env[key]);
+  try {
+    for(const key of keys)delete process.env[key];
+    process.env.NORTHPORT_FTP_PASSWORD='test-only';process.env.NORTHPORT_FTP_SECURE='true';
+    assert.equal(ftpConfig().archives,'/ftp/CY/PROD/CONTAINERS/SUCCESS_ARCHIVES');
+    process.env.NORTHPORT_FTP_BASE_DIR='/account/CONTAINERS/';
+    process.env.NORTHPORT_FTP_SUCCESS_DIR='/account/CONTAINERS/SUCCESS/';
+    process.env.NORTHPORT_FTP_SUCCESS_ARCHIVES_DIR='/account/CONTAINERS/SUCCESS_ARCHIVES/';
+    assert.equal(ftpConfig().archives,'/account/CONTAINERS/SUCCESS_ARCHIVES');
+    for(const path of ['/elsewhere/SUCCESS_ARCHIVES','relative/SUCCESS_ARCHIVES','/account/CONTAINERS/../SUCCESS_ARCHIVES','/account/CONTAINERS/SUCCESS_ARCHIVES\r\nQUIT','/account/CONTAINERS/SUCCESS']) {
+      process.env.NORTHPORT_FTP_SUCCESS_ARCHIVES_DIR=path;assert.throws(()=>ftpConfig(),/SUCCESS_ARCHIVES/);
+    }
+  } finally {keys.forEach((key,index)=>{if(saved[index]===undefined)delete process.env[key];else process.env[key]=saved[index];});}
 });
 test('download stops at the file memory limit',async()=>{
   const ftp:any={downloadTo:async(stream:any)=>{await new Promise((resolve,reject)=>{stream.on('error',reject);stream.end(Buffer.alloc(MAX_FILE+1),resolve);});}};

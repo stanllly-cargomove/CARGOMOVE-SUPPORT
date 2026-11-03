@@ -3,11 +3,11 @@ import { zipSync } from 'fflate';
 import { adminClient, readSession } from '../../api/_runtime.js';
 import { schedulerAdmin, allowedOrigin } from '../scheduler/access.js';
 import runScheduler from '../scheduler/handler.js';
-import { withFtp, download, safeUpload } from './ftp.js';
+import { withFtp, downloadSource, safeUpload } from './ftp.js';
 import { RecoveryError, searchInput, filenameInfo, parseCsv, prepareReprocessFile, reprocessFilename, validateValues, localTime, MAX_FILE } from './format.js';
 import { NORTHPORT_COLUMNS, type Match, type ScannedFile } from '../../src/types/northport.js';
 import { containsContainerText, signFileSource, verifyFileSource, signEditorSource, verifyEditorSource } from './inspection.js';
-import { searchFiles, usesTimestampScan } from './listing.js';
+import { searchSourceFiles, usesTimestampScan } from './listing.js';
 import { readScanCursor, signScanCursor } from './scan.js';
 import { NORTHPORT_UPLOAD_GATES as GATES, uploadsEnabled } from './configuration.js';
 import { verifyGatepass } from './gatepass-verification.js';
@@ -106,12 +106,16 @@ export function createNorthportHandler(deps = { adminClient, readSession, withFt
           const result = await deps.withFtp(async (ftp, config) => {
             const root = await ftp.pwd();
             let incoming: string | undefined;
-            if (!filter) { await ftp.cd(config.base); incoming = await ftp.pwd(); }
-            await ftp.cd(config.success); const success = await ftp.pwd();
+            let success: string | undefined; let archives: string | undefined;
+            if (!filter) {
+              await ftp.cd(config.base); incoming = await ftp.pwd();
+              await ftp.cd(config.archives); archives = await ftp.pwd();
+              await ftp.cd(config.success); success = await ftp.pwd();
+            }
             const now=Math.floor(Date.now()/1000)*1000;
-            const discovery = await searchFiles(ftp,filter || {unit:'',start:now,end:now,type:'GP',sourceFilename:'',mode:'standard'},{offset:scanState?.offset,signal:controller.signal});
+            const discovery = await searchSourceFiles(ftp,config,filter || {unit:'',start:now,end:now,type:'GP',sourceFilename:'',mode:'standard'},{offset:scanState?.offset,signal:controller.signal,now});
             const { files } = discovery;
-            if (!filter) return { checked: true, root, incoming, success, listed: files.length, secure: config.access.secure, listingMode:discovery.listingMode, coverageWarning:discovery.coverageWarning, message: discovery.scan ? 'Login, paths and timestamp filename checks succeeded. Container searches download discovered CSVs.' : discovery.coverageWarning ? 'Login, paths and a bounded date listing succeeded. Directory completeness is not verified.' : 'Read-only login, paths and passive listing succeeded. Verify Malaysia filename timestamps against the port separately.' };
+            if (!filter) return { checked: true, root, incoming, success, archives, listed: files.length, secure: config.access.secure, listingMode:discovery.listingMode, coverageWarning:discovery.coverageWarning, message: discovery.scan ? 'Login, paths and timestamp filename checks succeeded. Container searches download discovered CSVs.' : discovery.coverageWarning ? 'Login, paths and a bounded date listing succeeded. Directory completeness is not verified.' : 'Read-only login, paths and passive listing succeeded. Verify Malaysia filename timestamps against the port separately.' };
             const candidates = files.flatMap(file => {
               const info = filenameInfo(file.name);
               return file.isFile && info && info.time >= filter.start && info.time <= filter.end && (filter.type === 'ALL' || info.type === filter.type) ? [{file,info}] : [];
@@ -121,7 +125,7 @@ export function createNorthportHandler(deps = { adminClient, readSession, withFt
             const matches: Match[] = []; const scannedFiles: ScannedFile[] = []; const errors: { filename: string; message: string }[] = []; let downloaded = 0; let responseBytes = 0; let parsedRecords=0;
             for (const {file,info} of candidates) {
               if (controller.signal.aborted) throw new RecoveryError('Search cancelled.',499);
-              const bytes = await download(ftp,file.name); downloaded += bytes.length;
+              const bytes = await downloadSource(ftp,config,file.name); downloaded += bytes.length;
               if (downloaded+(scanState?.bytes||0) > 16*1024*1024) throw new RecoveryError('Search exceeded the 16 MiB download budget.');
               const fileToken = signFileSource({actor:session.id,filename:file.name,digest:hash(bytes),expires:Date.now()+30*60000});
               const inspection: ScannedFile | null = filter.mode === 'standard' ? null : {filename:file.name,timestamp:info.timestamp,type:info.type,bytes:bytes.length,records:0,matches:0,status:'no-match',token:fileToken};
@@ -172,9 +176,8 @@ export function createNorthportHandler(deps = { adminClient, readSession, withFt
         }
         const files:Record<string,Uint8Array> = {}; let total=0;
         await deps.withFtp(async (ftp,config) => {
-          await ftp.cd(config.success);
           for (const source of sources.values()) {
-            const bytes = await download(ftp,source.filename); total+=bytes.length;
+            const bytes = await downloadSource(ftp,config,source.filename); total+=bytes.length;
             if (total>16*1024*1024) throw new RecoveryError('Archive exceeds the 16 MiB download budget.');
             if (hash(bytes)!==source.digest) throw new RecoveryError('A source file changed since the search. Search again before downloading.',409);
             files[source.filename]=bytes;
@@ -189,8 +192,7 @@ export function createNorthportHandler(deps = { adminClient, readSession, withFt
       if (input.action === 'download-source' || input.action === 'download-file' || input.action === 'list-containers' || input.action === 'editor-records') {
         const source = input.action === 'download-file' || (['list-containers','editor-records'].includes(input.action) && input.kind === 'file') ? verifyFileSource(input.token,session.id) : verify(input.token,session.id);
         const bytes = await deps.withFtp(async (ftp,config) => {
-          await ftp.cd(config.success);
-          return download(ftp,source.filename);
+          return downloadSource(ftp,config,source.filename);
         });
         if (hash(bytes) !== source.digest) throw new RecoveryError('Source file changed since the search. Search again before viewing or downloading.',409);
         if (input.action === 'editor-records') {
@@ -221,7 +223,7 @@ export function createNorthportHandler(deps = { adminClient, readSession, withFt
         } else if (!recovery || recovery.actor !== session.id || recovery.status !== 'Approved') throw new RecoveryError('Only your approved, not-yet-uploaded recovery can be resumed. Refresh history before continuing.',409);
         const info = filenameInfo(recovery.source_filename);
         if (!info) throw new RecoveryError('The approved source filename is invalid.',409);
-        const original = await deps.withFtp(async (ftp,config) => { await ftp.cd(config.success); return download(ftp,recovery.source_filename); });
+        const original = await deps.withFtp(async (ftp,config) => downloadSource(ftp,config,recovery.source_filename));
         const digest = hash(original);
         if (hash('northport-file:' + recovery.source_filename + ':' + digest) !== recovery.source_key) throw new RecoveryError('Source file changed since approval. This recovery cannot be resumed.',409);
         const csv = parseCsv(original);
@@ -268,7 +270,7 @@ export function createNorthportHandler(deps = { adminClient, readSession, withFt
         if (input.sourceKind === 'editor') {
           const file = verifyEditorSource(input.token,session.id);
           if (!Number.isSafeInteger(input.record) || input.record < 1) throw new RecoveryError('Select a valid container page.');
-          originalBytes = await deps.withFtp(async (ftp,config) => { await ftp.cd(config.success); return download(ftp,file.filename); });
+          originalBytes = await deps.withFtp(async (ftp,config) => downloadSource(ftp,config,file.filename));
           if (hash(originalBytes) !== file.digest) throw new RecoveryError('Source file changed. Search again before reprocessing.',409);
           const csv = parseCsv(originalBytes);
           const row = csv.rows[input.record-1];
@@ -291,8 +293,7 @@ export function createNorthportHandler(deps = { adminClient, readSession, withFt
         // Rebuild from a fresh, hash-verified original for download, approval AND
         // upload. The browser submits only the selected row, never sibling rows.
         const prepared = originalBytes ? prepareReprocessFile(originalBytes,source.record,source.values,values) : await deps.withFtp(async (ftp,config) => {
-          await ftp.cd(config.success);
-          const original = await download(ftp,source.filename);
+          const original = await downloadSource(ftp,config,source.filename);
           if (hash(original) !== source.digest) throw new RecoveryError('Source file changed. Search again before reprocessing.',409);
           return prepareReprocessFile(original,source.record,source.values,values);
         });

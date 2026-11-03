@@ -4,6 +4,14 @@ Integrated location: **Admin Portal → Tools → NP Container**. Only the exist
 
 ## Deployment and configuration
 
+### Date-based FTP source directories (3 November 2026)
+
+Source files dated today in Malaysia (Asia/Kuala_Lumpur) can be in either `/ftp/CY/PROD/CONTAINERS/SUCCESS` or `/ftp/CY/PROD/CONTAINERS/SUCCESS_ARCHIVES`; the worker's archive time is not assumed. Exact filename and timestamp checks try SUCCESS first, then the archive only for an explicit file-not-found response. Full and date-pattern listings read both folders for today's dates and merge duplicate filenames, preferring SUCCESS metadata. Earlier calendar dates, including yesterday, are fetched directly from SUCCESS_ARCHIVES. Routing uses the timestamp in the source filename, rather than FTP modification time or the server's local timezone. Historical windows read only the archive. All discovery modes retain their existing type/window filters, candidate limits and continuation progress. Today's timestamp checks can issue two SIZE requests per filename; the existing batch/session deadlines still apply. Archive fallback uses an absolute SIZE path to avoid repeatedly changing directories for each missing filename.
+
+Original downloads, ZIP downloads, editor reads, approval, resume, retry and reprocess preparation use the same SUCCESS-to-archive file-not-found fallback for today's sources. This lets an unexpired signed result follow its source into the archive during the same day or after midnight, retaining the existing hash checks. Permission errors, directory failures, timeouts, generic 550 errors and changed source hashes fail explicitly without being treated as missing files. Recovery uploads still target the incoming directory; source files remain read-only.
+
+`NORTHPORT_FTP_SUCCESS_ARCHIVES_DIR` is optional and defaults to the incoming directory's `SUCCESS_ARCHIVES` child. The connection diagnostic checks incoming, SUCCESS and SUCCESS_ARCHIVES. Deploy the backend to activate this routing; no database migration is required. Validation uses offline FTP mocks and in-memory databases, without production FTP, database or scheduler operations.
+
 ### Remove failed entries from history
 
 Apply `20261102040000_northport_remove_failed_history.sql` and deploy the backend and UI. Open a FAIL recovery, select the three-dot menu beside Retry Recovery (or Retry scheduler), and choose **Remove from history**. Removal records the administrator and time in `removed_by`/`removed_at`; history excludes these rows before pagination. The original recovery, saved edits, scheduler audits and admission locks remain unchanged. This operation never accesses FTP, uploads a file or requests a scheduler. Successful, cancelled and processing recoveries cannot be removed. The database locks and rechecks the recovery and associated scheduler audit to reject active processing or a changed result. Existing removals are idempotent. If the migration is missing, history stays readable with a migration warning and the removal option is hidden.
@@ -93,7 +101,7 @@ Validation: 42 mocked backend/database tests; `npm run test:northport:search:ui`
 
 ### Search modes (local enhancement, 19 October 2026)
 
-The **Search mode** button beside **Search Container** offers **Basic Scan (Fast)** (default), **Advanced Scan (Enhanced)**, and **Deep Scan (Maximum)**. All searches read only the configured SUCCESS folder and keep the chosen GP/EX filter and filename time window. The initial type and Clear reset remain GP. Incoming is checked only by the existing connection diagnostic, never scanned for recovery.
+The **Search mode** button beside **Search Container** offers **Basic Scan (Fast)** (default), **Advanced Scan (Enhanced)**, and **Deep Scan (Maximum)**. Searches check SUCCESS and SUCCESS_ARCHIVES for today's Malaysia filename date and use SUCCESS_ARCHIVES directly for earlier dates, retaining the chosen GP/EX filter and filename time window. The initial type and Clear reset remain GP. Incoming is checked only by the existing connection diagnostic, never scanned for recovery.
 
 - **Basic Scan (Fast)** retains the existing validated UNIT-record search and configured discovery mode.
 - **Advanced Scan (Enhanced)** uses direct timestamp filename checks and lists every downloaded candidate, including valid files with no match and files rejected by CSV validation. It highlights validated record matches and provides original-file downloads.
@@ -144,12 +152,13 @@ The follow-up production deployment `dpl_Fj2EhSqzsB6k2t3YUNUWRe6SoTDL` (03:14 MY
 | `NORTHPORT_FTP_ALLOW_PLAINTEXT` | Defaults disabled; explicit server-only opt-in for a verified legacy configuration |
 | `NORTHPORT_FTP_BASE_DIR` | `/ftp/CY/PROD/CONTAINERS` |
 | `NORTHPORT_FTP_SUCCESS_DIR` | `/ftp/CY/PROD/CONTAINERS/SUCCESS`; must be the incoming directory's SUCCESS child |
+| `NORTHPORT_FTP_SUCCESS_ARCHIVES_DIR` | `/ftp/CY/PROD/CONTAINERS/SUCCESS_ARCHIVES`; must be the incoming directory's SUCCESS_ARCHIVES child |
 | `NORTHPORT_FTP_LISTING_MODE` | `timestamp-scan` (default, bounded exact filename checks); `full` and incomplete `date-pattern` remain legacy alternatives |
 | `NORTHPORT_RECOVERY_UPLOAD_ENABLED` | `false` until all gates below pass |
 
 The example `SECURE=false` records the observed FileZilla configuration; it is not a recommendation. Run `npm run northport:check -- --probe-tls` to test explicit AUTH TLS with certificate verification and no login. Then set the verified secure mode and run `npm run northport:check` for authenticated PWD/CWD/passive listing checks using the configured listing mode. The page has an equivalent authenticated read-only check. No check uploads, renames or deletes files. TLS connections never automatically downgrade; certificate verification is never disabled. See the local verification findings below; Vercel egress and account access require their own read-only check after deployment.
 
-If the account is chrooted, use the absolute paths exposed **inside that account**, for example `/CONTAINERS` and `/CONTAINERS/SUCCESS`. Do not automatically fall back to guessed directories. If passive data connections fail, verify firewall/NAT rules and Vercel egress access with the FTP operator. The client rejects a different passive transfer host by default.
+If the account is chrooted, use the absolute paths exposed **inside that account**, for example `/CONTAINERS`, `/CONTAINERS/SUCCESS` and `/CONTAINERS/SUCCESS_ARCHIVES`. Do not automatically fall back to guessed directories. If passive data connections fail, verify firewall/NAT rules and Vercel egress access with the FTP operator. The client rejects a different passive transfer host by default.
 
 ### Local read-only verification, 17 October 2026
 

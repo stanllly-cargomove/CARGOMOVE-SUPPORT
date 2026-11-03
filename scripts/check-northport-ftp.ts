@@ -1,9 +1,9 @@
 // Read-only diagnostics. No upload, rename, delete, or scheduler commands.
 import '../api/_runtime.js';
 import { Client, FileInfo } from 'basic-ftp';
-import { withFtp, download } from '../server-handlers/northport/ftp.js';
+import { withFtp, downloadSource, sourceDirectory } from '../server-handlers/northport/ftp.js';
 import { filenameInfo, parseCsv, searchInput, MAX_FILE } from '../server-handlers/northport/format.js';
-import { searchFiles, listingMode } from '../server-handlers/northport/listing.js';
+import { searchSourceFiles, listingMode } from '../server-handlers/northport/listing.js';
 const arg = (name: string) => process.argv.find(value=>value.startsWith(`--${name}=`))?.slice(name.length+3);
 if (process.argv.includes('--probe-tls')) {
   const client = new Client(10000);
@@ -29,12 +29,11 @@ if (process.argv.includes('--probe-tls')) {
     let more=false;
     do {
       await withFtp(async(client,config)=>{
-        await client.cd(config.success);
-        const discovery=await searchFiles(client,filter,{offset});scope=discovery.scope;mode=discovery.listingMode;warning=discovery.coverageWarning;
+        const discovery=await searchSourceFiles(client,config,filter,{offset});scope=discovery.scope;mode=discovery.listingMode;warning=discovery.coverageWarning;
         const candidates=discovery.files.filter(file=>{const info=filenameInfo(file.name);return file.isFile&&info&&info.time>=filter.start&&info.time<=filter.end&&(filter.type==='ALL'||info.type===filter.type);});
         if(candidateFiles+candidates.length>40||candidates.some(file=>file.size>MAX_FILE))throw new Error('Diagnostic candidate limits exceeded. Narrow the window.');
         for(const file of candidates) {
-          const bytes=await download(client,file.name);downloadedBytes+=bytes.length;
+          const bytes=await downloadSource(client,config,file.name);downloadedBytes+=bytes.length;
           if(downloadedBytes>16*1024*1024)throw new Error('Diagnostic download budget exceeded.');
           const csv=parseCsv(bytes);parsedRecords+=csv.rows.length;candidateFiles++;
           csv.rows.forEach((row,i)=>{if(row[0].trim().toUpperCase()===filter.unit)matches.push({filename:file.name,record:i+1});});
@@ -50,11 +49,13 @@ if (process.argv.includes('--probe-tls')) {
     await withFtp(async(client,config)=>{
       console.log('FTP login succeeded. Checking account-root paths.');
       const root=await client.pwd();await client.cd(config.base);const incoming=await client.pwd();
-      console.log('Incoming directory is accessible. Checking SUCCESS.');
+      console.log('Incoming directory is accessible. Checking SUCCESS_ARCHIVES and SUCCESS.');
+      await client.cd(config.archives);const archives=await client.pwd();
       await client.cd(config.success);const success=await client.pwd();
       if (arg('probe-minute')) {
         const minute=arg('probe-minute')!;
         if (!/^\d{12}$/.test(minute) || !filenameInfo(`CM_CONTAINER_${minute}00_GP.csv`)) throw new Error('Probe minute must be YYYYMMDDHHMM.');
+        await client.cd(sourceDirectory(config,filenameInfo(`CM_CONTAINER_${minute}00_GP.csv`)!.time));
         const started=Date.now();let checked=0;let missing=0;const found:string[]=[];let missingResponse:string|undefined;
         for (let second=0;second<60;second++) for (const type of ['GP','EX']) {
           const name=`CM_CONTAINER_${minute}${String(second).padStart(2,'0')}_${type}.csv`;
@@ -66,6 +67,7 @@ if (process.argv.includes('--probe-tls')) {
       if (process.argv.includes('--inspect-listing')) {
         const gp='CM_CONTAINER_20261017012016_GP.csv';
         const ex='CM_CONTAINER_20261017012014_EX.csv';
+        await client.cd(sourceDirectory(config,filenameInfo(gp)!.time));
         console.log(JSON.stringify({gpSize:await client.size(gp),exSize:await client.size(ex),readOnly:true}));
         const parseList=client.parseList;
         for (const command of ['LIST','NLST']) {
@@ -81,14 +83,15 @@ if (process.argv.includes('--probe-tls')) {
       const sample = process.argv.find(arg=>arg.startsWith('--sample-file='))?.slice('--sample-file='.length);
       if (sample) {
         if (!filenameInfo(sample)) throw new Error('Sample must be a valid Northport filename without a directory.');
-        console.log('SUCCESS directory is accessible. Testing a bounded, read-only sample download without listing.');
-        const bytes=await download(client,sample);const csv=parseCsv(bytes);
-        console.log(JSON.stringify({root,incoming,success,sample,bytes:bytes.length,records:csv.rows.length,columns:20,secure:config.access.secure,readOnly:true,directoryListingVerified:false}));
+        console.log('Source directories are accessible. Testing a bounded, read-only sample download without listing.');
+        const bytes=await downloadSource(client,config,sample);const csv=parseCsv(bytes);
+        console.log(JSON.stringify({root,incoming,success,archives,sample,bytes:bytes.length,records:csv.rows.length,columns:20,secure:config.access.secure,readOnly:true,directoryListingVerified:false}));
         return;
       }
       const listingDate = process.argv.find(arg=>arg.startsWith('--list-date='))?.slice('--list-date='.length);
       if (listingDate) {
         if (!/^\d{8}$/.test(listingDate) || !filenameInfo(`CM_CONTAINER_${listingDate}000000_GP.csv`)) throw new Error('Listing date must be a valid YYYYMMDD date.');
+        await client.cd(sourceDirectory(config,filenameInfo(`CM_CONTAINER_${listingDate}000000_GP.csv`)!.time));
         console.log('Testing server-side date-prefixed LIST support; this is a read-only capability check.');
         const started=Date.now();
         const entries=await client.list(`*${listingDate}*`);
@@ -97,8 +100,8 @@ if (process.argv.includes('--probe-tls')) {
         return;
       }
       console.log(`SUCCESS directory is accessible. Testing ${listingMode()} listing (45-second total session limit).`);
-      const discovery=await searchFiles(client,{unit:'',start:Date.now(),end:Date.now(),type:'GP',sourceFilename:'',mode:'standard'});
-      console.log(JSON.stringify({root,incoming,success,entries:discovery.files.length,listingMode:discovery.listingMode,coverageWarning:discovery.coverageWarning,secure:config.access.secure,readOnly:true}));
+      const discovery=await searchSourceFiles(client,config,{unit:'',start:Date.now(),end:Date.now(),type:'GP',sourceFilename:'',mode:'standard'});
+      console.log(JSON.stringify({root,incoming,success,archives,entries:discovery.files.length,listingMode:discovery.listingMode,coverageWarning:discovery.coverageWarning,secure:config.access.secure,readOnly:true}));
     });
   } catch(e) {console.error((e as Error).message);process.exitCode=1;}
 }

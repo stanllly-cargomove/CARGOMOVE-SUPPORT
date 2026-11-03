@@ -1,18 +1,40 @@
 import { Client } from 'basic-ftp';
 import { Writable, Readable } from 'node:stream';
-import { MAX_FILE, RecoveryError } from './format.js';
+import { filenameInfo, localTime, MAX_FILE, RecoveryError } from './format.js';
+import { isMissingFile } from './scan.js';
 export function ftpConfig() {
   const env = process.env;
   if (!env.NORTHPORT_FTP_PASSWORD) throw new RecoveryError('Northport FTP password is not configured on the server.', 503);
   const mode = env.NORTHPORT_FTP_SECURE || 'true';
   if (!['true','false','implicit'].includes(mode)) throw new RecoveryError('Unsupported FTP TLS configuration.', 503);
   if (mode === 'false' && env.NORTHPORT_FTP_ALLOW_PLAINTEXT !== 'true') throw new RecoveryError('Plain FTP requires a documented security verification and NORTHPORT_FTP_ALLOW_PLAINTEXT=true.', 503);
-  const base = env.NORTHPORT_FTP_BASE_DIR || '/ftp/CY/PROD/CONTAINERS';
-  const success = env.NORTHPORT_FTP_SUCCESS_DIR || base + '/SUCCESS';
-  if ([base,success].some(p => !p.startsWith('/') || /[\r\n\\]/.test(p) || p.split('/').includes('..')) || success.replace(/\/$/,'') !== base.replace(/\/$/,'') + '/SUCCESS') throw new RecoveryError('Configure an absolute incoming directory and its SUCCESS child.', 503);
+  const base = (env.NORTHPORT_FTP_BASE_DIR || '/ftp/CY/PROD/CONTAINERS').replace(/\/$/,'');
+  const success = (env.NORTHPORT_FTP_SUCCESS_DIR || base + '/SUCCESS').replace(/\/$/,'');
+  const archives = (env.NORTHPORT_FTP_SUCCESS_ARCHIVES_DIR || base + '/SUCCESS_ARCHIVES').replace(/\/$/,'');
+  if ([base,success,archives].some(p => !p.startsWith('/') || /[\r\n\\]/.test(p) || p.split('/').includes('..')) || success !== base + '/SUCCESS' || archives !== base + '/SUCCESS_ARCHIVES') throw new RecoveryError('Configure an absolute incoming directory and its SUCCESS and SUCCESS_ARCHIVES children.', 503);
   const port = Number(env.NORTHPORT_FTP_PORT || 21);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new RecoveryError('Invalid FTP port configuration.', 503);
-  return { base, success, access: { host: env.NORTHPORT_FTP_HOST || 'ftp.cargomove.my', port, user: env.NORTHPORT_FTP_USERNAME || 'northports', password: env.NORTHPORT_FTP_PASSWORD, secure: mode === 'implicit' ? 'implicit' as const : mode === 'true' } };
+  return { base, success, archives, access: { host: env.NORTHPORT_FTP_HOST || 'ftp.cargomove.my', port, user: env.NORTHPORT_FTP_USERNAME || 'northports', password: env.NORTHPORT_FTP_PASSWORD, secure: mode === 'implicit' ? 'implicit' as const : mode === 'true' } };
+}
+export type SourceDirectories = Pick<ReturnType<typeof ftpConfig>, 'success'|'archives'>;
+// Filename dates and the archive cutoff both use Malaysia calendar dates.
+export function sourceDirectory(config: SourceDirectories, time: number, now = Date.now()) {
+  return localTime(time).slice(0,10) < localTime(now).slice(0,10) ? config.archives : config.success;
+}
+export function sourceDirectories(config: SourceDirectories, time: number, now = Date.now()) {
+  return sourceDirectory(config,time,now) === config.archives ? [config.archives] : [config.success,config.archives];
+}
+export async function downloadSource(client: Client, config: SourceDirectories, filename: string) {
+  const info = filenameInfo(filename);
+  if (!info) throw new RecoveryError('Invalid source filename.');
+  const [primary,fallback] = sourceDirectories(config,info.time);
+  await client.cd(primary);
+  try { return await download(client,filename); }
+  catch (error) {
+    if (!fallback || !isMissingFile(error)) throw error;
+    await client.cd(fallback);
+    return download(client,filename);
+  }
 }
 export async function withFtp<T>(operation: (client: Client, config: ReturnType<typeof ftpConfig>) => Promise<T>, signal?: AbortSignal, factory = () => new Client(10000, { maxListingBytes: 8 * 1024 * 1024, allowSeparateTransferHost: false })) {
   const config = ftpConfig(); const client = factory();
