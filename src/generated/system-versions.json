@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "version": "1.13.11",
-  "updatedAt": "2026-11-02T05:02:07.032Z",
+  "version": "1.13.12",
+  "updatedAt": "2026-11-03T16:03:19.695Z",
   "entries": [
     {
       "id": "account-settings",
@@ -95,9 +95,9 @@
         "src/components/admin/NorthportRecovery.tsx",
         "server-handlers/northport"
       ],
-      "version": "1.2.7",
-      "updatedAt": "2026-11-02T03:38:39.907Z",
-      "fingerprint": "5f31934711c5887095c0d1dfdcf3eb66f52b03ce527000196943fae02610baa2"
+      "version": "1.2.8",
+      "updatedAt": "2026-11-03T16:03:19.695Z",
+      "fingerprint": "12cfcb3e43689dfea0aa5b21dd73768ccadf98803ab17ea2c908d5cb23520e8a"
     },
     {
       "id": "queue-done",
@@ -888,11 +888,11 @@
     "server-handlers/gmail/status.ts": "0dc246423c0a0252014cdc263ac380281fc8998bcf20e8c811571cb36b50e5a1",
     "server-handlers/northport/configuration.ts": "afb2bb4c3c8150cd47f2fe836dd05bc5afabbe558396b15f5eea03e809d52adf",
     "server-handlers/northport/format.ts": "6bd068e1d6656c417ba12908dccf19f5635eaa91d48acd430fc3a6d60e25140e",
-    "server-handlers/northport/ftp.ts": "fc99faaf827c74524caa8dae2ab9fb281dd2691381066db39a6d7a4c010a52fa",
+    "server-handlers/northport/ftp.ts": "f448800e86623bd7a54977ff13fbe2bd5b5a2beda8ebc1244891ea80e5ee9712",
     "server-handlers/northport/gatepass-verification.ts": "f61fa92a55768019ac6c275f9a7cb8d35fea1c9b58f8060f9359c36a87a214f3",
-    "server-handlers/northport/handler.ts": "144eecdd42297ced5bd3e4365d953b3db27fe1354df1abaa6338d4fe17dba0ad",
+    "server-handlers/northport/handler.ts": "abeb26abf40358f7b640e0b844411820fc215290f7c4f8cd34c70b969a53fc67",
     "server-handlers/northport/inspection.ts": "7eb8c85005bbafbb0e526c321ae153c810ee045b3da3e574927b66f9108d36cb",
-    "server-handlers/northport/listing.ts": "6ff0a9ff3651deedee665d81ee80025e8dce35d94fbddf643e171c984c919bcb",
+    "server-handlers/northport/listing.ts": "7bb2cfd51f4f9cfea8a773cded86fc6ef804478825931a2c060992b7c5f86d27",
     "server-handlers/northport/scan.ts": "d33d49f1ee7b6af5dfbce6b9dcec23b00d87a931c3031c70b767437514b919cd",
     "server-handlers/northport/scheduler-verification.ts": "8aa07aed0fbdb3910b87979b05ef48a3e9eed2d902315087006f0ba985400914",
     "server-handlers/profile.ts": "8d962972b874694a0b49cd66f9e7382fd7ecc6fcf60950d5274d9ded06085f02",
@@ -1140,6 +1140,39 @@
     "vite.config.ts": "167e03f4e2c3298d4e3cbe61c5c1f8712073bf15d56c63d992827e99d3b7601b"
   },
   "history": [
+    {
+      "sourceCommit": "48702596c75dbf7972ce56e7a163ac998fd9f0e0",
+      "pushedBy": "lumoratechent-beep",
+      "commits": [
+        {
+          "sha": "48702596c75dbf7972ce56e7a163ac998fd9f0e0",
+          "author": "cargomovemy",
+          "subject": "enhance"
+        }
+      ],
+      "authors": [
+        "cargomovemy"
+      ],
+      "version": "1.13.12",
+      "previousVersion": "1.13.11",
+      "date": "2026-11-03T16:03:19.695Z",
+      "summary": "Updated existing pages, tools or shared system files",
+      "files": [
+        "server-handlers/northport/ftp.ts",
+        "server-handlers/northport/handler.ts",
+        "server-handlers/northport/listing.ts"
+      ],
+      "changes": [
+        {
+          "id": "northport",
+          "name": "Northport Recovery",
+          "kind": "tool",
+          "action": "updated",
+          "from": "1.2.7",
+          "to": "1.2.8"
+        }
+      ]
+    },
     {
       "sourceCommit": "550d6a82872718563ae5d7cdf9faf7254908b6f5",
       "pushedBy": "lumoratechent-beep",
