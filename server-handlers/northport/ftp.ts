@@ -1,6 +1,6 @@
 import { Client } from 'basic-ftp';
 import { Writable, Readable } from 'node:stream';
-import { filenameInfo, localTime, MAX_FILE, RecoveryError } from './format.js';
+import { filenameInfo, MAX_FILE, RecoveryError } from './format.js';
 import { isMissingFile } from './scan.js';
 export function ftpConfig() {
   const env = process.env;
@@ -17,12 +17,13 @@ export function ftpConfig() {
   return { base, success, archives, access: { host: env.NORTHPORT_FTP_HOST || 'ftp.cargomove.my', port, user: env.NORTHPORT_FTP_USERNAME || 'northports', password: env.NORTHPORT_FTP_PASSWORD, secure: mode === 'implicit' ? 'implicit' as const : mode === 'true' } };
 }
 export type SourceDirectories = Pick<ReturnType<typeof ftpConfig>, 'success'|'archives'>;
-// Filename dates and the archive cutoff both use Malaysia calendar dates.
-export function sourceDirectory(config: SourceDirectories, time: number, now = Date.now()) {
-  return localTime(time).slice(0,10) < localTime(now).slice(0,10) ? config.archives : config.success;
+// The worker can leave older files in SUCCESS. A filename date never proves
+// that the file has moved to the archive.
+export function sourceDirectory(config: SourceDirectories, _time?: number, _now?: number) {
+  return config.success;
 }
-export function sourceDirectories(config: SourceDirectories, time: number, now = Date.now()) {
-  return sourceDirectory(config,time,now) === config.archives ? [config.archives] : [config.success,config.archives];
+export function sourceDirectories(config: SourceDirectories, _time?: number, _now?: number) {
+  return [config.success,config.archives];
 }
 export async function downloadSource(client: Client, config: SourceDirectories, filename: string) {
   const info = filenameInfo(filename);
@@ -36,20 +37,32 @@ export async function downloadSource(client: Client, config: SourceDirectories, 
     return download(client,filename);
   }
 }
-export async function withFtp<T>(operation: (client: Client, config: ReturnType<typeof ftpConfig>) => Promise<T>, signal?: AbortSignal, factory = () => new Client(10000, { maxListingBytes: 8 * 1024 * 1024, allowSeparateTransferHost: false })) {
+export async function withFtp<T>(operation: (client: Client, config: ReturnType<typeof ftpConfig>, openSearchPeer: () => Promise<Client>) => Promise<T>, signal?: AbortSignal, factory = () => new Client(10000, { maxListingBytes: 8 * 1024 * 1024, allowSeparateTransferHost: false })) {
   const config = ftpConfig(); const client = factory();
-  const abort = () => client.close();
+  const clients = [client]; let peer: Promise<Client> | undefined; let stopped = false;
+  const abort = () => { stopped = true; for (const connection of clients) connection.close(); };
+  // Only searches request a second connection. Commands on each FTP connection
+  // remain serial; basic-ftp rejects overlapping commands on a single client.
+  const openSearchPeer = () => {
+    if (stopped || signal?.aborted) return Promise.reject(new RecoveryError('Search cancelled or timed out.',499));
+    return peer ??= (async () => {
+      const connection = factory(); clients.push(connection);
+      await connection.access(config.access);
+      if (stopped || signal?.aborted) throw new RecoveryError('Search cancelled or timed out.',499);
+      return connection;
+    })();
+  };
   const deadline = setTimeout(abort, 45000);
   signal?.addEventListener('abort', abort, { once: true });
   try {
     if (signal?.aborted) throw new RecoveryError('Search cancelled.', 499);
     await client.access(config.access); // Certificate verification stays enabled; never fall back from TLS.
-    return await operation(client, config);
+    return await operation(client, config, openSearchPeer);
   } catch (error) {
     if (error instanceof RecoveryError) throw error;
     const code = (error as any)?.code;
     throw new RecoveryError(code === 530 ? 'FTP login failed. Check server credentials.' : code === 550 ? 'FTP directory or file is not accessible. Verify account-root paths and permissions.' : 'FTP operation failed or timed out. Check TLS, passive connectivity and server access. An interrupted upload needs operator review before retrying.', 502);
-  } finally { clearTimeout(deadline); signal?.removeEventListener('abort', abort); client.close(); }
+  } finally { clearTimeout(deadline); signal?.removeEventListener('abort', abort); abort(); }
 }
 export async function download(client: Client, filename: string) {
   if (!/^CM_CONTAINER_\d{14}_(GP|EX)\.csv$/i.test(filename)) throw new RecoveryError('Invalid source filename.');

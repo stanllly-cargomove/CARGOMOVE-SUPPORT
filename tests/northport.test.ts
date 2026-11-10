@@ -51,7 +51,7 @@ test('schema mismatches, unknown data, encoding, malformed quotes and unsafe str
   const values=parseCsv(gp).rows[0];values[3]='bad\nvalue';assert.throws(()=>validateValues(values));
 });
 
-function harness() {
+function harness(openSearchPeer?:()=>Promise<any>) {
   process.env.NORTHPORT_FTP_LISTING_MODE='full';
   process.env.SESSION_SECRET='northport-tests-only';process.env.SCHEDULER_PORTAL_URL='https://portal.example.test';process.env.NORTHPORT_RECOVERY_UPLOAD_ENABLED='false';
   let session:any={id:'admin',email:'admin@example.test',type:'ADMIN'};let profile:any={id:'profile'};
@@ -63,15 +63,28 @@ function harness() {
     const info=filenameInfo(name);
     if(info) {
       if(sourceArchived&&directories.at(-1)==='/incoming/SUCCESS')throw Object.assign(new Error('550 File not found'),{code:550});
-      assert.equal(directories.at(-1),sourceArchived?'/incoming/SUCCESS_ARCHIVES':sourceDirectory({success:'/incoming/SUCCESS',archives:'/incoming/SUCCESS_ARCHIVES'},info.time),'Every source read must use its date-based directory or archive fallback');
+      assert.equal(directories.at(-1),sourceArchived?'/incoming/SUCCESS_ARCHIVES':'/incoming/SUCCESS','Every source read must try SUCCESS before archive fallback');
     }
     downloads.push(name);stream.end(name.startsWith('REPROCESS_')&&incoming?incoming:name===exName?ex:source);
   },uploadFrom:async(stream:any)=>{uploaded=true;if(uploadFailure)throw new RecoveryError('Transfer interrupted',502);const chunks:Buffer[]=[];for await(const chunk of stream)chunks.push(Buffer.from(chunk));uploadedBytes=Buffer.concat(chunks);},size:async(name:string)=>name.endsWith('.part')&&uploadedBytes?uploadedBytes.length:sizeLookup(name),rename:async(_from:string,to:string)=>{uploadedName=to;}};
   const client={from(){const query:any={select(){return this;},eq(){return this;},is(){return this;},order(){return this;},limit(){return this;},timeout(){return this;},update(value:any){updates.push(value);return this;},async maybeSingle(){return {data:profile,error:null};},then(resolve:any){return Promise.resolve({data:[],error:null}).then(resolve);}};return query;},async rpc(name:string,args:any){rpcCalls.push({name,args});return {error:name==='northport_claim_file_upload'&&claimError?{message:'Missing function'}:null,data:name==='northport_admit_request'?rate:name==='northport_approve'?approve:name==='northport_claim_file_upload'?claim:name==='northport_claim_scheduler'||name==='northport_cancel_approved'?schedulerClaim:name==='northport_record_cancelled'?{id:'cancelled-attempt',status:'Cancelled'}:null};}};
-  const handler=createNorthportHandler({adminClient:()=>client as any,readSession:()=>session,withFtp:async(operation:any)=>{if(ftpError)throw new RecoveryError('FTP operation failed',502);return operation(ftp,{base:'/incoming',success:'/incoming/SUCCESS',archives:'/incoming/SUCCESS_ARCHIVES',access:{secure:true}});},runScheduler:async(_req:any,res:any)=>{schedulerCalls++;res.status(schedulerFailure?502:200).json({status:schedulerFailure?'failed':'trigger_requested',message:'Test result',executionId:'run-test'});}} as any);
+  const handler=createNorthportHandler({adminClient:()=>client as any,readSession:()=>session,withFtp:async(operation:any)=>{if(ftpError)throw new RecoveryError('FTP operation failed',502);return operation(ftp,{base:'/incoming',success:'/incoming/SUCCESS',archives:'/incoming/SUCCESS_ARCHIVES',access:{secure:true}},openSearchPeer);},runScheduler:async(_req:any,res:any)=>{schedulerCalls++;res.status(schedulerFailure?502:200).json({status:schedulerFailure?'failed':'trigger_requested',message:'Test result',executionId:'run-test'});}} as any);
   const call=async(payload:any,overrides:any={})=>{const response:any={code:200,body:null,headers:{} as Record<string,string>,setHeader(name:string,value:string){this.headers[name]=value;},status(code:number){this.code=code;return this;},json(body:any){this.body=body;return this;},send(body:any){this.body=body;return this;}};await handler({method:'POST',headers:{origin:'https://portal.example.test','x-cargomove-confirm':'northport-recovery'},body:payload,...overrides},response);return response;};
   return {call,directories,downloads,updates,rpcCalls,listingRequests,setSize:(fn:typeof sizeLookup)=>sizeLookup=fn,get uploaded(){return uploaded;},get uploadedBytes(){return uploadedBytes;},get uploadedName(){return uploadedName;},get schedulerCalls(){return schedulerCalls;},setSession:(v:any)=>session=v,setProfile:(v:any)=>profile=v,setEntries:(v:any)=>entries=v,setRate:(v:boolean)=>rate=v,setFtpError:()=>ftpError=true,setSource:(v:Buffer)=>source=v,setSourceArchived:()=>sourceArchived=true,setIncoming:(v:Buffer)=>incoming=v,setApprove:(v:any)=>approve=v,setClaim:(v:any)=>claim=v,setClaimError:()=>claimError=true,setUploadFailure:()=>uploadFailure=true,setSchedulerFailure:()=>schedulerFailure=true,setSchedulerClaim:(v:boolean)=>schedulerClaim=v};
 }
+
+test('search API opens one archive peer and returns the older SUCCESS file without duplicate downloads',async()=>{
+  let connections=0;let listings=0;
+  const h=harness(async()=>{
+    connections++;
+    return {cd:async(path:string)=>{assert.equal(path,'/incoming/SUCCESS_ARCHIVES');},list:async()=>{listings++;return [{name:gpName,isFile:true,size:gp.length}];}};
+  });
+  const result=await h.call({action:'search',...search,type:'GP'});
+  assert.equal(result.code,200);assert.equal(result.body.matches.length,1);
+  assert.equal(connections,1);assert.equal(listings,1);assert.deepEqual(h.downloads,[gpName]);
+  const download=await h.call({action:'download-source',token:result.body.matches[0].token});
+  assert.equal(download.code,200);assert.equal(connections,1,'Downloads do not open a search peer');
+});
 
 test('search modes default to Basic Scan and never search incoming or silently change type and time',async()=>{
   assert.equal(searchInput(search).mode,'standard');
@@ -79,7 +92,7 @@ test('search modes default to Basic Scan and never search incoming or silently c
   for(const mode of ['standard','files','content']) {
     const h=harness();const result=await h.call({action:'search',...search,type:'GP',sourceFilename:gpName,mode});
     assert.equal(result.code,200);assert.equal(result.body.mode,mode);assert.equal(result.body.start,'2026-10-17T01:15:00');assert.equal(result.body.end,'2026-10-17T01:50:00');
-    assert.deepEqual(h.directories,['/incoming/SUCCESS_ARCHIVES','/incoming/SUCCESS_ARCHIVES']);assert.deepEqual(h.downloads,[gpName]);
+    assert.deepEqual(h.directories,['/incoming/SUCCESS','/incoming/SUCCESS']);assert.deepEqual(h.downloads,[gpName]);
     assert.equal(result.body.scannedFiles.length,mode==='standard'?0:1);
     assert.equal(h.uploaded,false);assert.equal(h.schedulerCalls,0);
   }
@@ -94,7 +107,7 @@ test('Advanced Scan lists matches and nonmatches and bypasses incomplete listing
     const first=await h.call(input);assert.equal(first.code,200);assert.ok(first.body.nextCursor);assert.equal(first.body.scannedFiles[0].status,'match');assert.equal(first.body.scannedFiles[0].matches,1);
     assert.equal((await h.call({...input,mode:'content',cursor:first.body.nextCursor})).code,400);
     const last=await h.call({...input,cursor:first.body.nextCursor});assert.equal(last.body.complete,true);assert.equal(last.body.nextCursor,null);assert.equal(last.body.scannedFiles[0].filename,lastName);assert.equal(last.body.progress.files,2);
-    assert.deepEqual(h.listingRequests,[]);assert.deepEqual(h.directories,Array(4).fill('/incoming/SUCCESS_ARCHIVES'));
+    assert.deepEqual(h.listingRequests,[]);assert.deepEqual(h.directories,Array(4).fill('/incoming/SUCCESS'));
     const noMatch=await h.call({...input,sourceFilename:gpName,unit:'OTHER123'});assert.equal(noMatch.body.scannedFiles[0].status,'no-match');assert.equal(noMatch.body.scannedFiles[0].records,3);
   } finally {process.env.NORTHPORT_FTP_LISTING_MODE='full';}
 });
@@ -155,7 +168,7 @@ test('exact source filename bypasses incomplete listings and is scoped to that f
 test('date-pattern discovery is always incomplete, even when it finds matches or no files',async()=>{
   const h=harness();process.env.NORTHPORT_FTP_LISTING_MODE='date-pattern';
   try {
-    const res=await h.call({action:'search',...search});assert.equal(res.code,200);assert.equal(res.body.complete,false);assert.equal(res.body.coverageWarning,PARTIAL_LISTING_WARNING);assert.deepEqual(h.listingRequests,['*20261017*']);
+    const res=await h.call({action:'search',...search});assert.equal(res.code,200);assert.equal(res.body.complete,false);assert.equal(res.body.coverageWarning,PARTIAL_LISTING_WARNING);assert.deepEqual(h.listingRequests,['*20261017*','*20261017*']);
     h.setEntries([]);const empty=await h.call({action:'search',...search});assert.equal(empty.body.complete,false);assert.equal(empty.body.matches.length,0);assert.ok(empty.body.coverageWarning);
   } finally {process.env.NORTHPORT_FTP_LISTING_MODE='full';}
 });
@@ -170,16 +183,16 @@ test('date discovery covers Malaysia midnight and up to three dates, deduplicate
   } finally {process.env.NORTHPORT_FTP_LISTING_MODE='full';}
 });
 
-test('source directory cutoff uses Malaysia midnight, including yesterday and year boundaries',()=>{
+test('SUCCESS stays the first source for every date, including yesterday and year boundaries',()=>{
   const config={success:'/containers/SUCCESS',archives:'/containers/SUCCESS_ARCHIVES'};
   const midnight=malaysiaTime('2026-01-01T00:00:00');
   assert.equal(sourceDirectory(config,midnight-1000,midnight-1),config.success);
-  assert.equal(sourceDirectory(config,midnight-1000,midnight),config.archives);
-  assert.equal(sourceDirectory(config,midnight-86400000,midnight),config.archives);
+  assert.equal(sourceDirectory(config,midnight-1000,midnight),config.success);
+  assert.equal(sourceDirectory(config,midnight-86400000,midnight),config.success);
   assert.equal(sourceDirectory(config,midnight,midnight),config.success);
 });
 
-test('all discovery modes route a midnight window across archive and current directories',async()=>{
+test('all discovery modes find older files still in SUCCESS across a midnight window',async()=>{
   const config={success:'/containers/SUCCESS',archives:'/containers/SUCCESS_ARCHIVES'};
   const oldName='CM_CONTAINER_20261231235959_GP.csv';const todayName='CM_CONTAINER_20270101000000_GP.csv';
   const now=malaysiaTime('2027-01-01T00:01:00');
@@ -196,33 +209,34 @@ test('all discovery modes route a midnight window across archive and current dir
       }};
       const result=await searchSourceFiles(ftp,config,filter,{now});
       assert.deepEqual(result.files.map(file=>file.name).sort(),[oldName,todayName].sort(),mode);
-      assert.deepEqual(paths,mode==='full'?[config.success,config.archives]:mode==='date-pattern'?[config.archives,config.success,config.archives]:[config.archives,config.success],mode);
+      assert.deepEqual(paths,mode==='full'?[config.success,config.archives]:mode==='date-pattern'?[config.success,config.archives,config.success,config.archives]:[config.success],mode);
       if(mode==='timestamp-scan')assert.equal(result.scan?.nextOffset,61);
-      for(const [sourceFilename,expected] of [[oldName,config.archives],[todayName,config.success]]) {
+      for(const sourceFilename of [oldName,todayName]) {
         paths.length=0;
         const exact=await searchSourceFiles(ftp,config,{...filter,sourceFilename},{now});
-        assert.equal(exact.scope,'file');assert.equal(exact.files[0].name,sourceFilename);assert.deepEqual(paths,[expected]);
+        assert.equal(exact.scope,'file');assert.equal(exact.files[0].name,sourceFilename);assert.deepEqual(paths,[config.success]);
       }
     }
   } finally {if(saved===undefined)delete process.env.NORTHPORT_FTP_LISTING_MODE;else process.env.NORTHPORT_FTP_LISTING_MODE=saved;}
 });
 
-test('timestamp continuation changes directory when its next batch reaches today',async()=>{
+test('timestamp continuation checks SUCCESS first in every batch across midnight',async()=>{
   const config={success:'/containers/SUCCESS',archives:'/containers/SUCCESS_ARCHIVES'};
   const now=malaysiaTime('2027-01-01T00:01:00');const paths:string[]=[];
   const filter=searchInput({...search,timestamp:'2027-01-01T00:00:00',type:'GP',before:10,after:0,mode:'files'});
   const ftp:any={cd:async(path:string)=>{paths.push(path);},size:async()=>{throw Object.assign(new Error('550 No such file'),{code:550});}};
-  const first=await searchSourceFiles(ftp,config,filter,{now});assert.equal(first.scan?.nextOffset,600);assert.deepEqual(paths,[config.archives]);
+  const first=await searchSourceFiles(ftp,config,filter,{now});assert.equal(first.scan?.nextOffset,600);assert.deepEqual(paths,[config.success]);
   paths.length=0;const last=await searchSourceFiles(ftp,config,filter,{now,offset:first.scan!.nextOffset});
   assert.equal(last.scan?.nextOffset,601);assert.deepEqual(paths,[config.success]);
-  ftp.cd=async()=>{throw new RecoveryError('Archive access denied',502);};
-  await assert.rejects(()=>searchSourceFiles(ftp,config,filter,{now}),/Archive access denied/);
+  ftp.cd=async()=>{throw new RecoveryError('SUCCESS access denied',502);};
+  await assert.rejects(()=>searchSourceFiles(ftp,config,filter,{now}),/SUCCESS access denied/);
 });
 
-test('today searches discover early archives and current files once in every discovery mode',async()=>{
+for (const nowDate of ['2026-11-03T12:00:00','2026-11-04T00:01:00','2027-01-01T12:00:00']) {
+test(`searches check SUCCESS then archives for a window dated before or on ${nowDate}`,async()=>{
   const config={success:'/containers/SUCCESS',archives:'/containers/SUCCESS_ARCHIVES'};
   const names=['CM_CONTAINER_20261103010000_GP.csv','CM_CONTAINER_20261103010001_GP.csv','CM_CONTAINER_20261103010002_GP.csv'];
-  const now=malaysiaTime('2026-11-03T12:00:00');
+  const now=malaysiaTime(nowDate);
   const filter=searchInput({...search,timestamp:'2026-11-03T01:00:00',type:'GP',before:0,after:1});
   const saved=process.env.NORTHPORT_FTP_LISTING_MODE;
   try {
@@ -246,9 +260,38 @@ test('today searches discover early archives and current files once in every dis
     }
   } finally {if(saved===undefined)delete process.env.NORTHPORT_FTP_LISTING_MODE;else process.env.NORTHPORT_FTP_LISTING_MODE=saved;}
 });
+}
 
-test('today source downloads fall back only on explicit file absence and retain download limits',async(t)=>{
-  t.mock.method(Date,'now',()=>malaysiaTime('2026-10-17T12:00:00'));
+test('historical windows fall back to archives when SUCCESS has only other times or types',async()=>{
+  const config={success:'/containers/SUCCESS',archives:'/containers/SUCCESS_ARCHIVES'};
+  const filter=searchInput({...search,type:'GP',before:0,after:1});
+  const files=new Map([[config.success,['CM_CONTAINER_20261017011959_GP.csv',exName]],[config.archives,[gpName,'CM_CONTAINER_20261017012101_GP.csv']]]);
+  const saved=process.env.NORTHPORT_FTP_LISTING_MODE;
+  try {
+    for(const mode of ['full','date-pattern','timestamp-scan']) {
+      process.env.NORTHPORT_FTP_LISTING_MODE=mode;
+      let directory='';const checks:string[]=[];
+      const ftp:any={cd:async(path:string)=>{directory=path;},list:async()=>{
+        checks.push(directory);return files.get(directory)!.map(name=>({name,isFile:true,size:gp.length}));
+      },size:async(path:string)=>{
+        const slash=path.lastIndexOf('/');const folder=slash<0?directory:path.slice(0,slash);const name=path.slice(slash+1);
+        checks.push(folder);
+        if(files.get(folder)?.includes(name))return gp.length;
+        throw Object.assign(new Error('550 File not found'),{code:550});
+      }};
+      const result=await searchSourceFiles(ftp,config,filter,{now:malaysiaTime('2026-11-11T12:00:00')});
+      const candidates=result.files.filter(file=>{
+        const info=filenameInfo(file.name);
+        return file.isFile&&info&&info.time>=filter.start&&info.time<=filter.end&&info.type===filter.type;
+      });
+      assert.deepEqual(candidates.map(file=>file.name),[gpName],mode);
+      assert.deepEqual(checks.slice(0,2),[config.success,config.archives],mode);
+    }
+  } finally {if(saved===undefined)delete process.env.NORTHPORT_FTP_LISTING_MODE;else process.env.NORTHPORT_FTP_LISTING_MODE=saved;}
+});
+
+test('historical source downloads fall back only on explicit file absence and retain download limits',async(t)=>{
+  t.mock.method(Date,'now',()=>malaysiaTime('2026-11-11T12:00:00'));
   const config={success:'/containers/SUCCESS',archives:'/containers/SUCCESS_ARCHIVES'};
   const missing=()=>Object.assign(new Error('550 No such file'),{code:550});
   let directory='';let primaryError:unknown=missing();let archived=gp;const reads:string[]=[];
@@ -267,9 +310,9 @@ test('today source downloads fall back only on explicit file absence and retain 
   ftp.cd=async()=>{throw missing();};reads.length=0;await assert.rejects(()=>downloadSource(ftp,config,gpName),/No such file/);assert.equal(reads.length,0,'Directory errors do not trigger file fallback');
 });
 
-test('today filename fallback keeps missing, cancellation and permission outcomes distinct',async()=>{
+test('historical filename fallback keeps missing, cancellation and permission outcomes distinct',async()=>{
   const config={success:'/containers/SUCCESS',archives:'/containers/SUCCESS_ARCHIVES'};
-  const filter=searchInput({...search,sourceFilename:gpName});const now=malaysiaTime('2026-10-17T12:00:00');
+  const filter=searchInput({...search,sourceFilename:gpName});const now=malaysiaTime('2026-11-11T12:00:00');
   const missing=()=>Object.assign(new Error('550 File not found'),{code:550});
   let checks=0;const ftp:any={cd:async()=>{},size:async()=>{checks++;throw missing();}};
   await assert.rejects(()=>searchSourceFiles(ftp,config,filter,{now}),/File not found/);assert.equal(checks,2);
@@ -285,7 +328,7 @@ test('signed results can be downloaded and reprocessed from archives after Malay
   const h=harness();
   const found=await h.call({action:'search',...search,sourceFilename:gpName,mode:'files'});
   assert.equal(found.code,200);assert.deepEqual([...new Set(h.directories)],['/incoming/SUCCESS']);
-  now=malaysiaTime('2026-10-18T00:01:00');h.directories.length=0;
+  now=malaysiaTime('2026-10-18T00:01:00');h.setSourceArchived();h.directories.length=0;
   const {token,fileToken,values}=found.body.matches[0];
   for(const input of [
     {action:'download-source',token}, {action:'download-file',token:fileToken},
@@ -293,7 +336,7 @@ test('signed results can be downloaded and reprocessed from archives after Malay
     {action:'download-all',files:[{kind:'record',token}]},
     {action:'download-reprocess',token,values}
   ]) {const response=await h.call(input);assert.equal(response.code,200,JSON.stringify(response.body));}
-  assert.equal(h.directories.length,6);assert.ok(h.directories.every(path=>path==='/incoming/SUCCESS_ARCHIVES'));
+  assert.deepEqual(h.directories,Array.from({length:6},()=>['/incoming/SUCCESS','/incoming/SUCCESS_ARCHIVES']).flat());
   assert.equal(h.uploaded,false);assert.equal(h.schedulerCalls,0);
 });
 

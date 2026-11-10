@@ -28,8 +28,8 @@ if (process.argv.includes('--probe-tls')) {
     const matches:{filename:string;record:number}[]=[];
     let more=false;
     do {
-      await withFtp(async(client,config)=>{
-        const discovery=await searchSourceFiles(client,config,filter,{offset});scope=discovery.scope;mode=discovery.listingMode;warning=discovery.coverageWarning;
+      await withFtp(async(client,config,openSearchPeer)=>{
+        const discovery=await searchSourceFiles(client,config,filter,{offset,archiveFtp:await openSearchPeer()});scope=discovery.scope;mode=discovery.listingMode;warning=discovery.coverageWarning;
         const candidates=discovery.files.filter(file=>{const info=filenameInfo(file.name);return file.isFile&&info&&info.time>=filter.start&&info.time<=filter.end&&(filter.type==='ALL'||info.type===filter.type);});
         if(candidateFiles+candidates.length>40||candidates.some(file=>file.size>MAX_FILE))throw new Error('Diagnostic candidate limits exceeded. Narrow the window.');
         for(const file of candidates) {

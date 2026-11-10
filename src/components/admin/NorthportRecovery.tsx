@@ -615,7 +615,7 @@ export function NorthportRecovery({ onBack, active = true }: { onBack: () => voi
 
 
     <section className={cardClass+' northport-search-card'}>
-      <SectionHeading step={1} title="Search Container" description="Enter container details and a time range to search in SUCCESS." action={<SearchModeButton mode={form.mode} disabled={!!busy} onChange={mode=>setForm(current=>({...current,mode}))}/>}/>
+      <SectionHeading step={1} title="Search Container" description="Enter container details and a time range to search in SUCCESS and SUCCESS_ARCHIVES." action={<SearchModeButton mode={form.mode} disabled={!!busy} onChange={mode=>setForm(current=>({...current,mode}))}/>}/>
       <form ref={searchCardRef} onSubmit={e=>{e.preventDefault();if(pending.current)return;if(!form.timestamp){setError('Select the EIR date and time.');e.currentTarget.querySelector<HTMLButtonElement>('[aria-label="EIR time (Malaysia)"]')?.focus();return;}setFilenameOptions(false);setConnectionOptions(false);setResults([]);setSearchSummary(null);setDisplayProgress(0);setSelected(null);setApproved(null);void action('search',{...form,sourceFilename:showExactFilename?form.sourceFilename:''});}} className="space-y-3">
         <div className="northport-search-fields">
           <div className="min-w-0">

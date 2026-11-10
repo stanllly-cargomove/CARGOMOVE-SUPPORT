@@ -73,12 +73,12 @@ try {
     if(width<640) {
       const eir=await page.getByRole('button',{name:'EIR time (Malaysia)',exact:true}).boundingBox();
       const type=await page.getByRole('combobox',{name:'Container Type',exact:true}).boundingBox();
-      const before=await page.getByRole('button',{name:'Minutes before',exact:true}).boundingBox();
-      assert.ok(eir&&type&&before&&Math.abs(eir.y-type.y)<1&&Math.abs(eir.height-type.height)<1&&Math.abs(eir.width-type.width)<1&&Math.abs(eir.width-before.width)<1,'Mobile fields align in equal columns after selecting a timestamp');
+      const before=await page.getByRole('button',{name:'Start time range',exact:true}).boundingBox();
+      assert.ok(eir&&type&&before&&Math.abs(eir.y-type.y)<1&&Math.abs(eir.height-type.height)<1&&Math.abs(eir.width-type.width)<1&&Math.abs(eir.width-before.width)<2,'Mobile fields align in equal columns after selecting a timestamp');
       await page.locator('.northport-search-card').screenshot({path:join(tmpdir(),`northport-mobile-form-${width}.png`)});
     }
-    await page.getByRole('button',{name:'Minutes before',exact:true}).click();
-    const rangePicker=page.getByRole('dialog',{name:'Minutes before picker',exact:true});
+    await page.getByRole('button',{name:'Start time range',exact:true}).click();
+    const rangePicker=page.getByRole('dialog',{name:'Start time range picker',exact:true});
     const slider=rangePicker.getByRole('listbox',{name:'Minutes before',exact:true});
     assert.equal(await slider.getByRole('option').count(),13);
     await slider.focus();await page.keyboard.press('ArrowDown');assert.equal(await slider.getByRole('option',{selected:true}).innerText(),'15');
@@ -95,8 +95,8 @@ try {
     await slider.focus();await page.keyboard.press('ArrowUp');assert.equal(await slider.getByRole('option',{selected:true}).innerText(),'00');
     await slider.getByRole('option',{name:'Minutes before 10',exact:true}).click();
     await rangePicker.getByRole('button',{name:'Done',exact:true}).click();
-    await page.getByRole('button',{name:'Minutes after',exact:true}).click();
-    const afterPicker=page.getByRole('dialog',{name:'Minutes after picker',exact:true});
+    await page.getByRole('button',{name:'End time range',exact:true}).click();
+    const afterPicker=page.getByRole('dialog',{name:'End time range picker',exact:true});
     const afterWheel=afterPicker.getByRole('listbox',{name:'Minutes after',exact:true});
     assert.deepEqual(await afterWheel.getByRole('option').allTextContents(),['00','05','10','15','20','25','30','35','40','45','50','55','60']);
     assert.equal(await afterWheel.getByRole('option',{selected:true}).innerText(),'30');
@@ -135,7 +135,7 @@ try {
     await page.screenshot({path:join(tmpdir(),`northport-date-picker-${width}.png`)});
     await page.keyboard.press('Escape');
     await page.getByRole('dialog',{name:'EIR time (Malaysia) picker',exact:true}).waitFor({state:'hidden'});
-    await page.getByRole('button',{name:'Search FTP',exact:true}).click();
+    await page.getByRole('button',{name:'Search',exact:true}).click();
     await page.getByRole('button',{name:'Clear',exact:true}).waitFor();
     assert.equal(await page.getByRole('table',{name:'Scanned File',exact:true}).locator('tbody tr').count(),1);
     assert.equal(await page.getByRole('button',{name:'Download all',exact:true}).count(),0,'Basic Scan hides the bulk download control');
@@ -161,7 +161,7 @@ try {
     await page.keyboard.press('ArrowDown');await page.keyboard.press('Escape');
     await options.waitFor({state:'hidden'});assert.equal(await modeButton().innerText(),'Advanced Scan (Enhanced)');
     assert.equal((await modeButton().boundingBox())?.width,initialModeWidth,'Mode selector width stays fixed');
-    await page.getByRole('button',{name:'Search FTP',exact:true}).click();
+    await page.getByRole('button',{name:'Search',exact:true}).click();
     const files=page.getByRole('region',{name:'Scanned File',exact:true});await files.waitFor();
     assert.equal(await modeButton().isDisabled(),true);
     assert.equal(await files.getByRole('button',{name:`Download ${file.filename}`,exact:true}).isDisabled(),true);
@@ -210,7 +210,7 @@ try {
     await page.screenshot({path:join(tmpdir(),`northport-search-menu-${width}.png`)});
     await options.getByRole('radio',{name:/^Deep Scan \(Maximum\)/}).click();
     assert.equal((await modeButton().boundingBox())?.width,initialModeWidth,'Mode selector width stays fixed');
-    await page.getByRole('button',{name:'Search FTP',exact:true}).click();
+    await page.getByRole('button',{name:'Search',exact:true}).click();
     await files.getByText('TEXT FOUND',{exact:true}).waitFor();await files.getByText('Unverified',{exact:true}).waitFor();
     assert.equal(await rows.count(),1,'A new search clears previous file results');
     await page.getByRole('status').filter({hasText:'Container text found in 1 file'}).waitFor();
@@ -220,7 +220,7 @@ try {
     await modeButton().waitFor({state:'visible'});await page.waitForFunction(()=>!document.querySelector<HTMLButtonElement>('[aria-label^="Search mode:"]')?.disabled);
     await files.scrollIntoViewIfNeeded();await page.screenshot({path:join(tmpdir(),`northport-content-scan-${width}.png`)});
     assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),'Search controls and file list must fit the viewport');
-    await modeButton().click();await options.getByRole('radio',{name:/^Advanced Scan \(Enhanced\)/}).click();await page.getByRole('button',{name:'Search FTP',exact:true}).click();
+    await modeButton().click();await options.getByRole('radio',{name:/^Advanced Scan \(Enhanced\)/}).click();await page.getByRole('button',{name:'Search',exact:true}).click();
     await files.waitFor();await page.getByRole('button',{name:'Cancel Search',exact:true}).click();
     await page.getByRole('button',{name:'Clear',exact:true}).waitFor();assert.equal(await rows.count(),1,'Cancel retains scanned files');
     await page.getByRole('button',{name:'Clear',exact:true}).click();assert.equal(await modeButton().innerText(),'Basic Scan (Fast)');assert.equal(await page.getByRole('combobox',{name:'Container Type'}).inputValue(),'GP');

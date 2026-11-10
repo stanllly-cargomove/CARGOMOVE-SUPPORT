@@ -103,7 +103,7 @@ export function createNorthportHandler(deps = { adminClient, readSession, withFt
         const disconnected = () => { if (!response.writableEnded) cancel(); };
         response.once?.('close', disconnected);
         try {
-          const result = await deps.withFtp(async (ftp, config) => {
+          const result = await deps.withFtp(async (ftp, config, openSearchPeer) => {
             const root = await ftp.pwd();
             let incoming: string | undefined;
             let success: string | undefined; let archives: string | undefined;
@@ -113,7 +113,8 @@ export function createNorthportHandler(deps = { adminClient, readSession, withFt
               await ftp.cd(config.success); success = await ftp.pwd();
             }
             const now=Math.floor(Date.now()/1000)*1000;
-            const discovery = await searchSourceFiles(ftp,config,filter || {unit:'',start:now,end:now,type:'GP',sourceFilename:'',mode:'standard'},{offset:scanState?.offset,signal:controller.signal,now});
+            const archiveFtp = filter && openSearchPeer ? await openSearchPeer() : undefined;
+            const discovery = await searchSourceFiles(ftp,config,filter || {unit:'',start:now,end:now,type:'GP',sourceFilename:'',mode:'standard'},{offset:scanState?.offset,signal:controller.signal,now,archiveFtp});
             const { files } = discovery;
             if (!filter) return { checked: true, root, incoming, success, archives, listed: files.length, secure: config.access.secure, listingMode:discovery.listingMode, coverageWarning:discovery.coverageWarning, message: discovery.scan ? 'Login, paths and timestamp filename checks succeeded. Container searches download discovered CSVs.' : discovery.coverageWarning ? 'Login, paths and a bounded date listing succeeded. Directory completeness is not verified.' : 'Read-only login, paths and passive listing succeeded. Verify Malaysia filename timestamps against the port separately.' };
             const candidates = files.flatMap(file => {

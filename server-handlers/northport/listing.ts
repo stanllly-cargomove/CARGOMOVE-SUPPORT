@@ -5,6 +5,7 @@ import { isMissingFile, probeFilenameBatch } from './scan.js';
 
 export const PARTIAL_LISTING_WARNING = 'The FTP server has omitted existing files from date-filtered listings. These results may be incomplete. An empty result does not prove the container is absent. If you know the source filename, enter it to search that file directly.';
 type Entry = { name: string; size: number; isFile: boolean };
+type SearchFtp = Pick<Client,'list'|'size'|'cd'>;
 export function listingMode() {
   const mode = process.env.NORTHPORT_FTP_LISTING_MODE || 'timestamp-scan';
   if (mode !== 'full' && mode !== 'date-pattern' && mode !== 'timestamp-scan') throw new RecoveryError('Invalid Northport listing mode. Use full, date-pattern or timestamp-scan.',503);
@@ -13,20 +14,51 @@ export function listingMode() {
 export function usesTimestampScan(filter: ReturnType<typeof searchInput>) {
   return !filter.sourceFilename && (filter.mode !== 'standard' || listingMode() === 'timestamp-scan');
 }
-// Keep the existing discovery modes and continuation offsets while routing each
-// filename/date to the directory used by the external worker.
-export async function searchSourceFiles(ftp: Pick<Client,'list'|'size'|'cd'>, config: SourceDirectories, filter: ReturnType<typeof searchInput>, options:{offset?:number;signal?:AbortSignal;now?:number}={}) {
+// Search both folders concurrently when a second connection is available.
+// SUCCESS takes precedence; serial callers retain archive fallback.
+export async function searchSourceFiles(ftp: SearchFtp, config: SourceDirectories, filter: ReturnType<typeof searchInput>, options:{offset?:number;signal?:AbortSignal;now?:number;archiveFtp?:SearchFtp}={}) {
   const now = options.now ?? Date.now();
+  const archiveFtp = options.archiveFtp;
+  if (archiveFtp === ftp) throw new RecoveryError('Parallel searches require separate FTP connections.',503);
+  const changeDirectory = async (connection:SearchFtp,directory:string) => {
+    if (options.signal?.aborted) throw new RecoveryError('Search cancelled.',499);
+    try { await connection.cd(directory); }
+    catch (error) {
+      if (options.signal?.aborted) throw new RecoveryError('Search cancelled.',499);
+      if (error instanceof RecoveryError) throw error;
+      // A missing directory must never be skipped as a missing timestamp file.
+      throw new RecoveryError('FTP source directory is not accessible. Verify account-root paths and permissions.',502);
+    }
+  };
+  let archiveReady: Promise<void> | undefined;
+  const archive = async () => {
+    if (options.signal?.aborted) throw new RecoveryError('Search cancelled.',499);
+    await (archiveReady ??= changeDirectory(archiveFtp!,config.archives));
+    return archiveFtp!;
+  };
   let currentDirectory: string | undefined;
   const cd = async (directory: string) => {
     if (options.signal?.aborted) throw new RecoveryError('Search cancelled.',499);
-    if (currentDirectory !== directory) { await ftp.cd(directory); currentDirectory = directory; }
+    if (currentDirectory !== directory) { await changeDirectory(ftp,directory); currentDirectory = directory; }
   };
   return searchFiles({
     size: async filename => {
       const info = filenameInfo(filename);
       if (!info) throw new RecoveryError('Invalid source filename.');
       const [primary,fallback] = sourceDirectories(config,info.time,now);
+      if (archiveFtp) {
+        // Keep directory failures outside the missing-file handling below.
+        await Promise.all([cd(primary),archive()]);
+        const results = await Promise.allSettled([
+          ftp.size(filename), archiveFtp.size(filename)
+        ]);
+        if (options.signal?.aborted) throw new RecoveryError('Search cancelled.',499);
+        // Missing files are expected. A failed connection or denied directory
+        // must still fail the search rather than claim complete coverage.
+        for (const result of results) if (result.status === 'rejected' && !isMissingFile(result.reason)) throw result.reason;
+        for (const result of results) if (result.status === 'fulfilled') return result.value;
+        throw (results[0] as PromiseRejectedResult).reason;
+      }
       await cd(primary);
       try { return await ftp.size(filename); }
       catch (error) {
@@ -38,28 +70,22 @@ export async function searchSourceFiles(ftp: Pick<Client,'list'|'size'|'cd'>, co
       }
     },
     list: async pattern => {
-      const directories = new Set<string>();
-      // Date-pattern requests already identify one Malaysia calendar date.
-      const date = pattern && /^\*(\d{8})\*$/.exec(pattern)?.[1];
-      if (date) {
-        const info = filenameInfo(`CM_CONTAINER_${date}000000_GP.csv`)!;
-        for (const directory of sourceDirectories(config,info.time,now)) directories.add(directory);
-      } else {
-        // Read SUCCESS first when the range includes today, preferring its
-        // metadata when the same filename temporarily exists in both folders.
-        for (const time of [filter.end,filter.start]) for (const directory of sourceDirectories(config,time,now)) directories.add(directory);
-      }
+      const directories = sourceDirectories(config);
       const files: Awaited<ReturnType<Client['list']>> = [];
       const seen = new Set<string>(); let metadataEntries = 0;
+      const listings = archiveFtp ? await Promise.all([
+        (async () => { await cd(config.success); return ftp.list(pattern); })(),
+        (async () => (await archive()).list(pattern))()
+      ]) : null;
+      if (options.signal?.aborted) throw new RecoveryError('Search cancelled.',499);
       for (const directory of directories) {
-        await cd(directory);
-        const entries = await ftp.list(pattern);
+        let entries: Awaited<ReturnType<Client['list']>>;
+        if (listings) entries = listings[directory === config.success ? 0 : 1];
+        else { await cd(directory); entries = await ftp.list(pattern); }
         const included = new Set<string>();
         metadataEntries += entries.length;
         if (metadataEntries > 20000) throw new RecoveryError('Directory metadata exceeds the 20,000-entry search budget. Use an exact filename or narrower dates.');
         for (const file of entries) {
-          const info = filenameInfo(file.name);
-          if (info && !sourceDirectories(config,info.time,now).includes(directory)) continue;
           if (seen.has(file.name.toLowerCase())) continue;
           files.push(file);
           included.add(file.name.toLowerCase());
