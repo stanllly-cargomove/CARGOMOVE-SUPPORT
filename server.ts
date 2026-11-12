@@ -27,6 +27,7 @@ import registrationUploads from './server-handlers/registration-uploads/handler.
 import autoRegisterCm from './server-handlers/scheduler/auto-register-cm.js';
 import autoRegisterCmQueue from './server-handlers/scheduler/auto-register-cm-queue.js';
 import northportRecovery from './server-handlers/northport/handler.js';
+import npQuery from './server-handlers/np-query/handler.js';
 import systemVersions from './server-handlers/system-versions.js';
 import profile from './server-handlers/profile.js';
 import { uploadsEnabled } from './server-handlers/northport/configuration.js';
@@ -142,6 +143,7 @@ app.patch('/api/dev-tools/settings', express.json({ limit: '4kb' }), developerSe
 app.post('/api/dev-tools/schedulers', schedulerCatalog);
 app.patch('/api/dev-tools/schedulers', schedulerCatalog);
 app.all('/api/dev-tools/northport-recovery', express.json({ limit: '64kb' }), northportRecovery);
+app.all('/api/dev-tools/np-query', express.json({ limit: '4kb' }), npQuery);
 
 // Vercel can invoke an API function with either the public /api path or the
 // function-relative path. Normalize both forms for the Express route table.

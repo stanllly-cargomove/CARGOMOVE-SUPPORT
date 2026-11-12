@@ -7,6 +7,7 @@ import { RichTextEmailEditor } from './RichTextEmailEditor';
 import { notifyError, notifySuccess } from '../common/notifications';
 import { getCompanyById, getSubmissions, subscribeToStorage } from '../../services/storage';
 import { isEmailTemplateForRegistration } from '../../utils/registrationEmailTemplates';
+import { normalizeEmailRecipients } from '../../../shared/email-recipients';
 
 const statuses: ExternalUserAccess['status'][] = ['PENDING', 'DONE', 'REJECTED'];
 type EditableUserField = 'username' | 'email' | 'password' | 'company_name' | 'full_name' | 'mobile_number' | 'status' | 'email_status';
@@ -371,11 +372,20 @@ export function UserRegistration() {
     setEditingUser((current) => current ? { ...current, [field]: value } : current);
   };
 
+  const recipientError = (() => {
+    if (!preview) return '';
+    try { normalizeEmailRecipients(preview.recipient); return ''; }
+    catch (error) { return error instanceof Error ? error.message : 'Enter a valid recipient.'; }
+  })();
+
   const sendPreview = async () => {
     if (!preview) return;
+    let recipient: string;
+    try { recipient = normalizeEmailRecipients(preview.recipient); }
+    catch (error) { notifyError(error instanceof Error ? error.message : 'Enter a valid recipient.'); return; }
     setSending(true);
     try {
-      await sendWelcomeEmail(preview);
+      await sendWelcomeEmail({ ...preview, recipient });
       setUsers((current) => current.map((item) => item.id === previewUserId
         ? { ...item, email_status: 'SENT', email_sent: 1 }
         : item));
@@ -800,8 +810,9 @@ export function UserRegistration() {
             </div>
             <div className="space-y-4 overflow-y-auto p-5">
               <label className="block text-xs font-semibold text-slate-700">To
-                <input value={preview.recipient} readOnly className="mt-1.5 w-full rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 font-normal text-slate-700" />
+                <input value={preview.recipient} onChange={(event) => setPreview((current) => current ? { ...current, recipient: event.target.value } : current)} disabled={sending} aria-invalid={Boolean(recipientError)} aria-describedby="email-recipients-help" className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-normal text-slate-700 disabled:opacity-60" />
               </label>
+              <p id="email-recipients-help" role={recipientError ? 'alert' : undefined} className={`text-xs ${recipientError ? 'text-rose-700' : 'text-slate-500'}`}>{recipientError || 'Separate multiple email addresses with commas or semicolons.'}</p>
               <label className="block text-xs font-semibold text-slate-700">Subject
                 <input value={preview.subject} onChange={(event) => setPreview({ ...preview, subject: event.target.value })} className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" />
               </label>
@@ -825,7 +836,7 @@ export function UserRegistration() {
             </div>
             <div className="flex items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-5 py-4">
               <button type="button" onClick={() => setPreview(null)} disabled={sending} className="inline-flex h-10 w-32 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-100 disabled:opacity-60 sm:w-36">Cancel</button>
-              <button type="button" onClick={() => void sendPreview()} disabled={sending} className="inline-flex h-10 w-32 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-xs font-bold text-white shadow-sm hover:bg-blue-700 disabled:opacity-60 sm:w-36"><Mail className="h-4 w-4" />{sending ? 'Sending...' : 'Send Email'}</button>
+              <button type="button" onClick={() => void sendPreview()} disabled={sending || Boolean(recipientError)} className="inline-flex h-10 w-32 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-xs font-bold text-white shadow-sm hover:bg-blue-700 disabled:opacity-60 sm:w-36"><Mail className="h-4 w-4" />{sending ? 'Sending...' : 'Send Email'}</button>
             </div>
           </div>
         </div>

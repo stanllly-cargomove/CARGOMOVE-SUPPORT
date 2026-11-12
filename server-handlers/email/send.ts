@@ -16,8 +16,7 @@ import {
 } from '../_email.js';
 import { serviceRoleKey, supabaseUrl } from '../../api/_runtime.js';
 import { isEmailTemplateForRegistration } from '../../src/utils/registrationEmailTemplates.js';
-
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+import { normalizeEmailRecipients } from '../../shared/email-recipients.js';
 
 export default async function sendEmail(request: any, response: any) {
   noStore(response);
@@ -31,10 +30,14 @@ export default async function sendEmail(request: any, response: any) {
   const token = verifyPreviewToken(previewToken, session);
   if (!token) return response.status(400).json({ error: 'The email preview expired. Generate a new preview.' });
 
-  const recipient = String(body.recipient || '').trim().toLowerCase();
+  let recipient: string;
+  try {
+    recipient = normalizeEmailRecipients(body.recipient);
+  } catch (error) {
+    return response.status(400).json({ error: error instanceof Error ? error.message : 'A valid recipient is required.' });
+  }
   const subject = String(body.subject || '').trim();
   const messageBody = sanitizeEmailHtml(String(body.body || ''));
-  if (!EMAIL_PATTERN.test(recipient) || /[\r\n]/.test(recipient)) return response.status(400).json({ error: 'A valid recipient is required.' });
   if (!subject || /[\r\n]/.test(subject) || subject.length > 998) return response.status(400).json({ error: 'A valid subject is required.' });
   if (!emailHtmlToText(messageBody) || messageBody.length > 100_000) return response.status(400).json({ error: 'A valid email body is required.' });
 
@@ -49,7 +52,6 @@ export default async function sendEmail(request: any, response: any) {
   const template = templateResult.data;
   const connection = connectionResult.data;
   if (!user || !['DONE', 'REJECTED'].includes(user.status)) return response.status(409).json({ error: 'The user registration must still be DONE or REJECTED.' });
-  if (recipient !== String(user.email).toLowerCase()) return response.status(400).json({ error: 'The recipient must match the registered user email.' });
   if (user.status === 'DONE' || (user.status === 'REJECTED' && token.portId)) {
     if (!user.company_id) return response.status(409).json({ error: 'This user has no linked Company Registration.' });
     let companyQuery = client.from('registration_submissions').select('port_id')

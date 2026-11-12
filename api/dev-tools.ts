@@ -1,6 +1,7 @@
 import schedulerCatalog from '../server-handlers/scheduler/catalog.js';
 import runScheduler from '../server-handlers/scheduler/handler.js';
 import northportRecovery from '../server-handlers/northport/handler.js';
+import npQuery from '../server-handlers/np-query/handler.js';
 import systemVersions from '../server-handlers/system-versions.js';
 import profile from '../server-handlers/profile.js';
 import registrationUploads from '../server-handlers/registration-uploads/handler.js';
@@ -13,6 +14,7 @@ export function createDevToolsRouter(handlers:Record<string,Handler>={
   schedulers:schedulerCatalog,
   'run-scheduler':runScheduler,
   'northport-recovery':northportRecovery,
+  'np-query':npQuery,
   'system-versions':systemVersions,
   profile,
   'registration-uploads':registrationUploads,

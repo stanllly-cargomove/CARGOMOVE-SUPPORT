@@ -53,16 +53,16 @@ try {
     assert.equal(await page.getByRole('img', { name: /profile$/ }).count(), 2, 'Saved photo updates both profile and shared avatar');
     await page.screenshot({ path: `test-results/account-settings-${width}.png` });
     assert.equal(await page.getByRole('switch').count(), 0, 'Settings has no appearance toggle');
-    await page.getByRole('button', { name: 'Remove photo' }).click();
-    await page.getByRole('button', { name: 'Upload photo', exact: true }).waitFor(); assert.equal(deletes, 1);
+    await page.getByRole('button', { name: 'Remove profile photo', exact: true }).click();
+    await page.getByRole('button', { name: 'Upload profile photo', exact: true }).waitFor(); assert.equal(deletes, 1);
     const trigger = page.getByRole('button', { name: 'EIR time (Malaysia)', exact: true });
     await trigger.click(); const picker = page.getByRole('dialog', { name: 'EIR time (Malaysia) picker' });
     const minute = picker.getByRole('listbox', { name: 'Minute', exact: true });
     await minute.hover(); await page.mouse.wheel(0, 72); await page.waitForTimeout(500);
     assert.equal(await picker.isVisible(), true, 'Internal wheel gestures keep the picker open');
     await page.evaluate(() => window.scrollBy(0, 150)); await picker.waitFor({ state: 'hidden' });
-    const range = page.getByRole('button', { name: 'Minutes before', exact: true });
-    await range.click(); const rangePicker = page.getByRole('dialog', { name: 'Minutes before picker' });
+    const range = page.getByRole('button', { name: 'Start time range', exact: true });
+    await range.click(); const rangePicker = page.getByRole('dialog', { name: 'Start time range picker' });
     await page.evaluate(() => window.scrollBy(0, 150)); await rangePicker.waitFor({ state: 'hidden' });
     assert.deepEqual(errors, []); await page.close();
   }

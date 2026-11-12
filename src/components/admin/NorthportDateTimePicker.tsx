@@ -34,14 +34,20 @@ function PickerPopover({ label, disabled, display, children, onOpen, wide = fals
     const position = () => {
       const rect = trigger.current?.getBoundingClientRect(); const menu = panel.current;
       if (!rect || !menu) return;
-      if (rect.bottom < 48 || rect.top >= window.innerHeight) { menu.hidePopover(); return; }
-      menu.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth-menu.offsetWidth-8))}px`;
-      const below = window.innerHeight - rect.bottom - 8;
-      const top = below >= menu.offsetHeight || rect.top < menu.offsetHeight + 8 ? rect.bottom + 6 : rect.top - menu.offsetHeight - 6;
-      menu.style.top = `${Math.max(8, Math.min(top, window.innerHeight-menu.offsetHeight-8))}px`;
+      const scale = Number(getComputedStyle(menu).getPropertyValue('--admin-ui-scale')) || 1;
+      const viewportWidth = window.innerWidth / scale, viewportHeight = window.innerHeight / scale;
+      const anchor = { left: rect.left / scale, top: rect.top / scale, bottom: rect.bottom / scale };
+      if (rect.bottom < 48 * scale || rect.top >= window.innerHeight) { menu.hidePopover(); return; }
+      menu.style.left = `${Math.max(8, Math.min(anchor.left, viewportWidth-menu.offsetWidth-8))}px`;
+      const below = viewportHeight - anchor.bottom - 8;
+      const top = below >= menu.offsetHeight || anchor.top < menu.offsetHeight + 8 ? anchor.bottom + 6 : anchor.top - menu.offsetHeight - 6;
+      menu.style.top = `${Math.max(8, Math.min(top, viewportHeight-menu.offsetHeight-8))}px`;
     };
+    const shell = panel.current?.closest('.admin-shell');
+    const observer = shell ? new ResizeObserver(position) : null;
+    if (shell) observer?.observe(shell);
     position(); window.addEventListener('resize', position);
-    return () => window.removeEventListener('resize', position);
+    return () => { observer?.disconnect(); window.removeEventListener('resize', position); };
   }, [open]);
   const close = () => { panel.current?.hidePopover(); trigger.current?.focus(); };
   return <>

@@ -8,6 +8,66 @@
   --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
+/* Portal display sizing is independent of customer pages and browser zoom. */
+.admin-shell {
+  --admin-viewport-height: calc(100dvh / var(--admin-ui-scale, 1));
+  --admin-viewport-width: calc(100vw / var(--admin-ui-scale, 1));
+  zoom: var(--admin-ui-scale, 1);
+  min-height: var(--admin-viewport-height);
+}
+@media (min-width: 768px) {
+  .admin-shell > aside { height: var(--admin-viewport-height); }
+}
+/* Viewport-bound workspaces and overlays must use the same logical viewport. */
+.admin-shell [class~="h-[calc(100dvh-48px)]"] { height: calc(var(--admin-viewport-height) - 48px); }
+.admin-shell [class~="max-h-[90vh]"], .admin-shell [class~="max-h-[90dvh]"] { max-height: calc(var(--admin-viewport-height) * .9); }
+.admin-shell [class~="max-h-[92vh]"], .admin-shell [class~="max-h-[92dvh]"] { max-height: calc(var(--admin-viewport-height) * .92); }
+.admin-shell [class~="max-h-[calc(90dvh-2px)]"] { max-height: calc(var(--admin-viewport-height) * .9 - 2px); }
+.admin-shell [class~="max-h-[calc(100dvh-24px)]"] { max-height: calc(var(--admin-viewport-height) - 24px); }
+.admin-shell [class~="max-h-[calc(100dvh-2rem)]"] { max-height: calc(var(--admin-viewport-height) - 2rem); }
+.admin-shell [class~="h-[min(720px,92vh)]"] { height: min(720px, calc(var(--admin-viewport-height) * .92)); }
+.admin-shell [class~="h-[min(760px,calc(100dvh-2rem))]"] { height: min(760px, calc(var(--admin-viewport-height) - 2rem)); }
+.admin-shell .northport-file-dialog { width: calc(var(--admin-viewport-width) * .96); }
+.admin-shell dialog[aria-labelledby="northport-containers-title"] { width: calc(var(--admin-viewport-width) - 2rem); }
+.admin-shell [popover] { max-width: calc(var(--admin-viewport-width) - 1rem); max-height: calc(var(--admin-viewport-height) - 1rem); }
+.admin-shell dialog[aria-label="Attachment preview"] { max-width: var(--admin-viewport-width) !important; max-height: var(--admin-viewport-height) !important; }
+
+/* Keep each NP movement's fixed field layout readable at the available width. */
+.np-query-summary { container: np-details / inline-size; }
+.np-detail-panel { min-width: 0; border: 1px solid #d9e3ef; border-radius: 12px; background: #fff; box-shadow: 0 1px 3px #102a5609; }
+.np-record-layout { display: grid; gap: 16px; min-width: 0; }
+.np-record-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
+.np-record-column { display: flex; min-width: 0; flex-direction: column; gap: 16px; }
+.np-info-card { container-type: inline-size; display: flex; min-width: 0; flex-direction: column; overflow: hidden; border: 1px solid #ccdaec; border-radius: 12px; background: #fff; box-shadow: 0 2px 4px #102a5608; }
+.np-info-header { display: flex; height: 46px; flex-shrink: 0; align-items: center; gap: 10px; padding: 8px 16px; color: #fff; background: linear-gradient(110deg, #0677ed, #0750ad); }
+.np-info-header > span > svg { width: 18px; height: 18px; }
+.np-field-row { display: grid; grid-template-columns: minmax(0, .95fr) minmax(0, 1.05fr); align-items: start; gap: 12px; min-height: 30px; padding: 6px 16px; }
+.np-field-row:nth-child(even), .np-vessel-table tbody tr:nth-child(even) { background: linear-gradient(90deg, #f0f5fc, #f8fbff); }
+.np-vessel-body { min-height: 0; flex: 1; }
+.np-vessel-table { height: 100%; }
+.np-holds-list { display: grid; gap: 10px; padding: 12px; }
+.np-timeline { padding: 0 10px; }
+.np-info-card[aria-label="Yard & Haulage"] .np-field-row { align-items: center; }
+.np-info-card[aria-label="Yard & Haulage"] .np-field-row > dt { white-space: nowrap; }
+.np-info-card[aria-label="Yard & Haulage"] .np-field-row > dd { white-space: nowrap; overflow-x: auto; scrollbar-width: thin; }
+.np-permissions-popup { width: min(360px, calc(var(--admin-viewport-width, 100vw) - 4rem)); }
+.np-timeline-item { position: relative; display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 8px 4px; border-bottom: 1px solid #edf2f8; }
+.np-timeline-value-row { display: flex; min-width: 0; flex: 1; align-items: center; justify-content: space-between; gap: 8px; }
+.np-timeline-label, .np-timeline-timestamp { white-space: nowrap; font-size: clamp(9px, 3.1cqi, 12px); line-height: 18px; }
+.np-timeline-timestamp { text-align: right; }
+.np-timeline-item:last-child { border-bottom: 0; }
+.np-timeline-item:not(:last-child)::before { content: ''; position: absolute; left: 12px; top: 20px; bottom: -16px; width: 2px; background: #c6d5e9; }
+.np-timeline-marker { z-index: 1; display: flex; width: 18px; height: 18px; flex-shrink: 0; align-items: center; justify-content: center; margin-top: 1px; border: 2px solid #bccce1; border-radius: 50%; background: #fff; color: #fff; }
+.np-timeline-marker--recorded { border-color: #0668ed; background: #0668ed; }
+@container np-details (min-width: 680px) {
+  .np-record-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@container np-details (min-width: 1060px) {
+  .np-record-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: stretch; }
+  .np-record-column > .np-info-card:last-child { flex: 1; }
+  .np-record-column:not(:first-child) > .np-info-card:last-child > dl { display: grid; flex: 1; grid-auto-rows: minmax(min-content, 1fr); }
+}
+
 /* Fit recovery filters to the card's available width, including a collapsed sidebar. */
 .northport-search-card { container: northport-search / inline-size; }
 .northport-search-fields {

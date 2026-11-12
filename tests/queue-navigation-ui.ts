@@ -51,7 +51,8 @@ const css = (await Promise.all((await readdir('dist/assets')).filter(file => fil
   .map(file => readFile(`dist/assets/${file}`, 'utf8')))).join('\n');
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
-  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  const viewportWidth = Number(process.env.ADMIN_DISPLAY_TEST_WIDTH || 1440);
+  const page = await browser.newPage({ viewport: { width: viewportWidth, height: 1000 } });
   const errors: string[] = [];
   let snapshotReads = 0;
   let eligibilityRuns = 0;
@@ -82,6 +83,8 @@ try {
   await nav.getByRole('button', { name: /Registration Queue/ }).click();
   await nav.getByRole('button', { name: /^Pending/ }).click();
   await page.getByRole('heading', { name: 'Pending Registration Submissions', exact: true }).waitFor();
+  const footer = await page.locator('.queue-pagination-footer').boundingBox();
+  assert.ok(footer && footer.y >= 0 && footer.y + footer.height <= 1002 && footer.x + footer.width <= viewportWidth + 2, 'Queue pagination stays inside the viewport at the selected display size');
   await page.getByRole('tab', { name: /^Vehicle/ }).click();
   const scheduledIndicator = page.getByRole('img', { name: 'AUTO REGISTER BY SYSTEM. The system will automatically process this scheduled registration in CargoMove.' });
   await scheduledIndicator.waitFor();

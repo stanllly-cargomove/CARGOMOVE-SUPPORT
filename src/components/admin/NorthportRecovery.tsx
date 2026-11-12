@@ -179,8 +179,9 @@ function RecoveryStatusMenu({recovery,busy,onSave}:{recovery:Recovery;busy:boole
     if(menu.matches(':popover-open')){menu.hidePopover();return;}
     menu.showPopover();
     const anchor=trigger.getBoundingClientRect(),panel=menu.getBoundingClientRect();
-    menu.style.left=`${Math.max(8,Math.min(anchor.right-panel.width,window.innerWidth-panel.width-8))}px`;
-    menu.style.top=`${Math.max(8,Math.min(anchor.bottom+8,window.innerHeight-panel.height-8))}px`;
+    const scale=Number(getComputedStyle(menu).getPropertyValue('--admin-ui-scale'))||1;
+    menu.style.left=`${Math.max(8,Math.min(anchor.right-panel.width,window.innerWidth-panel.width-8))/scale}px`;
+    menu.style.top=`${Math.max(8,Math.min(anchor.bottom+8*scale,window.innerHeight-panel.height-8))/scale}px`;
     menu.querySelector<HTMLButtonElement>('[role="radio"]')?.focus();
   };
   return <>

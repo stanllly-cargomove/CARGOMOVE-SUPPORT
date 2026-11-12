@@ -9,6 +9,7 @@ import {
   Wrench,
   Info,
   Container,
+  Search,
   UserRoundPlus,
   ChevronDown,
   RefreshCw,
@@ -26,6 +27,7 @@ import {
   MoreVertical,
   BadgeCheck,
   KeyRound,
+  Monitor,
 } from 'lucide-react';
 import { AdminDashboard } from './AdminDashboard';
 import { CompanyMaster } from './CompanyMaster';
@@ -41,6 +43,7 @@ import { SystemVersion } from './SystemVersion';
 import { CargoMoveScheduler } from './CargoMoveScheduler';
 import { AutoRegisterCmPage } from './AutoRegisterCm';
 import { NorthportRecovery } from './NorthportRecovery';
+import { NpQuery } from './NpQuery';
 import { AutoMail } from './AutoMail';
 import { AutoEmailConfig } from './AutoEmailConfig';
 import { AccountSettings, ProfileAvatar, profileRequest } from './AccountSettings';
@@ -49,6 +52,7 @@ import { RegistrationType } from '../../types';
 import { getSubmissions, subscribeToStorage } from '../../services/storage';
 import { ApplicationUser, getExternalUserAccess, subscribeToExternalUserAccess } from '../../services/auth';
 import { browserSupabaseAuth } from '../../services/supabaseAuth';
+import { ADMIN_DISPLAY_SIZES, useAdminDisplaySize, type AdminDisplaySize } from '../../hooks/useAdminDisplaySize';
 
 interface AdminLayoutProps {
   active?: boolean;
@@ -60,6 +64,7 @@ interface AdminLayoutProps {
 }
 
 export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout, onUserChange, active = true }: AdminLayoutProps) {
+  const { displaySize, scale, chooseDisplaySize } = useAdminDisplaySize();
   const [activeTab, setActiveTab] = useState<string>(() => user?.type === 'ADMIN' && (new URLSearchParams(window.location.search).get('auto_mail') === 'connected' || window.location.hash === '#auto-mail/signatures') ? 'auto-mail' : 'dashboard');
   const openAutoEmailConfig = () => { setPortalMode('developer'); setActiveTab('auto-email-config'); setIsMobileSidebarOpen(false);
   };
@@ -203,11 +208,11 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
   };
 
   const isDevSettingsPage = activeTab === 'schema' || activeTab === 'scheduler' || activeTab === 'ports' || activeTab === 'auto-email-config' || activeTab === 'auto-register-cm';
-  const activePageLabel = activeTab === 'auto-email-config' ? 'Auto Email Config' : activeTab === 'auto-register-cm' ? 'Auto Register in CM' : activeTab === 'auto-mail' ? 'Tools / Auto Mail' : activeTab === 'system-version' ? 'System Version' : activeTab === 'ports' ? 'Ports & Depots' : activeTab === 'schema' ? 'Excel Mapping' : activeTab === 'scheduler' ? 'System Scheduler' : activeTab === 'northport-recovery' ? 'Tools / NP Container' : [...navItems, ...registrationQueueItems, ...devToolItems]
+  const activePageLabel = activeTab === 'np-query' ? 'Tools / Container Query' : activeTab === 'auto-email-config' ? 'Auto Email Config' : activeTab === 'auto-register-cm' ? 'Auto Register in CM' : activeTab === 'auto-mail' ? 'Tools / Auto Mail' : activeTab === 'system-version' ? 'System Version' : activeTab === 'ports' ? 'Ports & Depots' : activeTab === 'schema' ? 'Excel Mapping' : activeTab === 'scheduler' ? 'System Scheduler' : activeTab === 'northport-recovery' ? 'Tools / NP Container' : [...navItems, ...registrationQueueItems, ...devToolItems]
     .find((item) => item.id === activeTab)?.label ?? (activeTab === 'account-settings' ? 'Account & Setting' : 'Dashboard');
 
   return (
-    <div hidden={!active} data-sidebar-collapsed={isSidebarCollapsed ? 'true' : 'false'} style={active ? undefined : { display: 'none' }} className="admin-theme min-h-screen bg-[#f6f8fb] flex flex-col md:flex-row">
+    <div hidden={!active} data-sidebar-collapsed={isSidebarCollapsed ? 'true' : 'false'} data-display-size={displaySize} style={{ '--admin-ui-scale': scale, ...(active ? {} : { display: 'none' }) } as React.CSSProperties} className="admin-theme admin-shell min-h-screen bg-[#f6f8fb] flex flex-col md:flex-row">
       {/* Sidebar */}
       <aside
         className={`fixed inset-y-0 left-0 z-50 flex w-64 -translate-x-full flex-col shrink-0 overflow-visible border-r border-[#17263d] bg-[#0b1930] text-slate-300 shadow-2xl transition-[width,transform] duration-300 ease-out md:relative md:inset-auto md:h-screen md:w-64 md:translate-x-0 md:shadow-none md:sticky md:top-0 md:self-start ${
@@ -375,6 +380,9 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
                 <Container className="h-4 w-4 shrink-0" />
                 <span className={`min-w-0 flex-1 truncate text-left ${isSidebarCollapsed ? 'md:hidden' : ''}`}>NP Container</span>
               </button>
+              <button type="button" onClick={() => { setActiveTab('np-query'); setIsMobileSidebarOpen(false); }} aria-label="Container Query" aria-current={activeTab === 'np-query' ? 'page' : undefined} title="Container Query" className={`flex w-full items-center gap-2 rounded-lg px-2 py-2 text-[11px] font-medium transition-all ${isSidebarCollapsed ? 'md:justify-center md:px-2' : ''} ${activeTab === 'np-query' ? 'bg-[#0095e8] font-semibold text-white shadow-sm' : 'text-slate-300 hover:bg-white/8 hover:text-white'}`}>
+                <Search className="h-4 w-4 shrink-0" /><span className={`min-w-0 flex-1 truncate text-left ${isSidebarCollapsed ? 'md:hidden' : ''}`}>Container Query</span>
+              </button>
               <button type="button" onClick={() => { setActiveTab('auto-mail'); setIsMobileSidebarOpen(false); }} aria-label="Auto Mail" aria-current={activeTab === 'auto-mail' ? 'page' : undefined} title="Auto Mail" className={`flex w-full items-center gap-2 rounded-lg px-2 py-2 text-[11px] font-medium transition-all ${isSidebarCollapsed ? 'md:justify-center md:px-2' : ''} ${activeTab === 'auto-mail' ? 'bg-[#0095e8] font-semibold text-white shadow-sm' : 'text-slate-300 hover:bg-white/8 hover:text-white'}`}>
                 <Mail className="h-4 w-4 shrink-0" /><span className={`min-w-0 flex-1 truncate text-left ${isSidebarCollapsed ? 'md:hidden' : ''}`}>Auto Mail</span>
               </button>
@@ -491,6 +499,13 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
           </div>
 
           <div className="flex items-center gap-2">
+            <label className="hidden h-7 items-center gap-1.5 rounded-full border border-slate-300 bg-white px-2 text-[11px] font-medium text-slate-600 xl:inline-flex" title="Display size is saved for this browser. Auto adapts to the available screen width.">
+              <Monitor aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
+              <span className="sr-only">Display size</span>
+              <select aria-label="Display size" value={displaySize} onChange={event => chooseDisplaySize(event.target.value as AdminDisplaySize)} className="min-w-0 cursor-pointer bg-transparent text-[11px] outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                {ADMIN_DISPLAY_SIZES.map(value => <option key={value} value={value}>{value === 'auto' ? `Auto (${Math.round(scale * 100)}%)` : `${value}%`}</option>)}
+              </select>
+            </label>
             <button
               type="button"
               onClick={() => void handleRefresh()}
@@ -507,8 +522,8 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
 
         {/* Content Body */}
         <main
-          className={`flex-1 w-full p-4 sm:p-6 lg:px-7 lg:py-4 transition-[max-width] duration-200 ${
-            activeTab === 'auto-mail' ? 'max-w-none !p-0' : (activeQueueItem || activeTab === 'user-registration') && isSidebarCollapsed ? 'max-w-none' : 'mx-auto max-w-[1600px]'
+          className={`flex-1 min-w-0 w-full max-w-none p-4 sm:p-6 lg:px-7 lg:py-4 ${
+            activeTab === 'auto-mail' ? '!p-0' : ''
           }`}
         >
           <div key={`${portalMode}:${activeQueueItem ? 'registration-queue' : activeTab}`} className="w-full min-w-0">
@@ -528,6 +543,7 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
             }} />
           )}
           {activeTab === 'companies' && <CompanyMaster />}
+          {activeTab === 'np-query' && user?.type === 'ADMIN' && <NpQuery />}
           {activeTab === 'auto-mail' && user?.type === 'ADMIN' && <AutoMail onBreadcrumbChange={setMailBreadcrumbs} key={user.id} cacheScope={user.id} pollEnabled={active} onOpenConfig={openAutoEmailConfig} />}
           {activeQueueItem && (
             <SubmissionsList
