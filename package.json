@@ -49,6 +49,7 @@
     "test:northport": "tsx --test tests/northport.test.ts tests/northport-parallel.test.ts tests/northport-db.test.ts tests/northport-scan.test.ts tests/northport-reprocess.test.ts tests/northport-gp-verification.test.ts tests/northport-history.test.ts tests/northport-retry.test.ts tests/dev-tools-router.test.ts tests/dev-tools-runtime.test.ts",
     "test:northport:ui": "tsx tests/northport-ui.ts",
     "test:np-query": "tsx --test tests/np-query.test.ts",
+    "test:westport-query": "tsx --test tests/westport-query.test.ts",
     "test:np-query:ui": "tsx tests/np-query-ui.ts",
     "test:admin-display:ui": "tsx tests/admin-display-ui.ts",
     "test:northport:search:ui": "tsx tests/northport-search-ui.ts",

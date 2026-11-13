@@ -52,7 +52,7 @@ function wrapText(context: CanvasRenderingContext2D, text: string, width: number
 }
 
 /** Each movement retains its full field set; long values continue on new pages. */
-export async function createNpPdf(rows: string[][], containerNumber: string): Promise<Uint8Array> {
+export async function createNpPdf(rows: string[][], containerNumber: string, portName = 'Northport'): Promise<Uint8Array> {
   if (rows.length < 2) throw new Error('No movements to export.');
   await document.fonts.ready;
   const canvas = document.createElement('canvas'); canvas.width = PAGE_WIDTH * 2; canvas.height = PAGE_HEIGHT * 2;
@@ -64,12 +64,12 @@ export async function createNpPdf(rows: string[][], containerNumber: string): Pr
   const startPage = (movement: number, source: string, evidence: string, continued: boolean) => {
     context.fillStyle = '#fff'; context.fillRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT);
     context.fillStyle = '#08245b'; context.fillRect(0, 0, PAGE_WIDTH, 7);
-    font(18, true); context.fillText('Northport Container Query', MARGIN, 43);
+    font(18, true); context.fillText(`${portName} Container Query`, MARGIN, 43);
     font(10); context.fillStyle = '#475569'; context.fillText(`${containerNumber}  |  Movement ${movement} of ${rows.length - 1}  |  Source record ${source}${continued ? ' (continued)' : ''}`, MARGIN, 65);
     font(9); context.fillText(evidence, MARGIN, 82); y = 98; rowIndex = 0;
   };
   const finishPage = () => {
-    font(8); context.fillStyle = '#64748b'; context.fillText('CargoMove - Northport enquiry', MARGIN, 823);
+    font(8); context.fillStyle = '#64748b'; context.fillText(`CargoMove - ${portName} enquiry`, MARGIN, 823);
     context.textAlign = 'right'; context.fillText(`Page ${images.length + 1}`, PAGE_WIDTH - MARGIN, 823); context.textAlign = 'left';
     images.push(jpegBytes(canvas));
   };

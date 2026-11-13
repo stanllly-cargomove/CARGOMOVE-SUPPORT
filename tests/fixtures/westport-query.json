@@ -1,0 +1,44 @@
+{
+  "iTotalRecords": 2,
+  "iTotalDisplayRecords": 2,
+  "aaData": [
+    {
+      "hdl_status": "IN",
+      "hdl_ref": "<a href=\"#\" onclick=\"externalAction()\">TEST000001</a>",
+      "order_type": "MTI",
+      "container_no": "ABCU1234567",
+      "container_no_href": "<a href=\"#\">ABCU1234567</a>",
+      "stacked_time": null,
+      "container_ref_no": "TEST000001",
+      "line": "TEST",
+      "carrier": "TR",
+      "container_type": "45G1 (H) 9.6",
+      "fe": "E",
+      "status": "TST",
+      "vessel_name": "TEST VESSEL",
+      "scn": null,
+      "expScn": "TEST01",
+      "sequence": null,
+      "row_data": { "containerNo": "ABCU1234567", "handlingType": "IN", "handlingRemarks": "INTERNAL TEST DATA - NOT FOR DISPLAY" }
+    },
+    {
+      "hdl_status": "OUT",
+      "hdl_ref": "<a href=\"#\">TEST000002</a>",
+      "order_type": "FOT",
+      "container_no": "ABCU1234567",
+      "container_no_href": "<a href=\"#\">ABCU1234567</a>",
+      "stacked_time": "20261112171200",
+      "container_ref_no": "TEST000002",
+      "line": "TEST & CO",
+      "carrier": "TR",
+      "container_type": "45G1 (H) 9.6",
+      "fe": "F",
+      "status": "TST",
+      "vessel_name": "TEST VESSEL",
+      "scn": "TEST02",
+      "expScn": null,
+      "sequence": "1",
+      "row_data": { "containerNo": "ABCU1234567", "handlingType": "OUT" }
+    }
+  ]
+}

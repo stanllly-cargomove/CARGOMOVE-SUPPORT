@@ -4,15 +4,16 @@ Container Query is an admin-only, read-only Tools page alongside NP Container an
 Mail. It does not use the NP Container FTP recovery workflow, modify bookings,
 persist query results, or require a database migration.
 
-Northport is the default port and the only enabled query source. Westport,
-Kuantan Port and Penang Port are selectable previews marked Coming soon; their
+Northport is the default port. Westport supports authenticated queries using a
+shared company account (see [Westport setup](westport-query.md)). Kuantan Port
+and Penang Port are selectable previews marked Coming soon; their
 views retain the search bar and export controls in a disabled state and do not
 submit queries. All port prompt cards display the selected port's logo; Kuantan
 and Penang retain their full card logos while their header circles use separate
 transparent symbols. Changing ports clears the current search, movements,
 and expanded details. Selection is disabled during a running query or export.
 Each port uses a local logo in `src/assets/ports` and a header availability dot:
-green for supported Northport queries, amber for Coming soon. The dot indicates
+green for supported Northport and Westport queries, amber for Coming soon. The dot indicates
 feature availability, not a live connection check. API routes and component
 filenames retain the internal `np-query` name.
 

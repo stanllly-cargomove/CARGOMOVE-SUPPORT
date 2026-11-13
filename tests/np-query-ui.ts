@@ -10,6 +10,7 @@ import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { createDevToolsRouter } from '../api/dev-tools.js';
 import { createNpQueryHandler } from '../server-handlers/np-query/handler.js';
 import { queryNorthport } from '../server-handlers/np-query/service.js';
+import { createWestportClient } from '../server-handlers/westport-query/service.js';
 import { NP_FIELDS } from '../shared/np-query.js';
 
 const unrelatedPages = ['AdminDashboard', 'CompanyMaster', 'SubmissionsList', 'PortDepotConfig', 'SchemaMappingInspector', 'GuidelineManager', 'UserRegistration', 'AdminUser', 'EmailTemplateManager', 'DeveloperSettings', 'SystemVersion', 'CargoMoveScheduler', 'AccountSettings', 'HomePage', 'RegistrationPage', 'TrackStatusPage', 'GuidelinePage', 'PortalLoginPage', 'PasswordResetPage', 'NorthportRecovery', 'AutoMail', 'AutoEmailConfig', 'AutoRegisterCm'];
@@ -36,6 +37,33 @@ await mkdir('test-results', { recursive: true });
 let mode: 'normal' | 'many' | 'empty' | 'outage' | 'pending' | 'fe' = 'normal';
 let queries = 0, clock = 10000, release: (() => void) | undefined;
 let origin = '';
+const westportFixture = await readFile(new URL('./fixtures/westport-query.json', import.meta.url), 'utf8');
+let westportQueries = 0, westportLogins = 0;
+let westportMode: 'normal' | 'many' | 'outage' | 'pending' | 'empty' | 'login' = 'normal';
+const westport = createWestportClient({
+  credentials: () => ({ username: 'offline-westport-user', password: 'offline-westport-password' }),
+  now: () => clock,
+  fetcher: async (_url, options) => {
+    const data = new URLSearchParams(String(options.body || ''));
+    if (data.get('action') === 'signin_attempt') { westportLogins++; return new Response('Proceed'); }
+    if (data.has('userid')) return new Response('<html>Dashboard</html>', { headers: { 'Set-Cookie': 'WPTETP=offline-session; Path=/; HttpOnly; Secure; Max-Age=28800' } });
+    if (data.get('action') === 'get_container') {
+      westportQueries++;
+      assert.equal(data.get('cont_no'), 'ABCU1234567');
+      assert.match((options.headers as Record<string, string>).Cookie, /WPTETP=offline-session/);
+      if (westportMode === 'pending') await new Promise<void>(resolve => { release = resolve; });
+      if (westportMode === 'outage') return new Response('private diagnostics', { status: 503 });
+      if (westportMode === 'login') return new Response('<form id="signin-form"></form>');
+      if (westportMode === 'many') {
+        const data = JSON.parse(westportFixture);
+        const rows = Array.from({ length: 6 }, (_, index) => ({ ...data.aaData[index % 2], container_ref_no: `TEST${index + 1}` }));
+        return new Response(JSON.stringify({ iTotalRecords: rows.length, iTotalDisplayRecords: rows.length, aaData: rows }));
+      }
+      return new Response(westportMode === 'empty' ? JSON.stringify({ iTotalRecords: 0, iTotalDisplayRecords: 0, aaData: [] }) : westportFixture, { headers: { 'Content-Type': 'text/html; charset=UTF-8' } });
+    }
+    return new Response('<form id="signin-form"></form>', { headers: { 'Set-Cookie': 'WPTETP=initial-session; Path=/; HttpOnly; Secure' } });
+  },
+});
 const handler = createNpQueryHandler({
   authorize: async () => ({ session: { id: 'offline-admin', email: 'admin@example.test', type: 'ADMIN', exp: Date.now() + 10000 }, client: {} as any }),
   allowedOrigin: value => value === origin,
@@ -49,7 +77,7 @@ const handler = createNpQueryHandler({
       return new Response(mode === 'outage' ? 'upstream private details' : mode === 'empty' ? 'No records found' : mode === 'many' ? Array(13).fill(fixture).join('\n') : mode === 'fe' ? fullEmptyFixture : fixture, { status: mode === 'outage' ? 503 : 200 });
     }, () => new Date(Date.UTC(2026, 10, 12, 6, 0, queries)));
   },
-});
+}, westport);
 const router = createDevToolsRouter({ 'np-query': handler });
 const app = express(); app.use(express.json());
 app.post('/api/dev-tools/np-query', (request, response) => { request.query.route = 'np-query'; void router(request, response); });
@@ -283,7 +311,86 @@ try {
     await page.getByLabel('Filter movements').fill('');
     const beforePortSwitch = queries;
     const logos = new Set([northportLogo]);
-    for (const [id, name] of [['westport', 'Westport'], ['kuantan', 'Kuantan Port'], ['penang', 'Penang Port']]) {
+    await portSelect.selectOption('westport');
+    const westportBrand = page.getByRole('img', { name: 'Westport: Queries available', exact: true });
+    await westportBrand.waitFor(); logos.add(await westportBrand.locator('img').getAttribute('src'));
+    assert.equal(await table.count(), 0, 'Northport results clear when Westport is selected');
+    assert.equal(await input.isDisabled(), false);
+    assert.match(await page.getByRole('region', { name: 'Container query prompt' }).innerText(), /company’s Westports account/);
+    const westportBaseline = westportQueries;
+    await input.fill('bad'); await input.press('Enter'); await page.getByRole('alert').waitFor();
+    assert.equal(westportQueries, westportBaseline);
+    westportMode = 'normal'; await input.fill(' abcu1234567 '); await input.press('Enter'); await table.waitFor();
+    assert.equal(await input.inputValue(), 'ABCU1234567');
+    assert.deepEqual(await table.locator('thead th').allTextContents(), ['Category', 'ORDER TYPE', 'CONTAINER NO', 'STACKED TIME', 'CONTAINER REF NO', 'CARRIER', 'LINE', 'CONTAINER TYPE', 'F/E', 'STATUS', 'VESSEL NAME', 'SCN', 'EXPORT SCN', 'SEQUENCE']);
+    assert.equal(await table.locator('tbody tr').count(), 2);
+    assert.equal(await page.getByLabel('Rows per page').inputValue(), '2');
+    assert.deepEqual(await page.getByLabel('Rows per page').locator('option').allTextContents(), ['2', '10', '20', '50']);
+    assert.match(await table.innerText(), /12\/11\/2026 17:12/);
+    assert.ok(!(await table.innerText()).includes('20261112171200'));
+    assert.match(await table.locator('tbody tr').first().locator('td').first().innerText(), /Export/);
+    assert.match(await table.locator('tbody tr').nth(1).locator('td').first().innerText(), /Import/);
+    assert.ok(await table.locator('tbody tr').first().locator('td').first().locator('span').evaluate(element => element.classList.contains('bg-red-500')));
+    assert.ok(await table.locator('tbody tr').nth(1).locator('td').first().locator('span').evaluate(element => element.classList.contains('bg-emerald-600')));
+    const westportDetails = page.getByRole('region', { name: 'Container Details', exact: true });
+    const queriesBeforeDetails = westportQueries;
+    await table.getByRole('button', { name: 'Expand Import movement, source record 2', exact: true }).click();
+    await westportDetails.waitFor(); assert.match(await westportDetails.innerText(), /Source record 2/);
+    assert.match(await westportDetails.innerText(), /12\/11\/2026 17:12/); assert.match(await westportDetails.innerText(), /TEST000002/);
+    assert.equal(westportQueries, queriesBeforeDetails, 'Opening a movement uses the selected source record without another query');
+    if (width === 1440 || width === 390) await page.screenshot({ path: `test-results/container-query-westport-details-${width}.png` });
+    await westportDetails.getByRole('button', { name: 'Collapse movement details' }).press('Escape');
+    assert.equal(await westportDetails.count(), 0); assert.equal(await page.evaluate(() => document.activeElement?.id), 'westport-movement-toggle-1');
+    await table.locator('tbody tr').first().locator('td').nth(2).click(); await westportDetails.waitFor();
+    assert.match(await westportDetails.innerText(), /Source record 1/); assert.match(await westportDetails.innerText(), /TEST000001/);
+    await westportDetails.getByRole('button', { name: 'Collapse movement details' }).click();
+    await page.getByLabel('Filter movements').fill('Export'); assert.equal(await table.locator('tbody tr').count(), 1);
+    assert.match(await table.locator('tbody tr').first().innerText(), /MTI/);
+    await page.getByLabel('Filter movements').fill('12/11/2026'); assert.equal(await table.locator('tbody tr').count(), 1);
+    await page.getByLabel('Filter movements').fill('TEST & CO'); assert.equal(await table.locator('tbody tr').count(), 1);
+    for (const format of ['CSV', 'Excel', 'PDF']) {
+      const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: format, exact: true }).click()]);
+      assert.match(download.suggestedFilename(), /^Westport_Query_ABCU1234567\./);
+      const bytes = await readFile((await download.path())!);
+      if (format === 'CSV') { assert.match(bytes.toString('utf8'), /TEST & CO/); assert.ok(!bytes.toString('utf8').includes('MTI')); assert.match(bytes.toString('utf8'), /"OUT","FOT"/); assert.match(bytes.toString('utf8'), /20261112171200/); }
+      else if (format === 'Excel') { const book = XLSX.read(bytes, { type: 'buffer' }); assert.equal(XLSX.utils.sheet_to_json<string[]>(book.Sheets[book.SheetNames[0]], { header: 1 }).length, 2); }
+      else { const pdf = await getDocument({ data: new Uint8Array(bytes) }).promise; assert.equal(pdf.numPages, 1); await pdf.loadingTask.destroy(); }
+    }
+    await page.getByLabel('Filter movements').fill('');
+    await table.getByRole('button', { name: 'Category', exact: true }).click();
+    await table.getByRole('button', { name: 'Category', exact: true }).click();
+    assert.match(await table.locator('tbody tr').first().innerText(), /^Import/);
+    westportMode = 'many'; await page.getByRole('button', { name: 'Search', exact: true }).click();
+    await page.getByRole('status').filter({ hasText: '1–2 of 6 movements' }).waitFor();
+    await table.getByRole('button', { name: 'Expand Export movement, source record 1', exact: true }).click(); await westportDetails.waitFor();
+    await page.getByRole('button', { name: 'Next movement page' }).click(); assert.equal(await westportDetails.count(), 0);
+    assert.equal(await table.locator('tbody tr').count(), 2);
+    await table.getByRole('button', { name: 'Expand Export movement, source record 3', exact: true }).click(); await westportDetails.waitFor();
+    assert.match(await westportDetails.innerText(), /TEST3/); assert.match(await westportDetails.innerText(), /Source record 3/);
+    await page.getByLabel('Rows per page').selectOption('10'); assert.equal(await table.locator('tbody tr').count(), 6); assert.equal(await westportDetails.count(), 0);
+    await page.getByLabel('Rows per page').selectOption('2'); assert.equal(await table.locator('tbody tr').count(), 2);
+    const previousLogins = westportLogins;
+    westportMode = 'pending'; await page.getByRole('button', { name: 'Search', exact: true }).click();
+    await page.waitForFunction(() => document.querySelector<HTMLSelectElement>('#container-query-port')?.disabled);
+    assert.equal(await input.isDisabled(), true);
+    while (!release) await new Promise(resolve => setTimeout(resolve, 10));
+    westportMode = 'normal'; release(); release = undefined;
+    await page.locator('button[type="submit"][aria-busy="false"]').waitFor();
+    assert.equal(westportLogins, previousLogins, 'Warm Westport searches reuse the session');
+    westportMode = 'outage'; await page.getByRole('button', { name: 'Search', exact: true }).click();
+    await page.getByRole('alert').waitFor(); assert.match(await page.getByRole('alert').innerText(), /last successful query/);
+    assert.equal(await table.locator('tbody tr').count(), 2);
+    assert.ok(!(await page.getByRole('alert').innerText()).includes('private diagnostics'));
+    if (width === 1440 || width === 390) await page.screenshot({ path: `test-results/container-query-westport-${width}.png` });
+    westportMode = 'empty'; await page.getByRole('button', { name: 'Search', exact: true }).click();
+    await page.getByText('No data available in table', { exact: true }).waitFor();
+    assert.equal(await page.getByRole('alert').count(), 0);
+    await page.getByRole('button', { name: 'Clear / Reset', exact: true }).click(); assert.equal(await table.count(), 0);
+    westportMode = 'login'; await input.fill('ABCU1234567'); await input.press('Enter');
+    await page.getByRole('alert').waitFor(); assert.equal(await table.count(), 0, 'An HTTP 200 login page never renders an empty movement table');
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Westport controls and results fit the viewport');
+    clock += 61000; westportMode = 'normal';
+    for (const [id, name] of [['kuantan', 'Kuantan Port'], ['penang', 'Penang Port']]) {
       await portSelect.selectOption(id);
       const portCard = page.getByRole('region', { name: `${name} coming soon`, exact: true });
       await portCard.waitFor();
@@ -348,5 +455,5 @@ try {
     assert.deepEqual(errors, []);
     await page.close();
   }
-  console.log('NP Query: desktop, tablet and mobile portal/API flow, details, sorting, filters, pagination, fresh searches, failures and PDF/Excel/CSV downloads passed offline.');
+  console.log('Container Query: Northport and Westport desktop, tablet and mobile portal/API flow, details, sorting, filters, pagination, session reuse, login rejection and PDF/Excel/CSV downloads passed offline.');
 } finally { await browser?.close(); await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); }

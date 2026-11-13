@@ -4,6 +4,7 @@ import { formatNpDate, formatNpWeight, normalizeContainerNumber, npShipping, val
 import { exportNpMovements } from '../../services/npQuery';
 import { NpQueryDetails } from './NpQueryDetails';
 import { NpExportIcon } from './NpExportIcon';
+import { WestportQuery } from './WestportQuery';
 import { NpCategoryBadge as CategoryBadge } from './NpQueryRecord';
 import northportLogo from '../../assets/ports/northport-n4.svg';
 import westportLogo from '../../assets/ports/westport-transparent.png';
@@ -38,6 +39,8 @@ export function NpQuery() {
   const [portId, setPortId] = useState<PortId>('northport');
   const port = ports.find(option => option.id === portId)!;
   const available = portId === 'northport';
+  const supported = available || portId === 'westport';
+  const [westportBusy, setWestportBusy] = useState(false);
   const [containerNumber, setContainerNumber] = useState('');
   const [result, setResult] = useState<NpQueryResult | null>(null);
   const [expandedSourceIndex, setExpandedSourceIndex] = useState<number | null>(null);
@@ -115,14 +118,14 @@ export function NpQuery() {
     <div className="flex flex-wrap items-start justify-between gap-4">
       <div className="min-w-0 basis-[240px] flex-1"><h2 className="text-xl font-bold tracking-tight text-slate-900">Container Query</h2><p className="mt-1 text-xs text-slate-500">Search container records and view Import/Export movement history by port.</p></div>
       <div className="flex shrink-0 items-center gap-3">
-        <div><label htmlFor="container-query-port" className="sr-only">Port</label><select id="container-query-port" value={portId} disabled={loading || exporting} onChange={event => { reset(false); setPortId(event.target.value as PortId); }} className={inputClass}>{ports.map(option => <option key={option.id} value={option.id}>{option.name}{option.id !== 'northport' ? ' — Coming soon' : ''}</option>)}</select></div>
-        <div role="img" aria-label={`${port.name}: ${available ? 'Queries available' : 'Coming soon'}`} title={`${port.name} · ${available ? 'Queries available' : 'Coming soon'}`} className="relative inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white shadow-sm transition-transform hover:-translate-y-0.5">
+        <div><label htmlFor="container-query-port" className="sr-only">Port</label><select id="container-query-port" value={portId} disabled={loading || exporting || westportBusy} onChange={event => { reset(false); setPortId(event.target.value as PortId); }} className={inputClass}>{ports.map(option => <option key={option.id} value={option.id}>{option.name}{option.id !== 'northport' && option.id !== 'westport' ? ' — Coming soon' : ''}</option>)}</select></div>
+        <div role="img" aria-label={`${port.name}: ${supported ? 'Queries available' : 'Coming soon'}`} title={`${port.name} · ${supported ? 'Queries available' : 'Coming soon'}`} className="relative inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white shadow-sm transition-transform hover:-translate-y-0.5">
           <img src={port.icon} alt="" className="h-9 w-9 object-contain" />
-          <span aria-hidden="true" className={`pointer-events-none absolute bottom-0.5 right-0.5 h-3 w-3 rounded-full border-2 border-white shadow-sm ${available ? 'bg-emerald-500' : 'bg-amber-400'}`} />
+          <span aria-hidden="true" className={`pointer-events-none absolute bottom-0.5 right-0.5 h-3 w-3 rounded-full border-2 border-white shadow-sm ${supported ? 'bg-emerald-500' : 'bg-amber-400'}`} />
         </div>
       </div>
     </div>
-    <section aria-label="Container search">
+    {portId === 'westport' ? <WestportQuery onBusyChange={setWestportBusy} /> : <><section aria-label="Container search">
       <form onSubmit={event => { event.preventDefault(); void search(containerNumber); }} className="flex flex-wrap items-center gap-2">
         <div className="flex h-11 min-w-0 basis-[240px] flex-1 items-center gap-2 rounded-xl border border-slate-300 bg-white pl-3 pr-[5px] shadow-sm focus-within:ring-2 focus-within:ring-sky-300">
           <Search aria-hidden="true" className="h-4 w-4 shrink-0 text-sky-700" />
@@ -167,6 +170,6 @@ export function NpQuery() {
         <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 text-xs text-slate-500"><span role="status">{filtered.length ? `${(current - 1) * pageSize + 1}–${Math.min(current * pageSize, filtered.length)} of ${filtered.length} movements` : '0 of 0 movements'}</span><div className="flex flex-wrap items-center gap-2"><label className="flex items-center gap-2">Rows per page<select value={pageSize} onChange={event => { setPageSize(Number(event.target.value)); setPage(1); setExpandedSourceIndex(null); }} className={inputClass}>{[10, 20, 50].map(size => <option key={size}>{size}</option>)}</select></label><button type="button" aria-label="Previous movement page" disabled={current <= 1} onClick={() => changePage(current - 1)} className={button + ' !px-2'}><ChevronLeft className="h-4 w-4" /></button><span>{current} / {pages}</span><button type="button" aria-label="Next movement page" disabled={current >= pages} onClick={() => changePage(current + 1)} className={button + ' !px-2'}><ChevronRight className="h-4 w-4" /></button></div></div>
       </section>
       <div id="np-movement-details" ref={detailsRef} hidden={!expandedRecord} className="scroll-mt-16">{expandedRecord && <NpQueryDetails record={expandedRecord} onClose={collapseDetails} />}</div>
-    </>}
+    </>}</>}
   </div>;
 }
