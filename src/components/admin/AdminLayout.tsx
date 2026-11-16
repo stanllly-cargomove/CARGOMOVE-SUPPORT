@@ -70,6 +70,8 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
   };
   const [hasOpenedNorthport, setHasOpenedNorthport] = useState(false);
   useEffect(() => { if (activeTab === 'northport-recovery') setHasOpenedNorthport(true); }, [activeTab]);
+  const [hasOpenedContainerQuery, setHasOpenedContainerQuery] = useState(false);
+  useEffect(() => { if (activeTab === 'np-query') setHasOpenedContainerQuery(true); }, [activeTab]);
   const [portalMode, setPortalMode] = useState<'admin' | 'developer'>('admin');
   const [isRegistrationQueueExpanded, setIsRegistrationQueueExpanded] = useState(false);
   const [queueRegistrationType, setQueueRegistrationType] = useState<RegistrationType>('COMPANY');
@@ -177,6 +179,7 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
     { id: 'submissions-pending', label: 'Pending', status: 'PENDING' as const, icon: Clock3 },
     { id: 'submissions-done', label: 'Closed / Done', status: 'DONE' as const, icon: CircleCheck },
     { id: 'submissions-rejected', label: 'Rejected', status: 'REJECTED' as const, icon: CircleX },
+    { id: 'submissions-all', label: 'All Registration', status: 'ALL' as const, icon: Inbox },
   ];
 
   const activeQueueItem = registrationQueueItems.find((item) => item.id === activeTab);
@@ -322,7 +325,7 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
                     aria-hidden={!isRegistrationQueueExpanded}
                     className={`overflow-hidden transition-[max-height,opacity,transform] duration-200 ease-out motion-reduce:transition-none ${
                       isRegistrationQueueExpanded
-                        ? 'max-h-[136px] translate-y-0 opacity-100'
+                        ? 'max-h-[180px] translate-y-0 opacity-100'
                         : 'pointer-events-none max-h-0 -translate-y-1 opacity-0'
                     } ${isSidebarCollapsed ? 'md:hidden' : ''}`}
                   >
@@ -543,7 +546,6 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
             }} />
           )}
           {activeTab === 'companies' && <CompanyMaster />}
-          {activeTab === 'np-query' && user?.type === 'ADMIN' && <NpQuery />}
           {activeTab === 'auto-mail' && user?.type === 'ADMIN' && <AutoMail onBreadcrumbChange={setMailBreadcrumbs} key={user.id} cacheScope={user.id} pollEnabled={active} onOpenConfig={openAutoEmailConfig} />}
           {activeQueueItem && (
             <SubmissionsList
@@ -574,6 +576,8 @@ export function AdminLayout({ user, onSwitchToCustomer, onRefreshData, onLogout,
           {(hasOpenedNorthport || activeTab === 'northport-recovery') && user?.type === 'ADMIN' && <NorthportRecovery key={user.email} active={active && activeTab === 'northport-recovery' && portalMode === 'admin'} onBack={goToPortalHome} />}
           {activeTab === 'account-settings' && <AccountSettings user={user} avatarUrl={avatarUrl} onAvatarChange={setAvatarUrl} onUserChange={onUserChange} onReset={() => void handlePasswordReset()} sendingReset={isSendingReset} />}
           </div>
+          {/* Keep query state outside the content wrapper that remounts on navigation. */}
+          {(activeTab === 'np-query' || hasOpenedContainerQuery) && user?.type === 'ADMIN' && <div hidden={activeTab !== 'np-query'}><NpQuery key={user.id} /></div>}
         </main>
       </div>
 

@@ -66,6 +66,10 @@
   .np-record-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: stretch; }
   .np-record-column > .np-info-card:last-child { flex: 1; }
   .np-record-column:not(:first-child) > .np-info-card:last-child > dl { display: grid; flex: 1; grid-auto-rows: minmax(min-content, 1fr); }
+  .westport-record-grid { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.1fr) minmax(0, 1fr); }
+  .westport-record-grid .np-info-card:last-child > .westport-detail-body { min-height: 0; flex: 1; }
+  .westport-record-grid .np-info-card:last-child .westport-detail-table { height: 100%; }
+  .westport-record-grid .np-info-card:last-child .westport-detail-table > thead { height: 32px; }
 }
 
 /* Fit recovery filters to the card's available width, including a collapsed sidebar. */
@@ -158,7 +162,7 @@
 .northport-history-table td:last-child { width: 1%; white-space: nowrap; }
 .northport-history-table td:nth-child(3) { width: auto; }
 .northport-results-table { width: 100%; table-layout: auto; }
-.northport-scanned-table { min-width: 860px; }
+.northport-scanned-table { min-width: 1120px; }
 .northport-results-table th,
 .northport-results-table td { padding: 8px; vertical-align: middle; white-space: normal; overflow-wrap: anywhere; }
 .northport-results-table th { font-size: 10px; letter-spacing: 0; white-space: nowrap; overflow-wrap: normal; word-break: normal; hyphens: none; }
@@ -169,6 +173,12 @@
 .northport-results-table td:nth-child(5),
 .northport-results-table td:nth-child(6),
 .northport-results-table td:last-child { width: 1%; white-space: nowrap; }
+.northport-scanned-table th:nth-child(-n+3),
+.northport-scanned-table td:nth-child(-n+3) { text-align: center; }
+.northport-scanned-table th:nth-child(5),
+.northport-scanned-table td:nth-child(5) { min-width: 160px; padding-inline: 16px; }
+.northport-scanned-table th:nth-child(7),
+.northport-scanned-table td:nth-child(7) { width: 1%; padding-inline: 6px; white-space: nowrap; }
 
 /* Company List follows the Northport tables: compact columns size to their
    contents while descriptive values consume the remaining available width. */
@@ -294,9 +304,15 @@
 .registration-queue-table th,
 .registration-queue-table td:not([colspan]) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .registration-queue-table .admin-registration-copy-text { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.registration-queue-table td:nth-child(7) { text-align: center; }
-.registration-queue-table td:nth-child(7) > .admin-registration-copy-text { display: inline-flex; max-width: none; overflow: visible; justify-content: center; }
-.registration-queue-table td:nth-child(7) .admin-registration-copy-text > span { width: 104px; flex-shrink: 0; justify-content: center; }
+.registration-queue-table .queue-status-cell { text-align: center; }
+.registration-queue-table .queue-status-cell > .admin-registration-copy-text { display: inline-flex; max-width: none; overflow: visible; justify-content: center; }
+.registration-queue-table .queue-status-cell .admin-registration-copy-text > span { width: 104px; flex-shrink: 0; justify-content: center; }
+.registration-queue-unified tbody td:not(:nth-child(2)),
+.registration-queue-unified tbody td:not(:nth-child(2)) :is(span, button) {
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+}
 .overview-queue-table td:nth-child(7) { text-align: center; }
 @media (max-width: 767px) {
   .admin-dashboard { padding-bottom: 64px; }
@@ -806,3 +822,17 @@ code, kbd, samp, pre {
 .auto-mail-content details { margin:1em 0; border:1px solid #e2e8f0; border-radius:8px; padding:.7em; }
 .auto-mail-content summary { cursor:pointer; font-size:12px; color:#64748b; }
 .auto-mail-content[contenteditable=true]:empty::before { content:attr(data-placeholder); color:#94a3b8; pointer-events:none; }
+
+@keyframes container-query-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+@keyframes container-query-scan {
+  0%, 100% { transform: translate(0, 0) rotate(-8deg); }
+  50% { transform: translate(-8px, -4px) rotate(5deg); }
+}
+.container-query-float { animation: container-query-float 3s ease-in-out 3; }
+.container-query-scan { animation: container-query-scan 3s ease-in-out 3; }
+@media (prefers-reduced-motion: reduce) {
+  .container-query-float, .container-query-scan { animation: none; }
+}

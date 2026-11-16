@@ -1,7 +1,9 @@
 import crypto from 'node:crypto';
-import { containerNumber, filenameInfo, RecoveryError } from './format.js';
+import { containerNumber, gatepassNumber, filenameInfo, RecoveryError } from './format.js';
+import { parse } from 'csv-parse/sync';
+import type { SourceFolder, ContainerType } from '../../src/types/northport.js';
 
-type FileSource = { actor: string; filename: string; digest: string; expires: number };
+type FileSource = { actor: string; filename: string; digest: string; expires: number; sourceFolder?: SourceFolder };
 function signature(data: string, purpose = 'northport-file:') {
   return crypto.createHmac('sha256', process.env.SESSION_SECRET!).update(purpose + data).digest('base64url');
 }
@@ -36,4 +38,16 @@ export function containsContainerText(bytes: Buffer, unit: string) {
   const encoding = bytes[0] === 0xff && bytes[1] === 0xfe ? 'utf-16le' : bytes[0] === 0xfe && bytes[1] === 0xff ? 'utf-16be' : 'utf-8';
   const text = new TextDecoder(encoding).decode(bytes).toUpperCase();
   return new RegExp('(?:^|[^A-Z0-9])' + normalized + '(?=$|[^A-Z0-9])').test(text);
+}
+
+// Deep inspection stays scoped to the correct named column for GP/EXP search.
+// A text-only match never authorizes recovery of an invalid CSV record.
+export function containsGatepassText(bytes: Buffer, number: string, type: ContainerType) {
+  const normalized = gatepassNumber(number);
+  const encoding = bytes[0] === 0xff && bytes[1] === 0xfe ? 'utf-16le' : bytes[0] === 0xfe && bytes[1] === 0xff ? 'utf-16be' : 'utf-8';
+  try {
+    const rows: string[][] = parse(new TextDecoder(encoding).decode(bytes), {bom:true,skip_empty_lines:true,relax_column_count:true,relax_quotes:true,max_record_size:24000});
+    const column = rows[0]?.findIndex(value => value.trim().toUpperCase() === (type === 'GP' ? 'GPNO' : 'EXPNO')) ?? -1;
+    return column >= 0 && rows.slice(1).some(row => row[column]?.trim().toUpperCase() === normalized);
+  } catch { return false; }
 }

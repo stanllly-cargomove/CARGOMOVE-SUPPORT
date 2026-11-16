@@ -1,7 +1,7 @@
 // Read-only diagnostics. No upload, rename, delete, or scheduler commands.
 import '../api/_runtime.js';
 import { Client, FileInfo } from 'basic-ftp';
-import { withFtp, downloadSource, sourceDirectory } from '../server-handlers/northport/ftp.js';
+import { withFtp, downloadSource, sourceDirectory, enterArchiveDirectory } from '../server-handlers/northport/ftp.js';
 import { filenameInfo, parseCsv, searchInput, MAX_FILE } from '../server-handlers/northport/format.js';
 import { searchSourceFiles, listingMode } from '../server-handlers/northport/listing.js';
 const arg = (name: string) => process.argv.find(value=>value.startsWith(`--${name}=`))?.slice(name.length+3);
@@ -50,7 +50,9 @@ if (process.argv.includes('--probe-tls')) {
       console.log('FTP login succeeded. Checking account-root paths.');
       const root=await client.pwd();await client.cd(config.base);const incoming=await client.pwd();
       console.log('Incoming directory is accessible. Checking SUCCESS_ARCHIVES and SUCCESS.');
-      await client.cd(config.archives);const archives=await client.pwd();
+      const archivesAvailable=await enterArchiveDirectory(client,config.archives);
+      const archives=archivesAvailable?await client.pwd():null;
+      if (!archivesAvailable) console.log('SUCCESS_ARCHIVES is currently absent. Searching SUCCESS; later searches will include the archive when it returns.');
       await client.cd(config.success);const success=await client.pwd();
       if (arg('probe-minute')) {
         const minute=arg('probe-minute')!;

@@ -38,7 +38,9 @@ let mode: 'normal' | 'many' | 'empty' | 'outage' | 'pending' | 'fe' = 'normal';
 let queries = 0, clock = 10000, release: (() => void) | undefined;
 let origin = '';
 const westportFixture = await readFile(new URL('./fixtures/westport-query.json', import.meta.url), 'utf8');
+const westportDetailFixture = await readFile(new URL('./fixtures/westport-details.html', import.meta.url), 'utf8');
 let westportQueries = 0, westportLogins = 0;
+let westportDetailsFail = false;
 let westportMode: 'normal' | 'many' | 'outage' | 'pending' | 'empty' | 'login' = 'normal';
 const westport = createWestportClient({
   credentials: () => ({ username: 'offline-westport-user', password: 'offline-westport-password' }),
@@ -47,6 +49,10 @@ const westport = createWestportClient({
     const data = new URLSearchParams(String(options.body || ''));
     if (data.get('action') === 'signin_attempt') { westportLogins++; return new Response('Proceed'); }
     if (data.has('userid')) return new Response('<html>Dashboard</html>', { headers: { 'Set-Cookie': 'WPTETP=offline-session; Path=/; HttpOnly; Secure; Max-Age=28800' } });
+    if (data.get('action') === 'view_container') {
+      if (westportDetailsFail) return new Response('private diagnostics', { status: 503 });
+      return new Response(westportDetailFixture.replaceAll('TEST000001', data.get('table_data[container_ref_no]') || 'TEST000001'));
+    }
     if (data.get('action') === 'get_container') {
       westportQueries++;
       assert.equal(data.get('cont_no'), 'ABCU1234567');
@@ -103,7 +109,7 @@ try {
     }
     await nav('Container Query');
     await page.getByRole('heading', { name: 'Container Query', exact: true }).waitFor();
-    const portSelect = page.getByLabel('Port', { exact: true });
+    const portSelect = page.getByRole('combobox', { name: 'Port', exact: true });
     assert.equal(await portSelect.inputValue(), 'northport', 'Northport is selected by default');
     const northportBrand = page.getByRole('img', { name: 'Northport: Queries available', exact: true });
     await northportBrand.waitFor();
@@ -126,8 +132,17 @@ try {
     assert.equal(await input.getAttribute('placeholder'), 'Search container number');
     await input.fill('invalid'); await input.press('Enter');
     await page.getByRole('alert').waitFor(); assert.equal(queries, baseline);
+    mode = 'outage';
     await input.fill(' sylu5004458 '); await input.press('Enter');
+    const northportFailure = page.getByRole('alert');
+    await northportFailure.getByRole('heading', { name: 'Unable to load Northport records' }).waitFor();
+    assert.equal(await prompt.count(), 0, 'A failed first search replaces the empty prompt');
+    assert.equal(await northportFailure.locator('.container-query-float').evaluate(element => getComputedStyle(element).animationName), 'none', 'Error illustration respects reduced motion');
+    if (width === 1440 || width === 390) await page.screenshot({ path: `test-results/container-query-northport-error-${width}.png`, fullPage: true });
+    mode = 'normal';
+    await northportFailure.getByRole('button', { name: 'Try again', exact: true }).click();
     const table = page.getByRole('table', { name: 'Container Movement', exact: true }); await table.waitFor();
+    assert.equal(await page.getByRole('alert').count(), 0, 'Successful retry clears the error card');
     assert.equal(await input.inputValue(), 'SYLU5004458');
     const rows = table.locator('tbody tr:not([aria-hidden="true"])');
     const headers = (await table.locator('thead th').allTextContents()).map(label => label.trim().toUpperCase());
@@ -194,6 +209,15 @@ try {
     assert.equal(await summary.locator('[data-np-field="vesselImport"]').innerText(), 'DANUM 173 (LMY998290)');
     assert.equal(await summary.locator('[data-np-field="vesselExport"]').innerText(), '—');
     const beforeSwitch = queries;
+    const northportTableBeforeNavigation = await table.evaluate(element => element.outerHTML);
+    const northportDetailsBeforeNavigation = await summary.innerText();
+    await nav('NP Container'); await page.getByText('NorthportRecovery', { exact: true }).waitFor();
+    assert.equal(await table.isVisible(), false, 'Container Query is hidden on other pages');
+    await nav('Container Query'); await table.waitFor();
+    assert.equal(await input.inputValue(), 'SYLU5004458');
+    assert.equal(await table.evaluate(element => element.outerHTML), northportTableBeforeNavigation);
+    assert.equal(await summary.innerText(), northportDetailsBeforeNavigation);
+    assert.equal(queries, beforeSwitch, 'Returning to Northport preserves results and details without querying again');
     await rows.nth(1).locator('td').nth(0).click();
     assert.deepEqual(await summaryFields(), expectedFields, 'Export uses fixed slots even when timestamps are missing');
     assert.equal(await summary.locator('[data-np-field="grossWeight"] dd').innerText(), '30,000');
@@ -336,13 +360,31 @@ try {
     const queriesBeforeDetails = westportQueries;
     await table.getByRole('button', { name: 'Expand Import movement, source record 2', exact: true }).click();
     await westportDetails.waitFor(); assert.match(await westportDetails.innerText(), /Source record 2/);
+    await westportDetails.getByRole('table', { name: 'Common Details details', exact: true }).waitFor();
     assert.match(await westportDetails.innerText(), /12\/11\/2026 17:12/); assert.match(await westportDetails.innerText(), /TEST000002/);
-    assert.equal(westportQueries, queriesBeforeDetails, 'Opening a movement uses the selected source record without another query');
-    if (width === 1440 || width === 390) await page.screenshot({ path: `test-results/container-query-westport-details-${width}.png` });
+    assert.equal(westportQueries, queriesBeforeDetails + 1, 'Opening details rechecks the movement before fetching the ETP detail view');
+    for (const title of ['Common Details', 'Vessel / Voyage', 'Gate', 'Timeline', 'eDO', 'Port']) await westportDetails.getByRole('table', { name: `${title} details`, exact: true }).waitFor();
+    await westportDetails.getByRole('button', { name: 'Holds', exact: true }).click();
+    await westportDetails.getByRole('table', { name: 'Holds details', exact: true }).waitFor();
+    await westportDetails.getByRole('button', { name: 'Close holds', exact: true }).click();
+    await westportDetails.getByRole('region', { name: 'Movement table fields', exact: true }).waitFor();
+    const vesselDetails = westportDetails.getByRole('table', { name: 'Vessel / Voyage details', exact: true });
+    assert.deepEqual(await vesselDetails.getByRole('row').filter({ hasText: 'Vessel Name' }).locator('td').allTextContents(), ['TEST INBOUND', 'TEST OUTBOUND']);
+    assert.match(await westportDetails.innerText(), /12,345 \(KG\)/);
+    assert.match(await westportDetails.innerText(), /TEST REMARK/);
+    assert.match(await westportDetails.innerText(), /TEST-POL-OUT/);
+    assert.ok(!(await westportDetails.innerText()).includes('CHARGES NOT INCLUDED'));
+    if (width === 1440 || width === 390) await page.screenshot({ path: `test-results/container-query-westport-details-${width}.png`, fullPage: true });
     await westportDetails.getByRole('button', { name: 'Collapse movement details' }).press('Escape');
     assert.equal(await westportDetails.count(), 0); assert.equal(await page.evaluate(() => document.activeElement?.id), 'westport-movement-toggle-1');
     await table.locator('tbody tr').first().locator('td').nth(2).click(); await westportDetails.waitFor();
+    await westportDetails.getByRole('table', { name: 'Common Details details', exact: true }).waitFor();
     assert.match(await westportDetails.innerText(), /Source record 1/); assert.match(await westportDetails.innerText(), /TEST000001/);
+    await westportDetails.getByRole('button', { name: 'Collapse movement details' }).click();
+    const beforeReopen = westportQueries;
+    await table.getByRole('button', { name: 'Expand Import movement, source record 2', exact: true }).click();
+    await westportDetails.getByRole('table', { name: 'Common Details details', exact: true }).waitFor();
+    assert.equal(westportQueries, beforeReopen, 'Reopening a movement reuses its details until the next successful search');
     await westportDetails.getByRole('button', { name: 'Collapse movement details' }).click();
     await page.getByLabel('Filter movements').fill('Export'); assert.equal(await table.locator('tbody tr').count(), 1);
     assert.match(await table.locator('tbody tr').first().innerText(), /MTI/);
@@ -363,12 +405,35 @@ try {
     westportMode = 'many'; await page.getByRole('button', { name: 'Search', exact: true }).click();
     await page.getByRole('status').filter({ hasText: '1–2 of 6 movements' }).waitFor();
     await table.getByRole('button', { name: 'Expand Export movement, source record 1', exact: true }).click(); await westportDetails.waitFor();
+    await westportDetails.getByRole('table', { name: 'Common Details details', exact: true }).waitFor();
     await page.getByRole('button', { name: 'Next movement page' }).click(); assert.equal(await westportDetails.count(), 0);
     assert.equal(await table.locator('tbody tr').count(), 2);
     await table.getByRole('button', { name: 'Expand Export movement, source record 3', exact: true }).click(); await westportDetails.waitFor();
+    await westportDetails.getByRole('table', { name: 'Common Details details', exact: true }).waitFor();
     assert.match(await westportDetails.innerText(), /TEST3/); assert.match(await westportDetails.innerText(), /Source record 3/);
+    const westportBeforeNavigation = westportQueries;
+    const westportTableBeforeNavigation = await table.evaluate(element => element.outerHTML);
+    const westportDetailsBeforeNavigation = await westportDetails.innerText();
+    await nav('NP Container'); await page.getByText('NorthportRecovery', { exact: true }).waitFor();
+    await nav('Container Query'); await table.waitFor();
+    assert.equal(await portSelect.inputValue(), 'westport');
+    assert.equal(await table.evaluate(element => element.outerHTML), westportTableBeforeNavigation, 'Westport retains its current page and sorting');
+    assert.equal(await westportDetails.innerText(), westportDetailsBeforeNavigation);
+    assert.equal(westportQueries, westportBeforeNavigation, 'Returning to Westport does not repeat the search');
     await page.getByLabel('Rows per page').selectOption('10'); assert.equal(await table.locator('tbody tr').count(), 6); assert.equal(await westportDetails.count(), 0);
     await page.getByLabel('Rows per page').selectOption('2'); assert.equal(await table.locator('tbody tr').count(), 2);
+    if (width === 390 || width === 1440) {
+      westportDetailsFail = true;
+      await table.getByRole('button', { name: 'Expand Import movement, source record 2', exact: true }).click();
+      await westportDetails.getByRole('alert').waitFor();
+      assert.equal(await westportDetails.getByRole('table').count(), 0, 'Failed details do not show a different movement');
+      assert.ok(!(await westportDetails.innerText()).includes('private diagnostics'));
+      westportDetailsFail = false;
+      await westportDetails.getByRole('button', { name: 'Retry details', exact: true }).click();
+      await westportDetails.getByRole('table', { name: 'Common Details details', exact: true }).waitFor();
+      assert.match(await westportDetails.innerText(), /TEST2/);
+      await westportDetails.getByRole('button', { name: 'Collapse movement details' }).click();
+    }
     const previousLogins = westportLogins;
     westportMode = 'pending'; await page.getByRole('button', { name: 'Search', exact: true }).click();
     await page.waitForFunction(() => document.querySelector<HTMLSelectElement>('#container-query-port')?.disabled);
@@ -388,6 +453,21 @@ try {
     await page.getByRole('button', { name: 'Clear / Reset', exact: true }).click(); assert.equal(await table.count(), 0);
     westportMode = 'login'; await input.fill('ABCU1234567'); await input.press('Enter');
     await page.getByRole('alert').waitFor(); assert.equal(await table.count(), 0, 'An HTTP 200 login page never renders an empty movement table');
+    const westportFailure = page.getByRole('alert');
+    await westportFailure.getByRole('heading', { name: 'Unable to load Westport records' }).waitFor();
+    assert.equal(await prompt.count(), 0, 'Westport errors replace the empty prompt');
+    await westportFailure.getByText('View error details', { exact: true }).click();
+    assert.ok((await westportFailure.locator('details p').innerText()).length > 0, 'Original error remains available in expandable details');
+    await westportFailure.getByText('View error details', { exact: true }).click();
+    if (width === 1440) {
+      await page.emulateMedia({ reducedMotion: 'no-preference' });
+      assert.equal(await westportFailure.locator('.container-query-float').evaluate(element => getComputedStyle(element).animationName), 'container-query-float');
+      await page.emulateMedia({ reducedMotion: 'reduce' });
+    }
+    if (width === 1440 || width === 390) await page.screenshot({ path: `test-results/container-query-westport-error-${width}.png`, fullPage: true });
+    clock += 61000; westportMode = 'normal';
+    await westportFailure.getByRole('button', { name: 'Try again', exact: true }).click(); await table.waitFor();
+    assert.equal(await page.getByRole('alert').count(), 0, 'Westport retry clears the error card');
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Westport controls and results fit the viewport');
     clock += 61000; westportMode = 'normal';
     for (const [id, name] of [['kuantan', 'Kuantan Port'], ['penang', 'Penang Port']]) {

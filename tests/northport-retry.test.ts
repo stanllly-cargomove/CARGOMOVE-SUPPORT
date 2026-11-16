@@ -24,6 +24,12 @@ test('legacy retries use the exact saved source filename and clearly identify fa
   assert.throws(()=>recoveryRetrySetup({...row,source_filename:'invalid'}),/Enter the container and EIR time/);
 });
 
+test('gatepass retries retain the original query and search column instead of substituting the container',()=>{
+  const row={container:'ABCU1234567',container_type:'GP',search_setup:{unit:'000123456789',searchBy:'gatepass',timestamp:'2026-11-16T12:00:00',type:'ALL',before:10,after:30,sourceFilename:'',mode:'standard'}} as Recovery;
+  const result=recoveryRetrySetup(row);
+  assert.equal(result.setup.unit,'000123456789');assert.equal(result.setup.searchBy,'gatepass');assert.equal(result.setup.type,'GP');
+});
+
 test('EX check reads Last run without triggering a task and closes the browser',async()=>{
   process.env.CARGOMOVE_USERNAME='test-only';process.env.CARGOMOVE_PASSWORD='test-only';
   const now=Date.now(),local=new Date(now+8*3600000);

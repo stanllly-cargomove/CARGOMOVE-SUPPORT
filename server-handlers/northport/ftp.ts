@@ -2,6 +2,7 @@ import { Client } from 'basic-ftp';
 import { Writable, Readable } from 'node:stream';
 import { filenameInfo, MAX_FILE, RecoveryError } from './format.js';
 import { isMissingFile } from './scan.js';
+import type { SourceFolder } from '../../src/types/northport.js';
 export function ftpConfig() {
   const env = process.env;
   if (!env.NORTHPORT_FTP_PASSWORD) throw new RecoveryError('Northport FTP password is not configured on the server.', 503);
@@ -25,16 +26,31 @@ export function sourceDirectory(config: SourceDirectories, _time?: number, _now?
 export function sourceDirectories(config: SourceDirectories, _time?: number, _now?: number) {
   return [config.success,config.archives];
 }
+// Clearance can remove the archive directory. Only an explicit not-found
+// response is optional; denied access and ambiguous 550 replies must still fail.
+export function isMissingDirectory(error: unknown) {
+  const e = error as { code?: unknown; message?: unknown };
+  return e?.code === 550 && typeof e.message === 'string'
+    && !/permission|access denied|not allowed|not permitted/i.test(e.message)
+    && /no such (?:file|directory|folder|path)|(?:file|directory|folder|path) (?:not found|does not exist)|cannot find (?:the )?(?:file|directory|folder|path)/i.test(e.message);
+}
+export async function enterArchiveDirectory(client: Pick<Client, 'cd'>, directory: string) {
+  try { await client.cd(directory); return true; }
+  catch (error) { if (isMissingDirectory(error)) return false; throw error; }
+}
 export async function downloadSource(client: Client, config: SourceDirectories, filename: string) {
+  return (await downloadSourceWithFolder(client,config,filename)).bytes;
+}
+export async function downloadSourceWithFolder(client: Client, config: SourceDirectories, filename: string): Promise<{bytes:Buffer;sourceFolder:SourceFolder}> {
   const info = filenameInfo(filename);
   if (!info) throw new RecoveryError('Invalid source filename.');
   const [primary,fallback] = sourceDirectories(config,info.time);
   await client.cd(primary);
-  try { return await download(client,filename); }
+  try { return {bytes:await download(client,filename),sourceFolder:'SUCCESS'}; }
   catch (error) {
     if (!fallback || !isMissingFile(error)) throw error;
-    await client.cd(fallback);
-    return download(client,filename);
+    if (!await enterArchiveDirectory(client,fallback)) throw new RecoveryError('The source file is no longer in SUCCESS and SUCCESS_ARCHIVES is currently absent. Search again after the archive folder returns.',404);
+    return {bytes:await download(client,filename),sourceFolder:'SUCCESS_ARCHIVES'};
   }
 }
 export async function withFtp<T>(operation: (client: Client, config: ReturnType<typeof ftpConfig>, openSearchPeer: () => Promise<Client>) => Promise<T>, signal?: AbortSignal, factory = () => new Client(10000, { maxListingBytes: 8 * 1024 * 1024, allowSeparateTransferHost: false })) {

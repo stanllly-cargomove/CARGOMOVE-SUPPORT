@@ -1,4 +1,16 @@
-import type { WestportTable } from '../../shared/westport-query';
+import type { WestportDetailSection, WestportTable } from '../../shared/westport-query';
+
+export async function fetchWestportDetails(containerNumber: string, sourceIndex: number, movementKey: string, signal: AbortSignal): Promise<WestportDetailSection[]> {
+  const response = await fetch('/api/dev-tools/np-query', {
+    method: 'POST', credentials: 'same-origin', cache: 'no-store', signal,
+    headers: { 'Content-Type': 'application/json', 'x-cargomove-confirm': 'np-query' },
+    body: JSON.stringify({ port: 'westport', action: 'details', containerNumber, sourceIndex, movementKey }),
+  });
+  const body = await response.json().catch(() => null);
+  if (!response.ok || body?.success !== true) throw new Error(body?.error || 'Unable to load Westport details. Please try again.');
+  if (body.port !== 'westport' || body.containerNumber !== containerNumber || body.movementKeys?.[sourceIndex] !== movementKey || !Array.isArray(body.detail) || body.detail.length !== 7 || !body.detail.every((section: any) => section && typeof section.title === 'string' && Array.isArray(section.columns) && section.columns.length >= 2 && section.columns.length <= 4 && section.columns.every((value: unknown) => typeof value === 'string') && Array.isArray(section.rows) && section.rows.length <= 100 && section.rows.every((row: unknown) => Array.isArray(row) && row.length === section.columns.length && row.every(value => typeof value === 'string' && value.length <= 4000)))) throw new Error('Westport returned invalid container details. Please search again.');
+  return body.detail;
+}
 
 export function westportExportRows(table: WestportTable) {
   return [table.columns, ...table.movements];

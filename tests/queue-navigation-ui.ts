@@ -24,6 +24,11 @@ const submissions = statuses.flatMap((status, statusIndex) => types.flatMap((reg
     };
   })));
 
+// Reference order deliberately differs from submission time and string order.
+for (const [status, reference] of [['PENDING', 'CMREG999999'], ['DONE', 'CMREG1000000'], ['REJECTED', 'CMREG1000001']]) {
+  submissions.find(submission => submission.status === status && submission.registration_type === 'COMPANY')!.reference_no = reference;
+}
+
 const bundle = await build({ stdin: { resolveDir: process.cwd(), loader: 'tsx', contents: `
   import React from 'react';
   import {createRoot} from 'react-dom/client';
@@ -46,6 +51,7 @@ const bundle = await build({ stdin: { resolveDir: process.cwd(), loader: 'tsx', 
   }
   void boot();
 ` }, bundle: true, write: false, format: 'iife', platform: 'browser',
+  loader: { '.svg': 'dataurl', '.png': 'dataurl', '.webp': 'dataurl' },
   define: { 'process.env.NODE_ENV': '"production"', 'import.meta.env': '{}' } });
 const css = (await Promise.all((await readdir('dist/assets')).filter(file => file.endsWith('.css'))
   .map(file => readFile(`dist/assets/${file}`, 'utf8')))).join('\n');
@@ -109,13 +115,52 @@ try {
   for (const [label, heading] of [
     ['Closed / Done', 'Closed / Done Registration Submissions'],
     ['Rejected', 'Rejected Registration Submissions'],
+    ['All Registration', 'All Registration'],
     ['Pending', 'Pending Registration Submissions'],
   ]) {
     const queueMenu = nav.getByRole('button', { name: /Registration Queue/ });
     if (await queueMenu.getAttribute('aria-expanded') !== 'true') await queueMenu.click();
     await nav.getByRole('button', { name: label === 'Pending' ? /^Pending/ : label, exact: label !== 'Pending' }).click();
-    await page.getByRole('heading', { name: heading, exact: true }).waitFor();
+    await page.getByRole('heading', { name: heading, exact: true, level: 2 }).waitFor();
+    if (label === 'All Registration') {
+      const menuLabels = await nav.locator('button').allTextContents();
+      assert.equal(menuLabels.findIndex(text => text.trim() === 'All Registration'), menuLabels.findIndex(text => text.trim() === 'Rejected') + 1);
+      assert.equal(await page.getByRole('tablist', { name: 'Registration type' }).count(), 0);
+      const typeFilter = page.getByLabel('Filter submissions by registration type');
+      assert.equal(await typeFilter.inputValue(), 'ALL');
+      await page.getByRole('columnheader', { name: 'Reg type', exact: true }).waitFor();
+      const typography = await page.locator('.registration-queue-table tbody tr').first().evaluate(row => {
+        const cells = row.querySelectorAll('td');
+        return [2, 3, 4, 5, 6, 7, 8].map(index => {
+          const value = cells[index].querySelector('span')!;
+          const style = getComputedStyle(value);
+          return { family: style.fontFamily, size: style.fontSize, weight: style.fontWeight };
+        });
+      });
+      assert.ok(typography.every(style => style.family === typography[0].family && style.size === '11px' && style.weight === '600'), 'All Registration values share Reg type typography');
+      assert.equal(await page.locator('.admin-registration-table-header').evaluate(header => getComputedStyle(header).borderRightWidth), '0px', 'The rounded shell owns the outer border without a square header border');
+      assert.match(await page.locator('.queue-pagination-footer').textContent() || '', /of 1200/);
+      await typeFilter.selectOption('COMPANY');
+      assert.equal(await page.getByLabel('Sort registration submissions').inputValue(), 'REFERENCE_DESC');
+      const rows = page.locator('.registration-queue-table tbody tr');
+      assert.deepEqual(await rows.locator('td:nth-child(2) .admin-registration-copy-text').allTextContents(), [
+        'CMREG1000001', 'CMREG1000000', 'CMREG999999',
+        ...Array.from({ length: 17 }, (_, index) => `CMREG${400899 - index}`),
+      ]);
+      assert.deepEqual(await rows.evaluateAll(rows => rows.slice(0, 3).map(row => row.querySelectorAll('td')[7].textContent?.trim())), ['Rejected', 'Done', 'Pending']);
+      await page.getByLabel('Search registration submissions').fill('CMREG999999');
+      assert.equal(await rows.locator('td:nth-child(2) .admin-registration-copy-text').textContent(), 'CMREG999999');
+      await page.getByLabel('Search registration submissions').fill('');
+    }
     for (const type of types) {
+      if (label === 'All Registration') {
+        await page.getByLabel('Filter submissions by registration type').selectOption(type);
+        const rows = page.locator('.registration-queue-table tbody tr').filter({ has: page.locator('td:nth-child(3) .admin-registration-copy-text') });
+        assert.equal(await rows.count(), 20);
+        assert.deepEqual(await rows.locator('td:nth-child(3) .admin-registration-copy-text').allTextContents(), Array(20).fill(type));
+        assert.match(await page.locator('.queue-pagination-footer').textContent() || '', /of 300/);
+        continue;
+      }
       const title = type.charAt(0) + type.slice(1).toLowerCase();
       const elapsed = await page.getByRole('tab', { name: new RegExp(`^${title}`) }).evaluate(async button => {
         const started = performance.now();
@@ -139,7 +184,7 @@ try {
   await page.getByRole('tab', { name: /^Company/ }).click();
   await page.getByText('UPDATED COMPANY FROM BACKGROUND SYNC', { exact: true }).filter({ visible: true }).waitFor();
   assert.deepEqual(errors, []);
-  console.log(`1,000 companies / 1,200 submissions: 12 tab switches, three status switches, zero storage reloads/network requests; slowest click-to-frame ${Math.max(...timings).toFixed(1)}ms. Background refresh passed.`);
+  console.log(`1,000 companies / 1,200 submissions: All Registration combines statuses and sorts by numeric reference descending; 16 tab switches, four queue switches, zero storage reloads/network requests; slowest click-to-frame ${Math.max(...timings).toFixed(1)}ms. Background refresh passed.`);
 } finally {
   await browser.close();
 }

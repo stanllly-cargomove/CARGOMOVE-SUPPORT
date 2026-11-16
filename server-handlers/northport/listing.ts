@@ -1,6 +1,6 @@
 import type { Client } from 'basic-ftp';
 import { filenameInfo, localTime, RecoveryError, type searchInput } from './format.js';
-import { sourceDirectories, type SourceDirectories } from './ftp.js';
+import { enterArchiveDirectory, isMissingDirectory, sourceDirectories, type SourceDirectories } from './ftp.js';
 import { isMissingFile, probeFilenameBatch } from './scan.js';
 
 export const PARTIAL_LISTING_WARNING = 'The FTP server has omitted existing files from date-filtered listings. These results may be incomplete. An empty result does not prove the container is absent. If you know the source filename, enter it to search that file directly.';
@@ -20,21 +20,34 @@ export async function searchSourceFiles(ftp: SearchFtp, config: SourceDirectorie
   const now = options.now ?? Date.now();
   const archiveFtp = options.archiveFtp;
   if (archiveFtp === ftp) throw new RecoveryError('Parallel searches require separate FTP connections.',503);
-  const changeDirectory = async (connection:SearchFtp,directory:string) => {
+  const changeDirectory = async (connection:SearchFtp,directory:string,optionalArchive=false) => {
     if (options.signal?.aborted) throw new RecoveryError('Search cancelled.',499);
-    try { await connection.cd(directory); }
+    try {
+      if (optionalArchive) return await enterArchiveDirectory(connection,directory);
+      await connection.cd(directory); return true;
+    }
     catch (error) {
       if (options.signal?.aborted) throw new RecoveryError('Search cancelled.',499);
       if (error instanceof RecoveryError) throw error;
-      // A missing directory must never be skipped as a missing timestamp file.
+      // SUCCESS is required. Only an explicitly absent archive is optional.
       throw new RecoveryError('FTP source directory is not accessible. Verify account-root paths and permissions.',502);
     }
   };
-  let archiveReady: Promise<void> | undefined;
+  let archiveReady: Promise<boolean> | undefined;
+  let archiveMissing = false;
   const archive = async () => {
     if (options.signal?.aborted) throw new RecoveryError('Search cancelled.',499);
-    await (archiveReady ??= changeDirectory(archiveFtp!,config.archives));
-    return archiveFtp!;
+    const available = await (archiveReady ??= changeDirectory(archiveFtp!,config.archives,true));
+    return available ? archiveFtp! : null;
+  };
+  const listArchive = async (connection:SearchFtp,pattern?:string) => {
+    try { return await connection.list(pattern); }
+    catch (error) {
+      // Clearance may remove the folder after its successful CWD.
+      if (!isMissingDirectory(error)) throw error;
+      archiveMissing = true; archiveReady = Promise.resolve(false);
+      return [];
+    }
   };
   let currentDirectory: string | undefined;
   const cd = async (directory: string) => {
@@ -48,14 +61,14 @@ export async function searchSourceFiles(ftp: SearchFtp, config: SourceDirectorie
       const [primary,fallback] = sourceDirectories(config,info.time,now);
       if (archiveFtp) {
         // Keep directory failures outside the missing-file handling below.
-        await Promise.all([cd(primary),archive()]);
+        const [,secondary] = await Promise.all([cd(primary),archive()]);
         const results = await Promise.allSettled([
-          ftp.size(filename), archiveFtp.size(filename)
+          ftp.size(filename), ...(secondary ? [secondary.size(filename)] : [])
         ]);
         if (options.signal?.aborted) throw new RecoveryError('Search cancelled.',499);
         // Missing files are expected. A failed connection or denied directory
         // must still fail the search rather than claim complete coverage.
-        for (const result of results) if (result.status === 'rejected' && !isMissingFile(result.reason)) throw result.reason;
+        for (const [index,result] of results.entries()) if (result.status === 'rejected' && !isMissingFile(result.reason) && !(index === 1 && isMissingDirectory(result.reason))) throw result.reason;
         for (const result of results) if (result.status === 'fulfilled') return result.value;
         throw (results[0] as PromiseRejectedResult).reason;
       }
@@ -66,7 +79,8 @@ export async function searchSourceFiles(ftp: SearchFtp, config: SourceDirectorie
         if (options.signal?.aborted) throw new RecoveryError('Search cancelled.',499);
         // Absolute SIZE avoids switching directories twice for every missing
         // timestamp filename. The primary directory stays selected for the batch.
-        return ftp.size(`${fallback}/${filename}`);
+        try { return await ftp.size(`${fallback}/${filename}`); }
+        catch (archiveError) { if (isMissingDirectory(archiveError)) throw error; throw archiveError; }
       }
     },
     list: async pattern => {
@@ -75,13 +89,20 @@ export async function searchSourceFiles(ftp: SearchFtp, config: SourceDirectorie
       const seen = new Set<string>(); let metadataEntries = 0;
       const listings = archiveFtp ? await Promise.all([
         (async () => { await cd(config.success); return ftp.list(pattern); })(),
-        (async () => (await archive()).list(pattern))()
+        (async () => { const connection = await archive(); return connection ? listArchive(connection,pattern) : []; })()
       ]) : null;
       if (options.signal?.aborted) throw new RecoveryError('Search cancelled.',499);
       for (const directory of directories) {
         let entries: Awaited<ReturnType<Client['list']>>;
         if (listings) entries = listings[directory === config.success ? 0 : 1];
-        else { await cd(directory); entries = await ftp.list(pattern); }
+        else {
+          if (directory === config.archives) {
+            if (archiveMissing) continue;
+            if (!await changeDirectory(ftp,directory,true)) { archiveMissing = true; continue; }
+            currentDirectory = directory;
+          } else await cd(directory);
+          entries = directory === config.archives ? await listArchive(ftp,pattern) : await ftp.list(pattern);
+        }
         const included = new Set<string>();
         metadataEntries += entries.length;
         if (metadataEntries > 20000) throw new RecoveryError('Directory metadata exceeds the 20,000-entry search budget. Use an exact filename or narrower dates.');

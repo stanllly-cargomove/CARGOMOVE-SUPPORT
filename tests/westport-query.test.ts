@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { createWestportClient, WESTPORT_URL, WESTPORT_LOGIN_URL } from '../server-handlers/westport-query/service.js';
 import { parseWestportHtml, parseWestportResponse, WestportSessionExpired } from '../server-handlers/westport-query/parser.js';
 import { WestportCookies } from '../server-handlers/westport-query/cookies.js';
+import { parseWestportDetails, westportDetailForm } from '../server-handlers/westport-query/details.js';
 import { NpQueryError } from '../server-handlers/np-query/parser.js';
 import { createNpQueryHandler } from '../server-handlers/np-query/handler.js';
 import { createDevToolsRouter } from '../api/dev-tools.js';
@@ -14,6 +15,7 @@ const unit = 'ABCU1234567';
 const fixture = readFileSync(new URL('./fixtures/westport-query.html', import.meta.url), 'utf8');
 // Schema confirmed live; every identifier and business value here is synthetic.
 const jsonFixture = readFileSync(new URL('./fixtures/westport-query.json', import.meta.url), 'utf8');
+const detailFixture = readFileSync(new URL('./fixtures/westport-details.html', import.meta.url), 'utf8');
 const loginPage = '<html><form id="signin-form"><input name="userid"><input name="passwd" type="password"></form></html>';
 const credentials = () => ({ username: 'fixture-user', password: 'fixture-password' });
 const sessionPage = '<html><h1>Dashboard</h1></html>';
@@ -27,6 +29,7 @@ function upstream(lookup?: (call: Call, index: number) => Response | Promise<Res
     const call = { url: String(url), data: new URLSearchParams(String(options.body || '')), headers: options.headers as Record<string, string> };
     calls.push(call);
     if (call.data.get('action') === 'get_container') return lookup ? lookup(call, ++lookups) : new Response(fixture);
+    if (call.data.get('action') === 'view_container') return new Response(detailFixture.replaceAll('TEST000001', call.data.get('table_data[container_ref_no]') || 'TEST000001'));
     if (call.data.get('action') === 'signin_attempt') {
       assert.equal(call.url, WESTPORT_LOGIN_URL);
       assert.equal(call.data.get('node_ajax_id'), '50'); assert.equal(call.data.get('user_id'), 'fixture-user'); assert.equal(call.data.get('password'), 'fixture-password');
@@ -64,6 +67,87 @@ test('confirmed DataTables JSON preserves display values and excludes upstream a
   const mock = upstream(() => new Response(jsonFixture, { headers: { 'Content-Type': 'text/html; charset=UTF-8' } }));
   const result = await createWestportClient({ credentials, fetcher: mock.fetcher })(unit);
   assert.equal(result.totalMovements, 2); assert.deepEqual(result.columns, table.columns);
+});
+
+test('ETP expanded cards retain all seven sections, directional values, blank cells and line breaks as plain text', () => {
+  const sections = parseWestportDetails(detailFixture, unit);
+  assert.deepEqual(sections.map(section => section.title), ['Common Details', 'Holds', 'Vessel/Voyage', 'Gate', 'Timeline', 'eDO', 'Port']);
+  const common = sections[0], vessel = sections[2];
+  assert.equal(common.rows.length, 18);
+  assert.deepEqual(common.rows.find(row => row[0] === 'Weight'), ['Weight', '12,345 (KG)']);
+  assert.deepEqual(common.rows.find(row => row[0] === 'Seal No'), ['Seal No', 'SEAL-A\nSEAL-B']);
+  assert.deepEqual(common.rows.find(row => row[0] === 'Revised BL Number'), ['Revised BL Number', '']);
+  assert.deepEqual(vessel.columns, ['', 'IN', 'OUT']);
+  assert.deepEqual(vessel.rows.find(row => row[0] === 'Vessel Name'), ['Vessel Name', 'TEST INBOUND', 'TEST OUTBOUND']);
+  assert.deepEqual(vessel.rows.find(row => row[0] === 'Yard Closing'), ['Yard Closing', '', '17/11/2026 16:00']);
+  assert.deepEqual(sections[1].rows, []);
+  const withHolds = detailFixture.replace('<td>Release</td></tr>', '<td>Release</td></tr><tr><td>TEST HOLD</td><td>Y</td><td>N</td><td></td></tr>');
+  assert.deepEqual(parseWestportDetails(withHolds, unit)[1].rows, [['TEST HOLD', 'Y', 'N', '']]);
+  assert.ok(!JSON.stringify(sections).includes('externalAction'));
+  assert.ok(!JSON.stringify(sections).includes('CHARGES NOT INCLUDED'));
+  const safe = parseWestportDetails(detailFixture.replace('TEST REMARK', '<b>TEST &amp; REMARK</b><script>privateAction()</script><button>Hidden action</button>'), unit);
+  assert.deepEqual(safe[0].rows.find(row => row[0] === 'Remarks'), ['Remarks', 'TEST & REMARK']);
+  assert.throws(() => parseWestportDetails(loginPage, unit), WestportSessionExpired);
+  for (const invalid of [detailFixture.replaceAll(unit, 'ABCZ0000001'), detailFixture.replace('>Port</div>', '>Unknown</div>'), detailFixture.replace('<td>IN</td>', '<td>OUT</td>'), detailFixture.replace('<td>TEST RELEASE</td>', ''), detailFixture.replace('TEST REMARK', 'x'.repeat(4001)), detailFixture + detailFixture, '<html>Unavailable</html>']) assert.throws(() => parseWestportDetails(invalid, unit), NpQueryError);
+});
+
+test('expanded lookup re-reads and matches the selected movement before sending server-only data to view_container', async () => {
+  const mock = upstream(() => new Response(jsonFixture));
+  const query = createWestportClient({ credentials, fetcher: mock.fetcher });
+  const result = await query(unit);
+  assert.equal(result.movementKeys?.length, 2);
+  const expanded = await query(unit, { sourceIndex: 1, movementKey: result.movementKeys![1] });
+  assert.equal(expanded.detail?.length, 7);
+  assert.deepEqual(expanded.detail![0].rows.find(row => row[0] === 'Booking Number'), ['Booking Number', 'TEST000002']);
+  const call = mock.calls.find(call => call.data.get('action') === 'view_container')!;
+  assert.equal(call.data.get('table_data[data_type]'), 'OUT');
+  assert.equal(call.data.get('table_data[row_data][containerNo]'), unit);
+  assert.equal(call.data.get('table_data[scn]'), 'TEST02');
+  assert.equal(mock.calls.filter(call => call.data.get('action') === 'signin_attempt').length, 1);
+  for (const value of ['<a', 'INTERNAL TEST DATA', 'fixture-password', 'authenticated']) assert.ok(!JSON.stringify(expanded).includes(value));
+  await assert.rejects(query(unit, { sourceIndex: 0, movementKey: result.movementKeys![1] }), (error: NpQueryError) => error.status === 409);
+  await assert.rejects(query(unit, { sourceIndex: -1, movementKey: result.movementKeys![0] }), (error: NpQueryError) => error.status === 400);
+  assert.equal(mock.calls.filter(call => call.data.get('action') === 'view_container').length, 1);
+  const changed = JSON.parse(jsonFixture); changed.aaData[0].row_data.handlingRemarks = 'CHANGED';
+  const changedMock = upstream((_call, index) => new Response(index === 1 ? jsonFixture : JSON.stringify(changed)));
+  const changedQuery = createWestportClient({ credentials, fetcher: changedMock.fetcher });
+  const before = await changedQuery(unit);
+  await assert.rejects(changedQuery(unit, { sourceIndex: 0, movementKey: before.movementKeys![0] }), (error: NpQueryError) => error.status === 409);
+  assert.ok(changedMock.calls.every(call => call.data.get('action') !== 'view_container'));
+  assert.equal(westportDetailForm({ hdl_status: 'IN', row_data: { a: null, list: [{ code: 'TEST' }] } })['table_data[row_data][list][0][code]'], 'TEST');
+});
+
+test('an expired expanded-detail session renews once and retries the same verified movement', async () => {
+  const mock = upstream(() => new Response(jsonFixture));
+  let detailCalls = 0;
+  const query = createWestportClient({ credentials, fetcher: async (url, options) => {
+    const response = await mock.fetcher(url, options);
+    if (new URLSearchParams(String(options.body || '')).get('action') === 'view_container' && ++detailCalls === 1) return new Response(loginPage);
+    return response;
+  } });
+  const result = await query(unit);
+  const expanded = await query(unit, { sourceIndex: 0, movementKey: result.movementKeys![0] });
+  assert.equal(expanded.detail?.length, 7); assert.equal(detailCalls, 2);
+  assert.equal(mock.calls.filter(call => call.data.get('action') === 'signin_attempt').length, 2);
+});
+
+test('detail action validates selectors and uses the same access checks while allowing immediate expansion after search', async () => {
+  const mock = upstream(() => new Response(jsonFixture));
+  const deps = { authorize: async () => ({ session: { id: 'offline-admin', email: 'admin@example.test', type: 'ADMIN', exp: Date.now() + 10000 }, client: {} as any }), allowedOrigin: (origin: unknown) => origin === 'http://localhost:3000', requestBody: async (req: any) => req.body, queryNorthport: async () => { throw new Error('Must not query Northport'); }, now: () => 10000 };
+  const handler = createNpQueryHandler(deps, createWestportClient({ credentials, fetcher: mock.fetcher }));
+  const request = (extra: object = {}) => ({ method: 'POST', headers: { origin: 'http://localhost:3000', 'x-cargomove-confirm': 'np-query' }, body: { port: 'westport', containerNumber: unit, ...extra } });
+  const response = () => ({ code: 200, body: null as any, setHeader() {}, status(code: number) { this.code = code; return this; }, json(body: any) { this.body = body; return this; } });
+  for (const extra of [{ action: 'unknown' }, { action: 'details' }, { action: 'details', sourceIndex: -1, movementKey: 'a'.repeat(64) }, { action: 'details', sourceIndex: 0, movementKey: {} }, { port: 'northport', action: 'details', sourceIndex: 0, movementKey: 'a'.repeat(64) }]) {
+    const res = response(); await handler(request(extra), res); assert.equal(res.code, 400);
+  }
+  assert.equal(mock.calls.length, 0);
+  const initial = response(); await handler(request(), initial);
+  const detail = { action: 'details', sourceIndex: 1, movementKey: initial.body.movementKeys[1] };
+  const denied = response(); await handler({ ...request(detail), headers: { origin: 'https://other.test', 'x-cargomove-confirm': 'np-query' } }, denied); assert.equal(denied.code, 403);
+  const expanded = response(); await handler(request(detail), expanded); assert.equal(expanded.code, 200); assert.equal(expanded.body.detail.length, 7);
+  const rapid = response(); await handler(request(), rapid); assert.equal(rapid.code, 429);
+  const anonymous = createNpQueryHandler({ ...deps, authorize: async () => ({ code: 401, message: 'Administrator authentication required.' }) }, createWestportClient({ credentials, fetcher: mock.fetcher }));
+  const noSession = response(); await anonymous(request(detail), noSession); assert.equal(noSession.code, 401);
 });
 
 test('Westport presentation formats local stacked times and category labels without changing source rows or exports', () => {

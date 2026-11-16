@@ -1,9 +1,10 @@
 import { createHash } from 'node:crypto';
 import { validContainerNumber } from '../../shared/np-query.js';
-import type { WestportQueryResult } from '../../shared/westport-query.js';
+import type { WestportDetailRequest, WestportQueryResult } from '../../shared/westport-query.js';
 import { NpQueryError } from '../np-query/parser.js';
 import { WestportCookies } from './cookies.js';
 import { isWestportLogin, parseWestportResponse, WestportSessionExpired } from './parser.js';
+import { parseWestportDetails, westportDetailForm } from './details.js';
 
 export const WESTPORT_URL = 'https://etp.westports.com.my/';
 export const WESTPORT_LOGIN_URL = WESTPORT_URL + '?t=default&app=login';
@@ -19,8 +20,9 @@ export function createWestportClient(options: Options = {}) {
   const jar = new WestportCookies(now);
   let authenticatedUntil = 0, authRetryAfter = 0, fingerprint = '', active = false;
 
-  return async function queryWestport(containerNumber: string): Promise<WestportQueryResult> {
+  return async function queryWestport(containerNumber: string, detailRequest?: WestportDetailRequest): Promise<WestportQueryResult> {
     if (!validContainerNumber(containerNumber)) throw new NpQueryError('Enter a valid container number.', 400);
+    if (detailRequest && (!Number.isInteger(detailRequest.sourceIndex) || detailRequest.sourceIndex < 0 || detailRequest.sourceIndex >= 500 || !/^[a-f0-9]{64}$/.test(detailRequest.movementKey))) throw new NpQueryError('Select a valid Westport movement.', 400);
     const account = credentials();
     if (!account.username || !account.password) throw new NpQueryError('Westport queries are not configured. Ask an administrator to configure the shared Westports account.', 503);
     if (active) throw new NpQueryError('Westport queries are busy. Please try again in a few seconds.', 429);
@@ -87,7 +89,18 @@ export function createWestportClient(options: Options = {}) {
     try {
       let loggedIn = false;
       if (now() >= authenticatedUntil || !jar.header(new URL(WESTPORT_URL))) { await login(); loggedIn = true; }
-      const lookup = async () => parseWestportResponse(await request(WESTPORT_URL, { node_ajax_id: '2609', action: 'get_container', cont_no: containerNumber }, true), containerNumber);
+      const lookup = async () => {
+        const body = await request(WESTPORT_URL, { node_ajax_id: '2609', action: 'get_container', cont_no: containerNumber }, true);
+        const table = parseWestportResponse(body, containerNumber);
+        // Keep the raw record on the server only. Re-read it for details so the
+        // browser never supplies action HTML or trusted upstream row_data.
+        const rows: Record<string, unknown>[] | undefined = body.trim().startsWith('{') ? JSON.parse(body).aaData : undefined;
+        const movementKeys = rows?.map((row, index) => createHash('sha256').update(JSON.stringify([table.movements[index], row.row_data])).digest('hex'));
+        if (!detailRequest) return { ...table, movementKeys };
+        if (!rows || movementKeys?.[detailRequest.sourceIndex] !== detailRequest.movementKey) throw new NpQueryError('This Westport movement has changed. Search the container again before opening its details.', 409);
+        const detail = parseWestportDetails(await request(WESTPORT_URL, westportDetailForm(rows[detailRequest.sourceIndex]), true), containerNumber);
+        return { ...table, movementKeys, detail };
+      };
       let table;
       try { table = await lookup(); }
       catch (error) {

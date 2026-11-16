@@ -9,7 +9,7 @@ import { createNorthportHandler } from '../server-handlers/northport/handler.js'
 import { recoveryFlow } from '../src/services/northportRecoveryStatus.js';
 import type { Recovery } from '../src/types/northport.js';
 import { searchFiles, searchSourceFiles, PARTIAL_LISTING_WARNING } from '../server-handlers/northport/listing.js';
-import { containsContainerText, signFileSource, signEditorSource, verifyEditorSource } from '../server-handlers/northport/inspection.js';
+import { containsContainerText, containsGatepassText, signFileSource, signEditorSource, verifyEditorSource } from '../server-handlers/northport/inspection.js';
 
 const gpName='CM_CONTAINER_20261017012016_GP.csv';
 const exName='CM_CONTAINER_20261017012014_EX.csv';
@@ -56,21 +56,22 @@ function harness(openSearchPeer?:()=>Promise<any>) {
   process.env.SESSION_SECRET='northport-tests-only';process.env.SCHEDULER_PORTAL_URL='https://portal.example.test';process.env.NORTHPORT_RECOVERY_UPLOAD_ENABLED='false';
   let session:any={id:'admin',email:'admin@example.test',type:'ADMIN'};let profile:any={id:'profile'};
   let entries=[{name:gpName,isFile:true,size:gp.length},{name:exName,isFile:true,size:ex.length},{name:'CM_CONTAINER_20261015012016_GP.csv',isFile:true,size:999999}];
-  const directories:string[]=[];const downloads:string[]=[];const updates:any[]=[];const rpcCalls:{name:string;args:any}[]=[];let approve:any=null;let claim:any=null;let claimError=false;let uploadFailure=false;let uploadedBytes:Buffer|null=null;let uploadedName='';let schedulerClaim=true;let rate=true;let ftpError=false;let source=gp;let incoming:Buffer|null=null;let schedulerFailure=false;let schedulerCalls=0;let uploaded=false;
+  const directories:string[]=[];const downloads:string[]=[];const updates:any[]=[];const rpcCalls:{name:string;args:any}[]=[];let approve:any=null;let claim:any=null;let claimError=false;let uploadFailure=false;let uploadedBytes:Buffer|null=null;let uploadedName='';let schedulerClaim=true;let rate=true;let ftpError=false;let source=gp;let exportSource=ex;let incoming:Buffer|null=null;let schedulerFailure=false;let schedulerCalls=0;let uploaded=false;
   const listingRequests:(string|undefined)[]=[];
   let sizeLookup=async(_name:string)=>1;let sourceArchived=false;
-  const ftp={pwd:async()=>'/account',cd:async(path:string)=>{directories.push(path);},list:async(pattern?:string)=>{listingRequests.push(pattern);return entries;},downloadTo:async(stream:any,name:string)=>{
+  let archiveDirectoryError:unknown;
+  const ftp={pwd:async()=>'/account',cd:async(path:string)=>{directories.push(path);if(path==='/incoming/SUCCESS_ARCHIVES'&&archiveDirectoryError)throw archiveDirectoryError;},list:async(pattern?:string)=>{listingRequests.push(pattern);return entries;},downloadTo:async(stream:any,name:string)=>{
     const info=filenameInfo(name);
     if(info) {
       if(sourceArchived&&directories.at(-1)==='/incoming/SUCCESS')throw Object.assign(new Error('550 File not found'),{code:550});
       assert.equal(directories.at(-1),sourceArchived?'/incoming/SUCCESS_ARCHIVES':'/incoming/SUCCESS','Every source read must try SUCCESS before archive fallback');
     }
-    downloads.push(name);stream.end(name.startsWith('REPROCESS_')&&incoming?incoming:name===exName?ex:source);
+    downloads.push(name);stream.end(name.startsWith('REPROCESS_')&&incoming?incoming:name===exName?exportSource:source);
   },uploadFrom:async(stream:any)=>{uploaded=true;if(uploadFailure)throw new RecoveryError('Transfer interrupted',502);const chunks:Buffer[]=[];for await(const chunk of stream)chunks.push(Buffer.from(chunk));uploadedBytes=Buffer.concat(chunks);},size:async(name:string)=>name.endsWith('.part')&&uploadedBytes?uploadedBytes.length:sizeLookup(name),rename:async(_from:string,to:string)=>{uploadedName=to;}};
   const client={from(){const query:any={select(){return this;},eq(){return this;},is(){return this;},order(){return this;},limit(){return this;},timeout(){return this;},update(value:any){updates.push(value);return this;},async maybeSingle(){return {data:profile,error:null};},then(resolve:any){return Promise.resolve({data:[],error:null}).then(resolve);}};return query;},async rpc(name:string,args:any){rpcCalls.push({name,args});return {error:name==='northport_claim_file_upload'&&claimError?{message:'Missing function'}:null,data:name==='northport_admit_request'?rate:name==='northport_approve'?approve:name==='northport_claim_file_upload'?claim:name==='northport_claim_scheduler'||name==='northport_cancel_approved'?schedulerClaim:name==='northport_record_cancelled'?{id:'cancelled-attempt',status:'Cancelled'}:null};}};
   const handler=createNorthportHandler({adminClient:()=>client as any,readSession:()=>session,withFtp:async(operation:any)=>{if(ftpError)throw new RecoveryError('FTP operation failed',502);return operation(ftp,{base:'/incoming',success:'/incoming/SUCCESS',archives:'/incoming/SUCCESS_ARCHIVES',access:{secure:true}},openSearchPeer);},runScheduler:async(_req:any,res:any)=>{schedulerCalls++;res.status(schedulerFailure?502:200).json({status:schedulerFailure?'failed':'trigger_requested',message:'Test result',executionId:'run-test'});}} as any);
   const call=async(payload:any,overrides:any={})=>{const response:any={code:200,body:null,headers:{} as Record<string,string>,setHeader(name:string,value:string){this.headers[name]=value;},status(code:number){this.code=code;return this;},json(body:any){this.body=body;return this;},send(body:any){this.body=body;return this;}};await handler({method:'POST',headers:{origin:'https://portal.example.test','x-cargomove-confirm':'northport-recovery'},body:payload,...overrides},response);return response;};
-  return {call,directories,downloads,updates,rpcCalls,listingRequests,setSize:(fn:typeof sizeLookup)=>sizeLookup=fn,get uploaded(){return uploaded;},get uploadedBytes(){return uploadedBytes;},get uploadedName(){return uploadedName;},get schedulerCalls(){return schedulerCalls;},setSession:(v:any)=>session=v,setProfile:(v:any)=>profile=v,setEntries:(v:any)=>entries=v,setRate:(v:boolean)=>rate=v,setFtpError:()=>ftpError=true,setSource:(v:Buffer)=>source=v,setSourceArchived:()=>sourceArchived=true,setIncoming:(v:Buffer)=>incoming=v,setApprove:(v:any)=>approve=v,setClaim:(v:any)=>claim=v,setClaimError:()=>claimError=true,setUploadFailure:()=>uploadFailure=true,setSchedulerFailure:()=>schedulerFailure=true,setSchedulerClaim:(v:boolean)=>schedulerClaim=v};
+  return {call,directories,downloads,updates,rpcCalls,listingRequests,setArchiveError:(error:unknown)=>archiveDirectoryError=error,setSize:(fn:typeof sizeLookup)=>sizeLookup=fn,get uploaded(){return uploaded;},get uploadedBytes(){return uploadedBytes;},get uploadedName(){return uploadedName;},get schedulerCalls(){return schedulerCalls;},setSession:(v:any)=>session=v,setProfile:(v:any)=>profile=v,setEntries:(v:any)=>entries=v,setRate:(v:boolean)=>rate=v,setFtpError:()=>ftpError=true,setSource:(v:Buffer)=>source=v,setExportSource:(v:Buffer)=>exportSource=v,setSourceArchived:()=>sourceArchived=true,setIncoming:(v:Buffer)=>incoming=v,setApprove:(v:any)=>approve=v,setClaim:(v:any)=>claim=v,setClaimError:()=>claimError=true,setUploadFailure:()=>uploadFailure=true,setSchedulerFailure:()=>schedulerFailure=true,setSchedulerClaim:(v:boolean)=>schedulerClaim=v};
 }
 
 test('search API opens one archive peer and returns the older SUCCESS file without duplicate downloads',async()=>{
@@ -84,6 +85,75 @@ test('search API opens one archive peer and returns the older SUCCESS file witho
   assert.equal(connections,1);assert.equal(listings,1);assert.deepEqual(h.downloads,[gpName]);
   const download=await h.call({action:'download-source',token:result.body.matches[0].token});
   assert.equal(download.code,200);assert.equal(connections,1,'Downloads do not open a search peer');
+});
+
+test('connection checks and searches tolerate archive clearance and check it again after recreation',async()=>{
+  const h=harness();
+  h.setArchiveError(Object.assign(new Error('550 No such directory'),{code:550}));
+  const checked=await h.call({action:'check'});
+  assert.equal(checked.code,200);assert.equal(checked.body.checked,true);assert.equal(checked.body.archivesAvailable,false);
+  assert.match(checked.body.message,/currently absent/);
+  const searched=await h.call({action:'search',...search,type:'GP'});
+  assert.equal(searched.code,200);assert.equal(searched.body.complete,true);assert.equal(searched.body.matches.length,1);
+  h.setArchiveError(undefined);
+  const restored=await h.call({action:'check'});
+  assert.equal(restored.code,200);assert.equal(restored.body.archivesAvailable,true);
+  h.setArchiveError(Object.assign(new Error('550 Permission denied'),{code:550}));
+  assert.notEqual((await h.call({action:'check'})).code,200);
+  assert.equal(h.uploaded,false);assert.equal(h.schedulerCalls,0);
+});
+
+test('gatepass searches use GPNO for GP and EXPNO for EX, preserve zeroes, and identify the actual source folder',async()=>{
+  const h=harness();
+  const number='000123456789000001';
+  const makeRows=(type:'GP'|'EX')=>{
+    const matching=Array(20).fill('');matching[0]=type==='GP'?'ABCU1234567':'DEFU7654321';matching[type==='GP'?1:2]=number;
+    const wrongColumn=[...matching];wrongColumn[0]=number;wrongColumn[type==='GP'?1:2]='OTHER';wrongColumn[type==='GP'?2:1]=number;wrongColumn[3]=number;
+    return [matching,wrongColumn];
+  };
+  const bytes=(rows:string[][])=>Buffer.from([NORTHPORT_COLUMNS.join(','),...rows.map(row=>row.join(','))].join('\r\n')+'\r\n');
+  const gpBytes=bytes(makeRows('GP')),exBytes=bytes(makeRows('EX'));
+  h.setSource(gpBytes);h.setExportSource(exBytes);
+  h.setEntries([{name:gpName,isFile:true,size:gpBytes.length},{name:exName,isFile:true,size:exBytes.length}]);
+  h.setSize(async(path:string)=>{const name=path.split('/').at(-1);if(name===gpName)return gpBytes.length;if(name===exName)return exBytes.length;throw Object.assign(new Error('550 File not found'),{code:550});});
+  for(const mode of ['standard','files','content']) for(const type of ['GP','EX','ALL']) {
+    const result=await h.call({action:'search',...search,unit:number,searchBy:'gatepass',mode,type,before:1,after:1});
+    assert.equal(result.code,200);assert.equal(result.body.complete,true);
+    assert.equal(result.body.matches.length,type==='ALL'?2:1);
+    for(const match of result.body.matches){assert.equal(match.values[match.type==='GP'?1:2],number);assert.notEqual(match.values[0],number);assert.equal(match.sourceFolder,'SUCCESS');}
+    for(const file of result.body.scannedFiles)assert.equal(file.sourceFolder,'SUCCESS');
+  }
+  const partial=await h.call({action:'search',...search,unit:number.slice(1),searchBy:'gatepass',type:'GP'});
+  assert.equal(partial.body.matches.length,0,'Leading zeroes are significant and numbers require an exact match');
+  h.setSourceArchived();
+  const archived=await h.call({action:'search',...search,unit:number,searchBy:'gatepass',type:'GP',mode:'files',sourceFilename:gpName});
+  assert.equal(archived.body.matches[0].sourceFolder,'SUCCESS_ARCHIVES');assert.equal(archived.body.scannedFiles[0].sourceFolder,'SUCCESS_ARCHIVES');
+  const editor=await h.call({action:'editor-records',kind:'file',token:archived.body.matches[0].fileToken});
+  assert.equal(editor.code,200);assert.equal(editor.body.sourceFolder,'SUCCESS_ARCHIVES');
+  assert.equal(h.uploaded,false);assert.equal(h.schedulerCalls,0);
+});
+
+test('gatepass validation and deep inspection stay scoped to the relevant named column',()=>{
+  assert.equal(searchInput({...search,unit:' 00-ab/12.3 ',searchBy:'gatepass'}).unit,'00-AB/12.3');
+  for(const invalid of [{searchBy:'unknown'},{unit:''},{unit:'x'.repeat(101)},{unit:'123\n456'},{unit:'*123*'}])assert.throws(()=>searchInput({...search,unit:'000001',searchBy:'gatepass',...invalid}),RecoveryError);
+  const rows='UNIT,GPNO,EXPNO,BLNO\r\nABCU1234567,000001,000002,000003\r\n';
+  assert.equal(containsGatepassText(Buffer.from(rows),'000001','GP'),true);
+  assert.equal(containsGatepassText(Buffer.from(rows),'000002','EX'),true);
+  assert.equal(containsGatepassText(Buffer.from(rows),'000002','GP'),false);
+  assert.equal(containsGatepassText(Buffer.from(rows),'000003','EX'),false);
+  assert.equal(containsGatepassText(Buffer.from(rows),'ABCU1234567','GP'),false);
+});
+
+test('downloads explain a cleared archive without treating unavailable source content as success',async()=>{
+  const missing=()=>Object.assign(new Error('550 File not found'),{code:550});
+  let archiveMissing=false;let downloaded=false;
+  const ftp:any={
+    cd:async(path:string)=>{if(path.endsWith('SUCCESS_ARCHIVES')&&archiveMissing)throw missing();},
+    downloadTo:async()=>{downloaded=true;throw missing();},
+  };
+  archiveMissing=true;
+  await assert.rejects(()=>downloadSource(ftp,{success:'/incoming/SUCCESS',archives:'/incoming/SUCCESS_ARCHIVES'},gpName),(error:RecoveryError)=>error.code===404&&/currently absent/.test(error.message));
+  assert.equal(downloaded,true);
 });
 
 test('search modes default to Basic Scan and never search incoming or silently change type and time',async()=>{
@@ -484,6 +554,12 @@ test('approval retains validated original search settings with the selected reco
   const before=h.rpcCalls.filter(call=>call.name==='northport_approve').length;
   assert.equal((await h.call({action:'approve',...source,searchSetup:{...setup,before:-1}})).code,400);
   assert.equal(h.rpcCalls.filter(call=>call.name==='northport_approve').length,before,'Invalid settings cannot create an approval');
+});
+test('approval retains a gatepass search query without replacing it with UNIT',async()=>{
+  const h=harness();const source=await approval(h);h.setApprove({id:'approval',status:'Approved'});
+  const setup={unit:source.values[1],searchBy:'gatepass',timestamp:search.timestamp,type:'ALL',before:5,after:30,sourceFilename:'',mode:'standard'};
+  assert.equal((await h.call({action:'approve',...source,searchSetup:setup})).code,200);
+  assert.deepEqual(h.updates.at(-1).search_setup,{...setup,type:'GP'});
 });
 test('production uploads disabled, even after approval; no FTP write attempted',async()=>{
   const h=harness();const p=await approval(h);const res=await h.call({action:'upload',...p,id:'00000000-0000-4000-8000-000000000001'});assert.equal(res.code,403);assert.equal(h.uploaded,false);

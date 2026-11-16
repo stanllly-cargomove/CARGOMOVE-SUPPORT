@@ -4,6 +4,7 @@ import { formatNpDate, formatNpWeight, normalizeContainerNumber, npShipping, val
 import { exportNpMovements } from '../../services/npQuery';
 import { NpQueryDetails } from './NpQueryDetails';
 import { NpExportIcon } from './NpExportIcon';
+import { ContainerQueryError } from './ContainerQueryError';
 import { WestportQuery } from './WestportQuery';
 import { NpCategoryBadge as CategoryBadge } from './NpQueryRecord';
 import northportLogo from '../../assets/ports/northport-n4.svg';
@@ -45,6 +46,7 @@ export function NpQuery() {
   const [result, setResult] = useState<NpQueryResult | null>(null);
   const [expandedSourceIndex, setExpandedSourceIndex] = useState<number | null>(null);
   const [loading, setLoading] = useState(false), [error, setError] = useState('');
+  const [queryError, setQueryError] = useState('');
   const [filter, setFilter] = useState(''), [category, setCategory] = useState('All');
   const [sort, setSort] = useState<{ column: SortColumn; direction: 1 | -1 } | null>(null);
   const [pageSize, setPageSize] = useState(10), [page, setPage] = useState(1);
@@ -55,7 +57,7 @@ export function NpQuery() {
 
   async function search(value: string) {
     if (request.current || !available) return;
-    const normalized = normalizeContainerNumber(value); setContainerNumber(normalized); setError('');
+    const normalized = normalizeContainerNumber(value); setContainerNumber(normalized); setError(''); setQueryError('');
     if (!validContainerNumber(normalized)) { setError('Enter four letters (ending U, J or Z) followed by seven digits, e.g. SYLU5004458.'); return; }
     if (result?.containerNumber !== normalized) setResult(null);
     const controller = new AbortController(); request.current = controller; setLoading(true);
@@ -74,7 +76,7 @@ export function NpQuery() {
       if (request.current !== controller) return;
       setResult(body); setExpandedSourceIndex(null); setFilter(''); setCategory('All'); setSort(null); setPage(1);
     } catch (error) {
-      if (request.current === controller) setError(controller.signal.aborted ? 'The query timed out. Please try again.' : error instanceof Error ? error.message : 'Unable to query Northport. Please try again.');
+      if (request.current === controller) setQueryError(controller.signal.aborted ? 'The query timed out. Please try again.' : error instanceof Error ? error.message : 'Unable to query Northport. Please try again.');
     } finally {
       window.clearTimeout(timer);
       if (request.current === controller) { request.current = null; setLoading(false); }
@@ -113,7 +115,7 @@ export function NpQuery() {
     catch { setError('Unable to export movements. Please try again.'); }
     finally { setExporting(false); }
   }
-  function reset(focusInput = true) { setContainerNumber(''); setResult(null); setExpandedSourceIndex(null); setError(''); setFilter(''); setCategory('All'); setSort(null); setPage(1); if (focusInput) document.getElementById('np-container-number')?.focus(); }
+  function reset(focusInput = true) { setContainerNumber(''); setResult(null); setExpandedSourceIndex(null); setError(''); setQueryError(''); setFilter(''); setCategory('All'); setSort(null); setPage(1); if (focusInput) document.getElementById('np-container-number')?.focus(); }
   return <div className="w-full min-w-0 space-y-4 pb-6">
     <div className="flex flex-wrap items-start justify-between gap-4">
       <div className="min-w-0 basis-[240px] flex-1"><h2 className="text-xl font-bold tracking-tight text-slate-900">Container Query</h2><p className="mt-1 text-xs text-slate-500">Search container records and view Import/Export movement history by port.</p></div>
@@ -130,7 +132,7 @@ export function NpQuery() {
         <div className="flex h-11 min-w-0 basis-[240px] flex-1 items-center gap-2 rounded-xl border border-slate-300 bg-white pl-3 pr-[5px] shadow-sm focus-within:ring-2 focus-within:ring-sky-300">
           <Search aria-hidden="true" className="h-4 w-4 shrink-0 text-sky-700" />
           <label htmlFor="np-container-number" className="sr-only">Container Number</label>
-          <input id="np-container-number" type="search" value={containerNumber} onChange={event => setContainerNumber(event.target.value)} onBlur={() => setContainerNumber(normalizeContainerNumber(containerNumber))} placeholder="Search container number" disabled={loading || !available} maxLength={64} autoCapitalize="characters" autoComplete="off" spellCheck={false} aria-invalid={!!error && !validContainerNumber(normalizeContainerNumber(containerNumber))} aria-describedby={error ? 'np-query-error' : undefined} className="h-full min-w-0 flex-1 bg-transparent text-sm text-slate-900 placeholder:text-slate-400 outline-none disabled:cursor-not-allowed disabled:opacity-60 [&::-webkit-search-cancel-button]:appearance-none" />
+          <input id="np-container-number" type="search" value={containerNumber} onChange={event => setContainerNumber(event.target.value)} onBlur={() => setContainerNumber(normalizeContainerNumber(containerNumber))} placeholder="Search container number" disabled={loading || !available} maxLength={64} autoCapitalize="characters" autoComplete="off" spellCheck={false} aria-invalid={!!error && !validContainerNumber(normalizeContainerNumber(containerNumber))} aria-describedby={error ? 'np-query-error' : queryError ? 'np-query-failure' : undefined} className="h-full min-w-0 flex-1 bg-transparent text-sm text-slate-900 placeholder:text-slate-400 outline-none disabled:cursor-not-allowed disabled:opacity-60 [&::-webkit-search-cancel-button]:appearance-none" />
           {(containerNumber || result || error) && <button type="button" aria-label="Clear / Reset" title="Clear / Reset" disabled={loading || !available} onClick={() => reset()} className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-200 text-slate-600 transition-colors hover:bg-slate-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 disabled:cursor-not-allowed disabled:opacity-50"><X aria-hidden="true" className="h-3.5 w-3.5" /></button>}
           <button type="submit" disabled={loading || !available} aria-busy={loading} className="relative inline-flex h-8 w-24 shrink-0 items-center justify-center rounded-lg bg-sky-600 text-sm font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"><Loader2 aria-hidden="true" className={`absolute left-2 h-3.5 w-3.5 ${loading ? 'animate-spin' : 'invisible'}`} />Search</button>
         </div>
@@ -142,7 +144,8 @@ export function NpQuery() {
       {loading && <span role="status" className="sr-only">Retrieving records from Northport…</span>}
       {error && <p id="np-query-error" role="alert" className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">{error}{result ? ' Showing the last successful query below.' : ''}</p>}
     </section>
-    {!result && !loading && <section aria-label={available ? 'Container query prompt' : `${port.name} coming soon`} className="flex min-h-[300px] flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white px-5 py-16 text-center"><img src={port.logo} alt={`${port.name} logo`} className="h-14 w-44 object-contain" /><h3 className="mt-4 text-sm font-semibold text-slate-700">{available ? 'Search a container to view its movements' : `${port.name} queries are coming soon`}</h3>{available && <p className="mt-1 text-xs text-slate-500">Read-only enquiry using Northport’s public records.</p>}</section>}
+    {!result && !loading && !queryError && <section aria-label={available ? 'Container query prompt' : `${port.name} coming soon`} className="flex min-h-[300px] flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white px-5 py-16 text-center"><img src={port.logo} alt={`${port.name} logo`} className="h-14 w-44 object-contain" /><h3 className="mt-4 text-sm font-semibold text-slate-700">{available ? 'Search a container to view its movements' : `${port.name} queries are coming soon`}</h3>{available && <p className="mt-1 text-xs text-slate-500">Read-only enquiry using Northport’s public records.</p>}</section>}
+    {queryError && <ContainerQueryError id="np-query-failure" port="Northport" message={queryError} hasResults={!!result} disabled={loading || exporting} onRetry={() => void search(containerNumber)} />}
     {available && result && <>
       <section aria-labelledby="np-movement-title" className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="space-y-3 p-4 sm:p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><h3 id="np-movement-title" className="text-sm font-bold text-slate-900">Container Movement <span className="ml-1 text-xs font-normal text-slate-500">({result.totalMovements})</span></h3><p className="mt-1 text-[11px] text-slate-500">{result.containerNumber} {'\u00b7'} <span data-np-query-updated>Updated {new Intl.DateTimeFormat('en-GB', { dateStyle: 'short', timeStyle: 'medium', timeZone: 'Asia/Kuala_Lumpur' }).format(new Date(result.queriedAt))} MYT</span></p></div></div>

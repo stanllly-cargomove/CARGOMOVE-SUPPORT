@@ -57,6 +57,12 @@ A single reference omits the range. UUIDs remain internal audit identifiers.
 Browser downloads replace `BY:` with `BY-` to support Windows filenames.
 Company data entry remains a manual Excel download in this phase.
 
+Registration Queue includes **All Registration** after Rejected. It combines
+Pending, Closed / Done and Rejected records within the existing registration-type
+tabs, defaulting to registration reference number descending (numeric order).
+This is a view filter, not a stored submission status. Export keeps each record's
+status; status-specific batch actions remain in their individual queues.
+
 The adjacent three-dot menu offers **Download Excel without register** (one
 workbook per type, including incomplete draft rows, without any status changes)
 and **Reject selected registrations**. Batch rejection presents a paginated code

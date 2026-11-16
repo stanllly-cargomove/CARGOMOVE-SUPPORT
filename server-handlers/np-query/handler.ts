@@ -23,13 +23,16 @@ export function createNpQueryHandler(deps = { authorize: schedulerAdmin, allowed
     if (!input || typeof input.containerNumber !== 'string' || input.containerNumber.length > 64) return fail(400, 'Enter a valid container number.');
     const containerNumber = normalizeContainerNumber(input.containerNumber);
     if (!validContainerNumber(containerNumber)) return fail(400, 'Use four letters (ending U, J or Z) followed by seven digits.');
+    const detail = input.action === 'details';
+    if (input.action !== undefined && !detail) return fail(400, 'Select a supported query action.');
+    if (detail && (port !== 'westport' || !Number.isInteger(input.sourceIndex) || input.sourceIndex < 0 || input.sourceIndex >= 500 || typeof input.movementKey !== 'string' || !/^[a-f0-9]{64}$/.test(input.movementKey))) return fail(400, 'Select a valid Westport movement.');
     const actor = access.session.id;
     const previous = requests.get(actor), now = deps.now();
-    if (previous && (previous.active || now - previous.started < 3000)) { response.setHeader('Retry-After', '3'); return fail(429, 'Please wait a few seconds before querying again.'); }
+    if (previous && (previous.active || (!detail && now - previous.started < 3000))) { response.setHeader('Retry-After', '3'); return fail(429, 'Please wait a few seconds before querying again.'); }
     for (const [key, value] of requests) if (!value.active && now - value.started >= 3000) requests.delete(key);
     if (requests.size >= 1000) return fail(503, 'Container queries are busy. Please try again shortly.');
     const state = { active: true, started: now }; requests.set(actor, state);
-    try { return response.json(await (port === 'westport' ? westportQuery(containerNumber) : deps.queryNorthport(containerNumber))); }
+    try { return response.json(await (port === 'westport' ? westportQuery(containerNumber, detail ? { sourceIndex: input.sourceIndex, movementKey: input.movementKey } : undefined) : deps.queryNorthport(containerNumber))); }
     catch (error) {
       if (error instanceof NpQueryError && error.status === 429) response.setHeader('Retry-After', '3');
       return fail(error instanceof NpQueryError ? error.status : 503, error instanceof NpQueryError ? error.message : `${port === 'westport' ? 'Westport' : 'Northport'} query is temporarily unavailable.`);

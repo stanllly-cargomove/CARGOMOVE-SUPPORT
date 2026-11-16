@@ -49,14 +49,16 @@ import { formatAdminDate } from '../../utils/date';
 import { isEmailTemplateForRegistration } from '../../utils/registrationEmailTemplates';
 import { useDeveloperSettings } from '../../services/developerSettings';
 
+type SubmissionQueueStatus = SubmissionStatus | 'ALL';
+
 interface SubmissionsListProps {
-  status: SubmissionStatus;
+  status: SubmissionQueueStatus;
   initialType?: RegistrationType;
   refreshVersion?: number;
 }
 
 type IdFilter = 'ALL' | 'MISSING' | 'WITH_ID';
-type SubmissionSort = 'SUBMITTED_ASC' | 'SUBMITTED_DESC' | 'COMPANY_ASC' | 'COMPANY_DESC';
+type SubmissionSort = 'SUBMITTED_ASC' | 'SUBMITTED_DESC' | 'COMPANY_ASC' | 'COMPANY_DESC' | 'REFERENCE_DESC';
 
 interface ActionMenuPosition {
   id: string;
@@ -188,11 +190,12 @@ function RegistrationProgressModal({ progress, onProceed }: { progress: Registra
   );
 }
 
-function defaultSortForStatus(status: SubmissionStatus): SubmissionSort {
+function defaultSortForStatus(status: SubmissionQueueStatus): SubmissionSort {
+  if (status === 'ALL') return 'REFERENCE_DESC';
   return status === 'PENDING' ? 'SUBMITTED_ASC' : 'SUBMITTED_DESC';
 }
 
-function submissionSortTime(submission: RegistrationSubmission, status: SubmissionStatus): number {
+function submissionSortTime(submission: RegistrationSubmission, status: SubmissionQueueStatus): number {
   if (status === 'REJECTED') {
     return Date.parse(submission.reviewed_at || submission.submitted_at);
   }
@@ -211,19 +214,22 @@ function getVisiblePageNumbers(currentPage: number, totalPages: number): number[
   return Array.from({ length: visibleCount }, (_, index) => start + index);
 }
 
-const statusTitles: Record<SubmissionStatus, string> = {
+const statusTitles: Record<SubmissionQueueStatus, string> = {
+  ALL: 'All Registration',
   PENDING: 'Pending Registration Submissions',
   DONE: 'Closed / Done Registration Submissions',
   REJECTED: 'Rejected Registration Submissions',
 };
 
-const statusDescriptions: Record<SubmissionStatus, string> = {
+const statusDescriptions: Record<SubmissionQueueStatus, string> = {
+  ALL: 'View all registration types and statuses in one table.',
   PENDING: 'Review new applications and check their details before completing registration.',
   DONE: 'View completed registrations, check application details, and export records to Excel.',
   REJECTED: 'View rejected applications, check the reasons, and return them to pending for another review if needed.',
 };
 
-const statusTitleColors: Record<SubmissionStatus, string> = {
+const statusTitleColors: Record<SubmissionQueueStatus, string> = {
+  ALL: 'text-blue-700',
   PENDING: 'text-amber-600',
   DONE: 'text-emerald-700',
   REJECTED: 'text-red-600',
@@ -408,7 +414,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY', refreshVersio
   const [simulationMenuOpen, setSimulationMenuOpen] = useState(false);
   useEffect(() => { if (!simulationEnabled) setSimulationMenuOpen(false); }, [simulationEnabled]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [typeFilter, setTypeFilter] = useState<RegistrationType | 'ALL'>(initialType);
+  const [typeFilter, setTypeFilter] = useState<RegistrationType | 'ALL'>(status === 'ALL' ? 'ALL' : initialType);
   const [portFilter, setPortFilter] = useState<string>('ALL');
   const [idFilter, setIdFilter] = useState<IdFilter>('ALL');
   const [sortBy, setSortBy] = useState<SubmissionSort>(() => defaultSortForStatus(status));
@@ -504,8 +510,8 @@ export function SubmissionsList({ status, initialType = 'COMPANY', refreshVersio
   }, [status]);
 
   React.useEffect(() => {
-    setTypeFilter(initialType);
-  }, [initialType]);
+    setTypeFilter(status === 'ALL' ? 'ALL' : initialType);
+  }, [initialType, status]);
 
   React.useEffect(() => {
     setCurrentPage(1);
@@ -598,7 +604,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY', refreshVersio
       sub.company_reg_no.toLowerCase().includes(term);
 
     const matchesType = typeFilter === 'ALL' || sub.registration_type === typeFilter;
-    const matchesStatus = sub.status === status;
+    const matchesStatus = status === 'ALL' || sub.status === status;
     const matchesPort = portFilter === 'ALL' || sub.port_location === portFilter;
 
     if (!matchesSearch || !matchesType || !matchesStatus || !matchesPort) return false;
@@ -620,6 +626,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY', refreshVersio
     return counts;
   }, [submissions]);
   const sortedSubmissions = React.useMemo(() => [...filteredSubmissions].sort((left, right) => {
+    if (sortBy === 'REFERENCE_DESC') return right.reference_no.localeCompare(left.reference_no, undefined, { numeric: true, sensitivity: 'base' }) || Date.parse(right.submitted_at) - Date.parse(left.submitted_at) || right.id.localeCompare(left.id);
     if (sortBy === 'COMPANY_ASC') return left.company_name.localeCompare(right.company_name);
     if (sortBy === 'COMPANY_DESC') return right.company_name.localeCompare(left.company_name);
     const dateDifference = submissionSortTime(left, status) - submissionSortTime(right, status);
@@ -1133,6 +1140,16 @@ export function SubmissionsList({ status, initialType = 'COMPANY', refreshVersio
 
         <div className="queue-filters flex w-full flex-nowrap items-center gap-2 overflow-hidden sm:gap-3 lg:w-auto lg:flex-[1.8]">
 
+          {status === 'ALL' && <select
+            aria-label="Filter submissions by registration type"
+            value={typeFilter}
+            onChange={(event) => setTypeFilter(event.target.value as RegistrationType | 'ALL')}
+            className="h-9 min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-2 text-[10px] font-semibold uppercase text-slate-700 focus:border-slate-400 focus:outline-none focus:ring-0 sm:px-3 sm:text-xs"
+          >
+            <option value="ALL">ALL TYPES</option>
+            {registrationTypeTabs.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
+          </select>}
+
           <label className="queue-sort flex min-w-0 flex-[1.35] items-center gap-1.5 text-xs font-semibold text-slate-600">
             <select
               value={sortBy}
@@ -1140,6 +1157,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY', refreshVersio
               className="h-9 min-w-0 w-full rounded-lg border border-slate-300 bg-white px-2 text-[10px] font-semibold uppercase text-slate-700 focus:border-slate-400 focus:outline-none focus:ring-0 sm:px-3 sm:text-xs"
               aria-label="Sort registration submissions"
             >
+              {status === 'ALL' && <option value="REFERENCE_DESC">LATEST REG NUMBER</option>}
               <option value="SUBMITTED_ASC">{status === 'REJECTED' ? 'OLDEST REJECTED' : status === 'DONE' ? 'OLDEST COMPLETED' : 'OLDEST SUBMITTED'}</option>
               <option value="SUBMITTED_DESC">{status === 'REJECTED' ? 'LATEST REJECTED' : status === 'DONE' ? 'LATEST COMPLETED' : 'LATEST SUBMITTED'}</option>
               <option value="COMPANY_ASC">COMPANY NAME A-Z</option>
@@ -1178,12 +1196,12 @@ export function SubmissionsList({ status, initialType = 'COMPANY', refreshVersio
                 aria-label={primaryActionLabel}
                 aria-describedby={primaryActionTooltip ? 'queue-primary-action-tooltip' : undefined}
                 disabled={selectedIds.length === 0 || exporting || savingCode}
-                className="inline-flex h-9 min-w-0 flex-1 items-center justify-center overflow-hidden rounded-l-lg bg-emerald-600 px-1.5 text-[8px] font-bold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40 min-[420px]:px-2 min-[420px]:text-[9px] 2xl:px-5 2xl:text-[10px]"
+                className={`inline-flex h-9 min-w-0 flex-1 items-center justify-center overflow-hidden ${status === 'ALL' ? 'rounded-lg' : 'rounded-l-lg'} bg-emerald-600 px-1.5 text-[8px] font-bold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40 min-[420px]:px-2 min-[420px]:text-[9px] 2xl:px-5 2xl:text-[10px]`}
               >
                 <span className="whitespace-nowrap text-center leading-none">{primaryActionLabel}</span>
               </button>
             </QueuePrimaryAction>
-            <QueueMoreActions
+            {status !== 'ALL' && <QueueMoreActions
               key={`${status}:${typeFilter}`}
               disabled={exporting || savingCode || !selectedIds.length}
             >
@@ -1191,7 +1209,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY', refreshVersio
               {status === 'PENDING' && <button role="menuitem" type="button" className="w-full rounded px-3 py-2 text-left text-xs text-red-600 hover:bg-red-50" onClick={() => void openSubmissionBatchEmailPreview(selectedSubmissions, 'REJECTED')}><span className="block font-semibold">Reject selected registrations</span><span className="mt-0.5 block text-[10px] text-slate-500">Moves the selected submissions to Rejected.</span></button>}
               {status === 'PENDING' && <button role="menuitem" type="button" disabled={reverting} className="w-full rounded px-3 py-2 text-left text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50" onClick={() => void handleBulkMarkDone()}><span className="block">Mark selected as Closed/Done</span><span className="mt-0.5 block text-[10px] font-normal text-slate-500">Moves them to Closed/Done without sending email.</span></button>}
               {status !== 'PENDING' && <button role="menuitem" type="button" disabled={reverting} className="w-full rounded px-3 py-2 text-left text-xs text-amber-700 hover:bg-amber-50 disabled:opacity-50" onClick={() => void handleBulkRevertToPending()}>Revert selected to Pending</button>}
-            </QueueMoreActions>
+            </QueueMoreActions>}
           </div>
         </div>
         </div>
@@ -1203,7 +1221,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY', refreshVersio
           <Info className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           <span>Double-click any table value to copy</span>
         </div>
-        <div>
+        <div className={status === 'ALL' ? 'hidden' : undefined}>
         <div className="queue-type-tabs ml-[0.5px] flex w-fit items-end" role="tablist" aria-label="Registration type">
         {registrationTypeTabs.map(({ value, label }) => {
           const showPendingCount = status === 'PENDING';
@@ -1243,12 +1261,13 @@ export function SubmissionsList({ status, initialType = 'COMPANY', refreshVersio
         </div>
 
       {/* Submissions Table */}
-        <div className="queue-results overflow-hidden rounded-b-xl rounded-tr-xl border-x border-b border-slate-200 bg-white shadow-sm">
-          <div className="hidden overflow-hidden md:block">
-          <table className="registration-queue-table w-full table-fixed border-collapse text-left text-xs">
+        <div className={`queue-results overflow-hidden ${status === 'ALL' ? 'rounded-xl border border-slate-200' : 'rounded-b-xl rounded-tr-xl border-x border-b border-slate-200'} bg-white shadow-sm`}>
+          <div className="hidden overflow-x-auto md:block">
+          <table className={`registration-queue-table w-full ${status === 'ALL' ? 'registration-queue-unified min-w-[1040px]' : ''} table-fixed border-collapse text-left text-xs`}>
             <colgroup>
               <col style={{ width: '32px' }} />
               <col style={{ width: '128px' }} />
+              {status === 'ALL' && <col style={{ width: '88px' }} />}
               <col />
               <col style={{ width: '96px' }} />
               <col style={{ width: '90px' }} />
@@ -1258,7 +1277,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY', refreshVersio
               <col style={{ width: '56px' }} />
             </colgroup>
             <thead>
-              <tr className="admin-registration-table-header whitespace-nowrap border border-slate-400 bg-[#CBD5E1] font-bold uppercase tracking-wider text-slate-700">
+              <tr className={`admin-registration-table-header whitespace-nowrap ${status === 'ALL' ? 'border-b border-slate-300' : 'border border-slate-400'} bg-[#CBD5E1] font-bold uppercase tracking-wider text-slate-700`}>
                 <th className="py-3 px-3 w-8 text-center">
                   <input
                     type="checkbox"
@@ -1271,6 +1290,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY', refreshVersio
                   />
                 </th>
                 <th className="py-3 px-4">Reference No</th>
+                {status === 'ALL' && <th className="py-3 px-3">Reg type</th>}
                 <th className="py-3 px-4">Company Name</th>
                 <th className="py-3 px-3 text-center">Type</th>
                 <th className="py-3 px-3">Facility</th>
@@ -1283,7 +1303,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY', refreshVersio
             <tbody className="divide-y divide-slate-100">
               {paginatedSubmissions.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="align-middle text-center text-slate-500" style={{ height: MINIMUM_VISIBLE_ROWS * SUBMISSION_ROW_HEIGHT }}>
+                  <td colSpan={status === 'ALL' ? 10 : 9} className="align-middle text-center text-slate-500" style={{ height: MINIMUM_VISIBLE_ROWS * SUBMISSION_ROW_HEIGHT }}>
                     No submissions found matching criteria.
                   </td>
                 </tr>
@@ -1327,6 +1347,14 @@ export function SubmissionsList({ status, initialType = 'COMPANY', refreshVersio
                           {(autoScheduledIds.has(sub.id) || autoFailedIds.has(sub.id)) && <AutoRegisterScheduledIndicator failed={autoFailedIds.has(sub.id)} />}
                         </span>
                       </td>
+
+                      {status === 'ALL' && <td
+                        className="cursor-copy select-none py-3 px-3 text-[11px] font-semibold text-slate-700"
+                        onDoubleClick={() => void handleCopyQueueValue(sub.registration_type, 'Registration type')}
+                        title="Double-click to copy registration type"
+                      >
+                        <span className="admin-registration-copy-text">{sub.registration_type}</span>
+                      </td>}
 
                       <td
                         className="cursor-copy select-none py-3 px-4"
@@ -1382,7 +1410,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY', refreshVersio
                       </td>
 
                       <td
-                        className="cursor-copy select-none py-3 px-3"
+                        className="queue-status-cell cursor-copy select-none py-3 px-3"
                         onDoubleClick={() => void handleCopyQueueValue(sub.status, 'Status')}
                         title="Double-click to copy status"
                       >
@@ -1421,7 +1449,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY', refreshVersio
                 })}
                 {submissionSpacerHeight > 0 && (
                   <tr aria-hidden="true">
-                    <td colSpan={9} className="p-0" style={{ height: submissionSpacerHeight }} />
+                    <td colSpan={status === 'ALL' ? 10 : 9} className="p-0" style={{ height: submissionSpacerHeight }} />
                   </tr>
                 )}
                 </>
@@ -1465,6 +1493,7 @@ export function SubmissionsList({ status, initialType = 'COMPANY', refreshVersio
                     {(autoScheduledIds.has(sub.id) || autoFailedIds.has(sub.id)) && <AutoRegisterScheduledIndicator failed={autoFailedIds.has(sub.id)} />}
                   </div>
                   <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[9px] font-semibold uppercase text-slate-600">
+                    {status === 'ALL' && <span className="rounded bg-blue-50 px-1.5 py-1 text-blue-700">Reg type: {sub.registration_type}</span>}
                     <span className="rounded bg-slate-100 px-1.5 py-1">{company?.company_type || sub.company_type || sub.registration_type}</span>
                     {sub.company_reg_no && <span className="break-all font-normal">{sub.company_reg_no}</span>}
                     <span className="ml-auto whitespace-nowrap">{facility}</span>

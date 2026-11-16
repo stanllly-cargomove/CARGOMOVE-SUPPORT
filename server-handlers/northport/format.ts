@@ -22,7 +22,9 @@ export function containerNumber(value: unknown) {
   return unit;
 }
 export function searchInput(body: any) {
-  const unit = containerNumber(body.unit); const time = malaysiaTime(body.timestamp);
+  const searchBy = body.searchBy ?? 'container';
+  if (searchBy !== 'container' && searchBy !== 'gatepass') throw new RecoveryError('Select container or gatepass search.');
+  const unit = searchBy === 'gatepass' ? gatepassNumber(body.unit) : containerNumber(body.unit); const time = malaysiaTime(body.timestamp);
   const mode: SearchMode = body.mode === undefined ? 'standard' : body.mode;
   if (!NORTHPORT_SEARCH_MODES.some(option => option.value === mode)) throw new RecoveryError('Select a valid search mode.');
   if (!['ALL','GP','EX'].includes(body.type)) throw new RecoveryError('Select All, GP or EX.');
@@ -36,7 +38,12 @@ export function searchInput(body: any) {
     if (info.time < start || info.time > end) throw new RecoveryError('The source filename timestamp is outside the selected search window.');
     if (body.type !== 'ALL' && body.type !== info.type) throw new RecoveryError('The source filename does not match the selected GP/EX filter.');
   }
-  return { unit, start, end, type: body.type, sourceFilename, mode };
+  return { unit, start, end, type: body.type, sourceFilename, mode, ...(searchBy === 'gatepass' ? { searchBy: 'gatepass' as const } : {}) };
+}
+export function gatepassNumber(value: unknown) {
+  const number = typeof value === 'string' ? value.trim().toUpperCase() : '';
+  if (!/^[A-Z0-9][A-Z0-9._/-]{0,99}$/.test(number)) throw new RecoveryError('Enter a GP/EXP number using letters, digits, dots, hyphens, underscores or slashes (up to 100 characters).');
+  return number;
 }
 export function validateValues(values: unknown): asserts values is string[] {
   if (!Array.isArray(values) || values.length !== 20 || values.some(v => typeof v !== 'string' || v.length > 1000 || /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f\r\n]/.test(v))) throw new RecoveryError('The record must contain exactly 20 text fields without control characters; each field is limited to 1000 characters.');

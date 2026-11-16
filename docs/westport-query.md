@@ -71,7 +71,8 @@ The confirmed fields supply HDL type, order type, container number, stacked time
 container reference, carrier, line, container type, F/E, status, vessel name, SCN,
 export SCN and sequence. Values and nulls remain independent. The upstream
 `hdl_ref` and `container_no_href` action HTML and nested `row_data` object are
-not returned to the portal. The JSON fixture in
+not returned to the portal. They remain available server-side for ETP's separate
+expanded-record request. The JSON fixture in
 `tests/fixtures/westport-query.json` reproduces the observed schema using only
 synthetic identifiers and business values; the authenticated response is not
 stored in the repository.
@@ -107,12 +108,55 @@ Results are not persisted or polled.
 Westport defaults to **2 rows per page**, with **2, 10, 20 and 50** available in
 the existing dropdown. Changing pages, page size, sort or filter collapses the
 selected details. Clicking a row or its category chevron opens that source
-record's Common Details, Vessel / Voyage and Movement Details below the table,
-without an extra upstream request. Collapse or Escape closes the panel and
+record's full ETP details below the table. Collapse or Escape closes the panel and
 returns keyboard focus to its trigger. A successful refresh resets selection;
 a failed refresh retains the last successful selected record. The details use
 the same category and date presentation rules, while keeping each record's
 values independent.
+
+## Expanded ETP details
+
+The movement-table JSON alone does not supply the complete detail view. In
+particular, its vessel name can be blank while the expanded OUT vessel is
+populated. On first expansion, the browser posts the same endpoint with
+`action: 'details'`, the original `sourceIndex`, and that movement's SHA-256
+`movementKey`. The server re-reads `get_container`, verifies that the selected
+source row and nested record still match, then posts ETP's `view_container`
+action (`node_ajax_id=2609`). The server supplies `table_data` with the nested
+form encoding used by ETP and `data_type` set to the source handling code.
+The browser cannot supply raw upstream records or action HTML. A changed or
+reordered movement returns 409 and requires a fresh search, rather than showing
+another source record's details. This works across server instances without
+persisting query records or depending on an in-memory record cache.
+
+Only these seven `tb-section` cards are parsed: **Common Details, Holds,
+Vessel/Voyage, Gate, Timeline, eDO, and Port**. Their plain-text labels, values,
+blank cells, line breaks and independent IN/OUT columns are retained. These
+include BL and booking information, ISO, weight, seals, IMDG/UNNO, OOG, reefer
+information, remarks, location, haulier, blocks, voyage, ETA, yard opening and
+closing, vessel ETB, working time, crane, stowage, gatepass information, event
+times, eDO release, forwarder, depot and port codes. The parser requires all
+seven cards, checks container identity and table dimensions, and bounds rows
+and field lengths. Scripts, controls, charge modals and raw HTML are excluded.
+Details use the existing request timeout, response size, administrator/origin
+checks, session renewal and concurrency controls. Detail requests may follow a
+completed search immediately; ordinary searches retain the three-second limit.
+
+The UI loads details on demand with an explicit loading state, safe failure
+message and retry control. Loaded cards are cached only in component memory
+until a successful search or reset. Reopening a loaded record makes no request.
+Holds are available from the shield icon beside Collapse, using the same hover,
+focus and click popover as Northport. Movement table fields stay expanded with
+no collapse control. The six main cards use responsive columns;
+at desktop widths, Common Details, Gate and Port share the same bottom edge.
+The original 14 movement fields remain available under **Movement table fields**;
+CSV, Excel and PDF buttons continue to export the filtered movement table.
+The fallback HTML table does not contain the JSON record needed by ETP's detail
+action, so it explicitly reports that full details are unavailable.
+
+Read-only verification on 13 November 2026 confirmed ETP's nested form request
+and all seven expanded-card sections. The detail fixture uses synthetic values
+and markup matching the observed structure; no authenticated response is stored.
 
 ## Offline checks and live verification
 

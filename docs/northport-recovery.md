@@ -4,15 +4,61 @@ Integrated location: **Admin Portal → Tools → NP Container**. Only the exist
 
 ## Deployment and configuration
 
+### Gatepass search, source folders and editor close (16 November 2026)
+
+The Step 1 search-options menu offers **Search Container** and **Search Gatepass**.
+Container search retains its existing UNIT matching. Gatepass search sends
+`searchBy: 'gatepass'` and matches the complete **GPNO** value for GP/import files
+or **EXPNO** for EX/export files; All checks the appropriate column in each file.
+Leading zeroes remain significant, surrounding whitespace is trimmed, and letter
+case is ignored. Time windows, source folders, GP/EX filters, scan limits and
+exact-filename constraints continue to apply. Deep Scan gatepass inspection
+requires the relevant named CSV column and never treats another column's value
+as a GP/EXP match. Invalid-file text hits remain unverified and cannot authorize
+recovery. Signed continuations bind the search column as well as the query;
+saved gatepass search settings are retained for retry. No migration is needed.
+
+Search results add **Gatepass No.** after Container No. (GPNO for GP, EXPNO for EX)
+and **Source Folder** after Source Filename. Folder names come from the actual
+successful file read, including SUCCESS-to-archive fallback, rather than from
+the filename date. Folder metadata is carried in record, inspection and editor
+tokens; older results without it show a dash.
+
+The file editor's former Cancel button is now **Close**. It, Escape and other
+editor dismissals close local UI state only: no cancellation API, audit row,
+FTP write or scheduler request is made. Unsaved current-record edits are not
+saved by closing. Explicit **Cancel recovery** actions for existing approved
+recoveries retain their separate audit behavior. The offline
+`npm run test:northport:gatepass:ui` check covers both GP/EX result columns and
+closing without cancellation on mobile and desktop after `npm run build`.
+
 ### SUCCESS-first FTP source directories (11 November 2026)
 
 Source files for any date can still be in `/ftp/CY/PROD/CONTAINERS/SUCCESS`; the worker's archive time is not assumed. Portal searches use two FTP connections to check SUCCESS and `/ftp/CY/PROD/CONTAINERS/SUCCESS_ARCHIVES` concurrently for the requested filename time window. SUCCESS metadata takes precedence for duplicate filenames, and archived files fill gaps in SUCCESS. Full and date-pattern listings also run concurrently and merge duplicate filenames. A file dated 5 November remains discoverable in SUCCESS on later dates, and an empty SUCCESS window still checks the archive even when SUCCESS contains files outside the requested range. All discovery modes retain their existing Malaysia filename timestamp/type filters, candidate limits and continuation progress.
 
-Concurrency is limited to two connections per search request, with one command at a time on each connection. Timestamp scans perform the two folder SIZE checks together for each filename, avoiding a second serial network round trip for missing SUCCESS files. Both connections share the existing 45-second session deadline and cancellation lifecycle, and are closed when the request finishes or fails. Connection, permission and directory errors stop the search instead of reporting incomplete coverage as complete. No live-server speed measurement is implied by the offline overlap tests. The connection diagnostic and other FTP operations still use one connection. The shared discovery helper retains serial SUCCESS-to-archive fallback for callers without an archive connection; this uses absolute archive SIZE paths to avoid repeated directory changes.
+Concurrency is limited to two connections per search request, with one command at a time on each connection. Timestamp scans perform the two folder SIZE checks together for each filename, avoiding a second serial network round trip for missing SUCCESS files. Both connections share the existing 45-second session deadline and cancellation lifecycle, and are closed when the request finishes or fails. Connection, permission and unexpected directory errors stop the search instead of reporting incomplete coverage as complete; explicitly absent archive folders are handled as described below. No live-server speed measurement is implied by the offline overlap tests. The connection diagnostic and other FTP operations still use one connection. The shared discovery helper retains serial SUCCESS-to-archive fallback for callers without an archive connection; this uses absolute archive SIZE paths to avoid repeated directory changes.
 
 Original downloads, ZIP downloads, editor reads, approval, resume, retry and reprocess preparation use the same SUCCESS-to-archive file-not-found fallback for every source date. This lets an unexpired signed result follow its source into the archive during the same day or after midnight, retaining the existing hash checks. Permission errors, directory failures, timeouts, generic 550 errors and changed source hashes fail explicitly without being treated as missing files. Recovery uploads still target the incoming directory; source files remain read-only.
 
 `NORTHPORT_FTP_SUCCESS_ARCHIVES_DIR` is optional and defaults to the incoming directory's `SUCCESS_ARCHIVES` child. The connection diagnostic checks incoming, SUCCESS and SUCCESS_ARCHIVES. Deploy the backend to activate this routing; no database migration is required. Validation uses offline FTP mocks and in-memory databases, without production FTP, database or scheduler operations.
+
+### Temporary archive clearance (16 November 2026)
+
+Operators may delete `SUCCESS_ARCHIVES` during clearance and recreate it when
+moving successful files. An explicit FTP 550 not-found response for that archive
+now lets searches continue in SUCCESS. Both folders remain configured; every new
+search request or continuation checks archive availability again, so the archive
+is included automatically after recreation. This applies to exact, timestamp,
+full and date-pattern searches, with serial or parallel FTP connections, and
+handles archive removal after directory selection. Missing timestamp files do
+not disable the archive for the rest of a search.
+
+SUCCESS remains required. Permission-denied, ambiguous 550, login and network
+errors still fail explicitly. The connection check succeeds when only the
+archive is absent and reports its temporary absence. A download whose source
+has been cleared from SUCCESS and whose archive is absent returns 404 with a
+specific message. No code creates directories, restores deleted files, or
+changes remote contents, transport settings, upload gates or scheduler actions.
 
 ### Remove failed entries from history
 
@@ -67,7 +113,7 @@ For **EX**, SUCCESS means the associated scheduler audit recorded Last run advan
 
 **Approve & Reprocess File** now closes the popup immediately, notifies “<container> recovery requested.” and inserts a PROCESSING row while approval, FTP upload, scheduler dispatch and verification continue. Resuming an approved recovery behaves the same way. At the notification, the search form returns to its defaults and search results, progress, selected source tokens and editor drafts are cleared. Cancelling or clearing a later search cannot create a cancellation for that submitted attempt. Saved search settings remain on the recovery audit record for explicit retry. The temporary row is replaced by its saved audit record; upload and scheduler requests are never automatically retried after uncertain outcomes.
 
-Cancel or close the file editor to record a Cancelled attempt without approving, uploading or dispatching. Cancelling the resume confirmation or choosing **Cancel recovery** cancels only the current administrator's Approved attempt, atomically, before upload has been claimed. Cancelling a scheduler confirmation only dismisses it: a previously uploaded file cannot be marked Cancelled. The migration retains cancelled audit rows and excludes them from source/container uniqueness checks so a later request is possible, while every non-cancelled attempt retains the existing duplicate protections. Cancellation RPCs remain service-role-only and verify the current administrator role.
+Closing the file editor only dismisses it and does not record a Cancelled attempt. Cancelling the resume confirmation or choosing **Cancel recovery** cancels only the current administrator's Approved attempt, atomically, before upload has been claimed. Cancelling a scheduler confirmation only dismisses it: a previously uploaded file cannot be marked Cancelled. The migration retains cancelled audit rows and excludes them from source/container uniqueness checks so a later request is possible, while every non-cancelled attempt retains the existing duplicate protections. Cancellation RPCs remain service-role-only and verify the current administrator role.
 
 Validation includes status mapping for GP and EX, signed-source cancellation, revoked/other-administrator rejection, cancellation after upload rejection, retained audit records, reapproval after cancellation and preserved active deduplication. Offline approval/history tests exercise popup closure, requested notifications, PROCESSING/FAIL/SUCCESS transitions, detail evidence and cancellation without FTP or scheduler dispatch. No production migration, upload or scheduler request was made for this update.
 

@@ -30,3 +30,12 @@ test('continuations bind progress, filters, actor and expiry using a separate si
   assert.throws(()=>readScanCursor(token,'admin',searchInput({...input,type:'GP'})),/does not match/);
   assert.throws(()=>readScanCursor(signScanCursor({...state,expires:1}),'admin',filter),/expired/);
 });
+
+test('search continuations cannot switch between container and gatepass columns',()=>{
+  process.env.SESSION_SECRET='scan-tests-only';
+  const container=searchInput({...input,unit:'000123456789'});
+  const gatepass=searchInput({...input,unit:'000123456789',searchBy:'gatepass'});
+  const token=signScanCursor(readScanCursor(undefined,'admin',gatepass));
+  assert.deepEqual(readScanCursor(token,'admin',gatepass).filter,gatepass);
+  assert.throws(()=>readScanCursor(token,'admin',container),/does not match/);
+});
