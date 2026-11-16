@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "version": "1.15.0",
-  "updatedAt": "2026-11-13T08:23:08.542Z",
+  "version": "1.16.0",
+  "updatedAt": "2026-11-16T07:42:57.170Z",
   "entries": [
     {
       "id": "account-settings",
@@ -11,9 +11,9 @@
         "src/components/admin/AdminLayout.tsx"
       ],
       "kind": "page",
-      "version": "1.5.1",
-      "updatedAt": "2026-11-13T08:23:08.542Z",
-      "fingerprint": "01d75b13fa1d1e118dfe3e54a853290ad8447e2e59d09f2b2c5a54b04ba1f7f6"
+      "version": "1.5.2",
+      "updatedAt": "2026-11-16T07:42:57.170Z",
+      "fingerprint": "b27bfab34140831a6cd9b987839b1bbd885beaf827b06246529fa94169fdd4f6"
     },
     {
       "id": "admin",
@@ -23,9 +23,9 @@
         "src/components/admin/AdminLayout.tsx"
       ],
       "kind": "page",
-      "version": "1.5.1",
-      "updatedAt": "2026-11-13T08:23:08.542Z",
-      "fingerprint": "dedf0042119248b42621a462385731c3cefabac65a9c799490bb7850a665e26b"
+      "version": "1.5.2",
+      "updatedAt": "2026-11-16T07:42:57.170Z",
+      "fingerprint": "bd6f47a76d4cfccb02e9036b4cad02624ba26cda8ee25b2b154add142948eabb"
     },
     {
       "id": "auto-email",
@@ -82,9 +82,9 @@
         "src/components/admin/AdminLayout.tsx"
       ],
       "kind": "page",
-      "version": "1.5.1",
-      "updatedAt": "2026-11-13T08:23:08.542Z",
-      "fingerprint": "8ec335d2b71664daebf7576dd002e6dd3fe85ef4f321bdf4dbda83c121ca7eb2"
+      "version": "1.5.2",
+      "updatedAt": "2026-11-16T07:42:57.170Z",
+      "fingerprint": "9b0958ebdae8771918cbc9d784978b359d830b0b3ad5687fa455de5ab433f0f4"
     },
     {
       "id": "northport",
@@ -95,9 +95,9 @@
         "src/components/admin/NorthportRecovery.tsx",
         "server-handlers/northport"
       ],
-      "version": "1.3.0",
-      "updatedAt": "2026-11-12T18:06:09.370Z",
-      "fingerprint": "de9ebcf970622de6970acd06256c9cb46b26bed99cc84efc1f4f2b3b8db39865"
+      "version": "1.3.1",
+      "updatedAt": "2026-11-16T07:42:57.170Z",
+      "fingerprint": "4943c25fb103ad707a3ff29da9dbdde99685df676daffe374e6f682e93f8e239"
     },
     {
       "id": "queue-done",
@@ -107,9 +107,9 @@
         "src/components/admin/SubmissionsList.tsx"
       ],
       "kind": "page",
-      "version": "1.1.0",
-      "updatedAt": "2026-10-26T17:16:04.794Z",
-      "fingerprint": "df00bf6961ed7cbd1bbb8d62391ae6d53232d5bbee74c1de76f672e3166ffcaa"
+      "version": "1.1.1",
+      "updatedAt": "2026-11-16T07:42:57.170Z",
+      "fingerprint": "0e39463fee2d705b4d2e07aad05ccf03f0d58e6819113744005b28f681d94195"
     },
     {
       "id": "queue-pending",
@@ -119,9 +119,9 @@
         "src/components/admin/SubmissionsList.tsx"
       ],
       "kind": "page",
-      "version": "1.1.0",
-      "updatedAt": "2026-10-26T17:16:04.794Z",
-      "fingerprint": "bedc66f7d3f98f5e324efb64843c814a8de0ee6073301d646936bd6f86764a18"
+      "version": "1.1.1",
+      "updatedAt": "2026-11-16T07:42:57.170Z",
+      "fingerprint": "eb1b60d27a4b6e49baf0cd325675860322cc85ec87f1a29dfefbe16ba0e72712"
     },
     {
       "id": "queue-rejected",
@@ -131,9 +131,9 @@
         "src/components/admin/SubmissionsList.tsx"
       ],
       "kind": "page",
-      "version": "1.1.0",
-      "updatedAt": "2026-10-26T17:16:04.794Z",
-      "fingerprint": "0a4c239bbc5c3f1b8a8f6bb6377ae8f0c8bb088f1c8040bccecc50dfa7938ebc"
+      "version": "1.1.1",
+      "updatedAt": "2026-11-16T07:42:57.170Z",
+      "fingerprint": "2f846ff6c0af46c9d793e710f2b77240ca4267580489d953747fd4444819762a"
     },
     {
       "id": "registration",
@@ -146,9 +146,9 @@
         "server-handlers/registration",
         "api/registration.ts"
       ],
-      "version": "1.1.8",
-      "updatedAt": "2026-10-26T17:16:04.794Z",
-      "fingerprint": "2caae1e9586540b11eff506c24c68fa2e0ec3f55090597d24e5e6e30b1e9c49f"
+      "version": "1.1.9",
+      "updatedAt": "2026-11-16T07:42:57.170Z",
+      "fingerprint": "50f9f47734792a5d532f08407ac316dc4943da72680c0108a0ad48bf5ceef7c2"
     },
     {
       "id": "registration-company",
@@ -547,6 +547,18 @@
       "fingerprint": "6cb3ff166238e93a2f62499e374a8606906effc4198f83664f160c24734dbd06"
     },
     {
+      "id": "src/components/admin/ContainerQueryError.tsx",
+      "name": "Container Query Error",
+      "area": "Developer",
+      "files": [
+        "src/components/admin/ContainerQueryError.tsx"
+      ],
+      "kind": "page",
+      "version": "1.0.0",
+      "updatedAt": "2026-11-16T07:42:57.170Z",
+      "fingerprint": "e011fd54ad5af9b4aa40c5a2b8693f2a3b32baccead04737263b4e6bf5450e60"
+    },
+    {
       "id": "src/components/admin/DeveloperSettings.tsx",
       "name": "Dev Setting",
       "area": "Developer",
@@ -638,9 +650,9 @@
         "src/components/admin/NorthportRecovery.tsx"
       ],
       "kind": "page",
-      "version": "1.2.8",
-      "updatedAt": "2026-11-12T18:06:09.370Z",
-      "fingerprint": "784137784fa395de621c8a9e08f6b1af9dd837bb63f0d804656d84bbfbe92b38"
+      "version": "1.2.9",
+      "updatedAt": "2026-11-16T07:42:57.170Z",
+      "fingerprint": "e7c8631df608925eed681c76b9e393a080cbf4fea774611fb20825869dc6b91a"
     },
     {
       "id": "src/components/admin/NorthportScannedFiles.tsx",
@@ -650,9 +662,9 @@
         "src/components/admin/NorthportScannedFiles.tsx"
       ],
       "kind": "page",
-      "version": "1.0.5",
-      "updatedAt": "2026-11-02T03:38:39.907Z",
-      "fingerprint": "1c6c60187658d6382b059b3d5bedc8cc8a0d570314cd2e691ffdcd40f1ea841b"
+      "version": "1.0.6",
+      "updatedAt": "2026-11-16T07:42:57.170Z",
+      "fingerprint": "cd3d69afe763bd699bf2d60f56b90b6a411f58967249f2197ae891c0e1769fe9"
     },
     {
       "id": "src/components/admin/NpQuery.tsx",
@@ -662,9 +674,9 @@
         "src/components/admin/NpQuery.tsx"
       ],
       "kind": "page",
-      "version": "1.0.1",
-      "updatedAt": "2026-11-13T08:23:08.542Z",
-      "fingerprint": "277339b4e3b98ef5aaec267791936b7150d49cc4255b83354e9fe141fef71fe2"
+      "version": "1.0.2",
+      "updatedAt": "2026-11-16T07:42:57.170Z",
+      "fingerprint": "453bb66664dd9c1cfe9d0ddfefad8681077605daba9bdc1541bd3abc98364324"
     },
     {
       "id": "src/components/admin/NpQueryDetails.tsx",
@@ -674,9 +686,9 @@
         "src/components/admin/NpQueryDetails.tsx"
       ],
       "kind": "page",
-      "version": "1.0.0",
-      "updatedAt": "2026-11-12T18:06:09.370Z",
-      "fingerprint": "44335e6499e1cc7534e3044d479930c00b5936f45c39c84f2caf1c64777b92ce"
+      "version": "1.0.1",
+      "updatedAt": "2026-11-16T07:42:57.170Z",
+      "fingerprint": "f327f9e041ea65dfe319281169c8027f04f9e79c3ff7c775c8c0ee09d780ff37"
     },
     {
       "id": "src/components/admin/NpQueryPermissions.tsx",
@@ -686,9 +698,9 @@
         "src/components/admin/NpQueryPermissions.tsx"
       ],
       "kind": "page",
-      "version": "1.0.0",
-      "updatedAt": "2026-11-12T18:06:09.370Z",
-      "fingerprint": "553956bc57e39b0fdad30aae4095fc02eb70c2e4b95c923c9290ed43a415e9fe"
+      "version": "1.0.1",
+      "updatedAt": "2026-11-16T07:42:57.170Z",
+      "fingerprint": "c96d49118937d5bada83385fd6d5647b03d33e97f06d192fea9d18b7aeb99fd1"
     },
     {
       "id": "src/components/admin/NpQueryRecord.tsx",
@@ -782,9 +794,9 @@
         "src/components/admin/WestportQuery.tsx"
       ],
       "kind": "page",
-      "version": "1.0.0",
-      "updatedAt": "2026-11-13T08:23:08.542Z",
-      "fingerprint": "f0e0a93e8af868313d0bbfc96207015f1abe74115dc4b21f6c54333c497a9cd2"
+      "version": "1.0.1",
+      "updatedAt": "2026-11-16T07:42:57.170Z",
+      "fingerprint": "5d8c45c768063cccb6d5e53552df189e46e6095b4fac3733aa579c0299f785e0"
     },
     {
       "id": "src/components/admin/WestportQueryDetails.tsx",
@@ -794,9 +806,9 @@
         "src/components/admin/WestportQueryDetails.tsx"
       ],
       "kind": "page",
-      "version": "1.0.0",
-      "updatedAt": "2026-11-13T08:23:08.542Z",
-      "fingerprint": "49a28cad09c08102b8cc09298e998dcd59b6fe19822899838445ec6c53e564c5"
+      "version": "1.0.1",
+      "updatedAt": "2026-11-16T07:42:57.170Z",
+      "fingerprint": "c094e3f481dd776219475183c30ffc6eccf127ae5799cac66ff83e505f25f6ad"
     },
     {
       "id": "src/components/auth/LoginPage.tsx",
@@ -913,7 +925,7 @@
     "media/registration-depot-card.png": "de3a1dfdc105987f1400cdf87b836faa9b474ac0cd7344db6f1f2c2f9a293468",
     "media/registration-port-hero-fast.webp": "36830a87ccaf357ccfc531603d2937abbfd8ea8a819eeeb6f18d6aca2438d01a",
     "media/registration-port-hero.png": "2b6df14a930709895dc1f2a5572e4897545952bfd726f8cffde61727f7a1ced5",
-    "package.json": "c5f02b350e0ed1d3007bae1aa6ea18c6a5314efabf0bafdfa8a91d3a95704c93",
+    "package.json": "5ff77144e11c981e27f06879b62b3cec9b3e96e634f35ab2cf7754c3272b2345",
     "scripts/capture-push-version.ts": "1b4f1ef7ba558680dd94cede28b9f6046e49e8edffc0161d30bdee323f0dcb60",
     "scripts/system-version.ts": "32f56c2dee7dceb54a1eed7c11603c43750092d2d168c81e85c3d1f9380c3a56",
     "server-handlers/_email.ts": "79dd9e57523e38c2228c181d709d5a86f243243fa464e3f051b2ccbc72f985c0",
@@ -961,15 +973,15 @@
     "server-handlers/gmail/connect.ts": "54cfb62bf4a5781c70c05226470e08be4721a21db9836b30b5805f80ff0d05e7",
     "server-handlers/gmail/status.ts": "0dc246423c0a0252014cdc263ac380281fc8998bcf20e8c811571cb36b50e5a1",
     "server-handlers/northport/configuration.ts": "afb2bb4c3c8150cd47f2fe836dd05bc5afabbe558396b15f5eea03e809d52adf",
-    "server-handlers/northport/format.ts": "6bd068e1d6656c417ba12908dccf19f5635eaa91d48acd430fc3a6d60e25140e",
-    "server-handlers/northport/ftp.ts": "3556ce199a1d95600bfb2751c3535ba5c3853ee9da83c2446f7702c90fb9c7ff",
+    "server-handlers/northport/format.ts": "1fcad231bace24bfe406f9bde5bff1f9f11917b5a973ea43647a6a0444ef5f2b",
+    "server-handlers/northport/ftp.ts": "eeebc77bd7ca082641854efc7e2830a140c707b572ee77f0856339c5ba8d5f14",
     "server-handlers/northport/gatepass-verification.ts": "f61fa92a55768019ac6c275f9a7cb8d35fea1c9b58f8060f9359c36a87a214f3",
-    "server-handlers/northport/handler.ts": "9e581dc1ba23b7f8cbd21f6836c95a8bf4d372919b4704fcca62a65c4f890663",
-    "server-handlers/northport/inspection.ts": "7eb8c85005bbafbb0e526c321ae153c810ee045b3da3e574927b66f9108d36cb",
-    "server-handlers/northport/listing.ts": "6834fbaa0cb194686d4d98979de18c025dcd40aedccf6608bd9fd5bad5269fcd",
+    "server-handlers/northport/handler.ts": "1879b62e262bb2c408107e6e9327a0193e6759ab23a875078be5ac8c8117e2c0",
+    "server-handlers/northport/inspection.ts": "5f7f930f8488c899f224a4947dce5bde7ea6363f2212d2332081ed3131d8668d",
+    "server-handlers/northport/listing.ts": "18d5174c4b9d5e89d310292a716e5c0cf7151a86d760a32e1245ba6a0d17d318",
     "server-handlers/northport/scan.ts": "d33d49f1ee7b6af5dfbce6b9dcec23b00d87a931c3031c70b767437514b919cd",
     "server-handlers/northport/scheduler-verification.ts": "8aa07aed0fbdb3910b87979b05ef48a3e9eed2d902315087006f0ba985400914",
-    "server-handlers/np-query/handler.ts": "f7f0d31e6c4ed7b7e4b497919a8d5a7520842f14433bd4b3aced35d47dfa1a00",
+    "server-handlers/np-query/handler.ts": "e499b06d1f3b4dc7a6397bde1aa920e58e3619066d9cb9e6aa9c236a460cfd52",
     "server-handlers/np-query/parser.ts": "dd1f4d6eed4d30e0eca812971c154586f08b9e8d560370b0b438bee31c854aab",
     "server-handlers/np-query/service.ts": "01ca618f23dbf90f20cc83f3f9bf40b3706162683b1f55f26e1846b34ee9249c",
     "server-handlers/profile.ts": "8d962972b874694a0b49cd66f9e7382fd7ecc6fcf60950d5274d9ded06085f02",
@@ -993,8 +1005,9 @@
     "server-handlers/scheduler/targets.ts": "be6109d1121d6f850ac15675564c71cd463dbc93f3e848ff5f7cbe24d9ed9c55",
     "server-handlers/system-versions.ts": "67576ad773da93c269b9e66efd6d72a9de02c8c1df0a1d986a17d564989ced9a",
     "server-handlers/westport-query/cookies.ts": "18cc4164e1e45a6fc9ce9d84a709dc5521e25a60e46af36dd968a592550120e4",
+    "server-handlers/westport-query/details.ts": "fd79cdc705c3138d5dd7f51b3b2de71ed8d1b13047bc8bffe3b074b530cb1bd8",
     "server-handlers/westport-query/parser.ts": "cc38333e757286d85f581bd8d041432bac73dc065df6d7321afa00a0665a1a21",
-    "server-handlers/westport-query/service.ts": "c696662f95fc15d23c814921cc16fe8ba482d89c769621e52c8edb7b63aab16a",
+    "server-handlers/westport-query/service.ts": "b1574914d18d17c155953bf38993f37dfffb0555035e7142150aa24813f840ae",
     "server.ts": "dd5351c99ef6e1bdea3e95a61705302f6fa7e65323a018f0ed9abd44540299ad",
     "src/App.tsx": "4e835720c425745cecec868067f52f8db442dc63bc0f45b37e95d2bf75de5065",
     "src/assets/ports/README.md": "58a83c8133d385f45a55e1a205a17cb43bc1e5e595a1976c4791116b2e185847",
@@ -1008,7 +1021,7 @@
     "src/assets/ports/westport.webp": "c843e46f52619906a2733bc8261fcd11975402773cc88d347cb1b4eed21690a4",
     "src/components/admin/AccountSettings.tsx": "307eff35f85f7d44dac7be9d25dbb8d10ff8cacaf625bc1920439ddc9a9b0862",
     "src/components/admin/AdminDashboard.tsx": "97df68f0d0b7a994cbb772a3aabdeda7e1b2a9440e1767a2519628f30d86170f",
-    "src/components/admin/AdminLayout.tsx": "561bfdcb5d7296d6c867658339ec8b2fd56505e7112b44890131a15f24fe3d01",
+    "src/components/admin/AdminLayout.tsx": "cff0cbda0a033e9b86816916a5eeec56f91bed81d10b467b1d0e016e05c1041f",
     "src/components/admin/AdminUser.tsx": "00957e103bffd351a3ac6ed3e3d98f7615fe3476b88406fe751997c715f0769c",
     "src/components/admin/AdminUserCreate.tsx": "8d314b35a609239dca04e94f2ad8268b5ebdf38e73bd4cfe94559e43d467bc3b",
     "src/components/admin/AssignIdModal.tsx": "72ae3d157ab747b349a55a01bb4b0f13dd36f0958eb6fe7565c539155064de0a",
@@ -1045,6 +1058,7 @@
     "src/components/admin/AutoRegisterScheduledIndicator.tsx": "845b5b4fd119031608d6aa125217cbaeb90a1a79f0554604c1234e0367045416",
     "src/components/admin/CargoMoveScheduler.tsx": "0c72d668118bd8cea08ff4107947a2b2e2cca74e7684d82c7f8f01fb9ada8105",
     "src/components/admin/CompanyMaster.tsx": "c576e31c1ff12954073b4e6967adef407f4e89580c713df2e05108a25e9d7eb8",
+    "src/components/admin/ContainerQueryError.tsx": "971f613770d27e56d070fa0ae83888b8f04d555bb93df810b2a811796f66db06",
     "src/components/admin/DeveloperSettings.tsx": "534c8fbba770850a738dfdb96aa04f772398285b665975fc459dff68f8ffab80",
     "src/components/admin/EmailTemplateManager.tsx": "8b55249e68f2d911da2d95c0815ad8c4f31750b9f275a00417b7317df345b631",
     "src/components/admin/ExcelExportCenter.tsx": "c3919e1711abf9797c139efba30d3a1388677fc91530027e88e42c5b12039371",
@@ -1052,12 +1066,12 @@
     "src/components/admin/NorthportContainerPagination.tsx": "4e65be1bec3fe9b0b2619c489e15f0652930e8bd45e33dba620c9296c2c104a3",
     "src/components/admin/NorthportDateTimePicker.tsx": "d5e4ce4d2fc338ddc527977583d55a50fedaf3a6e44cc417d40b61c6f1c64388",
     "src/components/admin/NorthportFileContainers.tsx": "9803b88a214f92f3541d1d32bc3dc593203d3ba36d3c9d8368738ee8d76d781e",
-    "src/components/admin/NorthportRecovery.tsx": "2bd4c2062914cfa81dc5ff495c9395b58ed1a3eeb1e128c31c2ab0124ba6e32d",
-    "src/components/admin/NorthportScannedFiles.tsx": "c50d61fc85a8ce616cf51ce082a3dc05063b0d531862ab5e98056c49dd4f5124",
+    "src/components/admin/NorthportRecovery.tsx": "a57cdfe243bce62b1a59f6a4e5fc6b6e38e4b5f30bd4ebb64e7032f95120e36f",
+    "src/components/admin/NorthportScannedFiles.tsx": "9ab36f3c6241d696d53dd0fb5b914a35c928684cafa81ff01e8240091685b936",
     "src/components/admin/NpExportIcon.tsx": "9007259954dc2e4ecbb0c5f6f034d3c0bc7189964782bd7f4712544f3a069108",
-    "src/components/admin/NpQuery.tsx": "7d805e3a9fd98d91ba9795b6bb4741106a72c8c02a857602fba91194a5fcc0b3",
+    "src/components/admin/NpQuery.tsx": "939b946c31a24d2d890952b46075ee74d4d22d9cbeedda4505201be1c46e1c84",
     "src/components/admin/NpQueryDetails.tsx": "1a349d2f321095a0a637ae98833410fd7ec920b1769b2eff34aa46b7fabb287a",
-    "src/components/admin/NpQueryPermissions.tsx": "169f15209572fb006f9f6d23674f69d45fd8922b5bfe690a79a8fcb7576527ce",
+    "src/components/admin/NpQueryPermissions.tsx": "6e10a067054bbfdf233b7569953bd8fe81857125ce8d1991860caf97335ec955",
     "src/components/admin/NpQueryRecord.tsx": "7a4743f5254644c2e0d2813433edbb046fb945e18b459c58a8f9af95a74d8e54",
     "src/components/admin/PdfAttachmentIcon.tsx": "4b65ea388a582c838e1782957115244f628de17b2f056cbae9ba39ef41afcc7d",
     "src/components/admin/PortDepotConfig.tsx": "0e0fb6700ba437b0709f80b51eb49e95337d6030a5fefef2bccdff66efed8bf6",
@@ -1066,11 +1080,11 @@
     "src/components/admin/RichTextEmailEditor.tsx": "f3d60a9f29771e11b8918e6bcddf7dfb6456a123028cb2732c22b8858141ed2c",
     "src/components/admin/SchemaMappingInspector.tsx": "b15f2621134ebf78526030f0bd91e8c0aa4c17c2e49836564223155c5f09e91d",
     "src/components/admin/SubmissionDetailModal.tsx": "68a7b49f1878f067d4295fa2ec4c75879400838a13902bc13a06ecc30b41cb12",
-    "src/components/admin/SubmissionsList.tsx": "0d8de79dc7e2debbab25c579e25cb7bd4777bd164365c7154231c37ee8c8b5b5",
+    "src/components/admin/SubmissionsList.tsx": "08f49df2e0a8c481a7855d04bca568aa4a7ea9118f700b4639aa6852f2ead5a4",
     "src/components/admin/SystemVersion.tsx": "d1cba88c32a1f3a796a1719e23abcc141953ec4ec20be9dc809bad81d30ba822",
     "src/components/admin/UserRegistration.tsx": "283802a996084a5b020ed0e5c9e238fec33a8c1040d2a236b84ab36b50175153",
-    "src/components/admin/WestportQuery.tsx": "9867bafe266924c7d919d99324334f97163392e71ccdf9398077adc0aa806552",
-    "src/components/admin/WestportQueryDetails.tsx": "f36d1647cdd757491c82620a242f29d74e806664e30706bb9fdf7f736336d9c4",
+    "src/components/admin/WestportQuery.tsx": "e3370fdccc8b23905fa24d43f35221a3352554adb949f54e48a19a213228ced5",
+    "src/components/admin/WestportQueryDetails.tsx": "6cd0a6e4c45d7d044eec4ec5c160504fa34991f7b4c753838ea4a4fbeb53e0b3",
     "src/components/auth/LoginPage.tsx": "b3a80fb8dbca5fe5e3ac078cc7ad97bef6f255d99cfa470bd89e85050c28e009",
     "src/components/auth/PasswordResetPage.tsx": "2d7b0bea5510275f8aa16eb7980ae9cbfa2c841e761b50f1572195e9a96e3b16",
     "src/components/common/AccountLoadingScreen.tsx": "b44fed597ee16891a7707881e72883896bc70bbcc31d8be975a6cda64a0e68e2",
@@ -1106,7 +1120,7 @@
     "src/constants/companyLocations.ts": "8d2b5675aec95c90d7bd1c3582150e459008afb52ab3f5e68feb9b478385ec99",
     "src/constants/versions.ts": "87dab1269d27cb08f25d8eb288b7f62f70a325b91c1de420d652fc8ed35bc0e9",
     "src/hooks/useAdminDisplaySize.ts": "84d54d56e06bfb17e86d876dc9ba9b71c30cef40dd36b80ce70bc1129a91eb20",
-    "src/index.css": "b85f91954bf0f9331499a1e45923db832781522b3a7039c52789bbb831c2f3fe",
+    "src/index.css": "0b65766abd8e400fe1e5d0a8a4cb5029335fe796ca3542a984bcf298454d0e48",
     "src/main.tsx": "f3d828b9fc5f49d6f93c3c84afb280871bd33e4af89edc020c0d57eb561c9dcb",
     "src/mammoth-browser.d.ts": "2e00349bdbb1a6c760d2d7ea1a73d5c4af74ff5b71e56a80630c41000ddf9a54",
     "src/services/auth.ts": "bea2edaa4e2ba497755a4a0acd16accf85f23d8efe05beeba882d548436ed879",
@@ -1129,7 +1143,7 @@
     "src/services/excelExport.ts": "c7eb4a55c8dbfeddf5a4924075614167c3414b0708b0895b8c1390ec12c7330b",
     "src/services/northportRecoveryStatus.ts": "83cb14b8bb59f47f54900005b5ad72d935a32c072b4222d2591898f23289ff1a",
     "src/services/northportReprocess.ts": "012eff0d15798dc3bee72171fde9dc2d666465a725d6cefb3135dfc21caf24d5",
-    "src/services/northportRetry.ts": "dc79eb6689a556d59726cea4eb80d2515c750fab3c710037f9243d0d4bb01b8a",
+    "src/services/northportRetry.ts": "a53a96e96fcd8a71e52df17c546de036295af14ab7c8d8e176d0fca29cd94567",
     "src/services/npQuery.ts": "dc8094b581aa4bd3d0b927aa6244a7943115c849eb625bb4bfa439b97988d962",
     "src/services/npQueryPdf.ts": "e924dc8d923abe33c585ba3e86f67ca0e08a5424931ef8a61bddc3cb46958539",
     "src/services/pwa.ts": "102e883fd7a4190751ad7e2912582232ad04e393bec0fe16e511899dc6c56697",
@@ -1140,9 +1154,9 @@
     "src/services/supabase.ts": "dd8f15d28f175fd60c81d046274bf6118a3e5c28ffd1305ff05f898336dfb18c",
     "src/services/supabaseAuth.ts": "8054b4cef823bf1c37983513b4dcf291d608fbb6f7368954854fed95d01641cb",
     "src/services/westportPresentation.ts": "f8096edf6074db374bd2a3a6da206f769216dcb3918c9aa0e7f7b29b493d7e1c",
-    "src/services/westportQuery.ts": "0e820dccd2bd7997b1ab7112b7fed7d090c22dd17f1a3b2457987c2449ba2b2c",
+    "src/services/westportQuery.ts": "56f55883b62ae826f1c2407c10538019aa6bd1c718de3046d9a6023cc180929f",
     "src/types/index.ts": "738a11027db073570326ce0d5acd54769f777a175f688efc45c12cce05fa50bd",
-    "src/types/northport.ts": "53b7b08858ee62e9b933035f1afe6a96da6447d567f1e61f840082bc87c26980",
+    "src/types/northport.ts": "76f52e048de3ff60473ac8e224719c4a2d45908fa6fadd2562d8e4fd5f208900",
     "src/types/registration-upload.ts": "d838085424edf20591a53b1c515bd13bdddf7757e4505586caf1868d08323331",
     "src/types/scheduler.ts": "8668a45208ae05c8817396530baa654f93930b476c37d379c8ada646464ed88a",
     "src/utils/autoRegisterSchedule.ts": "b3c41340060adbd9b7b215eb31ac98702afb451d213f0ceecfc226c9332f78ab",
@@ -1241,6 +1255,178 @@
     "vite.config.ts": "167e03f4e2c3298d4e3cbe61c5c1f8712073bf15d56c63d992827e99d3b7601b"
   },
   "history": [
+    {
+      "sourceCommit": "254c95c73302066ccecbc0a589d0cbf530ef1718",
+      "pushedBy": "lumoratechent-beep",
+      "commits": [
+        {
+          "sha": "254c95c73302066ccecbc0a589d0cbf530ef1718",
+          "author": "cargomovemy",
+          "subject": "enhance NP container recovery"
+        }
+      ],
+      "authors": [
+        "cargomovemy"
+      ],
+      "version": "1.16.0",
+      "previousVersion": "1.15.0",
+      "date": "2026-11-16T07:42:57.170Z",
+      "summary": "Added pages or tools",
+      "files": [
+        "package.json",
+        "server-handlers/northport/format.ts",
+        "server-handlers/northport/ftp.ts",
+        "server-handlers/northport/handler.ts",
+        "server-handlers/northport/inspection.ts",
+        "server-handlers/northport/listing.ts",
+        "server-handlers/np-query/handler.ts",
+        "server-handlers/westport-query/details.ts",
+        "server-handlers/westport-query/service.ts",
+        "src/components/admin/AdminLayout.tsx",
+        "src/components/admin/ContainerQueryError.tsx",
+        "src/components/admin/NorthportRecovery.tsx",
+        "src/components/admin/NorthportScannedFiles.tsx",
+        "src/components/admin/NpQuery.tsx",
+        "src/components/admin/NpQueryPermissions.tsx",
+        "src/components/admin/SubmissionsList.tsx",
+        "src/components/admin/WestportQuery.tsx",
+        "src/components/admin/WestportQueryDetails.tsx",
+        "src/index.css",
+        "src/services/northportRetry.ts",
+        "src/services/westportQuery.ts",
+        "src/types/northport.ts"
+      ],
+      "changes": [
+        {
+          "id": "account-settings",
+          "name": "Account Settings",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.5.1",
+          "to": "1.5.2"
+        },
+        {
+          "id": "admin",
+          "name": "Admin Page",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.5.1",
+          "to": "1.5.2"
+        },
+        {
+          "id": "developer",
+          "name": "Dev Page",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.5.1",
+          "to": "1.5.2"
+        },
+        {
+          "id": "northport",
+          "name": "Northport Recovery",
+          "kind": "tool",
+          "action": "updated",
+          "from": "1.3.0",
+          "to": "1.3.1"
+        },
+        {
+          "id": "queue-done",
+          "name": "Registration Queue / Closed / Done",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.1.0",
+          "to": "1.1.1"
+        },
+        {
+          "id": "queue-pending",
+          "name": "Registration Queue / Pending",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.1.0",
+          "to": "1.1.1"
+        },
+        {
+          "id": "queue-rejected",
+          "name": "Registration Queue / Rejected",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.1.0",
+          "to": "1.1.1"
+        },
+        {
+          "id": "registration",
+          "name": "Cargomove Registration",
+          "kind": "tool",
+          "action": "updated",
+          "from": "1.1.8",
+          "to": "1.1.9"
+        },
+        {
+          "id": "src/components/admin/ContainerQueryError.tsx",
+          "name": "Container Query Error",
+          "kind": "page",
+          "action": "added",
+          "from": null,
+          "to": "1.0.0"
+        },
+        {
+          "id": "src/components/admin/NorthportRecovery.tsx",
+          "name": "Northport Recovery",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.2.8",
+          "to": "1.2.9"
+        },
+        {
+          "id": "src/components/admin/NorthportScannedFiles.tsx",
+          "name": "Northport Scanned Files",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.5",
+          "to": "1.0.6"
+        },
+        {
+          "id": "src/components/admin/NpQuery.tsx",
+          "name": "Np Query",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.1",
+          "to": "1.0.2"
+        },
+        {
+          "id": "src/components/admin/NpQueryDetails.tsx",
+          "name": "Np Query Details",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.0",
+          "to": "1.0.1"
+        },
+        {
+          "id": "src/components/admin/NpQueryPermissions.tsx",
+          "name": "Np Query Permissions",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.0",
+          "to": "1.0.1"
+        },
+        {
+          "id": "src/components/admin/WestportQuery.tsx",
+          "name": "Westport Query",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.0",
+          "to": "1.0.1"
+        },
+        {
+          "id": "src/components/admin/WestportQueryDetails.tsx",
+          "name": "Westport Query Details",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.0.0",
+          "to": "1.0.1"
+        }
+      ]
+    },
     {
       "sourceCommit": "33d84a7167712e9cf1e0704d533fdc8dcd40a55c",
       "pushedBy": "lumoratechent-beep",
