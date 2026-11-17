@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "version": "1.16.0",
-  "updatedAt": "2026-11-16T07:42:57.170Z",
+  "version": "1.16.1",
+  "updatedAt": "2026-11-17T03:06:00.334Z",
   "entries": [
     {
       "id": "account-settings",
@@ -11,9 +11,9 @@
         "src/components/admin/AdminLayout.tsx"
       ],
       "kind": "page",
-      "version": "1.5.2",
-      "updatedAt": "2026-11-16T07:42:57.170Z",
-      "fingerprint": "b27bfab34140831a6cd9b987839b1bbd885beaf827b06246529fa94169fdd4f6"
+      "version": "1.5.3",
+      "updatedAt": "2026-11-17T03:06:00.334Z",
+      "fingerprint": "170b8c0ca79c77f2823778d64511349a76ac3c9918addcbcfec5f67b5d42c057"
     },
     {
       "id": "admin",
@@ -23,9 +23,9 @@
         "src/components/admin/AdminLayout.tsx"
       ],
       "kind": "page",
-      "version": "1.5.2",
-      "updatedAt": "2026-11-16T07:42:57.170Z",
-      "fingerprint": "bd6f47a76d4cfccb02e9036b4cad02624ba26cda8ee25b2b154add142948eabb"
+      "version": "1.5.3",
+      "updatedAt": "2026-11-17T03:06:00.334Z",
+      "fingerprint": "17ad7dc829f01f4875da6cef7e18baecf2ae903f10d811195d2ffe0e70bc610c"
     },
     {
       "id": "auto-email",
@@ -82,9 +82,9 @@
         "src/components/admin/AdminLayout.tsx"
       ],
       "kind": "page",
-      "version": "1.5.2",
-      "updatedAt": "2026-11-16T07:42:57.170Z",
-      "fingerprint": "9b0958ebdae8771918cbc9d784978b359d830b0b3ad5687fa455de5ab433f0f4"
+      "version": "1.5.3",
+      "updatedAt": "2026-11-17T03:06:00.334Z",
+      "fingerprint": "ee3a4d40f80d6e3406d57785a04ab8669b3dbb6ca50863e2ea0c958b3ff8a2b9"
     },
     {
       "id": "northport",
@@ -782,9 +782,9 @@
         "src/components/admin/UserRegistration.tsx"
       ],
       "kind": "page",
-      "version": "1.1.2",
-      "updatedAt": "2026-11-12T18:06:09.370Z",
-      "fingerprint": "b6cf24dcb3d59a49e5c1e4e3e2513614e681c5f76c5ebb7293faa6c1ee8306a1"
+      "version": "1.1.3",
+      "updatedAt": "2026-11-17T03:06:00.334Z",
+      "fingerprint": "9f2ed6eb73963d996a3258979fd302863e1f4d2c98d11d4ef4645cabc2cd4876"
     },
     {
       "id": "src/components/admin/WestportQuery.tsx",
@@ -1082,7 +1082,7 @@
     "src/components/admin/SubmissionDetailModal.tsx": "68a7b49f1878f067d4295fa2ec4c75879400838a13902bc13a06ecc30b41cb12",
     "src/components/admin/SubmissionsList.tsx": "08f49df2e0a8c481a7855d04bca568aa4a7ea9118f700b4639aa6852f2ead5a4",
     "src/components/admin/SystemVersion.tsx": "d1cba88c32a1f3a796a1719e23abcc141953ec4ec20be9dc809bad81d30ba822",
-    "src/components/admin/UserRegistration.tsx": "283802a996084a5b020ed0e5c9e238fec33a8c1040d2a236b84ab36b50175153",
+    "src/components/admin/UserRegistration.tsx": "43be6e51f0dc279f3b185da1d391fe3118af73a82c82e73c443dbd2891763786",
     "src/components/admin/WestportQuery.tsx": "e3370fdccc8b23905fa24d43f35221a3352554adb949f54e48a19a213228ced5",
     "src/components/admin/WestportQueryDetails.tsx": "6cd0a6e4c45d7d044eec4ec5c160504fa34991f7b4c753838ea4a4fbeb53e0b3",
     "src/components/auth/LoginPage.tsx": "b3a80fb8dbca5fe5e3ac078cc7ad97bef6f255d99cfa470bd89e85050c28e009",
@@ -1255,6 +1255,61 @@
     "vite.config.ts": "167e03f4e2c3298d4e3cbe61c5c1f8712073bf15d56c63d992827e99d3b7601b"
   },
   "history": [
+    {
+      "sourceCommit": "72c27b89b840675ea2da6009cd1d141542c2d9cf",
+      "pushedBy": "lumoratechent-beep",
+      "commits": [
+        {
+          "sha": "72c27b89b840675ea2da6009cd1d141542c2d9cf",
+          "author": "cargomovemy",
+          "subject": "Prioritize registered companies in user registration table"
+        }
+      ],
+      "authors": [
+        "cargomovemy"
+      ],
+      "version": "1.16.1",
+      "previousVersion": "1.16.0",
+      "date": "2026-11-17T03:06:00.334Z",
+      "summary": "Updated existing pages, tools or shared system files",
+      "files": [
+        "src/components/admin/UserRegistration.tsx"
+      ],
+      "changes": [
+        {
+          "id": "account-settings",
+          "name": "Account Settings",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.5.2",
+          "to": "1.5.3"
+        },
+        {
+          "id": "admin",
+          "name": "Admin Page",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.5.2",
+          "to": "1.5.3"
+        },
+        {
+          "id": "developer",
+          "name": "Dev Page",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.5.2",
+          "to": "1.5.3"
+        },
+        {
+          "id": "src/components/admin/UserRegistration.tsx",
+          "name": "User Access Registration",
+          "kind": "page",
+          "action": "updated",
+          "from": "1.1.2",
+          "to": "1.1.3"
+        }
+      ]
+    },
     {
       "sourceCommit": "254c95c73302066ccecbc0a589d0cbf530ef1718",
       "pushedBy": "lumoratechent-beep",
