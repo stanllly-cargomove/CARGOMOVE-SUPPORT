@@ -11,7 +11,7 @@ const css=(await Promise.all((await readdir('dist/assets')).filter(file=>file.en
 
 const fixtures = {
   auth: `export async function getExternalUserAccess(){return window.testUsers;} export async function updateExternalUserAccess(id,changes){window.testWrites.push({id,changes});const saved={...window.testUsers.find(u=>u.id===id),...changes};window.testUsers=window.testUsers.map(u=>u.id===id?saved:u);return saved;}`,
-  storage: `export function getSubmissions(){return window.testSubmissions;} export function subscribeToStorage(){return ()=>{};}`,
+  storage: `export function getSubmissions(){return window.testSubmissions;} export function getCompanyById(){return null;} export function subscribeToStorage(){return ()=>{};}`,
   email: `export async function getEmailTemplateCatalog(){return {templates:[],ports:[]};} export async function generateWelcomeEmailPreview(){window.testPreviews++;return {};} export async function sendWelcomeEmail(){}`,
   notifications: `export function notifyError(message){window.testNotices.push(message);} export function notifySuccess(message){window.testNotices.push(message);}`,
 };
@@ -35,6 +35,36 @@ const bundle = await build({
 });
 const browser=await chromium.launch({channel:'chrome',headless:true});
 try {
+  const priorityPage = await browser.newPage({viewport:{width:1440,height:900}});
+  await priorityPage.setContent('<div id="root"></div>');
+  await priorityPage.addStyleTag({content:css});
+  await priorityPage.evaluate(()=>{
+    window.testUsers=Array.from({length:24},(_,i)=>({id:`u${i}`,username:`user-${i}`,email:`user${i}@example.test`,company_id:i<2?'registered':i===23?undefined:'pending',company_name:'Example Company',full_name:'Test User',mobile_number:'0123456789',status:'PENDING',email_status:'NOT_READY',created_at:`2026-10-${String(i+1).padStart(2,'0')}`}));
+    window.testSubmissions=[{registration_type:'COMPANY',company_id:'registered',port_id:'westport',status:'DONE'},{registration_type:'COMPANY',company_id:'pending',port_id:'westport',status:'PENDING'}];
+  });
+  await priorityPage.addScriptTag({content:bundle.outputFiles[0].text});
+  const rows=priorityPage.locator('tbody tr').filter({has:priorityPage.locator('select')});
+  const usernames=()=>rows.locator('td:first-child').allTextContents();
+  await rows.first().waitFor();
+  assert.deepEqual((await usernames()).slice(0,4),['user-1','user-0','user-23','user-22'],'Registered companies take priority over newer pending or unlinked companies');
+  for(const dark of [false,true]) {
+    await priorityPage.locator('.admin-theme').evaluate((element,dark)=>element.classList.toggle('admin-theme-dark',dark),dark);
+    const backgrounds=await rows.evaluateAll(elements=>elements.slice(0,3).map(element=>getComputedStyle(element).backgroundColor));
+    assert.equal(backgrounds[0],backgrounds[1]);
+    assert.notEqual(backgrounds[0],backgrounds[2],'Registered and unregistered rows have distinct fills in both themes');
+  }
+  await priorityPage.getByRole('button',{name:'Next page',exact:true}).click();
+  assert.deepEqual(await usernames(),['user-5','user-4','user-3','user-2'],'Priority is applied before pagination');
+  await priorityPage.getByRole('textbox',{name:'Search user registrations'}).fill('user-1');
+  assert.equal((await usernames())[0],'user-1','Search preserves company priority and resets the page');
+  await priorityPage.getByRole('textbox',{name:'Search user registrations'}).fill('');
+  await priorityPage.setViewportSize({width:390,height:900});
+  const cards=priorityPage.getByRole('listitem');
+  assert.match(await cards.first().innerText(),/user-1/);
+  assert.equal(await cards.first().evaluate(element=>getComputedStyle(element).backgroundColor),await rows.first().evaluate(element=>getComputedStyle(element).backgroundColor),'Mobile cards use the same company status fill');
+  await priorityPage.close();
+  console.log('Passed: company priority, pagination, search, light/dark fills and mobile cards');
+
   for(const mode of ['pending-company','edit','registered','unlinked','rejected-company']) {
     const page=await browser.newPage({viewport:{width:mode==='edit'?390:1440,height:900}});
     const errors=[];page.on('pageerror',e=>errors.push(e.message));
@@ -48,7 +78,8 @@ try {
     await page.addScriptTag({content:bundle.outputFiles[0].text});
     await page.getByRole('heading',{name:'User Registration',exact:true}).waitFor();
     if(mode==='edit') {
-      await page.getByRole('button',{name:'Edit test-user',exact:true}).click();
+      await page.getByRole('button',{name:'Actions for test-user',exact:true}).filter({visible:true}).click();
+      await page.getByRole('menuitem',{name:'Edit User',exact:true}).click();
       const form=page.getByRole('dialog',{name:'Edit User Access'});
       await form.getByLabel('Full name',{exact:true}).fill('Updated User');
       await form.locator('select').selectOption('DONE');

@@ -401,6 +401,14 @@ export function UserRegistration() {
     }
   };
 
+  const registeredCompanyIds = new Set(getSubmissions()
+    .filter((submission) => submission.registration_type === 'COMPANY' && submission.status === 'DONE' && submission.port_id)
+    .map((submission) => submission.company_id));
+  const isCompanyRegistered = (user: ExternalUserAccess) => Boolean(user.company_id && registeredCompanyIds.has(user.company_id));
+  const companyRowClasses = (user: ExternalUserAccess) => isCompanyRegistered(user)
+    ? 'bg-emerald-50 hover:bg-emerald-100'
+    : 'bg-amber-50 hover:bg-amber-100';
+
   const filteredUsers = users
     .filter((user) => {
       const term = searchTerm.toLowerCase();
@@ -418,9 +426,9 @@ export function UserRegistration() {
         && user.status === registrationStatusFilter;
     })
     .sort((left, right) => {
-      const rejectionDifference = Number(left.status === 'REJECTED') - Number(right.status === 'REJECTED');
+      const companyDifference = Number(isCompanyRegistered(right)) - Number(isCompanyRegistered(left));
       const dateDifference = Date.parse(right.created_at) - Date.parse(left.created_at);
-      return rejectionDifference || dateDifference || right.id.localeCompare(left.id);
+      return companyDifference || dateDifference || right.id.localeCompare(left.id);
     });
   const userCountByStatus = (status: ExternalUserAccess['status']) =>
     users.filter((user) => user.status === status).length;
@@ -589,7 +597,7 @@ export function UserRegistration() {
                 <th className="px-1 py-2.5 text-center">Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-200/60">
               {paginatedUsers.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="align-middle text-center text-slate-500" style={{ height: MINIMUM_VISIBLE_ROWS * USER_ROW_HEIGHT }}>
@@ -598,11 +606,11 @@ export function UserRegistration() {
                   </td>
                 </tr>
               ) : <>
-                {paginatedUsers.map((user, index) => {
+                {paginatedUsers.map((user) => {
                   const resolvedEmailStatus = user.email_status || (['DONE', 'REJECTED'].includes(user.status) ? 'READY' : 'NOT_READY');
                   const canResendEmail = ['DONE', 'REJECTED'].includes(user.status) && resolvedEmailStatus !== 'SENDING';
                   return (
-                <tr key={user.id} className={`transition-colors hover:bg-slate-100/70 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-100/70'}`}>
+                <tr key={user.id} className={`transition-colors ${companyRowClasses(user)}`}>
                   <td className="px-2 py-2 font-semibold text-slate-900"><CopyableValue value={user.username} label="Username" /></td>
                   <td className="px-2 py-2 text-slate-700"><CopyableValue value={user.email} label="Email address" /></td>
                   <td className="px-2 py-2 font-mono text-[10px] text-slate-700"><CopyableValue value={user.password || 'Unavailable'} label="Password" /></td>
@@ -660,7 +668,7 @@ export function UserRegistration() {
             const canResendEmail = ['DONE', 'REJECTED'].includes(user.status) && resolvedEmailStatus !== 'SENDING';
             const companyType = user.company_id ? getCompanyById(user.company_id)?.company_type || '—' : '—';
             return (
-              <article key={user.id} role="listitem" className="min-w-0 rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+              <article key={user.id} role="listitem" className={`min-w-0 rounded-lg border border-slate-200/60 p-3 shadow-sm transition-colors ${companyRowClasses(user)}`}>
                 <div className="flex items-start gap-2">
                   <div className="min-w-0 flex-1">
                     <CopyableValue value={user.username} label="Username" className="text-xs font-bold text-slate-900" />
