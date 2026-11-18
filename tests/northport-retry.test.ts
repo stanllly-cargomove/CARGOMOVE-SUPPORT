@@ -53,18 +53,19 @@ test('EX check reads Last run without triggering a task and closes the browser',
   assert.equal((await verifySchedulerRun({...NORTHPORT_TARGET,before:null,dispatchAt:now},async()=>{throw new Error('private-cookie');})).status,'UNAVAILABLE');
 });
 
-test('shared result endpoint routes EX to the associated scheduler audit, without GP, FTP or scheduler dispatch',async()=>{
+test('shared result endpoint routes EX to a container lookup using the associated dispatch, without GP, FTP or scheduler dispatch',async()=>{
   process.env.SCHEDULER_PORTAL_URL='https://portal.example.test';
   const id='10000000-0000-4000-8000-000000000001';let checks=0;const updates:any[]=[];
-  const evidence={status:'ADVANCED',before:'Yesterday at 12:00 AM',after:'Today at 12:01 AM',observedAt:new Date().toISOString()} as const;
-  const recovery={container_type:'EX',status:'Scheduler Triggered',scheduler_run_id:id};
-  const run={dispatch_at:'2026-10-20T16:00:00Z',last_run_verification:{before:evidence.before},task_id:NORTHPORT_TARGET.taskId,scheduler:NORTHPORT_TARGET.workerName};
+  const evidence={status:'VERIFIED',container:'EXPORT123',scn:'SCN123',location:'Northport',updatedAt:'2026-10-20T16:00:00Z',dispatchAt:'2026-10-20T16:00:00Z',observedAt:new Date().toISOString(),toleranceSeconds:120} as const;
+  const values=Array(20).fill('');values[0]=evidence.container;values[9]=evidence.scn;
+  const recovery={container:evidence.container,container_type:'EX',status:'Scheduler Triggered',scheduler_run_id:id,approved_values:values};
+  const run={dispatch_at:evidence.dispatchAt};
   const client:any={rpc:async(name:string)=>{assert.equal(name,'northport_admit_request');return {data:true};},from:(table:string)=>{const query:any={select(){return this;},eq(){return this;},timeout(){return this;},update(value:any){updates.push(value);return this;},maybeSingle:async()=>({data:table==='user_registrations'?{id}:table==='cargomove_scheduler_runs'?run:recovery}),then:(resolve:any)=>Promise.resolve({error:null}).then(resolve)};return query;}};
-  const handler=createNorthportHandler({adminClient:()=>client,readSession:()=>({id,email:'admin@example.test',type:'ADMIN'}),verifySchedulerRun:async(input:any)=>{checks++;assert.equal(input.taskId,NORTHPORT_TARGET.taskId);assert.equal(input.before,evidence.before);return evidence;},verifyGatepass:async()=>{assert.fail('EX cannot use GP verification');},withFtp:async()=>{assert.fail('No FTP');},runScheduler:async()=>{assert.fail('No dispatch');}} as any);
+  const handler=createNorthportHandler({adminClient:()=>client,readSession:()=>({id,email:'admin@example.test',type:'ADMIN'}),verifyExportContainer:async(input:any)=>{checks++;assert.deepEqual(input,{container:evidence.container,scn:evidence.scn,dispatchAt:Date.parse(run.dispatch_at)});return evidence;},verifyGatepass:async()=>{assert.fail('EX cannot use GP verification');},withFtp:async()=>{assert.fail('No FTP');},runScheduler:async()=>{assert.fail('No dispatch');}} as any);
   const response:any={code:200,setHeader(){},status(code:number){this.code=code;return this;},json(body:any){this.body=body;return this;}};
   await handler({method:'POST',headers:{origin:'https://portal.example.test','x-cargomove-confirm':'northport-recovery'},body:{action:'verify-result',id}},response);
   assert.equal(response.code,200);assert.equal(response.body.status,'Import Verified');assert.equal(checks,1);
-  assert.deepEqual(updates,[{last_run_verification:evidence}]);
+  assert.deepEqual(updates,[{export_verification:evidence,status:'Import Verified',processing_result:'Verified — Northport export container, SCN and Updated time'}]);
 });
 
 test('history offers scheduler-only retry for fresh and legacy confirmed unsent failures',()=>{

@@ -56,7 +56,7 @@ try {
       if(body.action==='verify-gp'||body.action==='verify-result'){
         assert.deepEqual(Object.keys(body).sort(),['action','id']);
         const exportRow=previewHistory?.find(row=>row.id===body.id&&row.container_type==='EX');
-        if(exportRow){exportRow.scheduler_run={last_run_verification:{status:'ADVANCED',before:'Yesterday at 11:59 PM',after:'Today at 12:01 AM',observedAt:'2026-10-21T00:02:00Z'}};return route.fulfill({json:{status:'Import Verified',message:'Export scheduler run verified.'}});}
+        if(exportRow){exportRow.export_verification={status:'VERIFIED',container:exportRow.container,scn:'SCN123',location:'Northport',updatedAt:'2026-10-21T00:01:00Z',dispatchAt:'2026-10-21T00:00:00Z',observedAt:'2026-10-21T00:02:00Z',toleranceSeconds:120};return route.fulfill({json:{status:'Import Verified',exportVerification:exportRow.export_verification,message:'Export container verified.'}});}
         const matched=body.action==='verify-result';
         history.gp_verification={status:matched?'VERIFIED':'NOT_FOUND',gatepass:'000123-GP',container:history.container,observedAt:'2026-10-20T03:01:00Z',updatedAt:matched?'2026-10-20T03:00:00Z':null,updatedWithinTolerance:matched?true:null,toleranceSeconds:120};
         if(matched)history.status='Import Verified';
@@ -218,24 +218,24 @@ try {
   assert.equal(await details.evaluate(element=>element.scrollWidth<=element.clientWidth),true);
   await details.getByRole('button',{name:'Close',exact:true}).click();
   await page.setViewportSize({width:1440,height:1000});
-  const exportRow={...history,id:'preview-export',container:'EXPORT123',container_type:'EX',source_filename:'CM_CONTAINER_20261017012016_EX.csv',status:'Verification Unavailable',scheduler_status:'unknown',gp_verification:null,scheduler_run:null as any};
+  const exportRow={...history,id:'preview-export',container:'EXPORT123',container_type:'EX',source_filename:'CM_CONTAINER_20261017012016_EX.csv',status:'Verification Unavailable',scheduler_status:'unknown',gp_verification:null,scheduler_run:null as any,export_verification:null as any};
   previewHistory!.push(exportRow);
   await page.getByRole('button',{name:'Refresh History',exact:true}).click();
   await page.getByRole('button',{name:'EXPORT123',exact:true}).click();
   assert.equal(await details.getByRole('button',{name:'Check GP in CargoMove',exact:true}).count(),0);
   const beforeExport=[...actions];
-  await details.getByRole('button',{name:'Check scheduler in CargoMove',exact:true}).click();
+  await details.getByRole('button',{name:'Check container in CargoMove',exact:true}).click();
   await details.locator('.northport-history-status').filter({hasText:'SUCCESS'}).waitFor();
   await details.getByRole('button',{name:'Close',exact:true}).click();
-  exportRow.scheduler_run.last_run_verification.status='UNCHANGED';exportRow.scheduler_status='trigger_requested';
+  exportRow.export_verification.status='STALE';exportRow.scheduler_status='trigger_requested';
   await page.getByRole('button',{name:'Refresh History',exact:true}).click();
   await page.getByRole('button',{name:'EXPORT123',exact:true}).click();
-  assert.equal(await details.getByRole('button',{name:'Check scheduler in CargoMove',exact:true}).count(),0);
+  assert.equal(await details.getByRole('button',{name:'Check container in CargoMove',exact:true}).count(),1,'Stale exports can be checked again without reprocessing');
   await details.getByRole('button',{name:'Retry Recovery',exact:true}).click();
   await details.waitFor({state:'hidden'});
   await page.waitForFunction(()=>Array.from(document.querySelectorAll('button')).some(button=>button.textContent==='Refresh History'&&!button.disabled));
   assert.equal(await page.getByLabel('Container No.',{exact:true}).inputValue(),'');
-  assert.deepEqual(actions,[...beforeExport,'verify-result','prepare-retry','approve','upload','scheduler'],'EX retry reprocesses saved edits without searching');
+  assert.deepEqual(actions,[...beforeExport,'verify-result','prepare-retry','approve','upload','scheduler','verify-result'],'EX retry checks the export container after processing');
   await page.getByRole('button',{name:'EXPORT123',exact:true}).click();
   await details.getByRole('button',{name:'Retry recovery options',exact:true}).click();
   await page.getByRole('button',{name:'Search and re-edit',exact:true}).click();

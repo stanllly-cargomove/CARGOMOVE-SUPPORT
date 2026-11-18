@@ -21,6 +21,8 @@ export function NorthportScannedFiles({ files, matches, busy, downloadingAll, sh
     ...files.filter(file => !matchedNames.has(file.filename)).sort((a,b) => priority[a.status]-priority[b.status]||a.timestamp.localeCompare(b.timestamp)).map(file => ({...file,file})),
   ];
   const count = new Set(rows.map(row=>row.filename)).size;
+  const types = new Set(rows.map(row => row.type));
+  const numberHeading = types.has('EX') ? types.has('GP') ? 'GP / EXP No.' : 'EXP No.' : 'Gatepass No.';
   return <section aria-label="Scanned File" className="min-w-0">
     <div className="mb-1.5 flex items-center justify-between gap-3">
       <h4 className="text-xs font-semibold text-slate-900">Scanned File <span className="ml-1 font-normal text-slate-500">({count})</span></h4>
@@ -28,7 +30,7 @@ export function NorthportScannedFiles({ files, matches, busy, downloadingAll, sh
     </div>
     <div className="northport-scanned-table-wrap min-w-0 overflow-x-auto rounded-lg border border-slate-300 shadow-sm">
       <table aria-label="Scanned File" className="northport-results-table northport-scanned-table text-left text-xs">
-        <thead className="border-b border-slate-300 bg-slate-200 text-slate-800"><tr>{['Container No.','Gatepass No.','Type','Source Filename','Source Folder','File Timestamp','No. of Record','Match Status','Actions'].map(label=><th key={label} scope="col" className="border-r border-slate-300 px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-700 last:border-r-0">{label}</th>)}</tr></thead>
+        <thead className="border-b border-slate-300 bg-slate-200 text-slate-800"><tr>{['Container No.',numberHeading,'Type','Source Filename','Source Folder','File Timestamp','No. of Record','Match Status','Actions'].map(label=><th key={label} scope="col" className="border-r border-slate-300 px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-700 last:border-r-0">{label}</th>)}</tr></thead>
         <tbody>{rows.map(({match,file,filename,timestamp,type}) => {
           const status = match?'match':file!.status;
           const records = match?.totalRecords??file?.records;

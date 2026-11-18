@@ -11,7 +11,7 @@ import { searchSourceFiles, usesTimestampScan } from './listing.js';
 import { readScanCursor, signScanCursor } from './scan.js';
 import { NORTHPORT_UPLOAD_GATES as GATES, uploadsEnabled } from './configuration.js';
 import { verifyGatepass } from './gatepass-verification.js';
-import { verifySchedulerRun } from './scheduler-verification.js';
+import { verifyExportContainer } from './export-verification.js';
 import { canRetryScheduler, recoveryFlow } from '../../src/services/northportRecoveryStatus.js';
 export { uploadsEnabled } from './configuration.js';
 
@@ -42,7 +42,7 @@ async function body(request: any) {
   try { return JSON.parse(Buffer.concat(chunks).toString() || '{}'); } catch { throw new RecoveryError('Invalid JSON request.'); }
 }
 const fields = 'id,container,container_type,source_filename,recovery_filename,submitted_by,created_at,changed_fields,status,scheduler_run_id,scheduler_status,processing_result,gp_verification';
-export function createNorthportHandler(deps = { adminClient, readSession, withFtp, runScheduler, verifyGatepass, verifySchedulerRun }) {
+export function createNorthportHandler(deps = { adminClient, readSession, withFtp, runScheduler, verifyGatepass, verifyExportContainer }) {
   return async (request: any, response: any) => {
     response.setHeader('Cache-Control','no-store');
     const fail = (code: number, error: string) => response.status(code).json({ error });
@@ -57,13 +57,16 @@ export function createNorthportHandler(deps = { adminClient, readSession, withFt
           if(columns.includes(',removed_at'))query=query.is('removed_at',null);
           return query.order('created_at',{ascending:false}).limit(50).timeout(8000);
         };
-        let columns=fields+',manual_review,search_setup,removed_at,scheduler_run:cargomove_scheduler_runs(last_run_verification,status,dispatch_at)';
+        let columns=fields+',export_verification,manual_review,search_setup,removed_at,scheduler_run:cargomove_scheduler_runs(last_run_verification,status,dispatch_at)';
         let history = await readHistory(columns);
         const missingMigrations:string[]=[];
         let manualReviewEnabled=true;
         let historyRemovalEnabled=true;
-        for(let attempt=0;attempt<4&&history.error?.code==='42703';attempt++) {
-          if (/removed_at/.test(history.error.message || '')) {
+        for(let attempt=0;attempt<5&&history.error?.code==='42703';attempt++) {
+          if (/export_verification/.test(history.error.message || '')) {
+            columns=columns.replace(',export_verification','');
+            missingMigrations.push('20261118010000_northport_export_verification.sql');
+          } else if (/removed_at/.test(history.error.message || '')) {
             columns=columns.replace(',removed_at','');historyRemovalEnabled=false;
             missingMigrations.push('20261102040000_northport_remove_failed_history.sql');
           } else if (/last_run_verification/.test(history.error.message || '')) {
@@ -344,12 +347,25 @@ export function createNorthportHandler(deps = { adminClient, readSession, withFt
         if (!['Uploaded','Scheduler Triggered','Processing','Verification Unavailable','Import Verified'].includes(recovery.status)) throw new RecoveryError('Upload must be confirmed before checking CargoMove.',409);
         if(recovery.container_type==='EX'&&input.action==='verify-result') {
           if(!recovery.scheduler_run_id)throw new RecoveryError('No associated scheduler request is recorded. Check CargoMove manually before updating the result.',409);
-          const run=await client.from('cargomove_scheduler_runs').select('dispatch_at,last_run_verification,task_id,scheduler').eq('id',recovery.scheduler_run_id).timeout(8000).maybeSingle();
-          if(run.error||!run.data?.dispatch_at)throw new RecoveryError('Scheduler verification details are unavailable. Check the scheduler audit and verification migration.',503);
-          const evidence=await deps.verifySchedulerRun({taskId:run.data.task_id,workerName:run.data.scheduler,before:run.data.last_run_verification?.before||null,dispatchAt:Date.parse(run.data.dispatch_at)});
-          const saved=await client.from('cargomove_scheduler_runs').update({last_run_verification:evidence}).eq('id',recovery.scheduler_run_id).timeout(8000);
-          if(saved.error)throw new RecoveryError('Scheduler was checked but its observation could not be saved.',503);
-          return response.json({status:evidence.status==='ADVANCED'?'Import Verified':evidence.status==='UNCHANGED'?'Verification Failed':'Pending Verification',lastRunVerification:evidence,message:evidence.status==='ADVANCED'?'Export recovery verified: CargoMove recorded a newer scheduler run.':evidence.status==='UNCHANGED'?'Export verification failed: no newer scheduler run was observed.':'Scheduler verification is unavailable. Check CargoMove manually.'});
+          if(!Array.isArray(recovery.approved_values))throw new RecoveryError('This older export recovery has no saved approved container and SCN. Operator verification is required.',409);
+          validateValues(recovery.approved_values);
+          const container=recovery.approved_values[0].trim(),scn=recovery.approved_values[9].trim();
+          if(!container||!scn||container.toUpperCase()!==recovery.container.trim().toUpperCase())throw new RecoveryError('Approved export container and SCN are unavailable.',409);
+          // Check schema before opening CargoMove; imports do not need this column.
+          const existing=await client.from('northport_recoveries').select('export_verification').eq('id',input.id).timeout(8000).maybeSingle();
+          if(existing.error)throw new RecoveryError('Export verification requires 20261118010000_northport_export_verification.sql.',503);
+          if(existing.data?.export_verification?.status==='VERIFIED')return response.json({status:'Import Verified',exportVerification:existing.data.export_verification,message:'Verified — Northport export container and SCN found with a current Updated time.'});
+          const run=await client.from('cargomove_scheduler_runs').select('dispatch_at').eq('id',recovery.scheduler_run_id).timeout(8000).maybeSingle();
+          const dispatchAt=Date.parse(run.data?.dispatch_at);
+          if(run.error||!Number.isFinite(dispatchAt))throw new RecoveryError('Scheduler dispatch time is unavailable. Check the scheduler audit before verifying this export.',503);
+          const evidence=await deps.verifyExportContainer({container,scn,dispatchAt});
+          const verified=evidence.status==='VERIFIED';
+          const message=verified?'Verified — Northport export container and SCN found with a current Updated time.':evidence.status==='STALE'?'Export verification failed — the matching Northport export row has an old Updated time. Check the container again later; do not reprocess automatically.':evidence.status==='NOT_FOUND'?'Export verification failed — no exact Northport EXPORT container and SCN row was found. Check the container again later.':'Export container verification unavailable. Check the container again later; do not upload or run the scheduler again.';
+          let update=client.from('northport_recoveries').update({export_verification:evidence,...(verified?{status:'Import Verified',processing_result:'Verified — Northport export container, SCN and Updated time'}:{})}).eq('id',input.id);
+          if(!verified)update=update.neq('status','Import Verified');
+          const saved=await update.timeout(8000);
+          if(saved.error)throw new RecoveryError('Export lookup completed but evidence could not be saved. Check the export verification migration; do not reprocess the file.',503);
+          return response.json({status:verified?'Import Verified':evidence.status==='UNAVAILABLE'?'Pending Verification':'Verification Failed',exportVerification:evidence,message});
         }
         if (recovery.container_type !== 'GP') return response.json({status:'Not Applicable',message:'Gatepass verification applies only to GP recoveries.'});
         if (recovery.gp_verification?.status === 'VERIFIED') return response.json({status:'Import Verified',message:'Verified — GP found in CargoMove.',gpVerification:recovery.gp_verification});

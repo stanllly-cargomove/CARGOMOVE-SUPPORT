@@ -163,6 +163,18 @@ test('PostgreSQL migration enforces RLS, administrator admission, durable dedupl
     await db.query("update northport_recoveries set status='Uploaded',scheduler_status=null where id=$1",[removalActive.id]);
     assert.equal((await remove(removalActive.id)).reason,'not_failed','Processing entries cannot be removed');
     assert.equal(await scalar("select has_function_privilege('authenticated','public.northport_remove_failed_history(uuid,uuid)','EXECUTE')"),false);
+    const exportSql=readFileSync(new URL('../supabase/migrations/20261118010000_northport_export_verification.sql',import.meta.url),'utf8');
+    await db.exec(exportSql);await db.exec(exportSql);
+    const exportResult=await scalar(`select northport_approve($1,$2,'VERIFYEX','EX','CM_CONTAINER_20261117012014_EX.csv',1,'verify-ex-source','verify-ex-hash',ARRAY['SCN'])`,[actor,'admin@example.test']);
+    await db.query("update northport_recoveries set status='Scheduler Triggered',scheduler_status='trigger_requested',processing_result='Scheduler run observed — container import not verified' where id=$1",[exportResult.id]);
+    assert.equal((await remove(exportResult.id)).reason,'not_failed','A legacy scheduler result is pending container verification');
+    for(const status of ['VERIFIED','UNAVAILABLE','STALE']) {
+      const exportEvidence={status,container:'VERIFYEX',scn:'SCN123',updatedAt:'2026-11-17T01:00:00Z'};
+      await db.query('update northport_recoveries set export_verification=$1::jsonb where id=$2',[JSON.stringify(exportEvidence),exportResult.id]);
+      assert.deepEqual(await scalar('select export_verification from northport_recoveries where id=$1',[exportResult.id]),exportEvidence);
+      const result=await remove(exportResult.id);
+      assert.equal(status==='STALE'?result.removed:result.reason,status==='STALE'?true:'not_failed');
+    }
     await db.exec('set role authenticated');
     await assert.rejects(()=>db.query('select * from northport_recovery_reviews'),/permission denied/);
     await assert.rejects(()=>db.query('select * from northport_recoveries'),/permission denied/);

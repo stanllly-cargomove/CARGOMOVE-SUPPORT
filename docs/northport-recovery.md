@@ -18,7 +18,7 @@ as a GP/EXP match. Invalid-file text hits remain unverified and cannot authorize
 recovery. Signed continuations bind the search column as well as the query;
 saved gatepass search settings are retained for retry. No migration is needed.
 
-Search results add **Gatepass No.** after Container No. (GPNO for GP, EXPNO for EX)
+Search results show **Gatepass No.** for imports and **EXP No.** for exports after Container No. (GPNO for GP, EXPNO for EX)
 and **Source Folder** after Source Filename. Folder names come from the actual
 successful file read, including SUCCESS-to-archive fallback, rather than from
 the filename date. Folder metadata is carried in record, inspection and editor
@@ -87,7 +87,17 @@ Apply `20261021040000_northport_retry_search_setup.sql` before deploying this up
 
 For a FAIL result, the popup footer contains **Close** on the left and **Retry Recovery** on the right, with a three-dot **Search and re-edit** option. Retry uses the saved approved edits as described above. Search and re-edit restores the original search settings and opens the saved record with its edits after the read-only search. For older records without saved EIR/window settings, it searches the exact retained source filename using its file timestamp and a 10-minute-before/30-minute-after window and reports that fallback. It does not invent the original EIR time or claim a full-window scan. Uncertain upload and scheduler outcomes still require reconciliation before another upload.
 
-The shared **verify-result** action handles GP by checking the exact Northport gatepass/container pair and EX by reading the associated scheduler's Last run against the saved pre-dispatch baseline and dispatch time. EX rechecking has a 45-second browser budget and blocks scheduler execution URLs; it never invokes a task. Processing popups show **Check GP in CargoMove** or **Check scheduler in CargoMove** according to type. FAIL popups omit both checks. The old GP-only action remains compatible with the automatic GP workflow.
+The shared **verify-result** action handles GP by checking the exact Northport gatepass/container pair. EX now uses the container-level check described below. The old GP-only action remains compatible with the automatic GP workflow.
+
+### Export container verification (18 November 2026)
+
+Apply `20261118010000_northport_export_verification.sql` before deploying this change. Export success requires a read-only search of `https://www.cargomove.my/administration/containers`: enter the approved UNIT in `input[name="container"]`, leave `booking_reference` empty and submit Search now. A read-only inspection confirmed the form action `containers` and table headers `#`, `Type`, `ID`, `Location`, `SCN / Op.`, `Type size`, `Booked / Total`, `Updated`, `Expiry`.
+
+The same row must have Type EXPORT, exact ID matching approved UNIT, Location Northport, and exact SCN / Op. matching approved SCN (CSV column 10). Identifiers are trimmed and case-insensitive; punctuation and leading zeros are retained. Updated is parsed strictly as `YYYY-MM-DD HH:mm:ss` in Malaysia time. It must be at or after the associated scheduler dispatch, allowing two minutes before dispatch for clock differences, and cannot be later than the observation. Updates after dispatch remain eligible when checking later. This checks current container state; it cannot prove which scheduler execution caused an update.
+
+`VERIFIED` yields SUCCESS; an absent exact row (`NOT_FOUND`) or an old Updated value (`STALE`) yields FAIL. Missing/invalid timestamps, authentication/navigation failures, unexpected table structure and browser timeouts produce `UNAVAILABLE`, displayed as PROCESSING. The browser has a 45-second budget, retries a stale/negative lookup once after two seconds, and blocks scheduler execution and unrelated POSTs. Lookup results are saved separately in `export_verification`, including container, SCN, location, dispatch, Updated and observation times. Failed observations cannot overwrite concurrent positive verification. The schema migration also aligns failed-history removal with container evidence.
+
+After export reprocessing the browser automatically calls verify-result. Recovery details offer **Check container in CargoMove** for pending/unavailable export results and for failed container checks, so another read does not upload or dispatch a scheduler. Details show the saved matching evidence. GP/import verification and manual-review precedence are unchanged. Scheduler Last run is retained as diagnostic evidence but never independently produces export SUCCESS; older scheduler-only successes require a container check. Missing migration warnings preserve history and the existing GP workflow. No production migration, FTP upload or scheduler execution was performed while developing this change; automated checks use intercepted browser requests and an isolated PostgreSQL database.
 
 All file/details popup close controls are on the left. Refresh status and the explanatory GP/EX paragraph were removed. Files & approval uses two columns on desktop and mobile, including long filenames, audit IDs and notes. The status adjustment overlay uses inline SUCCESS/FAIL choices with arrow-key support rather than the oversized native select menu; Escape and outside-click dismissal remain available.
 

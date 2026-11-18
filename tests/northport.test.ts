@@ -706,11 +706,11 @@ test('history labels distinguish GP results, EX scheduler evidence, active reque
   assert.equal(recoveryFlow({...base,manual_review:manual,gp_verification:{...evidence,status:'NOT_FOUND'}}).label,'SUCCESS','Manual verification does not lose precedence to automatic evidence');
   assert.equal(recoveryFlow({...base,manual_review:{...manual,outcome:'FAIL'}}).label,'FAIL');
   assert.equal(recoveryFlow({...base,status:'Verification Unavailable',scheduler_status:'failed'}).label,'FAIL');
-  assert.equal(recoveryFlow({...base,container_type:'EX',scheduler_status:'trigger_requested'}).label,'FAIL','An accepted request alone is not a latest scheduler time');
-  assert.equal(recoveryFlow({...base,container_type:'EX',processing_result:'Scheduler run observed — container import not verified'}).label,'SUCCESS','Existing scheduler observations remain usable');
+  assert.equal(recoveryFlow({...base,container_type:'EX',scheduler_status:'trigger_requested'}).label,'PROCESSING','An accepted request alone cannot verify the export container');
+  assert.equal(recoveryFlow({...base,container_type:'EX',processing_result:'Scheduler run observed — container import not verified'}).label,'PROCESSING','Legacy scheduler observations require a container check');
   const scheduler={before:'Yesterday at 11:59 PM',after:'Today at 12:00 AM',observedAt:new Date().toISOString()};
   for(const status of ['ADVANCED','UNCHANGED','UNAVAILABLE'] as const) {
-    assert.equal(recoveryFlow({...base,container_type:'EX',scheduler_run:{last_run_verification:{...scheduler,status}}}).label,status==='ADVANCED'?'SUCCESS':'FAIL');
+    assert.equal(recoveryFlow({...base,container_type:'EX',scheduler_run:{last_run_verification:{...scheduler,status}}}).label,'PROCESSING');
     assert.equal(recoveryFlow({...base,scheduler_run:{last_run_verification:{...scheduler,status}}}).label,'PROCESSING','GP cannot be SUCCESS from scheduler evidence alone');
   }
 });

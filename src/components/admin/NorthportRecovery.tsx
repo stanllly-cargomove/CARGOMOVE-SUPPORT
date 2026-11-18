@@ -58,6 +58,17 @@ function SearchModeButton({ mode, disabled, onChange }: { mode: SearchMode; disa
     </div>
   </>;
 }
+function placeRecordActions(menu: HTMLDivElement, button: HTMLButtonElement) {
+  const anchor = button.getBoundingClientRect();
+  if (anchor.bottom <= 0 || anchor.top >= window.innerHeight) { menu.hidePopover(); return; }
+  const panel = menu.getBoundingClientRect();
+  const scale = Number(getComputedStyle(menu).getPropertyValue('--admin-ui-scale')) || 1;
+  const left = Math.max(8, Math.min(anchor.right-panel.width, window.innerWidth-panel.width-8));
+  const top = Math.max(8, Math.min(anchor.bottom+4+panel.height > window.innerHeight-8 ? anchor.top-panel.height-4 : anchor.bottom+4, window.innerHeight-panel.height-8));
+  // Client rectangles use viewport pixels; fixed offsets inherit the portal zoom.
+  menu.style.left = `${left/scale}px`;
+  menu.style.top = `${top/scale}px`;
+}
 function RecordActions({ disabled, onChoose }: { disabled: boolean; onChoose: (action: 'edit' | 'reprocess' | 'download') => void }) {
   const menuRef=useRef<HTMLDivElement>(null);
   const buttonRef=useRef<HTMLButtonElement>(null);
@@ -68,12 +79,7 @@ function RecordActions({ disabled, onChoose }: { disabled: boolean; onChoose: (a
     const placeMenu=()=>{
       const menu=menuRef.current;const button=buttonRef.current;
       if(!menu||!button||!menu.matches(':popover-open'))return;
-      const rect=button.getBoundingClientRect();
-      if(rect.bottom<=0||rect.top>=window.innerHeight){menu.hidePopover();return;}
-      const width=menu.offsetWidth||184;const height=menu.offsetHeight||120;
-      const left=Math.max(8,Math.min(rect.right-width,window.innerWidth-width-8));
-      const top=rect.bottom+height>window.innerHeight-8?Math.max(8,rect.top-height-4):rect.bottom+4;
-      menu.style.left=`${left}px`;menu.style.top=`${top}px`;
+      placeRecordActions(menu,button);
     };
     placeMenu();
     window.addEventListener('scroll',placeMenu,true);
@@ -84,10 +90,9 @@ function RecordActions({ disabled, onChoose }: { disabled: boolean; onChoose: (a
     <button ref={buttonRef} type="button" disabled={disabled} aria-label="Record actions" aria-haspopup="dialog" aria-expanded={open} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-50" onClick={event=>{
       const menu=menuRef.current;if(!menu)return;
       if(menu.matches(':popover-open')){menu.hidePopover();return;}
-      const rect=event.currentTarget.getBoundingClientRect();
-      menu.style.left=Math.max(8,Math.min(rect.right-184,window.innerWidth-192))+'px';
-      menu.style.top=Math.max(8,rect.bottom+148>window.innerHeight?rect.top-144:rect.bottom+4)+'px';
-      menu.showPopover();menu.querySelector<HTMLButtonElement>('button')?.focus();
+      menu.showPopover();
+      placeRecordActions(menu,event.currentTarget);
+      menu.querySelector<HTMLButtonElement>('button')?.focus({preventScroll:true});
     }}><MoreVertical aria-hidden="true" className="h-4 w-4"/></button>
     <div ref={menuRef} popover="auto" role="dialog" aria-label="Record actions" onToggle={()=>setOpen(menuRef.current?.matches(':popover-open')??false)} style={{position:'fixed',margin:0}} className="w-[184px] rounded-xl border border-slate-200 bg-white p-1.5 text-xs text-slate-700 shadow-xl">
       {([['edit','View/Edit File'],['download','Download whole file'],['reprocess','Reprocess']] as const).map(([action,label])=><button key={action} type="button" disabled={disabled} className="block w-full rounded-lg px-3 py-2.5 text-left hover:bg-slate-100 focus-visible:bg-blue-50 focus-visible:outline-none disabled:opacity-50" onClick={()=>{menuRef.current?.hidePopover();onChoose(action);}}>{label}</button>)}
@@ -222,6 +227,12 @@ function RecoveryDetailsContent({ recovery }: { recovery: Recovery }) {
       {label:'CargoMove Updated',value:evidence.updatedAt?`${new Date(evidence.updatedAt).toLocaleString('en-GB',{timeZone:'Asia/Kuala_Lumpur'})} MYT`:'Unavailable'},
       {label:'Updated tolerance (±2 minutes from scheduler dispatch)',value:evidence.updatedWithinTolerance === null?'Unavailable':evidence.updatedWithinTolerance?'Within tolerance':'Outside tolerance — exact pair still matches'},
       {label:'GP checked at',value:`${new Date(evidence.observedAt).toLocaleString('en-GB',{timeZone:'Asia/Kuala_Lumpur'})} MYT`});
+  }
+  if (recovery.export_verification) {
+    const evidence = recovery.export_verification;
+    const displayTime = (value:string|null) => value ? `${new Date(value).toLocaleString('en-GB',{timeZone:'Asia/Kuala_Lumpur'})} MYT` : 'Unavailable';
+    fields.push({label:'Export container verification',value:evidence.status},{label:'Container checked',value:evidence.container},{label:'SCN checked',value:evidence.scn},{label:'Location checked',value:evidence.location},
+      {label:'CargoMove Updated',value:displayTime(evidence.updatedAt)},{label:'Scheduler dispatch',value:displayTime(evidence.dispatchAt)},{label:'Export checked at',value:displayTime(evidence.observedAt)});
   }
   return <div className="space-y-4">
     <section className="rounded-xl border border-slate-200 bg-slate-50 p-4">
@@ -400,16 +411,16 @@ export function NorthportRecovery({ onBack, active = true }: { onBack: () => voi
       setReview(false);setIdentityConfirmed(false);setApproved(null);setHistoryDetail(null);
       setMessage(`${row.container} recovery requested.`);
     };
-    const checkGpAfterScheduler = async (id:string,containerType?:string) => {
-      if (containerType==='EX') {setMessage('Northport processing requested. Check recovery history for the latest scheduler result.');return;}
+    const checkResultAfterScheduler = async (id:string,containerType?:string) => {
+      const checkLabel=containerType==='EX'?'export container':'GP';
       setBusy('reprocess-verification');
       try {
         await batchPause(5100,controller.signal);
-        const response=await fetch('/api/dev-tools/northport-recovery',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CargoMove-Confirm':'northport-recovery'},body:JSON.stringify({action:'verify-gp',id}),signal:controller.signal});
+        const response=await fetch('/api/dev-tools/northport-recovery',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CargoMove-Confirm':'northport-recovery'},body:JSON.stringify({action:containerType==='EX'?'verify-result':'verify-gp',id}),signal:controller.signal});
         const data=await recoveryResponse(response);
         if(response.ok&&data.status==='Verification Failed'){setError(data.message);return;}
-        setMessage(response.ok?(data.message||'Northport processing requested.'):'Northport processing requested. GP verification unavailable; check GP from recovery details later.');
-      } catch {setMessage('Northport processing requested. GP verification unavailable; check GP from recovery details later.');}
+        setMessage(response.ok?(data.message||'Northport processing requested.'):`Northport processing requested. ${checkLabel} verification unavailable; check again from recovery details later.`);
+      } catch {setMessage(`Northport processing requested. ${checkLabel} verification unavailable; check again from recovery details later.`);}
     };
     let submissionMatch=selected;
     let retryEditor:{match:Match;values:string[]}|null=null;
@@ -478,7 +489,7 @@ export function NorthportRecovery({ onBack, active = true }: { onBack: () => voi
           onUploaded:()=>{setBusy('reprocess-wait');void loadHistory();},
           onScheduler:()=>setBusy('reprocess-scheduler'),
         });
-        await checkGpAfterScheduler(resumed.id,resumed.containerType);
+        await checkResultAfterScheduler(resumed.id,resumed.containerType);
         return;
       }
       if(name==='approve-reprocess') {
@@ -514,7 +525,7 @@ export function NorthportRecovery({ onBack, active = true }: { onBack: () => voi
           onUploaded:()=>{setRecoveryUploaded(true);setBusy('reprocess-wait');void loadHistory();},
           onScheduler:()=>{setBusy('reprocess-scheduler');},
         });
-        await checkGpAfterScheduler(approval.recovery.id,submissionMatch?.type);
+        await checkResultAfterScheduler(approval.recovery.id,submissionMatch?.type);
         setSelected(null);setApproved(null);setReview(false);
         return;
       }
@@ -550,7 +561,7 @@ export function NorthportRecovery({ onBack, active = true }: { onBack: () => voi
       if(!response.ok) throw new Error(data.error || data.message || 'Recovery operation failed. Check history before retrying.');
       if(name==='check') setMessage(`Northport is connected and ready. Container files can be searched safely.${data.archivesAvailable===false?' SUCCESS_ARCHIVES is temporarily absent; it will be included automatically when available.':''}${data.coverageWarning?' '+data.coverageWarning:''}`);
       if(name==='upload') {setMessage(data.message);setApproved(null);setSelected(null);}
-      if(name==='scheduler') await checkGpAfterScheduler(payload.id,history.find(row=>row.id===payload.id)?.container_type);
+      if(name==='scheduler') await checkResultAfterScheduler(payload.id,history.find(row=>row.id===payload.id)?.container_type);
       if(name==='verify-gp'||name==='verify-result') {if(data.status==='Verification Failed')setError(data.message);else setMessage(data.message);}
       if(name==='cancel'||name==='cancel-approved') setMessage(data.message);
       if(name==='manual-review') setMessage(data.message);
@@ -654,7 +665,7 @@ export function NorthportRecovery({ onBack, active = true }: { onBack: () => voi
     </section>
 
     {containerFile&&<NorthportFileContainers source={containerFile} onClose={()=>setContainerFile(null)}/>}
-    {busy&&busy!=='search'&&!selected&&<p role="status" className="flex items-center gap-2 text-xs text-blue-700"><Loader2 aria-hidden="true" className="h-4 w-4 animate-spin"/>{busy==='manual-review'?'Saving manual verification...':busy==='reprocess-upload'?'Uploading the approved recovery CSV...':busy==='reprocess-wait'?'Recovery File Uploaded. Preparing the Northport scheduler...':(busy==='reprocess-verification'||busy==='verify-gp'||busy==='verify-result')?(historyDetail?.container_type==='EX'?'Checking scheduler in CargoMove...':'Checking GP in CargoMove...'):busy==='reprocess-scheduler'?'Running the existing Northport Containers scheduler...':`${busy==='upload'?'Uploading':busy==='scheduler'?'Requesting existing scheduler':busy==='approve'?'Saving approval':'Checking FTP'}...`}</p>}
+    {busy&&busy!=='search'&&!selected&&<p role="status" className="flex items-center gap-2 text-xs text-blue-700"><Loader2 aria-hidden="true" className="h-4 w-4 animate-spin"/>{busy==='manual-review'?'Saving manual verification...':busy==='reprocess-upload'?'Uploading the approved recovery CSV...':busy==='reprocess-wait'?'Recovery File Uploaded. Preparing the Northport scheduler...':(busy==='reprocess-verification'||busy==='verify-gp'||busy==='verify-result')?((historyDetail?.container_type??activeRecovery.current?.container_type)==='EX'?'Checking export container in CargoMove...':'Checking GP in CargoMove...'):busy==='reprocess-scheduler'?'Running the existing Northport Containers scheduler...':`${busy==='upload'?'Uploading':busy==='scheduler'?'Requesting existing scheduler':busy==='approve'?'Saving approval':'Checking FTP'}...`}</p>}
 
     <section className={cardClass+' northport-results-container'} aria-label="File search progress">
       <SectionHeading step={2} title="Search Results" description={<SearchText mobile={busy==='search'?'Searching container files.':searchSummary?.interrupted?'Search stopped.':searchSummary?.complete?'Search complete.':searchSummary?'Review search results.':'Find matching container records.'}>{busy==='search'?'Scanning timestamp filenames and container records.':searchSummary?.complete?'All files in the selected search scope have been scanned.':searchSummary?'Review the scan status and any warnings below.':'Search progress will appear here when you start a search.'}</SearchText>} action={<p className="flex w-full flex-wrap items-center justify-center gap-x-1.5 gap-y-0.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-[11px] leading-4 text-slate-500" aria-live="polite"><span>{searchSummary?.progress?.files??searchSummary?.candidates??0} files scanned</span><span aria-hidden="true" className="text-slate-300">&middot;</span><span>{searchSummary?.progress?.records??0} records read</span><span aria-hidden="true" className="text-slate-300">&middot;</span><span className="font-medium text-emerald-700">{results.length} {results.length===1?'match':'matches'}</span></p>}/>
@@ -691,7 +702,7 @@ export function NorthportRecovery({ onBack, active = true }: { onBack: () => voi
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600"><p>{selected.totalRecords!==undefined?`All ${selected.totalRecords} records in this file will be included.`:"All source records will be included."} Edits apply only to this record.</p><div className="flex items-center gap-3"><span className="font-semibold">{changed.length} {changed.length===1?'field':'fields'} changed</span>{!review&&resetChangesButton}</div></div>
       <div className="relative overflow-hidden"><AnimatePresence initial={false} custom={pageDirection} mode="popLayout"><motion.div key={selected.filename+':'+selected.record} custom={pageDirection} variants={{enter:(direction:number)=>({x:direction*48,opacity:0}),center:{x:0,opacity:1},exit:(direction:number)=>({x:-direction*48,opacity:0})}} initial="enter" animate="center" exit="exit" transition={{duration:reducedMotion?0:0.2,ease:'easeOut'}} className="overflow-x-auto pb-2"><div className="northport-parameter-grid grid grid-cols-2 gap-x-2 gap-y-3" style={parameterGridStyle}>{NORTHPORT_COLUMNS.map((column,i)=>!review?<label key={column} className="min-w-0 text-xs"><span className="font-semibold text-slate-600">{column}</span>{values[i]!==selected.values[i]&&<span className="float-right text-[10px] font-medium text-amber-800">Modified</span>}<input aria-label={column} disabled={!!busy} readOnly={i===0} maxLength={1000} className="mt-1 h-9 w-full min-w-0 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-900 shadow-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 read-only:bg-slate-100 read-only:text-slate-600 disabled:opacity-60" value={values[i]} onChange={e=>{if(i===0)return;setDraftMessage('');setValues(v=>v.map((x,n)=>n===i?e.target.value:x));}}/>{values[i]!==selected.values[i]&&<span className="mt-2 block break-all text-amber-800">Original: {selected.values[i]||'(blank)'}</span>}</label>:<div key={column} className="min-w-0 text-xs"><p className="font-semibold text-slate-600">{column}</p><p className="mt-1 flex h-9 items-center rounded-lg border border-slate-200 bg-slate-50 px-2 text-slate-900"><span className="block min-w-0 truncate" title={values[i]||'(blank)'}>{values[i]||'(blank)'}</span></p>{values[i]!==selected.values[i]&&<p className="mt-2 break-all text-amber-800">Original: {selected.values[i]||'(blank)'}</p>}</div>)}</div></motion.div></AnimatePresence></div>
       {identityChanged&&<label aria-hidden={!review} className={`mt-3 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 ${!review?'invisible':''}`}><input type="checkbox" className="mt-0.5 h-4 w-4 shrink-0 accent-blue-600" disabled={!!approved||!review} checked={identityConfirmed} onChange={e=>setIdentityConfirmed(e.target.checked)}/>I confirm changes to UNIT, GPNO, EXPNO or BLNO and have checked the record identity.</label>}
-      {review&&busy&&<p role="status" className="mt-3 flex items-center gap-2 text-xs text-blue-700"><Loader2 aria-hidden="true" className="h-4 w-4 shrink-0 animate-spin"/>{busy==='download-reprocess'?'Preparing CSV download...':busy==='reprocess-upload'?'Uploading recovery file...':busy==='reprocess-wait'?'File uploaded. Preparing Northport processing...':(busy==='reprocess-verification'||busy==='verify-gp'||busy==='verify-result')?(historyDetail?.container_type==='EX'?'Checking scheduler in CargoMove...':'Checking GP in CargoMove...'):busy==='reprocess-scheduler'?'Starting Northport processing...':busy==='reprocess-cooldown'?`Sending automatically in ${reprocessCooldownSeconds}s...`:'Approving file...'}</p>}
+      {review&&busy&&<p role="status" className="mt-3 flex items-center gap-2 text-xs text-blue-700"><Loader2 aria-hidden="true" className="h-4 w-4 shrink-0 animate-spin"/>{busy==='download-reprocess'?'Preparing CSV download...':busy==='reprocess-upload'?'Uploading recovery file...':busy==='reprocess-wait'?'File uploaded. Preparing Northport processing...':(busy==='reprocess-verification'||busy==='verify-gp'||busy==='verify-result')?((historyDetail?.container_type??activeRecovery.current?.container_type)==='EX'?'Checking export container in CargoMove...':'Checking GP in CargoMove...'):busy==='reprocess-scheduler'?'Starting Northport processing...':busy==='reprocess-cooldown'?`Sending automatically in ${reprocessCooldownSeconds}s...`:'Approving file...'}</p>}
       {review&&!enabled&&<p className="mt-3 text-xs text-amber-800">Reprocessing is not available until production uploads are enabled.</p>}
       <div className={'northport-dialog-actions northport-dialog-footer mt-4 grid w-full items-center gap-2 border-t border-slate-200 pt-4 '+(review?'grid-cols-[auto_minmax(0,1fr)_auto] sm:grid-cols-[1fr_auto_1fr]':'grid-cols-[1fr_auto_1fr]')}>
         <button type="button" disabled={!!busy} className={secondaryClass+' justify-self-start'} onClick={()=>{if(review)setReview(false);else closeEditor();}}>{review?'Back':'Close'}</button>
@@ -724,14 +735,14 @@ export function NorthportRecovery({ onBack, active = true }: { onBack: () => voi
         {canManuallyReview(historyDetail,manualReviewEnabled)&&<RecoveryStatusMenu recovery={historyDetail} busy={!!busy} onSave={(outcome,note)=>void action('manual-review',{id:historyDetail.id,outcome,note,expectedReviewId:historyDetail.manual_review?.id||null})}/>}
         {recoveryFlow(historyDetail).label==='FAIL'?<RecoveryRetryButton onRemove={historyRemovalEnabled?()=>void action('remove-history',{id:historyDetail.id}):undefined} disabled={!!busy} retryDisabled={!enabled} label={canRetryScheduler(historyDetail)?'Retry scheduler':'Retry Recovery'} onRetry={()=>void action(canRetryScheduler(historyDetail)?'scheduler':'retry-recovery',canRetryScheduler(historyDetail)?{id:historyDetail.id}:{recovery:historyDetail})} onEdit={()=>void action('search-reedit',{recovery:historyDetail})}/>:<>
           {historyDetail.status==='Approved'&&recoveryFlow(historyDetail).label!=='CANCELLED'&&<button type="button" disabled={!!busy} className={cancelButtonClass} onClick={()=>void action('cancel-approved',{id:historyDetail.id})}>Cancel recovery</button>}
-          {recoveryFlow(historyDetail).label==='PROCESSING'&&['Uploaded','Scheduler Triggered','Processing','Verification Unavailable'].includes(historyDetail.status)&&<button type="button" disabled={!!busy} className={buttonClass} onClick={()=>void action('verify-result',{id:historyDetail.id})}>{historyDetail.container_type==='GP'?'Check GP in CargoMove':'Check scheduler in CargoMove'}</button>}
           {historyDetail.status==='Approved'&&<button type="button" disabled={!enabled||!!busy} className={reprocessButtonClass} onClick={()=>setConfirmation({action:'resume-reprocess',container:historyDetail.container,payload:{id:historyDetail.id}})}><RefreshCw className="h-4 w-4"/>Resume reprocessing</button>}
         </>}
+        {(recoveryFlow(historyDetail).label==='PROCESSING'||(historyDetail.container_type==='EX'&&!!historyDetail.export_verification&&recoveryFlow(historyDetail).label==='FAIL'))&&['Uploaded','Scheduler Triggered','Processing','Verification Unavailable','Import Verified'].includes(historyDetail.status)&&<button type="button" disabled={!!busy} className={buttonClass} onClick={()=>void action('verify-result',{id:historyDetail.id})}>{historyDetail.container_type==='GP'?'Check GP in CargoMove':'Check container in CargoMove'}</button>}
       </div>
       }>
       <RecoveryDetailsContent recovery={historyDetail}/>
       {recoveryActionError&&<p role="alert" className="mt-3 rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs leading-5 text-rose-700">{recoveryActionError}</p>}
-      {busy&&<p role="status" className="mt-3 flex items-center gap-2 text-xs text-blue-700"><Loader2 className="h-4 w-4 animate-spin"/>{busy==='manual-review'?'Saving manual verification...':busy==='reprocess-upload'?'Uploading approved file…':(busy==='reprocess-verification'||busy==='verify-gp'||busy==='verify-result')?(historyDetail?.container_type==='EX'?'Checking scheduler in CargoMove...':'Checking GP in CargoMove...'):busy==='reprocess-scheduler'?'Requesting Northport processing…':busy==='reprocess-wait'?'File uploaded. Preparing processing request…':'Verifying approval and preparing reprocessing…'}</p>}
+      {busy&&<p role="status" className="mt-3 flex items-center gap-2 text-xs text-blue-700"><Loader2 className="h-4 w-4 animate-spin"/>{busy==='manual-review'?'Saving manual verification...':busy==='reprocess-upload'?'Uploading approved file…':(busy==='reprocess-verification'||busy==='verify-gp'||busy==='verify-result')?((historyDetail?.container_type??activeRecovery.current?.container_type)==='EX'?'Checking export container in CargoMove...':'Checking GP in CargoMove...'):busy==='reprocess-scheduler'?'Requesting Northport processing…':busy==='reprocess-wait'?'File uploaded. Preparing processing request…':'Verifying approval and preparing reprocessing…'}</p>}
       {historyDetail.status==='Approved'&&!enabled&&<p className="mt-2 text-xs text-amber-700">Production uploads are currently disabled.</p>}
     </FileEditorDialog>}
   </div>;

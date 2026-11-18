@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createNorthportHandler } from '../server-handlers/northport/handler.js';
 
 test('history tolerates the missing scheduler evidence column and reports precise schema failures',async()=>{
-  for(const scenario of ['ready','missing-scheduler','missing-manual','missing-search','missing-optional','missing-removal','missing-gp','network'] as const) {
+  for(const scenario of ['ready','missing-export','missing-scheduler','missing-manual','missing-search','missing-optional','missing-removal','missing-gp','network'] as const) {
     const columns:string[]=[];
     const client:any={from:(table:string)=>{
       let selected='';let filtered=false;
@@ -11,7 +11,7 @@ test('history tolerates the missing scheduler evidence column and reports precis
         maybeSingle:async()=>({data:{id:'profile'},error:null}),
         then(resolve:any){
           assert.equal(table,'northport_recoveries');columns.push(selected);
-          const error=(scenario==='missing-removal'||scenario==='missing-optional')&&selected.includes('removed_at')?{code:'42703',message:'column northport_recoveries.removed_at does not exist'}:scenario==='network'?{message:'fetch failed'}
+          const error=scenario==='missing-export'&&selected.includes('export_verification')?{code:'42703',message:'column northport_recoveries.export_verification does not exist'}:(scenario==='missing-removal'||scenario==='missing-optional')&&selected.includes('removed_at')?{code:'42703',message:'column northport_recoveries.removed_at does not exist'}:scenario==='network'?{message:'fetch failed'}
             :(scenario==='missing-manual'||scenario==='missing-optional')&&selected.includes('manual_review')?{code:'42703',message:'column northport_recoveries.manual_review does not exist'}
             :(scenario==='missing-search'||scenario==='missing-optional')&&selected.includes('search_setup')?{code:'42703',message:'column northport_recoveries.search_setup does not exist'}
             :scenario==='missing-gp'?{code:'42703',message:'column northport_recoveries.gp_verification does not exist'}
@@ -29,7 +29,7 @@ test('history tolerates the missing scheduler evidence column and reports precis
       if(scenario==='missing-scheduler') {
         assert.match(response.body.historyWarning,/20261021000000_scheduler_verification_30_seconds.sql/);
         assert.ok(!columns[1].includes('scheduler_run:'));
-      } else if(scenario==='missing-removal'){assert.equal(response.body.historyRemovalEnabled,false);assert.match(response.body.historyWarning,/20261102040000_northport_remove_failed_history.sql/);assert.ok(!columns[1].includes('removed_at'));} else if(scenario==='missing-manual') {assert.equal(response.body.manualReviewEnabled,false);assert.match(response.body.historyWarning,/20261021030000_northport_manual_reviews.sql/);}
+      } else if(scenario==='missing-export'){assert.match(response.body.historyWarning,/20261118010000_northport_export_verification.sql/);assert.ok(!columns[1].includes('export_verification'));} else if(scenario==='missing-removal'){assert.equal(response.body.historyRemovalEnabled,false);assert.match(response.body.historyWarning,/20261102040000_northport_remove_failed_history.sql/);assert.ok(!columns[1].includes('removed_at'));} else if(scenario==='missing-manual') {assert.equal(response.body.manualReviewEnabled,false);assert.match(response.body.historyWarning,/20261021030000_northport_manual_reviews.sql/);}
       else if(scenario==='missing-search'){assert.equal(response.body.manualReviewEnabled,true);assert.match(response.body.historyWarning,/20261021040000_northport_retry_search_setup.sql/);}
       else if(scenario==='missing-optional'){assert.equal(response.body.manualReviewEnabled,false);assert.match(response.body.historyWarning,/20261021040000_northport_retry_search_setup.sql/);assert.ok(!columns[4].includes('manual_review')&&!columns[4].includes('search_setup')&&!columns[4].includes('scheduler_run:'));}
       else {assert.equal(response.body.historyWarning,undefined);assert.equal(response.body.manualReviewEnabled,true);}

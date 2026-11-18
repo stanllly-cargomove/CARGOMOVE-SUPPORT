@@ -168,7 +168,7 @@ try {
     await page.getByRole('button',{name:'Cancel Search',exact:true}).waitFor({state:'hidden'});
     const rows=files.locator('tbody tr');assert.equal(await rows.count(),2,'File results from both batches remain visible');
     assert.equal(await files.getByRole('columnheader',{name:'No. of Record',exact:true}).count(),1);
-    assert.equal(await rows.first().locator('td').nth(4).innerText(),'3','Shows total containers, not the matched record position');
+    assert.equal(await rows.first().locator('td').nth(6).innerText(),'3','Shows total containers, not the matched record position');
     assert.equal(await files.getByText(/records? in file/).count(),0,'Filename has no record-count subtitle');
     assert.match(await rows.first().innerText(),/WHSU5195154/);assert.match(await rows.first().innerText(),/MATCH/);assert.match(await rows.last().innerText(),/NO MATCH/);
     assert.match(await rows.last().locator('td').first().getAttribute('class')??'',/text-center/,'Empty container values are centered');
